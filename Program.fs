@@ -19,34 +19,42 @@ module glyphs =
     let Corner = SpiroNet.SpiroPointType.Corner
     let End = SpiroNet.SpiroPointType.EndOpenContour
 
+    let L = 0
+    let R = 600
+    let C = R / 2
+    let B = 0
+    let X = 600 // x-height
+    let T = 1000
+    let H = T/2 // half
+    let offset = 100
+
     type Point =
-        | TL | TC | TR
+        // Y coordinate: Top,X-height,Half-height,Bottom
+        // X coordinate: Left,Centre,Right
+        // o adds/subtracts an offset to the dimension it follows
+        | TL | TLo | TC | TR
         | ToL | ToC | ToR
         | XL | XC | XR
-        | HL | HC | HR
-        | XoR
-        | BoR
-        | BL | BC | BR
+        | XoL | XoR
+        | HL | HLo | HC | HR
+        | HoR
+        | BoL | BoR
+        | BL | BLo | BC | BR
+        | XY of int * int
         | Mid of p1 : Point * p2 : Point
     
     let rec rewritePoint(p : Point) : int * int = 
-        let L = 0
-        let R = 600
-        let C = R / 2
-        let B = 0
-        let X = 600 // x-height
-        let T = 1000
-        let H = T/2 // half
-        let offset = 100
 
         match p with
-        | TL -> (L, T) | TC -> (C, T) | TR -> (R, T)
+        | TL -> (L, T) | TLo -> (L+offset, T) | TC -> (C, T) | TR -> (R, T)
         | ToL -> (L, T-offset) | ToC -> (C, T-offset) | ToR -> (R, T-offset)
         | XL -> (L, X) | XC -> (C, X) | XR -> (R, X)
-        | XoR -> (R, X-offset)
-        | HL -> (L, H) | HC -> (C, H) | HR -> (R, H)
-        | BoR -> (R, B+offset)
-        | BL -> (L, B) | BC -> (C, B) | BR -> (R, B)
+        | XoL -> (L, X-offset) | XoR -> (R, X-offset)
+        | HL -> (L, H) | HLo -> (L+offset, H) | HC -> (C, H) | HR -> (R, H)
+        | HoR -> (R, H-offset)
+        | BoL -> (L, B+offset) | BoR -> (R, B+offset)
+        | BL -> (L, B) | BLo -> (L+offset, B) | BC -> (C, B) | BR -> (R, B)
+        | XY(x,y) -> (x, y)
         | Mid(p1, p2) -> ((fst(rewritePoint(p1))+fst(rewritePoint(p2)))/2,
                           (snd(rewritePoint(p1))+snd(rewritePoint(p2)))/2)
 
@@ -56,13 +64,7 @@ module glyphs =
         | PolyLine of list<Point>
         | OpenCurve of list<Point * SpiroNet.SpiroPointType>
         | ClosedCurve of list<SCP>
-        | LeftUprightFull
-        | RightUpright
-        | TopCircle
-        | BottomCircle
-        | TopDot
-        | BottomDot
-        | Multi of e1 : Element * e2 : Element
+        | Scale of Element * float
 
     //Straights: AEFHIKLMNTVWXYZklvwxyz147/=[]\`|*"'
     //Dots: ij:;!?
@@ -85,36 +87,29 @@ module glyphs =
                                                     -> SCP(X=float(fst(rewritePoint(p))), Y=float(snd(rewritePoint(p))),Type=t))
                                               curvePoints]
         //| ClosedCurve(points) -> [[]]
-        | LeftUprightFull -> rewriteElement(Line(BL, TL))
-        //| RightUpright
-        //| TopCircle
-        //| BottomCircle
-        //| TopDot
-        //| BottomDot
-        | Multi(e1, e2) -> rewriteElement(e1) @ rewriteElement(e2)
+        | Scale(e, s) -> [ for el in re(e) do yield [ for scp in el do yield SCP(X=scp.X*s, Y=scp.Y*s, Type=scp.Type)]]
 
-        | Glyph('A') -> re(PolyLine([BL; TC; BR])) @ re(Line(HL, HR))
+        | Glyph('A') -> re(PolyLine([BL; TC; BR])) @ re(Line(XY(L,T-X), XY(R,T-X)))
         | Glyph('a') -> re(Line(XR, BR)) @
                         re(OpenCurve([(XoR, Start); (XC, G2); (Mid(XL, BL), G2); (BC, G2); (BoR, End);] ))
-        | Glyph('P') -> re(LeftUprightFull) @ 
-                        re(OpenCurve([(TL, Corner); (TC, G2); (Mid(TR, HR), G2); (HC, LeftCurve); (HL, End)]))
-        | Glyph('B') -> re(Glyph('P')) @ re(OpenCurve([(HL, Corner); (HC, G2); (Mid(HR, BR), G2); (BC, LeftCurve); (BL, End)]))
-        | LeftUprightFull -> re(Line(BL, XL))
+        | Glyph('B') -> re(Glyph('P')) @ re(OpenCurve([(HL, Corner); (HC, RightCurve); (Mid(HR, BR), G2); (BC, LeftCurve); (BL, End)]))
+        | Glyph('b') -> re(Line(BL, TL)) @ re(OpenCurve([(XoL, Start); (XC, G2); (Mid(XR, BR), G2); (BC, G2); (BoL, End)]))
+        | Glyph('C') -> re(OpenCurve([(ToR, Start); (TC, G2); (HL, G2); (BC, G2); (BoR, End)]));
+        //| Glyph('c') -> re(Scale(OpenCurve([(ToR, Start); (TC, G2); (HL, G2); (BC, G2); (BoR, End)]), float(X)/float(T)));
+        | Glyph('c') -> re(OpenCurve([(XoR, Start); (XC, G2); (Mid(XL,BL), G2); (BC, G2); (BoR, End)]));
+        | Glyph('D') -> re(Line(BL, TL)) @ 
+                        re(OpenCurve([(TL, Corner); (TLo, RightCurve); (HR, G2); (BLo, LeftCurve); (BL, End)]))
+        | Glyph('d') -> re(Line(BR, TR)) @ re(OpenCurve([(XoR, Start); (XC, G2); (Mid(XL, BL), G2); (BC, G2); (BoR, End)])) // or flip b
+        | Glyph('E') -> re(PolyLine([TR; TL; BL; BR])) @ re(Line(HL, HR))
+        | Glyph('e') -> re(OpenCurve([(Mid(XL,BL), Start); (Mid(XR,BR), Corner); (XC, G2); (Mid(XL,BL), G2); (BC, G2); (BoR, End)]));
 
-        //| 'a' -> [
-        //    Line("backbone", [(w,0.0); (w,xh)])
-        //    Spiro("curve", [
-        //        SCP(X=w, Y=xh*0.8, Type=G2)
-        //        SCP(X=w*0.7, Y=xh, Type=G2)
-        //        SCP(X=0.0, Y=xh*0.5, Type=G2)
-        //        SCP(X=w*0.6, Y=0.0, Type=G2)
-        //        SCP(X=w, Y=xh*0.2, Type=End)
-        //    ])
-        //]
+
+        | Glyph('P') -> re(Line(BL, TL)) @ 
+                        re(OpenCurve([(TL, Corner); (TC, RightCurve); (Mid(TR, HR), G2); (HC, LeftCurve); (HL, End)]))
 
 let toSvgXml(svg: string) =
     "<svg xmlns='http://www.w3.org/2000/svg' \
-        viewBox='0 0 2000 3000' \
+        viewBox='0 0 8000 1500' \
     > \
       <g id='layer1'>" +
         "<path d='" + svg + "' " +
@@ -127,10 +122,10 @@ let toSvgXml(svg: string) =
 [<EntryPoint>]
 let main argv =
     let svg = [
-        let chars = "AaPB"
+        let chars = "AaBbCcDdEe"
         for i in 0 .. (chars.Length - 1) do
             let c = chars.[i]
-            printfn
+            printfn ""
             printfn "%c" c
             let ell = glyphs.rewriteElement(glyphs.Glyph(c))
             let svg : list<string> = [
@@ -138,7 +133,7 @@ let main argv =
                     let segments = SpiroNet.Spiro.SpiroCPsToSegments(Array.ofList el, el.Length, isClosed=false)
                     printfn "%A" (el, segments)
                     let bc = SpiroNet.Editor.PathBezierContext()
-                    let success = SpiroNet.Spiro.SpiroCPsToBezier(Array.ofList el, el.Length, false, bc, float(i*650), 0.0)
+                    let success = SpiroNet.Spiro.SpiroCPsToBezier(Array.ofList el, el.Length, false, bc, float(i*700), 0.0)
                     yield bc.ToString()]
             yield String.Join("\n", svg)
     ]
