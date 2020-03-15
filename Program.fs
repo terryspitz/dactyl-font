@@ -96,19 +96,19 @@ module glyphs =
         match e with
         | Glyph('A') -> let Y, f = T-X, float(T-X)/float(T)
                         List([PolyLine([BL; TC; BR]); Line(Interp(BL,TC,f), Interp(BR,TC,f))])
-        | Glyph('a') -> List([Line(XR, BR); OpenCurve([(XoR, Start); (XC, G2); (Mid(XL, BL), G2); (BC, G2); (BoR, End)])])
+        | Glyph('a') -> List([Line(XR, BR); Glyph('c')])
         | Glyph('B') -> List([Glyph('P'); OpenCurve([(HL, Corner); (HC, LineToCurve); (Mid(HR, BR), G2); (BC, CurveToLine); (BL, End)])])
         | Glyph('b') -> List([Line(BL, TL); OpenCurve([(XoL, Start); (XC, G2); (MR, G2); (BC, G2); (BoL, End)])])
         | Glyph('C') -> OpenCurve([(ToR, Start); (TC, G2); (HL, G2); (BC, G2); (BoR, End)])
         | Glyph('c') -> OpenCurve([(XoR, Start); (XC, G2); (ML, G2); (BC, G2); (BoR, End)])
         | Glyph('D') -> List([Line(BL, TL); OpenCurve([(TL, Corner); (TLo, LineToCurve); (HR, G2); (BLo, CurveToLine); (BL, End)])])
-        | Glyph('d') -> List([Line(BR, TR); OpenCurve([(XoR, Start); (XC, G2); (Mid(XL, BL), G2); (BC, G2); (BoR, End)])]) // or flip b
+        | Glyph('d') -> List([Line(BR, TR); Glyph('c')]) // or flip b
         | Glyph('E') -> List([PolyLine([TR; TL; BL; BR]); Line(HL, HR)])
         | Glyph('e') -> List([OpenCurve([(ML, Start); (MR, Corner); (XC, G2); (ML, G2); (BC, G2); (BoR, End)])])
         | Glyph('F') -> List([PolyLine([TR; TL; BL]); Line(HL, HR)])
         | Glyph('f') -> List([OpenCurve([(TC, Start); (XL, CurveToLine); (BL, End)]); Line(XL, XC)])
         | Glyph('G') -> OpenCurve([(ToR, G2); (TC, G2); (HL, G2); (BC, G2); (Mid(BR,HR), CurveToLine); (HR, Corner); (HC, End)])
-        | Glyph('g') -> List([OpenCurve([(XoR, Start); (XC, G2); (Mid(XL, BL), G2); (BC, G2); (BoR, End)]);
+        | Glyph('g') -> List([Glyph('c');
                               OpenCurve([(XR, Corner); (BR, LineToCurve); (DC, G2); (Mid(BL, DL), End)])])
         | Glyph('H') -> List([Line(BL, TL); Line(HL, HR); Line(BR, TR)])
         | Glyph('h') -> List([Line(BL, TL); OpenCurve([(XoL, Start); (XC, G2); (MR, CurveToLine); (BR, End)])])
@@ -196,7 +196,7 @@ module glyphs =
         | ClosedCurve(curvePoints) -> [SpiroClosedCurve([
                                         for p, t in curvePoints do
                                             yield SCP(X=float(fst(getXY(p))), Y=float(snd(getXY(p))),Type=t)]
-                                        @ [SCP(X=0.0, Y=0.0, Type=EndClosed)])] // append as per http://libspiro.sourceforge.net/
+                                        )]//@ [SCP(X=0.0, Y=0.0, Type=EndClosed)])] // append as per http://libspiro.sourceforge.net/
         | Dot(p) -> [SpiroDot(p)]
         | List(el) -> List.collect elementToSpiros (List.map getGlyph el)
 
@@ -210,11 +210,11 @@ module glyphs =
         let spiros = elementToSpiros(e)
         let offsetPoints(segments : list<SpiroSegment>) : list<Point * Point> =
             [for seg in segments do
-                (YX(int(seg.Y),int(seg.X)),
-                 YX(int(seg.Y),int(seg.X)))
-                 //YX(int(seg.Y-float(thickness,int(seg.X-float(thickness)*cos(seg.seg_th)))*sin(seg.seg_th))))
+                let offsetX, offsetY = float(thickness)*sin(seg.seg_th), float(thickness)*cos(seg.seg_th)
+                (YX(int(seg.Y-offsetX), int(seg.X-offsetY)),
+                 YX(int(seg.Y+offsetX), int(seg.X+offsetY)))
             ]
-        let spiroToElements(spiro : SpiroElement) : list<Element> =
+        let spiroToOffsetElement(spiro : SpiroElement) : list<Element> =
             match spiro with
             | SpiroOpenCurve(scps) ->
                 let segments = SpiroNet.Spiro.SpiroCPsToSegments(Array.ofList scps, scps.Length, false)
@@ -224,14 +224,14 @@ module glyphs =
                 [OpenCurve(List.ofSeq(Seq.zip (Seq.ofList inner) types));
                         OpenCurve(List.ofSeq(Seq.zip (Seq.ofList outer) types))]
             | SpiroClosedCurve(scps) ->
-                let segments = SpiroNet.Spiro.SpiroCPsToSegments(Array.ofList scps, scps.Length-1, true)
+                let segments = SpiroNet.Spiro.SpiroCPsToSegments(Array.ofList scps, scps.Length, true)
                 let points = offsetPoints(List.ofArray segments)
                 let outer, inner = List.map fst points, List.map snd points
                 let types = Array.map (fun (s : SpiroSegment) -> s.Type) segments
-                [OpenCurve(List.ofSeq(Seq.zip (Seq.ofList inner) types));
-                        OpenCurve(List.ofSeq(Seq.zip (Seq.ofList outer) types))]
+                [ClosedCurve(List.ofSeq(Seq.zip (Seq.ofList inner) types));
+                        ClosedCurve(List.ofSeq(Seq.zip (Seq.ofList outer) types))]
             | SpiroDot(p) -> [Dot(p)]
-        List(List.collect spiroToElements spiros)
+        List(List.collect spiroToOffsetElement spiros)
 
     let getSvg(spiros : list<SpiroElement>, offsetX : float, offsetY : float) : string =
         let toSvg(spiro : SpiroElement) : string = 
@@ -242,7 +242,7 @@ module glyphs =
                 bc.ToString()
             | SpiroClosedCurve(scps) ->
                 let bc = SpiroNet.Editor.PathBezierContext()
-                let success = SpiroNet.Spiro.SpiroCPsToBezier(Array.ofList scps, scps.Length-1, true, bc, offsetX, offsetY)
+                let success = SpiroNet.Spiro.SpiroCPsToBezier(Array.ofList scps, scps.Length, true, bc, offsetX, offsetY)
                 bc.ToString()
             | SpiroDot(p) -> let x, y = getXY(p)
                              let xx, yy = x+int(offsetX), y+int(offsetY)
@@ -270,11 +270,18 @@ let toSvgXml(svg: string) =
 let main argv =
     //let chars = [ for c in 'A'..'Z' -> c ] @ [ for c in  'a'..'z' -> c ]
     let chars = "THEQUICKBROWNFOXJUMPSOVERTHELAZYDOGthequickbrownfoxjumpsoverthelazydog"
+    //let chars = "The truth is in there,  don't let it out"
+    //let chars = "acCaCcac"
     let charToSvg(c : char, i : int) : string =
         let offsetX, offsetY = float((i%12)*800), float(5500-(i/12)*1100)
-        let segments = glyphs.getOutlines(glyphs.Glyph(c))
-        let spiros = glyphs.elementToSpiros(segments)
-        glyphs.getSvg(spiros, offsetX, offsetY)
+        let calcOutlines = false
+        if calcOutlines then
+            let segments = glyphs.getOutlines(glyphs.Glyph(c))
+            let spiros = glyphs.elementToSpiros(segments)
+            glyphs.getSvg(spiros, offsetX, offsetY)
+        else        
+            let spiros = glyphs.elementToSpiros(glyphs.Glyph(c))
+            glyphs.getSvg(spiros, offsetX, offsetY)
     let svg = [
         for i in 0 .. (chars.Length - 1) do
             let c = chars.[i]
