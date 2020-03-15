@@ -9,7 +9,7 @@ module glyphs =
     // Variables
     let L = 0       // Left
     let R = 600     // Right = standard glyph width
-    let N = R*3/4   // Narrow glyph width
+    let N = R*4/5   // Narrow glyph width
     let C = R / 2   // Centre
     let B = 0       // Bottom
     let X = 600     // x-height
@@ -22,14 +22,14 @@ module glyphs =
 
     type Point =
         // Raw coordinates
-        | XY of x: int * y: int
+        | YX of y: int * x: int
 
         // Y coordinate: Top,X-height,Half-height,Bottom
         // X coordinate: Left,Centre,Right
         // o adds/subtracts an offset to the dimension it follows
         | TL | TLo | TC | TR        // Top points: Left, Left offset inward, Centre, Right
         | ToL | ToC | ToR           // Top offset down
-        | XL | XC | XR              // x-height
+        | XL | XLo | XC | XRo | XR        // x-height
         | XoL | XoC | XoR           // x-height offset down
         | ML | MC | MR              // Midway down from x-height
         | HL | HLo | HC | HR        // half glyph height
@@ -38,27 +38,32 @@ module glyphs =
         | BL | BLo | BC | BRo | BR  // Bottom
         | DoL                       // Descender offset up
         | DL | DC | DR              // Descender
+        | BN | BoN | HN | XoN | XN | TN         // Narrow width points
         | Mid of p1 : Point * p2 : Point
+        | Interp of p1 : Point * p2 : Point * frac : float
+
     
     let rec rewritePoint(p : Point) : Point = 
         match p with
-        | XY(x,y) -> XY(x, y)
-        | TL -> XY(L, T) | TLo -> XY(L+offset, T) | TC -> XY(C, T) | TR -> XY(R, T)
-        | ToL -> XY(L, T-offset) | ToC -> XY(C, T-offset) | ToR -> XY(R, T-offset)
-        | XL -> XY(L, X) | XC -> XY(C, X) | XR -> XY(R, X)
-        | XoL -> XY(L, X-offset) | XoC -> XY(C, X-offset) | XoR -> XY(R, X-offset)
-        | ML -> XY(L, M) | MC -> XY(C, M) | MR -> XY(R, M)
-        | HL -> XY(L, H) | HLo -> XY(L+offset, H) | HC -> XY(C, H) | HR -> XY(R, H)
-        | HoR -> XY(R, H-offset)
-        | BoL -> XY(L, B+offset) | BoC -> XY(C, B+offset) | BoR -> XY(R, B+offset)
-        | BL -> XY(L, B) | BLo -> XY(L+offset, B) | BC -> XY(C, B) | BRo -> XY(R-offset, B) | BR -> XY(R, B)
-        | DoL -> XY(L, D+offset)
-        | DL -> XY(L, D) | DC -> XY(C, D) | DR -> XY(R, D)
-        | Mid(p1, p2) -> let x1, y1 = getXY(p1) in let x2, y2 = getXY(p2)
-                         XY((x1+x2)/2, (y1+y2)/2)
+        | YX(y,x) -> YX(y,x)
+        | TL -> YX(T,L) | TLo -> YX(T,L+offset) | TC -> YX(T,C) | TR -> YX(T,R)
+        | ToL -> YX(T-offset,L) | ToC -> YX(T-offset,C) | ToR -> YX(T-offset,R)
+        | XL -> YX(X,L) | XLo -> YX(X,L+offset) | XC -> YX(X,C) | XRo -> YX(X,R-offset) | XR -> YX(X,R)
+        | XoL -> YX(X-offset,L) | XoC -> YX(X-offset,C) | XoR -> YX(X-offset,R)
+        | ML -> YX(M,L) | MC -> YX(M,C) | MR -> YX(M,R)
+        | HL -> YX(H,L) | HLo -> YX(H,L+offset) | HC -> YX(H,C) | HR -> YX(H,R)
+        | HoR -> YX(H-offset,R)
+        | BoL -> YX(B+offset,L) | BoC -> YX(B+offset,C) | BoR -> YX(B+offset,R)
+        | BL -> YX(B,L) | BLo -> YX(B,L+offset) | BC -> YX(B,C) | BRo -> YX(B,R-offset) | BR -> YX(B,R)
+        | DoL -> YX(D+offset,L)
+        | DL -> YX(D,L) | DC -> YX(D,C) | DR -> YX(D,R)
+        | BN -> YX(B,N) | BoN -> YX(B+offset,N) | HN -> YX(H,N) | XoN -> YX(X-offset,N) | XN -> YX(X,N) | TN -> YX(T,N)
+        | Mid(p1, p2) -> rewritePoint(Interp(p1, p2, 0.5))
+        | Interp(p1, p2, f) -> let x1, y1 = getXY(p1) in let x2, y2 = getXY(p2)
+                               YX(y1+int(float(y2-y1)*f), x1+int(float(x2-x1)*f))
     and getXY(p : Point) : int * int =
         match rewritePoint(p) with 
-            XY(x, y) -> (x, y)
+            YX(y,x) -> (x, y)
 
     type SCP = SpiroNet.SpiroControlPoint
     let CurveToLine = SpiroNet.SpiroPointType.Left
@@ -89,19 +94,19 @@ module glyphs =
 
     let rec getGlyph (e: Element) : Element =
         match e with
-        | Glyph('A') -> List([PolyLine([BL; TC; BR]); Line(XY(L,T-X), XY(R,T-X))])
+        | Glyph('A') -> let Y, f = T-X, float(T-X)/float(T)
+                        List([PolyLine([BL; TC; BR]); Line(Interp(BL,TC,f), Interp(BR,TC,f))])
         | Glyph('a') -> List([Line(XR, BR); OpenCurve([(XoR, Start); (XC, G2); (Mid(XL, BL), G2); (BC, G2); (BoR, End)])])
         | Glyph('B') -> List([Glyph('P'); OpenCurve([(HL, Corner); (HC, LineToCurve); (Mid(HR, BR), G2); (BC, CurveToLine); (BL, End)])])
         | Glyph('b') -> List([Line(BL, TL); OpenCurve([(XoL, Start); (XC, G2); (MR, G2); (BC, G2); (BoL, End)])])
         | Glyph('C') -> OpenCurve([(ToR, Start); (TC, G2); (HL, G2); (BC, G2); (BoR, End)])
-        //| Glyph('c') -> Scale(OpenCurve([(ToR, Start); (TC, G2); (HL, G2); (BC, G2); (BoR, End)]), float(X)/float(T)));
         | Glyph('c') -> OpenCurve([(XoR, Start); (XC, G2); (ML, G2); (BC, G2); (BoR, End)])
         | Glyph('D') -> List([Line(BL, TL); OpenCurve([(TL, Corner); (TLo, LineToCurve); (HR, G2); (BLo, CurveToLine); (BL, End)])])
         | Glyph('d') -> List([Line(BR, TR); OpenCurve([(XoR, Start); (XC, G2); (Mid(XL, BL), G2); (BC, G2); (BoR, End)])]) // or flip b
         | Glyph('E') -> List([PolyLine([TR; TL; BL; BR]); Line(HL, HR)])
         | Glyph('e') -> List([OpenCurve([(ML, Start); (MR, Corner); (XC, G2); (ML, G2); (BC, G2); (BoR, End)])])
         | Glyph('F') -> List([PolyLine([TR; TL; BL]); Line(HL, HR)])
-        | Glyph('f') -> List([OpenCurve([(TC, Start); (XL, CurveToLine); (BL, End)]); Line(HL, HC)])
+        | Glyph('f') -> List([OpenCurve([(TC, Start); (XL, CurveToLine); (BL, End)]); Line(XL, XC)])
         | Glyph('G') -> OpenCurve([(ToR, G2); (TC, G2); (HL, G2); (BC, G2); (Mid(BR,HR), CurveToLine); (HR, Corner); (HC, End)])
         | Glyph('g') -> List([OpenCurve([(XoR, Start); (XC, G2); (Mid(XL, BL), G2); (BC, G2); (BoR, End)]);
                               OpenCurve([(XR, Corner); (BR, LineToCurve); (DC, G2); (Mid(BL, DL), End)])])
@@ -110,21 +115,21 @@ module glyphs =
         | Glyph('I') -> Line(BC, TC)
         | Glyph('i') -> List([Line(XC, BC)
                               Dot(Mid(XC, TC))])
-        | Glyph('J') -> List([Line(TL, XY(R+offset,T))
+        | Glyph('J') -> List([Line(TL, YX(T,R+offset))
                               OpenCurve([(TR, Corner); (HR, LineToCurve); (BC, G2); (BoL, End)])])
         | Glyph('j') -> List([OpenCurve([(XR, Corner); (BR, LineToCurve); (DC, G2); (DoL, End)])
                               Dot(Mid(XR, TR))])
         | Glyph('K') -> List([Line(TL, BL); PolyLine([TR; HL; BR])])
-        | Glyph('k') -> List([Line(TL, BL); PolyLine([XY(N,X); ML; XY(N,B)])])
+        | Glyph('k') -> List([Line(TL, BL); PolyLine([YX(X,N); ML; YX(B,N)])])
         | Glyph('L') -> PolyLine([TL; BL; BR])
         | Glyph('l') -> OpenCurve([(TL, Corner); (ML, LineToCurve); (BC, G2)])
-        | Glyph('M') -> PolyLine([BL; TL; BR; XY(R+R,T); XY(R+R,B)])
-        | Glyph('m') -> List([Line(BL,XL); OpenCurve([(XoL, Start); (Mid(XL,XC), G2); (XoC, CurveToLine); (BC, End)]);
-                              OpenCurve([(XoC, Start); (Mid(XC,XR), G2); (XoR, CurveToLine); (BR, End)])])
+        | Glyph('M') -> PolyLine([BL; TL; BR; YX(T,R+R); YX(B,R+R)])
+        | Glyph('m') -> List([Glyph('n');
+                              OpenCurve([(YX(M,N), Start); (YX(X,N+N/2), G2); (YX(M,N+N), CurveToLine); (YX(B,N+N), End)])])
         | Glyph('N') -> PolyLine([BL; TL; BR; TR])
         | Glyph('n') -> List([Line(XL,BL)
-                              OpenCurve([(XoL, Start); (XC, G2); (MR, CurveToLine); (BR, End)])])
-        | Glyph('O') -> ClosedCurve([(TC, G2); (HL, G2); (BC, G2); (HR, G2)])
+                              OpenCurve([(XoL, Start); (XC, G2); (YX(M,N), CurveToLine); (BN, End)])])
+        | Glyph('O') -> ClosedCurve([(HL, G2); (BC, G2); (HR, G2); (TC, G2)])
         | Glyph('o') -> ClosedCurve([(XC, G2); (ML, G2); (BC, G2); (Mid(HR,BR), G2)])
         | Glyph('P') -> List([Line(TL, BL)
                               OpenCurve([(TL, Corner); (TC, LineToCurve); (Mid(TR, HR), G2); (HC, CurveToLine); (HL, End)])])
@@ -136,19 +141,23 @@ module glyphs =
                               OpenCurve([(TL, Corner); (TC, LineToCurve); (Mid(TR, HR), G2); (HC, CurveToLine); (HL, End)])
                               Line(HC, BR)])
         | Glyph('r') -> List([Line(BL,XL)
-                              OpenCurve([(XoL, Start); (XC, G2); (XoR, End)])])
+                              OpenCurve([(XoL, Start); (XC, G2); (XoN, End)])])
         | Glyph('S') -> OpenCurve([(ToR, G2); (TC, G2); (Mid(TL,HL), G2); (HC, G2); (Mid(HR,BR), G2); (BC, G2); (BoL, End)])
-        | Glyph('s') -> let X2=X/2
-                        OpenCurve([(XoR, G2); (XC, G2); (XoL, G2); (XY(C,X2), G2); (BoR, G2); (BC, G2); (BoL, End)])
+        | Glyph('s') -> let X14, X2, X34, offsetX, offsetY = X/4, X/2, X*3/4, N/16, X/6
+                        OpenCurve([(YX(X34,N), Start); (YX(X34, L+offsetX), G2); (YX(X2+offsetY,L+offsetX), G2);
+                                   (YX(X2-offsetY,N-offsetX), G2); (YX(X14,N-offsetX), G2); (YX(X14,L), End)])
+        // | Glyph('s') -> let X14, X2, X34 = X/4, X/2, X*3/4
+        //                 OpenCurve([(YX(X34,R), G2); (XRo, G2); (XLo, G2); (YX(X34,L), G2); //(YX(X2,C),G2);
+        //                            (YX(X14,R), G2); (BLo, G2); (YX(X14,L), End)])
         | Glyph('T') -> List([Line(TL, TR); Line(TC, BC)])
         | Glyph('t') -> List([Glyph('l'); Line(XL,XC)])
         | Glyph('U') -> OpenCurve([(TL, Corner); (HL, LineToCurve); (BC, G2); (HR, CurveToLine); (TR, End)])
-        | Glyph('u') -> List([Line(BR,XR)
-                              OpenCurve([(BoR, Start); (BC, G2); (ML, CurveToLine); (XL, End)])])
+        | Glyph('u') -> List([Line(BN,XN)
+                              OpenCurve([(BoN, Start); (BC, G2); (ML, CurveToLine); (XL, End)])])
         | Glyph('V') -> PolyLine([TL; BC; TR])
         | Glyph('v') -> PolyLine([XL; BC; XR])
-        | Glyph('W') -> PolyLine([TL; BC; TR; XY(R+R/2,B); XY(R+R,T)])
-        | Glyph('w') -> PolyLine([XL; BC; XR; XY(R+R/2,B); XY(R+R,X)])
+        | Glyph('W') -> PolyLine([TL; BC; TR; YX(B,R+R/2); YX(T,R+R)])
+        | Glyph('w') -> PolyLine([XL; YX(B,N/2); XN; YX(B,N+N/2); YX(X,N+N)])
         | Glyph('X') -> List([Line(TL,BR); Line(TR,BL)])
         | Glyph('x') -> List([Line(XL,BR); Line(XR,BL)])
         | Glyph('Y') -> List([PolyLine([TL; HC; TR]); Line(HC,BC)])
@@ -196,14 +205,14 @@ module glyphs =
         //    let X = if x < float(L)/2.0 then x/( + thickness
         //            else x
         //    let Y = y
-        //    XY(int(X),int(Y))
+        //    YX(int(Y,int(X)))
 
         let spiros = elementToSpiros(e)
         let offsetPoints(segments : list<SpiroSegment>) : list<Point * Point> =
             [for seg in segments do
-                (XY(int(seg.X), int(seg.Y)),
-                 XY(int(seg.X), int(seg.Y)))
-                 //XY(int(seg.X-float(thickness)*cos(seg.seg_th)), int(seg.Y-float(thickness)*sin(seg.seg_th))))
+                (YX(int(seg.Y),int(seg.X)),
+                 YX(int(seg.Y),int(seg.X)))
+                 //YX(int(seg.Y-float(thickness,int(seg.X-float(thickness)*cos(seg.seg_th)))*sin(seg.seg_th))))
             ]
         let spiroToElements(spiro : SpiroElement) : list<Element> =
             match spiro with
@@ -259,7 +268,8 @@ let toSvgXml(svg: string) =
 
 [<EntryPoint>]
 let main argv =
-    let chars = [ for c in 'A'..'Z' -> c ] @ [ for c in  'a'..'z' -> c ]
+    //let chars = [ for c in 'A'..'Z' -> c ] @ [ for c in  'a'..'z' -> c ]
+    let chars = "THEQUICKBROWNFOXJUMPSOVERTHELAZYDOGthequickbrownfoxjumpsoverthelazydog"
     let charToSvg(c : char, i : int) : string =
         let offsetX, offsetY = float((i%12)*800), float(5500-(i/12)*1100)
         let segments = glyphs.getOutlines(glyphs.Glyph(c))
