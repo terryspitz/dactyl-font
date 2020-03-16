@@ -18,7 +18,7 @@ module glyphs =
     let H = T/2     // Half total height
     let D = -500    // descender height
     let offset = 150  // offset from corners
-    let thickness = 150.0
+    let thickness = 100.0
 
     type Point =
         // Raw coordinates
@@ -188,6 +188,13 @@ module glyphs =
     | SpiroClosedCurve of list<SCP>
     | SpiroDot of Point
 
+    let rec width(e: Element) : int =
+        match reduce(e) with
+        | OpenCurve(curvePoints) -> List.fold max 0 (List.map (fst >> getXY >> fst) curvePoints)
+        | ClosedCurve(curvePoints) -> List.fold max 0 (List.map (fst >> getXY >> fst) curvePoints)
+        | Dot(p) -> fst(getXY(p))
+        | List(el) -> List.fold max 0 (List.map width el)
+
     let rec elementToSpiros(e: Element) : list<SpiroElement> =
         match reduce(e) with
         | OpenCurve(curvePoints) -> [SpiroOpenCurve([
@@ -195,41 +202,42 @@ module glyphs =
                                             yield SCP(X=float(fst(getXY(p))), Y=float(snd(getXY p)),Type=t)])]
         | ClosedCurve(curvePoints) -> [SpiroClosedCurve([
                                         for p, t in curvePoints do
-                                            yield SCP(X=float(fst(getXY(p))), Y=float(snd(getXY(p))),Type=t)]
-                                        )]//@ [SCP(X=0.0, Y=0.0, Type=EndClosed)])] // append as per http://libspiro.sourceforge.net/
+                                            yield SCP(X=float(fst(getXY(p))), Y=float(snd(getXY(p))),Type=t)])]
         | Dot(p) -> [SpiroDot(p)]
-        | List(el) -> List.collect elementToSpiros (List.map getGlyph el)
+        | List(el) -> List.collect elementToSpiros (List.map getGlyph el)  //TODO
 
     let getOutlines(e : Element) : Element = 
-        //let offsetPoint(x : float, y : float) : Point =
-        //    let X = if x < float(L)/2.0 then x/( + thickness
-        //            else x
-        //    let Y = y
-        //    YX(int(Y,int(X)))
-
         let spiros = elementToSpiros(e)
-        let offsetPoints(segments : list<SpiroSegment>) : list<Point * Point> =
-            [for seg in segments do
-                let offsetX, offsetY = float(thickness)*sin(seg.seg_th), float(thickness)*cos(seg.seg_th)
-                (YX(int(seg.Y-offsetX), int(seg.X-offsetY)),
-                 YX(int(seg.Y+offsetX), int(seg.X+offsetY)))
-            ]
+        let offsetPoint(X: float, Y: float, theta: float) =
+            let offsetX, offsetY = float(thickness)*sin(theta), float(thickness)*cos(theta)
+            YX(int(Y+offsetX), int(X+offsetY))
+        let offsetMidSegments(segments : list<SpiroSegment>, reverse : bool) : list<Point * SpiroPointType> =
+            [for i in 1 .. segments.Length-2 do
+             let seg, angle = segments.[i], if reverse then -Math.PI/2.0 else Math.PI/2.0
+             let lastSeg = segments.[i-1]
+             let norm(x:float) = if x>Math.PI then x-Math.PI*2.0 else if x<(-Math.PI) then x+Math.PI*2.0 else x
+             let th1, th2 = norm(lastSeg.seg_th + angle), norm(seg.seg_th + angle)
+             (offsetPoint(seg.X, seg.Y, th1 + norm(th2 - th1)/2.0), seg.Type)]
         let spiroToOffsetElement(spiro : SpiroElement) : list<Element> =
             match spiro with
             | SpiroOpenCurve(scps) ->
+                let reverseList list = List.fold (fun acc elem -> elem::acc) [] list
+                let startCap(seg: SpiroSegment)=
+                    [(offsetPoint(seg.X, seg.Y, seg.seg_th-Math.PI/2.0), Corner);
+                     (offsetPoint(seg.X, seg.Y, seg.seg_th+Math.PI/2.0), Corner)]
+                let endCap(seg: SpiroSegment, lastSeg: SpiroSegment) = 
+                    [(offsetPoint(seg.X, seg.Y, lastSeg.seg_th+Math.PI/2.0), Corner);
+                     (offsetPoint(seg.X, seg.Y, lastSeg.seg_th-Math.PI/2.0), Corner)]
                 let segments = SpiroNet.Spiro.SpiroCPsToSegments(Array.ofList scps, scps.Length, false)
-                let points = offsetPoints(List.ofArray segments)
-                let outer, inner = List.map fst points, List.map snd points
-                let types = Array.map (fun (s : SpiroSegment) -> s.Type) segments
-                [OpenCurve(List.ofSeq(Seq.zip (Seq.ofList inner) types));
-                        OpenCurve(List.ofSeq(Seq.zip (Seq.ofList outer) types))]
+                let points = offsetMidSegments(List.ofArray segments, false)
+                             @ endCap(segments.[segments.Length-1], segments.[segments.Length-2])
+                             @ reverseList(offsetMidSegments(List.ofArray segments, true))
+                             @ startCap(segments.[0])
+                [ClosedCurve(points)]
             | SpiroClosedCurve(scps) ->
-                let segments = SpiroNet.Spiro.SpiroCPsToSegments(Array.ofList scps, scps.Length, true)
-                let points = offsetPoints(List.ofArray segments)
-                let outer, inner = List.map fst points, List.map snd points
-                let types = Array.map (fun (s : SpiroSegment) -> s.Type) segments
-                [ClosedCurve(List.ofSeq(Seq.zip (Seq.ofList inner) types));
-                        ClosedCurve(List.ofSeq(Seq.zip (Seq.ofList outer) types))]
+                let segments = List.ofArray(Spiro.SpiroCPsToSegments(Array.ofList scps, scps.Length, true))
+                [ClosedCurve(offsetMidSegments(segments, false));
+                 ClosedCurve(offsetMidSegments(segments, true))]
             | SpiroDot(p) -> [Dot(p)]
         List(List.collect spiroToOffsetElement spiros)
 
@@ -255,33 +263,31 @@ module glyphs =
 
     //end module
 
-let toSvgXml(svg: string) =
-    "<svg xmlns='http://www.w3.org/2000/svg' \
+let toSvgPath(strokeWidth: int, svg: string) =
+    sprintf "<path d='%s' style='fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:%d' \
+                transform='scale(1,-1) translate(0,-6900)' />" svg strokeWidth
+let toSvgXml(path: string) =
+    sprintf "<svg xmlns='http://www.w3.org/2000/svg' \
         viewBox='0 0 8000 7000' > \
-      <g id='layer1'>" +
-        "<path d='" + svg + "' " +
-            "style='fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:50' \
-             transform='scale(1,-1) translate(0,-6900)' \
-         />
-      </g> \
-    </svg>" 
+      <g id='layer1'> %s </g> \
+    </svg>" path
 
 [<EntryPoint>]
 let main argv =
     //let chars = [ for c in 'A'..'Z' -> c ] @ [ for c in  'a'..'z' -> c ]
     let chars = "THEQUICKBROWNFOXJUMPSOVERTHELAZYDOGthequickbrownfoxjumpsoverthelazydog"
     //let chars = "The truth is in there,  don't let it out"
-    //let chars = "acCaCcac"
+    //let chars = "E"
     let charToSvg(c : char, i : int) : string =
         let offsetX, offsetY = float((i%12)*800), float(5500-(i/12)*1100)
-        let calcOutlines = false
+        let spiros = glyphs.elementToSpiros(glyphs.Glyph(c))
+        let path = toSvgPath(20, glyphs.getSvg(spiros, offsetX, offsetY))
+        let calcOutlines = true
         if calcOutlines then
             let segments = glyphs.getOutlines(glyphs.Glyph(c))
             let spiros = glyphs.elementToSpiros(segments)
-            glyphs.getSvg(spiros, offsetX, offsetY)
-        else        
-            let spiros = glyphs.elementToSpiros(glyphs.Glyph(c))
-            glyphs.getSvg(spiros, offsetX, offsetY)
+            toSvgPath(5, glyphs.getSvg(spiros, offsetX, offsetY)) + path
+        else path
     let svg = [
         for i in 0 .. (chars.Length - 1) do
             let c = chars.[i]
@@ -289,5 +295,5 @@ let main argv =
             yield charToSvg(c, i)
     ]
     printfn("Writing test.svg")
-    File.WriteAllText(@".\test.svg", toSvgXml(String.Join("\n\n", svg))) |> ignore
+    File.WriteAllText(@".\test.svg", String.Join("\n\n", svg) |> toSvgXml) |> ignore
     0 // return an integer exit code
