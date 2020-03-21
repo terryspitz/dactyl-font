@@ -2,4 +2,4 @@ h1. fontfunc
 
 A functional font glyph generator in F#.
 
-[!AaFf.svg]
+![font development](png/font.gif)
