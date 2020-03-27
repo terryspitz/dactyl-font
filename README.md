@@ -36,3 +36,5 @@ http://unifiedfontobject.org/versions/ufo3/glyphs/glif/
 http://designwithfontforge.com/en-US/Creating_o_and_n.html
 
 http://designwithfontforge.com/en-US/Trusting_Your_Eyes.html
+
+https://www.reddit.com/r/neography/comments/8186cc/creating_fonts_with_inkscape_and_fontforge_part1/

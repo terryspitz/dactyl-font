@@ -7,7 +7,7 @@
 
   <ItemGroup>
     <None Include="README" />
-    <Compile Include="Program.fs" />
+    <Compile Include="generate.fs" />
   </ItemGroup>
 
   <ItemGroup />
