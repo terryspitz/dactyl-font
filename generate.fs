@@ -16,19 +16,21 @@ open SpiroNet
 open System.IO
 
 module glyphs =
-    // X axis variables, from left
+
+    // X axis guides, from left
     let L = 0       // Left
-    let R = 400     // Right = standard glyph width
+    let R = 300     // Right = standard glyph width
     let N = R * 4/5 // Narrow glyph width
     let C = R / 2   // Centre
-    // Y axis variables, from bottom-up
+
+    // Y axis guides, from bottom-up
     let B = 0       // Bottom
     let X = 300     // x-height
     let M = X/2     // Midway down from x-height
     let T = 600     // Top = standard glyph caps height
     let H = T/2     // Half total height
     let D = -300    // descender height
-    let offset = 80 // offset from corners
+    let offset = 50 // offset from corners
 
     type Point =
         // Raw coordinates
@@ -110,7 +112,7 @@ module glyphs =
         // 0123456789
         // :;<=>?@
         // [\]^_` {|}~
-        | Glyph('A') -> let Y, f = T-X, float(T-X)/float(T)
+        | Glyph('A') -> let f = float(X)/float(T)
                         List([PolyLine([BL; TC; BR]); Line(Interp(BL,TC,f), Interp(BR,TC,f))])
         | Glyph('a') -> List([Line(XR, BR); Glyph('c')])
         | Glyph('B') -> List([Glyph('P'); OpenCurve([(HL, Corner); (HC, LineToCurve); (Mid(HR, BR), G2); (BC, CurveToLine); (BL, End)])])
@@ -121,17 +123,17 @@ module glyphs =
         //| Glyph('D') -> ClosedCurve([(BL, Corner); (TL, Corner); (TLo, LineToCurve); (HR, G2); (BLo, CurveToLine)])
         | Glyph('d') -> List([Line(BR, TR); Glyph('c')]) // or flip b
         | Glyph('E') -> List([PolyLine([TR; TL; BL; BR]); Line(HL, HR)])
-        | Glyph('e') -> List([OpenCurve([(ML, Start); (MR, Corner); (XC, G2); (ML, G2); (BC, G2); (BoR, End)])])
+        | Glyph('e') -> OpenCurve([(ML, Start); (MR, Corner); (XC, G2); (ML, G2); (YX(B,C+offset), G2); (BoR, End)])
         | Glyph('F') -> List([PolyLine([TR; TL; BL]); Line(HL, HR)])
-        | Glyph('f') -> List([OpenCurve([(TC, Start); (XL, CurveToLine); (BL, End)]); Line(XL, XC)])
+        | Glyph('f') -> List([OpenCurve([(TC, Start); (YX(T-M,L), CurveToLine); (BL, End)]); Line(XL, XC)])
         | Glyph('G') -> OpenCurve([(ToR, G2); (TC, G2); (HL, G2); (BC, G2); (HoR, CurveToLine); (HR, Corner); (HC, End)])
         | Glyph('g') -> List([Glyph('c');
                               OpenCurve([(XR, Corner); (BR, LineToCurve); (DC, G2); (Mid(BL, DL), End)])])
         | Glyph('H') -> List([Line(BL, TL); Line(HL, HR); Line(BR, TR)])
         | Glyph('h') -> List([Line(BL, TL); OpenCurve([(XoL, Start); (XC, G2); (MR, CurveToLine); (BR, End)])])
-        | Glyph('I') -> Line(BC, TC)
-        | Glyph('i') -> List([Line(XC, BC)
-                              Dot(Mid(XC, TC))])
+        | Glyph('I') -> Line(BL, TL)
+        | Glyph('i') -> List([Line(XL, BL)
+                              Dot(Mid(XL, TL))])
         | Glyph('J') -> OpenCurve([(TL, Corner); (TR, Corner); (HR, LineToCurve); (BC, G2); (BoL, End)])
         | Glyph('j') -> List([OpenCurve([(XR, Corner); (BR, LineToCurve); (DC, G2); (DoL, End)])
                               Dot(Mid(XR, TR))])
@@ -147,21 +149,21 @@ module glyphs =
                               OpenCurve([(XoL, Start); (XC, G2); (YX(M,N), CurveToLine); (BN, End)])])
         | Glyph('O') -> ClosedCurve([(HL, G2); (BC, G2); (HR, G2); (TC, G2)])
         | Glyph('o') -> ClosedCurve([(XC, G2); (ML, G2); (BC, G2); (Mid(HR,BR), G2)])
-        | Glyph('P') -> List([Line(TL, BL)
-                              OpenCurve([(TL, Corner); (TC, LineToCurve); (Mid(TR, HR), G2); (HC, CurveToLine); (HL, End)])])
+        | Glyph('P') -> OpenCurve([(BL, Corner); (TL, Corner); (TC, LineToCurve); (Mid(TR, HR), G2); (HC, CurveToLine); (HL, End)])
         | Glyph('p') -> List([Line(XL, DL)
                               OpenCurve([(XoL, Start); (XC, G2); (MR, G2); (BC, G2); (BoL, End)])])
         | Glyph('Q') -> List([Glyph('O'); Line(Mid(HC, BR), BR)])
         | Glyph('q') -> List([Line(XR, DR); Glyph('c')])
-        | Glyph('R') -> List([Line(BL, TL)
-                              OpenCurve([(TL, Corner); (TC, LineToCurve); (Mid(TR, HR), G2); (HC, CurveToLine); (HL, End)])
-                              Line(HC, BR)])
+        | Glyph('R') -> List([Glyph('P'); Line(HC, BR)])
         | Glyph('r') -> List([Line(BL,XL)
                               OpenCurve([(XoL, Start); (XC, G2); (XoN, End)])])
-        | Glyph('S') -> OpenCurve([(ToR, G2); (TC, G2); (Mid(TL,HL), G2); (HC, G2); (Mid(HR,BR), G2); (BC, G2); (BoL, End)])
+        | Glyph('S') -> OpenCurve([(ToR, G2); (TC, G2); (Mid(TL,HL), G2); 
+                                   (YX(H*11/10,C-offset), G2); (YX(H*9/10,C+offset), G2); 
+                                   (Mid(HR,BR), G2); (BC, G2); (BoL, End)])
         | Glyph('s') -> let X14, X2, X34 = X/4, X/2, X*3/4
-                        OpenCurve([(YX(X34,R), G2); (XRo, G2); (XLo, G2); (YX(X34,L), G2); (YX(X2,C),G2);
-                                   (YX(X14,R), G2); (BRo, G2); (BLo, G2); (YX(X14,L), End)])
+                        OpenCurve([(YX(X-offset,R), G2); (YX(X, C-offset), G2); (YX(X34,L), G2);
+                                   (YX(X2,C-offset), CurveToLine); (YX(X2,C+offset), LineToCurve); 
+                                   (YX(X14,R), G2); (YX(B,C+offset), G2); (YX(B+offset,L), End)])
         | Glyph('T') -> List([Line(TL, TR); Line(TC, BC)])
         | Glyph('t') -> List([Glyph('l'); Line(XL,XC)])
         | Glyph('U') -> OpenCurve([(TL, Corner); (HL, LineToCurve); (BC, G2); (HR, CurveToLine); (TR, End)])
@@ -228,6 +230,7 @@ module glyphs =
             let offsetX, offsetY = thickness*sin(theta), thickness*cos(theta)
             YX(int(Y+offsetX), int(X+offsetY))
         let offsetPoint(X, Y, theta) = offsetPointByThickness(X, Y, theta, thickness)
+        let offsetPointCap(X, Y, theta) = offsetPointByThickness(X, Y, theta, thickness * sqrt 2.0)
         let offsetSegments(segments : list<SpiroSegment>, start, endP, reverse) =
             let newPoints = 
                 [for i in start .. endP do
@@ -263,11 +266,11 @@ module glyphs =
                 let offsetMidSegments(segments, reverse) =
                     offsetSegments(segments, 1, segments.Length-2, reverse)
                 let startCap(seg : SpiroSegment)=
-                    [(offsetPoint(seg.X, seg.Y, seg.seg_th-Math.PI/2.0), Corner);
-                     (offsetPoint(seg.X, seg.Y, seg.seg_th+Math.PI/2.0), Corner)]
+                    [(offsetPointCap(seg.X, seg.Y, seg.seg_th - Math.PI*0.75), Corner);
+                     (offsetPointCap(seg.X, seg.Y, seg.seg_th + Math.PI*0.75), Corner)]
                 let endCap(seg : SpiroSegment, lastSeg : SpiroSegment) = 
-                    [(offsetPoint(seg.X, seg.Y, lastSeg.seg_th+Math.PI/2.0), Corner);
-                     (offsetPoint(seg.X, seg.Y, lastSeg.seg_th-Math.PI/2.0), Corner)]
+                    [(offsetPointCap(seg.X, seg.Y, lastSeg.seg_th + Math.PI/4.0), Corner);
+                     (offsetPointCap(seg.X, seg.Y, lastSeg.seg_th - Math.PI/4.0), Corner)]
                 let segments = SpiroNet.Spiro.SpiroCPsToSegments(Array.ofList scps, scps.Length, false)
                 if not (isNull segments) then 
                     let points = startCap(segments.[0])
@@ -332,7 +335,7 @@ module glyphs =
             | SpiroDot(p) -> let x,y = getXY(p) in point(float(x), float(y))
         let svg = element |> elementToSpiros |> List.map toSvgPoints |> concatLines
         sprintf "<!-- points --><path d='%s' transform='scale(1,-1) translate(%d,%d)' " svg offsetX offsetY + // small red circles
-            "style='fill:none;stroke:#ff0000;stroke-width:10'/>\n"
+            "style='fill:none;stroke:#ffaaaa;stroke-width:10'/>\n"
 
     let charToSvg ch offsetX offsetY outlines filled points thickness =
         let element = Glyph(ch)
@@ -401,13 +404,13 @@ let main argv =
     let filled = true
     let points = true
     let rowHeight = 1024
-    let thickness = 50
+    let thickness = 10
     printfn "charsPerRow: %d, rows: %d" cols rows |> ignore
     let svg = [
         for r in 0 .. rows do
             let rowChars = [for i in r*cols .. min ((r+1)*cols-1) (chars.Length-1) do chars.[i]]
             let widths = [for ch in rowChars do glyphs.width(glyphs.Glyph(ch))]
-            let offsetXs = List.scan (fun a e -> a+e+200) 0 widths
+            let offsetXs = List.scan (fun a e -> a+e+100) 0 widths
             for c in 0 .. cols-1 do
                 let i = r*cols + c
                 if i <= chars.Length - 1 then
