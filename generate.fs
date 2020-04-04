@@ -66,7 +66,7 @@ module glyphs =
         | SpiroDot of Point
 
     //class
-    type Glyphs (axes: Axes) =
+    type Font (axes: Axes) =
 
         // X axis guides, from left
         let L = 0               // Left
@@ -82,6 +82,7 @@ module glyphs =
         let H = T/2             // Half total height
         let D = -axes.height/2  // descender height
         let offset = axes.offset // offset from corners
+        let dotHeight = max ((X+T)/2) (X+axes.thickness*3)
 
         let CurveToLine = SpiroNet.SpiroPointType.Left
         let LineToCurve = SpiroNet.SpiroPointType.Right
@@ -152,7 +153,7 @@ module glyphs =
             | Glyph('E') -> List([PolyLine([TR; TL; BL; BR]); Line(HL, HR)])
             | Glyph('e') -> OpenCurve([(ML, Start); (MR, Corner); (XC, G2); (ML, G2); (YX(B,C+offset), G2); (BoR, End)])
             | Glyph('F') -> List([PolyLine([TR; TL; BL]); Line(HL, HR)])
-            | Glyph('f') -> List([OpenCurve([(TC, Start); (YX(T-M,L), CurveToLine); (BL, End)]); Line(XL, XC)])
+            | Glyph('f') -> List([OpenCurve([(TC, Start); (XL, CurveToLine); (BL, End)]); Line(XL, XC)])
             | Glyph('G') -> OpenCurve([(ToR, G2); (TC, G2); (HL, G2); (BC, G2); (HoR, CurveToLine); (HR, Corner); (HC, End)])
             | Glyph('g') -> List([Glyph('c');
                                   OpenCurve([(XR, Corner); (BR, LineToCurve); (DC, G2); (Mid(BL, DL), End)])])
@@ -160,22 +161,22 @@ module glyphs =
             | Glyph('h') -> List([Line(BL, TL); OpenCurve([(XoL, Start); (XC, G2); (MR, CurveToLine); (BR, End)])])
             | Glyph('I') -> Line(BL, TL)
             | Glyph('i') -> List([Line(XL, BL)
-                                  Dot(Mid(XL, TL))])
+                                  Dot(YX(dotHeight,L))])
             | Glyph('J') -> OpenCurve([(TL, Corner); (TR, Corner); (HR, LineToCurve); (BC, G2); (BoL, End)])
             | Glyph('j') -> List([OpenCurve([(XR, Corner); (BR, LineToCurve); (DC, G2); (DoL, End)])
-                                  Dot(Mid(XR, TR))])
+                                  Dot(YX(dotHeight,R))])
             | Glyph('K') -> List([Line(TL, BL); PolyLine([TR; HL; BR])])
             | Glyph('k') -> List([Line(TL, BL); PolyLine([YX(X,N); ML; YX(B,N)])])
             | Glyph('L') -> PolyLine([TL; BL; BR])
             | Glyph('l') -> OpenCurve([(TL, Corner); (ML, LineToCurve); (BC, G2)])
             | Glyph('M') -> PolyLine([BL; TL; YX(B,R*3/4); YX(T,R*3/2); YX(B,R*3/2)])
             | Glyph('m') -> List([Glyph('n');
-                                  OpenCurve([(YX(M,N), Start); (YX(X,N+N/2), G2); (YX(M,N+N), CurveToLine); (YX(B,N+N), End)])])
+                                  OpenCurve([(YX(X-offset,N), Start); (YX(X,N+N/2), G2); (YX(M,N+N), CurveToLine); (YX(B,N+N), End)])])
             | Glyph('N') -> PolyLine([BL; TL; BR; TR])
             | Glyph('n') -> List([Line(XL,BL)
                                   OpenCurve([(XoL, Start); (XC, G2); (YX(M,N), CurveToLine); (BN, End)])])
             | Glyph('O') -> ClosedCurve([(HL, G2); (BC, G2); (HR, G2); (TC, G2)])
-            | Glyph('o') -> ClosedCurve([(XC, G2); (ML, G2); (BC, G2); (Mid(HR,BR), G2)])
+            | Glyph('o') -> ClosedCurve([(XC, G2); (ML, G2); (BC, G2); (MR, G2)])
             | Glyph('P') -> OpenCurve([(BL, Corner); (TL, Corner); (TC, LineToCurve); (Mid(TR, HR), G2); (HC, CurveToLine); (HL, End)])
             | Glyph('p') -> List([Line(XL, DL)
                                   OpenCurve([(XoL, Start); (XC, G2); (MR, G2); (BC, G2); (BoL, End)])])
@@ -346,6 +347,7 @@ module glyphs =
                 sprintf "style='fill:%s;fill-rule:%s;stroke:#000000;stroke-width:%d'/>\n" fillStyle fillrule strokeWidth
 
         member this.getSvgPoints element offsetX offsetY =
+            let thickness = this.axes.thickness
             let toSvgPoints (spiro : SpiroElement) : string = 
                 let point(x,y) = svgCircle (int x) (int y) 50
                 match spiro with
@@ -353,7 +355,8 @@ module glyphs =
                 | SpiroClosedCurve(scps) -> scps |> List.map (fun scp -> point(scp.X, scp.Y)) |> concatLines
                 | SpiroDot(p) -> let x,y = this.getXY(p) in point(float(x), float(y))
             let svg = element |> this.elementToSpiros |> List.map toSvgPoints |> concatLines
-            sprintf "<!-- points --><path d='%s' transform='scale(1,-1) translate(%d,%d)' " svg offsetX offsetY + // small red circles
+            // small red circles
+            sprintf "<!-- points --><path d='%s' transform='scale(1,-1) translate(%d,%d)' " svg (offsetX+thickness) (offsetY+thickness) + 
                 "style='fill:none;stroke:#ffaaaa;stroke-width:10'/>\n"
 
         member this.charToSvg ch offsetX offsetY outlines filled points =
@@ -366,6 +369,14 @@ module glyphs =
                     (if points then this.getSvgPoints element offsetX offsetY else "")
             else path + 
                  (if points then this.getSvgPoints element offsetX offsetY else "")
+
+        member this.stringToSvg (str : string) offsetX offsetY outlines filled points =
+            let widths = [for ch in str do this.width (Glyph(ch))]
+            let offsetXs = List.scan (fun a e -> a+e+50) offsetX widths
+            String.concat "\n"
+                [for c in 0 .. str.Length - 1 do
+                    printfn "%c" str.[c]
+                    yield this.charToSvg str.[c] (offsetXs.[c]) offsetY outlines filled points]
 
         member this.toFontForgeGlyph (ch : char) =
             // reverse engineered from saved font  
@@ -426,32 +437,25 @@ let main argv =
     let outlines = true
     let filled = true
     let points = true
-    //let glyphsNormal = glyphs.Glyphs({ glyphs.width = 300; height = 600; x_height = 400; offset = 50; thickness = 10;})
-    //let glyphsBold = glyphs.Glyphs({ glyphs.width = 300; height = 600; x_height = 400; offset = 50; thickness = 20;})
-    let glyphsNormal = glyphs.Glyphs({ glyphs.width = 300; height = 600; x_height = 400; offset = 50; thickness = 50;})
+    let font1 = glyphs.Font({ glyphs.width = 300; height = 600; x_height = 400; offset = 50; thickness = 10;})
+    let font2 = glyphs.Font({ glyphs.width = 300; height = 600; x_height = 500; offset = 50; thickness = 20;})
     let rowHeight = 1024
     printfn "charsPerRow: %d, rows: %d" cols rows |> ignore
-    let svg = [
-        for r in 0 .. rows do
-            let rowChars = [for i in r*cols .. min ((r+1)*cols-1) (chars.Length-1) do chars.[i]]
-            let widths = [for ch in rowChars do glyphsNormal.width (glyphs.Glyph(ch))]
-            let offsetXs = List.scan (fun a e -> a+e+50) 0 widths
-            for c in 0 .. cols-1 do
-                let i = r*cols + c
-                if i <= chars.Length - 1 then
-                    printfn "%c" rowChars.[c]
-                    yield glyphsNormal.charToSvg rowChars.[c] (offsetXs.[c]) ((-1-r)*rowHeight) outlines filled points
-    ]
+    let svg = String.concat "\n"
+                [for r in 0 .. rows do
+                    let rowChars = chars.[r*cols .. min ((r+1)*cols-1) (chars.Length-1)]
+                    font1.stringToSvg rowChars 0 ((-1-r)*rowHeight) outlines filled points
+                    + font2.stringToSvg rowChars 5000 ((-1-r)*rowHeight) outlines filled points
+                ]
     let writeFile filename text = File.WriteAllText(filename, text) |> ignore
 
     printfn("Writing allGlyphs.svg")
-    let svg = String.Join("\n\n", svg) |> (glyphsNormal.toSvgDocument rows cols)
-    printfn(@"Writing glyphs to dactyl\")
-    writeFile @".\allGlyphs.svg" svg
+    writeFile @".\allGlyphs.svg" (font1.toSvgDocument rows cols svg)
 
+    printfn(@"Writing font to dactyl\")
     let dir = @".\dactyl.sfdir"
     Directory.CreateDirectory dir |> printfn "%A"
     for ch in chars do 
         let prefix = if ch>='a' then "_" else ""
-        glyphsNormal.toFontForgeGlyph ch |> writeFile (sprintf @"%s\%s%c.glyph" dir prefix ch)
+        font2.toFontForgeGlyph ch |> writeFile (sprintf @"%s\%s%c.glyph" dir prefix ch)
     0 // return code
