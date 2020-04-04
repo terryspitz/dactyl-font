@@ -139,7 +139,7 @@ module glyphs =
             // 0123456789
             // :;<=>?@
             // [\]^_` {|}~
-            | Glyph('A') -> let f = float(X)/float(T)
+            | Glyph('A') -> let f = float(H/2)/float(T)
                             List([PolyLine([BL; TC; BR]); Line(Interp(BL,TC,f), Interp(BR,TC,f))])
             | Glyph('a') -> List([Line(XR, BR); Glyph('c')])
             | Glyph('B') -> List([Glyph('P'); OpenCurve([(HL, Corner); (HC, LineToCurve); (Mid(HR, BR), G2); (BC, CurveToLine); (BL, End)])])
