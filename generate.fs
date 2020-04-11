@@ -5,7 +5,8 @@
 //- move outline point inward only
 //- fixed-width option
 //- serifs
-//- make variable font 
+//- make variable font
+//- join lines properly
 //- try merging with https://magenta.tensorflow.org/svg-vae
 //- add punctuation chars
 
@@ -151,15 +152,18 @@ module glyphs =
             | Glyph('b') -> List([Line(BL, TL); OpenCurve([(XoL, Start); (XC, G2); (MR, G2); (BC, G2); (BoL, End)])])
             | Glyph('C') -> OpenCurve([(ToR, Start); (TC, G2); (HL, G2); (BC, G2); (BoR, End)])
             | Glyph('c') -> OpenCurve([(XoR, Start); (XC, G2); (ML, G2); (BC, G2); (BoR, End)])
-            | Glyph('D') -> ClosedCurve([(BL, Corner); (TL, Corner); (TLo, LineToCurve); (HR, G2); (BLo, CurveToLine)])
+            | Glyph('D') -> ClosedCurve([(BL, Corner); (TL, Corner); (TLo, LineToCurve);
+                            (YX(H+offset,R), CurveToLine); (YX(H-offset,R), LineToCurve); (BLo, CurveToLine)])
             | Glyph('d') -> List([Line(BR, TR); Glyph('c')]) // or flip b
             | Glyph('E') -> List([PolyLine([TR; TL; BL; BR]); Line(HL, HR)])
-            | Glyph('e') -> OpenCurve([(ML, Start); (MR, Corner); (XC, G2); (ML, G2); (YX(B,C+offset), G2); (BoR, End)])
+            | Glyph('e') -> OpenCurve([(ML, Start); (MR, Corner); (YX(M+offset,R), G2); (XC, G2); (ML, G2);
+                            //(YX(B,C+offset), G2); (BoR, End)])
+                            (BC, G2); (BoR, End)])
             | Glyph('F') -> List([PolyLine([TR; TL; BL]); Line(HL, HR)])
             | Glyph('f') -> List([OpenCurve([(TC, Start); (XL, CurveToLine); (BL, End)]); Line(XL, XC)])
             | Glyph('G') -> OpenCurve([(ToR, G2); (TC, G2); (HL, G2); (BC, G2); (HoR, CurveToLine); (HR, Corner); (HC, End)])
             | Glyph('g') -> List([Glyph('c');
-                                  OpenCurve([(XR, Corner); (BR, LineToCurve); (DC, G2); (Mid(BL, DL), End)])])
+                                  OpenCurve([(XR, Corner); (BR, LineToCurve); (DC, G2); (DoL, End)])])
             | Glyph('H') -> List([Line(BL, TL); Line(HL, HR); Line(BR, TR)])
             | Glyph('h') -> List([Line(BL, TL); OpenCurve([(XoL, Start); (XC, G2); (MR, CurveToLine); (BR, End)])])
             | Glyph('I') -> Line(BL, TL)
@@ -174,7 +178,7 @@ module glyphs =
             | Glyph('l') -> OpenCurve([(TL, Corner); (ML, LineToCurve); (BC, G2)])
             | Glyph('M') -> PolyLine([BL; TL; YX(B,R*3/4); YX(T,R*3/2); YX(B,R*3/2)])
             | Glyph('m') -> List([Glyph('n');
-                                  OpenCurve([(YX(X-offset,N), Start); (YX(X,N+N/2), G2); (YX(M,N+N), CurveToLine); (YX(B,N+N), End)])])
+                                  OpenCurve([(YX(X-offset,N), Start); (YX(X,N+C), G2); (YX(M,N+N), CurveToLine); (YX(B,N+N), End)])])
             | Glyph('N') -> PolyLine([BL; TL; BR; TR])
             | Glyph('n') -> List([Line(XL,BL)
                                   OpenCurve([(XoL, Start); (XC, G2); (YX(M,N), CurveToLine); (BN, End)])])
@@ -191,11 +195,10 @@ module glyphs =
             | Glyph('S') -> OpenCurve([(ToR, G2); (TC, G2); (Mid(TL,HL), G2); 
                                        (YX(H*11/10,C-offset), G2); (YX(H*9/10,C+offset), G2); 
                                        (Mid(HR,BR), G2); (BC, G2); (BoL, End)])
-            | Glyph('s') -> let X14, X2, X34 = X/4, X/2, X*3/4
-                            let C2 = C/2
-                            OpenCurve([(YX(X-offset,R), G2); (YX(X, C-offset), G2); (YX(X34,L), G2);
-                                       (YX(X2,C2), CurveToLine); (YX(X2,C+C2), LineToCurve); 
-                                       (YX(X14,R), G2); (YX(B,C+offset), G2); (YX(B+offset,L), End)])
+            | Glyph('s') -> let X14, X2, X34, cOffset = X/4, X/2, X*3/4, C/8
+                            OpenCurve([(YX(X-offset,R), G2); (YX(X, C-offset/2), G2); (YX(X34,L), G2);
+                                       (YX(X2,C-cOffset), CurveToLine); (YX(X2,C+cOffset), LineToCurve); 
+                                       (YX(X14,R), G2); (YX(B,C+offset/2), G2); (YX(B+offset,L), End)])
             | Glyph('T') -> List([Line(TL, TR); Line(TC, BC)])
             | Glyph('t') -> List([Glyph('l'); Line(XL,XC)])
             | Glyph('U') -> OpenCurve([(TL, Corner); (HL, LineToCurve); (BC, G2); (HR, CurveToLine); (TR, End)])
@@ -264,9 +267,9 @@ module glyphs =
             let tangents (seg : SpiroSegment) = 
                 // from https://levien.com/phd/thesis.pdf Equations 8.22 and 8.23
                 let psi = Math.Atan(seg.ks.[1]/24.0)
-                let th0 = seg.ks.[0]/2.0 - seg.ks.[1]/8.0 + psi
-                let th1 = seg.ks.[0]/2.0 + seg.ks.[1]/8.0 - psi
-                (seg.seg_th - th0, seg.seg_th + th1)
+                let th0 = -seg.ks.[0]/2.0 + seg.ks.[1]/8.0 - seg.ks.[2]/(8.0*6.0) + seg.ks.[3]/(16.0*24.0) + psi
+                let th1 = seg.ks.[0]/2.0 + seg.ks.[1]/8.0 + seg.ks.[2]/(8.0*6.0) + seg.ks.[3]/(16.0*24.0) - psi
+                (seg.seg_th + th0, seg.seg_th + th1)
             let offsetSegment (seg : SpiroSegment) (lastSeg : SpiroSegment) reverse =
                 let norm(x) = if x>Math.PI then x-Math.PI*2.0 else if x<(-Math.PI) then x+Math.PI*2.0 else x
                 let newType = if reverse then 
