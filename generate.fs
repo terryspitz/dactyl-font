@@ -54,6 +54,7 @@ module glyphs =
 
     type Element = 
         | Glyph of c : char
+        | Part of name : string
         | Line of p1: Point * p2: Point
         | PolyLine of list<Point>
         | OpenCurve of list<Point * SpiroNet.SpiroPointType>
@@ -145,16 +146,17 @@ module glyphs =
             // 0123456789
             // :;<=>?@
             // [\]^_` {|}~
+            | Part("adgqLoop") -> ClosedCurve([(XoR, Corner); (XC, G2); (ML, G2); (BC, G2); (BoR, Corner)])
             | Glyph('A') -> let f = float(H/2)/float(T)
-                            List([PolyLine([BL; TC; BR]); Line(Interp(BL,TC,f), Interp(BR,TC,f))])
-            | Glyph('a') -> List([Line(XR, BR); Glyph('c')])
+                            List([PolyLine([BL; TC; BR]); PolyLine([BL; Interp(BL,TC,f); Interp(BR,TC,f); BR])])
+            | Glyph('a') -> List([Line(XR, BR); Part("adgqLoop")])
             | Glyph('B') -> List([Glyph('P'); OpenCurve([(HL, Corner); (HC, LineToCurve); (Mid(HR, BR), G2); (BC, CurveToLine); (BL, End)])])
             | Glyph('b') -> List([Line(BL, TL); OpenCurve([(XoL, Start); (XC, G2); (MR, G2); (BC, G2); (BoL, End)])])
             | Glyph('C') -> OpenCurve([(ToR, Start); (TC, G2); (HL, G2); (BC, G2); (BoR, End)])
             | Glyph('c') -> OpenCurve([(XoR, Start); (XC, G2); (ML, G2); (BC, G2); (BoR, End)])
             | Glyph('D') -> ClosedCurve([(BL, Corner); (TL, Corner); (TLo, LineToCurve);
                             (YX(H+offset,R), CurveToLine); (YX(H-offset,R), LineToCurve); (BLo, CurveToLine)])
-            | Glyph('d') -> List([Line(BR, TR); Glyph('c')]) // or flip b
+            | Glyph('d') -> List([Line(BR, TR); Part("adgqLoop")])
             | Glyph('E') -> List([PolyLine([TR; TL; BL; BR]); Line(HL, HR)])
             | Glyph('e') -> OpenCurve([(ML, Start); (MR, Corner); (YX(M+offset,R), G2); (XC, G2); (ML, G2);
                             //(YX(B,C+offset), G2); (BoR, End)])
@@ -162,7 +164,7 @@ module glyphs =
             | Glyph('F') -> List([PolyLine([TR; TL; BL]); Line(HL, HR)])
             | Glyph('f') -> List([OpenCurve([(TC, Start); (XL, CurveToLine); (BL, End)]); Line(XL, XC)])
             | Glyph('G') -> OpenCurve([(ToR, G2); (TC, G2); (HL, G2); (BC, G2); (HoR, CurveToLine); (HR, Corner); (HC, End)])
-            | Glyph('g') -> List([Glyph('c');
+            | Glyph('g') -> List([Part("adgqLoop");
                                   OpenCurve([(XR, Corner); (BR, LineToCurve); (DC, G2); (DoL, End)])])
             | Glyph('H') -> List([Line(BL, TL); Line(HL, HR); Line(BR, TR)])
             | Glyph('h') -> List([Line(BL, TL); OpenCurve([(XoL, Start); (XC, G2); (MR, CurveToLine); (BR, End)])])
@@ -188,8 +190,8 @@ module glyphs =
             | Glyph('p') -> List([Line(XL, DL)
                                   OpenCurve([(XoL, Start); (XC, G2); (MR, G2); (BC, G2); (BoL, End)])])
             | Glyph('Q') -> List([Glyph('O'); Line(Mid(HC, BR), BR)])
-            | Glyph('q') -> List([Line(XR, DR); Glyph('c')])
-            | Glyph('R') -> List([Glyph('P'); Line(HC, BR)])
+            | Glyph('q') -> List([Line(XR, DR); Part("adgqLoop")])
+            | Glyph('R') -> List([Glyph('P'); PolyLine([HL; HC; BR])])
             | Glyph('r') -> List([Line(BL,XL)
                                   OpenCurve([(XoL, Start); (XC, G2); (XoN, End)])])
             | Glyph('S') -> OpenCurve([(ToR, G2); (TC, G2); (Mid(TL,HL), G2); 
@@ -262,8 +264,7 @@ module glyphs =
             let offsetPoint(X, Y, theta, thickness) =
                 let offsetX, offsetY = thickness * sin(theta), thickness * cos(theta)
                 YX(int(Y+offsetX), int(X+offsetY))
-            let holdoff = 0.95 //self intersections caps don't extend beyond intersecting curve
-            let offsetPointCap(X, Y, theta) = offsetPoint(X, Y, theta, fThickness * sqrt 2.0 * holdoff)
+            let offsetPointCap(X, Y, theta) = offsetPoint(X, Y, theta, fThickness * sqrt 2.0)
             let tangents (seg : SpiroSegment) = 
                 // from https://levien.com/phd/thesis.pdf Equations 8.22 and 8.23
                 let psi = Math.Atan(seg.ks.[1]/24.0)
@@ -434,7 +435,7 @@ module glyphs =
                                 List.map toFFSpiro |> concatLines
             sprintf "StartChar: %c\n" ch +
             sprintf "Encoding: %d %d 0\n" (int ch) (int ch) +
-            sprintf "Width: %d\n" (Glyph(ch) |> this.width) +
+            sprintf "Width: %d\n" (this.width (Glyph(ch)) + thickness) +
             sprintf """
                     InSpiro: 1
                     Flags: H
