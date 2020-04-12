@@ -174,7 +174,7 @@ module glyphs =
             | Glyph('J') -> OpenCurve([(TL, Corner); (TR, Corner); (HR, LineToCurve); (BC, G2); (BoL, End)])
             | Glyph('j') -> List([OpenCurve([(XR, Corner); (BR, LineToCurve); (DC, G2); (DoL, End)])
                                   Dot(YX(dotHeight,R))])
-            | Glyph('K') -> List([Line(TL, BL); PolyLine([TR; HL; BR])])
+            | Glyph('K') -> List([PolyLine([TR; HL; BL]); PolyLine([TL; HL; BR])])
             | Glyph('k') -> List([Line(TL, BL); PolyLine([YX(X,N); ML; YX(B,N)])])
             | Glyph('L') -> PolyLine([TL; BL; BR])
             | Glyph('l') -> OpenCurve([(TL, Corner); (ML, LineToCurve); (BC, G2)])
@@ -272,6 +272,7 @@ module glyphs =
                 let th1 = seg.ks.[0]/2.0 + seg.ks.[1]/8.0 + seg.ks.[2]/(8.0*6.0) + seg.ks.[3]/(16.0*24.0) - psi
                 (seg.seg_th + th0, seg.seg_th + th1)
             let offsetSegment (seg : SpiroSegment) (lastSeg : SpiroSegment) reverse =
+                //normalise angle to between PI/2 and -PI/2
                 let norm(x) = if x>Math.PI then x-Math.PI*2.0 else if x<(-Math.PI) then x+Math.PI*2.0 else x
                 let newType = if reverse then 
                                     match seg.Type with
@@ -282,17 +283,16 @@ module glyphs =
                 let angle = if reverse then -Math.PI/2.0 else Math.PI/2.0
                 match seg.Type with
                 | SpiroPointType.Corner ->
-                    let th1, th2 = norm(lastSeg.seg_th + angle), norm(seg.seg_th + angle)
+                    let th1, th2 = norm(snd (tangents lastSeg) + angle), norm(fst (tangents seg) + angle)
                     let bend = norm(th2 - th1)
-                    let tightBend = if reverse then bend > Math.PI/2.0
-                                               else bend < -Math.PI/2.0
-                    //if tightBend then
-                        //outer bend
-                    [(offsetPoint(seg.X, seg.Y, th1, fThickness), newType);
-                     (offsetPoint(seg.X, seg.Y, th2, fThickness), newType)]
-                    //else //inner
-                    //    [(offsetPoint(seg.X, seg.Y, th1 + bend/2.0, abs thickness/sin(bend/2.0)), segType)]
+                    if (not reverse && bend < -Math.PI/2.0) || (reverse && bend > Math.PI/2.0) then
+                        //two points on sharp outer bend
+                        [(offsetPoint(seg.X, seg.Y, th1, fThickness), newType);
+                         (offsetPoint(seg.X, seg.Y, th2, fThickness), newType)]
+                    else //right angle or less outer bend or inner bend
+                        [(offsetPoint(seg.X, seg.Y, th1 + bend/2.0, fThickness/cos (bend/2.0)), newType)]
                 | SpiroPointType.Right ->
+                    //not sure why lastSeg.seg_th is different from (fst (tangents seg)) here
                     [(offsetPoint(seg.X, seg.Y, norm(lastSeg.seg_th + angle), fThickness), newType)]
                 | SpiroPointType.Left ->
                     [(offsetPoint(seg.X, seg.Y, norm(seg.seg_th + angle), fThickness), newType)]
@@ -471,18 +471,6 @@ let writeFile filename (text : string) =
 [<EntryPoint>]
 let main argv =
 
-    // let scps = [|glyphs.SCP(X=1.0,Y=0.0,Type=glyphs.G2);
-    //              glyphs.SCP(X=1.0,Y=1.0,Type=glyphs.G2);
-    //              glyphs.SCP(X=0.5,Y=2.0,Type=glyphs.G4);
-    //              glyphs.SCP(X=(0.0),Y=2.0,Type=glyphs.G2) |]
-    // let segments = SpiroNet.Spiro.SpiroCPsToSegments(scps, scps.Length, false)
-    // for seg in segments do
-    //     printfn "x=%f y=%f segth=%f bendth=%f ks=%A" seg.X seg.Y seg.seg_th seg.bend_th seg.ks
-    //     let psi = Math.Atan(seg.ks.[1]/24.0)
-    //     let th0 = seg.ks.[0]/2.0 - seg.ks.[1]/8.0 + psi 
-    //     let th1 = seg.ks.[0]/2.0 + seg.ks.[1]/8.0 - psi
-    //     printfn "psi=%f th0,1=(%f, %f) seg=%f, (%f, %f)" psi th0 th1 seg.seg_th (seg.seg_th-th0) (seg.seg_th+th1)
-
     //let chars = [ for c in 'A'..'Z' -> c ] @ [ for c in  'a'..'z' -> c ]
     //let chars = "The truth is in there,  don't let it out"
     let chars = "THE QUICK BROWN FOX JUMPS OVER  THE LAZY DOG the quick brown fox jumps over the lazy dog"
@@ -492,8 +480,8 @@ let main argv =
     let outlines = true
     let filled = true
     let points = true
-    let font1 = glyphs.Font({ glyphs.width = 300; height = 600; x_height = 400; offset = 50; thickness = 30;})
-    let font2 = glyphs.Font({ glyphs.width = 300; height = 600; x_height = 400; offset = 100; thickness = 30;})
+    let font1 = glyphs.Font({ glyphs.width = 300; height = 600; x_height = 400; offset = 100; thickness = 30;})
+    let font2 = glyphs.Font({ glyphs.width = 300; height = 600; x_height = 400; offset = 100; thickness = 60;})
 
     // SVG output, side by side
     let rowHeight = 1024
