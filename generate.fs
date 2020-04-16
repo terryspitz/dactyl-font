@@ -26,6 +26,7 @@ module glyphs =
         x_height : int
         offset : int
         thickness : int
+        max_thickness : int
     }
 
     type Point =
@@ -109,29 +110,29 @@ module glyphs =
         
         member this.rewritePoint p = 
             match p with
-            | YX(y,x) -> YX(y,x)
-            | TL -> YX(T,L) | TLo -> YX(T,L+offset) | TC -> YX(T,C) | TR -> YX(T,R)
-            | ToL -> YX(T-offset,L) | ToC -> YX(T-offset,C) | ToR -> YX(T-offset,R)
-            | XL -> YX(X,L) | XLo -> YX(X,L+offset) | XC -> YX(X,C) | XRo -> YX(X,R-offset) | XR -> YX(X,R)
-            | XoL -> YX(X-offset,L) | XoC -> YX(X-offset,C) | XoR -> YX(X-offset,R)
-            | ML -> YX(M,L) | MC -> YX(M,C) | MR -> YX(M,R)
-            | HL -> YX(H,L) | HLo -> YX(H,L+offset) | HC -> YX(H,C) | HR -> YX(H,R)
-            | HoR -> YX(H-offset,R)
-            | BoL -> YX(B+offset,L) | BoC -> YX(B+offset,C) | BoR -> YX(B+offset,R)
-            | BL -> YX(B,L) | BLo -> YX(B,L+offset) | BC -> YX(B,C) | BRo -> YX(B,R-offset) | BR -> YX(B,R)
-            | DoL -> YX(D+offset,L)
-            | DL -> YX(D,L) | DC -> YX(D,C) | DR -> YX(D,R)
-            | BN -> YX(B,N) | BoN -> YX(B+offset,N) | HN -> YX(H,N) | XoN -> YX(X-offset,N) | XN -> YX(X,N) | TN -> YX(T,N)
+            | YX(y,x) -> (y,x)
+            | TL -> (T,L) | TLo -> (T,L+offset) | TC -> (T,C) | TR -> (T,R)
+            | ToL -> (T-offset,L) | ToC -> (T-offset,C) | ToR -> (T-offset,R)
+            | XL -> (X,L) | XLo -> (X,L+offset) | XC -> (X,C) | XRo -> (X,R-offset) | XR -> (X,R)
+            | XoL -> (X-offset,L) | XoC -> (X-offset,C) | XoR -> (X-offset,R)
+            | ML -> (M,L) | MC -> (M,C) | MR -> (M,R)
+            | HL -> (H,L) | HLo -> (H,L+offset) | HC -> (H,C) | HR -> (H,R)
+            | HoR -> (H-offset,R)
+            | BoL -> (B+offset,L) | BoC -> (B+offset,C) | BoR -> (B+offset,R)
+            | BL -> (B,L) | BLo -> (B,L+offset) | BC -> (B,C) | BRo -> (B,R-offset) | BR -> (B,R)
+            | DoL -> (D+offset,L)
+            | DL -> (D,L) | DC -> (D,C) | DR -> (D,R)
+            | BN -> (B,N) | BoN -> (B+offset,N) | HN -> (H,N) | XoN -> (X-offset,N) | XN -> (X,N) | TN -> (T,N)
             | Mid(p1, p2) -> this.rewritePoint (Interp(p1, p2, 0.5))
-            | Interp(p1, p2, f) -> match (this.rewritePoint p1) with YX(y1,x1) ->
-                                   match (this.rewritePoint p2) with YX(y2,x2) ->
+            | Interp(p1, p2, f) -> let y1, x1 = this.rewritePoint p1
+                                   let y2, x2 = this.rewritePoint p2
                                         //let x1, y1 = (this.getXY p1) in let x2, y2 = (this.getXY p2)
-                                        YX(y1+int(float(y2-y1)*f), x1+int(float(x2-x1)*f))
+                                   (y1+int(float(y2-y1)*f), x1+int(float(x2-x1)*f))
         
         member this.getXY offset p =
             let xyOffset = if offset then this.axes.thickness else 0
-            match (this.rewritePoint p) with 
-                YX(y,x) -> (x+xyOffset, y+xyOffset)
+            let y, x = this.rewritePoint p
+            (x+xyOffset, y+xyOffset)
 
         //Straights: AEFHIKLMNTVWXYZklvwxyz147/=[]\`|*"'
         //Dots: ij:;!?
@@ -153,19 +154,20 @@ module glyphs =
             
             | Glyph('0') -> List([ClosedCurve([(HL, G2); (BC, G2); (HR, G2); (TC, G2)]); Line(TR,BL)])
             | Glyph('1') -> PolyLine([YX(T-offset,L); YX(T,L+offset); YX(B, L+offset)])
-            | Glyph('2') -> OpenCurve([(ToL, Start); (TC, G2); (Mid(TR, HR), CurveToLine); (BL, Corner); (BR, End)])
-            | Glyph('3') -> List([OpenCurve([(ToL, Corner); (TC, LineToCurve); (Mid(TR, HR), G2); (HC, CurveToLine); (HL, End)]);
-                                  OpenCurve([(HL, Corner); (HC, LineToCurve); (Mid(HR, BR), G2); (BC, CurveToLine); (BoL, End)])])
-            | Glyph('4') -> PolyLine([BC; TC; ML; MR])
-            | Glyph('5') -> OpenCurve([(TR, Start); (TL, Corner); (XL, Corner); (XC, G2); (MR, G2); (BC, G2); (BoL, End)])
-            | Glyph('6') -> OpenCurve([(ToR, Start); (TC, G2); (ML, G2); (BC, G2); (MR, G2); (XC, G2); (ML, End)])
+            | Glyph('2') -> OpenCurve([(ToL, Start); (TLo, G2); (ToR, G2); (MC, CurveToLine); (BL, Corner); (BR, End)])
+            | Glyph('3') -> List([OpenCurve([(ToL, Corner); (YX(T,R-offset), G2); (Mid(TR, HR), G2); (HC, G2)]);
+                                  OpenCurve([(HC, G2); (Mid(HR, BR), G2); (BLo, G2); (BoL, End)])])
+            | Glyph('4') -> let X4 = X/4 in PolyLine([BN; TN; YX(X4,L); YX(X4,R)])
+            | Glyph('5') -> OpenCurve([(TR, Start); (TL, Corner); (HL, Corner); (XC, G2); (MR, G2); (BC, G2); (BoL, End)])
+            | Glyph('6') -> OpenCurve([(ToR, Start); (TC, G2); (HL, G2); (BC, G2); (MR, G2); (XC, G2); (HL, End)])
             | Glyph('7') -> PolyLine([TL; TR; BLo])
-            | Glyph('8') -> ClosedCurve([(TC, G2); (Mid(TL,HL), G2); 
-                                       (YX(H*11/10,C-offset), G2); (YX(H*9/10,C+offset), G2); 
+            | Glyph('8') -> let M = T*6/10
+                            ClosedCurve([(TC, G2); (Mid(TL,HL), G2); 
+                                       (YX(M*11/10,C-offset), G2); (YX(M*9/10,C+offset), G2); 
                                        (Mid(HR,BR), G2); (BC, G2); (Mid(HL,BL), G2);
-                                       (YX(H*9/10,C-offset), G2); (YX(H*11/10,C+offset), G2); 
+                                       (YX(M*9/10,C-offset), G2); (YX(M*11/10,C+offset), G2); 
                                        (Mid(TR,HR), G2)])
-            | Glyph('9') -> OpenCurve([(BoL, Start); (HR, G2); (TC, G2); (Mid(TL,XL), G2); (XC, G2); (YX(X+offset,R), End)])
+            | Glyph('9') -> OpenCurve([(BLo, Start); (HR, G2); (TC, G2); (Mid(TL,HL), G2); (HC, G2); (Mid(TR,HR), End)])
 
             | Part("adgqLoop") -> ClosedCurve([(XoR, Corner); (XC, G2); (ML, G2); (BC, G2); (BoR, Corner)])
             | Glyph('A') -> let f = float(H/2)/float(T)
@@ -248,14 +250,14 @@ module glyphs =
 
         member this.reduce  e =
             match e with
-            | Line(p1, p2) -> OpenCurve([(this.rewritePoint p1, Start); (this.rewritePoint p2, End)])
+            | Line(p1, p2) -> OpenCurve([(YX(this.rewritePoint p1), Start); (YX(this.rewritePoint p2), End)])
             | PolyLine(points) -> let a = Array.ofList points
                                   OpenCurve([for i in 0 .. a.Length-1 do
                                              let p = this.rewritePoint a.[i]
-                                             yield (p, if i=(a.Length-1) then End else Corner)])
-            | OpenCurve(curvePoints) -> OpenCurve([for p, t in curvePoints do this.rewritePoint p, t])
-            | ClosedCurve(curvePoints) -> ClosedCurve([for p, t in curvePoints do this.rewritePoint p, t])
-            | Dot(p) -> Dot(this.rewritePoint(p))
+                                             yield (YX(p), if i=(a.Length-1) then End else Corner)])
+            | OpenCurve(curvePoints) -> OpenCurve([for p, t in curvePoints do YX(this.rewritePoint p), t])
+            | ClosedCurve(curvePoints) -> ClosedCurve([for p, t in curvePoints do YX(this.rewritePoint p), t])
+            | Dot(p) -> Dot(YX(this.rewritePoint(p)))
             | List(el) -> List(List.map (this.getGlyph >> this.reduce)  el)
             | e -> this.reduce(this.getGlyph(e))
 
@@ -314,7 +316,8 @@ module glyphs =
                         [(offsetPoint(seg.X, seg.Y, th1, fThickness), newType);
                          (offsetPoint(seg.X, seg.Y, th2, fThickness), newType)]
                     else //right angle or less outer bend or inner bend
-                        [(offsetPoint(seg.X, seg.Y, th1 + bend/2.0, fThickness/cos (bend/2.0)), newType)]
+                        let offset = min (fThickness/cos (bend/2.0)) (float this.axes.max_thickness)
+                        [(offsetPoint(seg.X, seg.Y, th1 + bend/2.0, offset), newType)]
                 | SpiroPointType.Right ->
                     //not sure why lastSeg.seg_th is different from (fst (tangents seg)) here
                     [(offsetPoint(seg.X, seg.Y, norm(lastSeg.seg_th + angle), fThickness), newType)]
@@ -498,15 +501,15 @@ let main argv =
 
     //let chars = [ for c in 'A'..'Z' -> c ] @ [ for c in  'a'..'z' -> c ]
     //let chars = "The truth is in there,  don't let it out"
-    let chars = "THE QUICK BROWN FOX JUMPS OVER  THE LAZY DOG the quick brown fox jumps over the lazy dog"
+    let chars = "THE QUICK BROWN FOX JUMPS OVER  THE LAZY DOG the quick brown fox jumps over the lazy dog 0123456789"
     //let chars = "j"
-    let cols = 16
+    let cols = 18
     let rows = (chars.Length - 1)/cols + 1
     let outlines = true
     let filled = true
     let points = true
-    let font1 = glyphs.Font({ glyphs.width = 300; height = 600; x_height = 400; offset = 100; thickness = 30;})
-    let font2 = glyphs.Font({ glyphs.width = 300; height = 600; x_height = 400; offset = 100; thickness = 60;})
+    let font1 = glyphs.Font({ glyphs.width = 300; height = 600; x_height = 400; offset = 100; thickness = 30; max_thickness = 120})
+    let font2 = glyphs.Font({ glyphs.width = 300; height = 600; x_height = 400; offset = 100; thickness = 60; max_thickness = 120})
 
     // SVG output, side by side
     let rowHeight = 1024
@@ -516,7 +519,7 @@ let main argv =
             let rowChars = chars.[r*cols .. min ((r+1)*cols-1) (chars.Length-1)]
             font.stringToSvg rowChars xOffset ((rows-r)*rowHeight) outlines filled points
         ] |> String.concat("\n")
-    let svg = svgRows font1 0 + svgRows font2 6000
+    let svg = svgRows font1 0 + svgRows font2 6500
 
     writeFile @".\allGlyphs.svg" (glyphs.toSvgDocument rows cols svg)
 
@@ -539,7 +542,7 @@ let main argv =
             for r in 1..10 do
             for c in 1..10 do
                 let font = glyphs.Font({glyphs.width = 300; height = 600;
-                                        x_height = (11-r)*60; offset = c*30; thickness = r*6;})
+                                        x_height = (11-r)*60; offset = c*30; thickness = r*6; max_thickness = r*12})
                 font.stringToSvg str (c*600*str.Length) ((11-r)*1000) true true false
         ] |> String.concat "\n" |> glyphs.toSvgDocument 10 30 |> writeFile @".\interp.svg"
 
