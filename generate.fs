@@ -5,14 +5,12 @@
 //- move outline point inward only
 //- fixed-width font
 //- serifs
-//- create italics
 //- make variable font
 //- join lines properly
 //- horiz/vertical endcaps
 //- correct tight bend in 5
 //- remove overlap in SVG
 //- render animation
-//- output set of font styles: bolds/italics
 //- try merging with https://magenta.tensorflow.org/svg-vae
 //- add punctuation chars
 
@@ -37,6 +35,7 @@ module glyphs =
         x_height : int  //height of lower case
         offset : int    //roundedness
         thickness : int //stroke width
+        leading : int   //gap between glyphs
         italic_fraction : float
         outline : bool
         stroked : bool    //each stroke is 4 parallel lines
@@ -44,7 +43,7 @@ module glyphs =
         filled : bool   //(svg only) filled or empty outlines
     } with
         static member DefaultAxes = { 
-            width = 300; height = 600; x_height = 400; offset = 100; thickness = 3; italic_fraction = 0.0;
+            width = 300; height = 600; x_height = 400; offset = 100; thickness = 3; italic_fraction = 0.0; leading = 50;
             outline = true; stroked = false; scratches = false; filled = true; }
 
     type Point =
@@ -310,7 +309,7 @@ module glyphs =
         member this.width e =
             let thickness = this.Axes.thickness
             let nonItalic = Font({this.Axes with italic_fraction=0.0})
-            let maxX curvePoints = thickness*2 + List.fold max 0 (List.map (fst >> (nonItalic.getXY false) >> fst) curvePoints)
+            let maxX curvePoints = this.Axes.leading + thickness*2 + List.fold max 0 (List.map (fst >> (nonItalic.getXY false) >> fst) curvePoints)
             match this.reduce(e) with
             | OpenCurve(curvePoints) -> maxX curvePoints
             | ClosedCurve(curvePoints) -> maxX curvePoints
@@ -539,7 +538,7 @@ module glyphs =
 
         member this.stringToSvg (str : string) offsetX offsetY showKnots =
             let widths = [for ch in str do this.width (Glyph(ch))]
-            let offsetXs = List.scan (fun a e -> a+e+50) offsetX widths
+            let offsetXs = List.scan (+) offsetX widths
             String.concat "\n"
                 [for c in 0 .. str.Length - 1 do
                     printfn "%c" str.[c]
@@ -659,6 +658,7 @@ let main argv =
     let fonts = [
         ("Dactyl Sans Extra Light", "Extra Light", glyphs.Font(glyphs.Axes.DefaultAxes));
         ("Dactyl Sans", "Regular", glyphs.Font({glyphs.Axes.DefaultAxes with outline = true; thickness = 30;}));
+        ("Dactyl Sans Italic", "Italic", glyphs.Font({glyphs.Axes.DefaultAxes with outline = true; thickness = 30; italic_fraction = 0.15}));
         ("Dactyl Sans Bold", "Bold", glyphs.Font({glyphs.Axes.DefaultAxes with outline = true; thickness = 60;}));
         ("Dactyl Stroked", "Regular", glyphs.Font({glyphs.Axes.DefaultAxes with stroked = true; thickness = 60;}));
         ("Dactyl Scratch", "Regular", glyphs.Font({glyphs.Axes.DefaultAxes with scratches = true; thickness = 60;}));
