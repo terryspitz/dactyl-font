@@ -39,13 +39,13 @@ module glyphs =
         thickness : int //stroke width
         italic_fraction : float
         outline : bool
-        stroked : bool    //each stroke is 4 parallel lines
+        line4 : bool    //each stroke is 4 parallel lines
         scratches : bool //horror font
         filled : bool   //(svg only) filled or empty outlines
-    } with
-        static member DefaultAxes = { 
-            width = 300; height = 600; x_height = 400; offset = 100; thickness = 3; italic_fraction = 0.0;
-            outline = true; stroked = false; scratches = false; filled = true; }
+    }
+    let defaultAxes = { 
+        width = 300; height = 600; x_height = 400; offset = 100; thickness = 3; italic_fraction = 0.0;
+        outline = true; line4 = false; scratches = false; filled = true; }
 
     type Point =
         // Raw coordinates
@@ -59,7 +59,7 @@ module glyphs =
         | XL | XLo | XC | XRo | XR  // x-height
         | XoL | XoC | XoR           // x-height offset down
         | ML | MC | MR              // Midway down from x-height
-        | HL | HLo | HC | HRo | HR  // half glyph height
+        | HL | HLo | HC | HR        // half glyph height
         | HoR                       // half offset down
         | BoL | BoC | BoR           // Bottom offset up
         | BL | BLo | BC | BRo | BR  // Bottom
@@ -68,8 +68,7 @@ module glyphs =
         | BN | BoN | HN | XoN | XN | TN         // Narrow width points
         | Mid of p1 : Point * p2 : Point
         | Interp of p1 : Point * p2 : Point * frac : float
-        //member this.(+) y x = YX(this.getXY+y, this.x+x)
-    
+
     type SCP = SpiroNet.SpiroControlPoint
 
     type Element = 
@@ -154,7 +153,7 @@ module glyphs =
             | XL -> (X,L) | XLo -> (X,L+offset) | XC -> (X,C) | XRo -> (X,R-offset) | XR -> (X,R)
             | XoL -> (X-offset,L) | XoC -> (X-offset,C) | XoR -> (X-offset,R)
             | ML -> (M,L) | MC -> (M,C) | MR -> (M,R)
-            | HL -> (H,L) | HLo -> (H,L+offset) | HC -> (H,C) | HRo -> (H,R-offset) | HR -> (H,R)
+            | HL -> (H,L) | HLo -> (H,L+offset) | HC -> (H,C) | HR -> (H,R)
             | HoR -> (H-offset,R)
             | BoL -> (B+offset,L) | BoC -> (B+offset,C) | BoR -> (B+offset,R)
             | BL -> (B,L) | BLo -> (B,L+offset) | BC -> (B,C) | BRo -> (B,R-offset) | BR -> (B,R)
@@ -164,6 +163,7 @@ module glyphs =
             | Mid(p1, p2) -> this.rewritePoint (Interp(p1, p2, 0.5))
             | Interp(p1, p2, f) -> let y1, x1 = this.rewritePoint p1
                                    let y2, x2 = this.rewritePoint p2
+                                        //let x1, y1 = (this.getXY p1) in let x2, y2 = (this.getXY p2)
                                    (y1+int(float(y2-y1)*f), x1+int(float(x2-x1)*f))
         
         member this.getXY offset p =
@@ -171,10 +171,6 @@ module glyphs =
             let italicFraction = if offset then this.Axes.italic_fraction else 0.0
             let y, x = this.rewritePoint p
             (x+xyOffset + int(italicFraction * float(y+xyOffset)), y+xyOffset)
-
-        static member dotToClosedCurve x y r =
-            ClosedCurve([(YX(y-r,x), G2); (YX(y,x+r), G2);
-                         (YX(y+r,x), G2); (YX(y,x-r), G2)])
 
         //Straights: AEFHIKLMNTVWXYZklvwxyz147/=[]\`|*"'
         //Dots: ij:;!?
@@ -193,9 +189,7 @@ module glyphs =
             // :;<=>?@
             // [\]^_` {|}~
             // | Glyph('') -> 
-
-            | Glyph('!') -> EList([Line(TL, ML); Dot(BL)])
-
+            
             | Glyph('0') -> EList([ClosedCurve([(HL, G2); (BC, G2); (HR, G2); (TC, G2)]); Line(TR,BL)])
             | Glyph('1') -> PolyLine([YX(T-offset,L); YX(T,L+offset); YX(B, L+offset)])
             | Glyph('2') -> OpenCurve([(ToL, Start); (TLo, G2); (ToR, G2); (MC, CurveToLine); (BL, Corner); (BR, End)])
@@ -229,7 +223,7 @@ module glyphs =
             | Glyph('e') -> OpenCurve([(ML, Start); (MR, Corner); (YX(M+offset,R), G2); (XC, G2); (ML, G2);
                             //(YX(B,C+offset), G2); (BoR, End)])
                             (BC, G2); (BoR, End)])
-            | Glyph('F') -> EList([PolyLine([TR; TL; BL]); Line(HL, HRo)])
+            | Glyph('F') -> EList([PolyLine([TR; TL; BL]); Line(HL, HR)])
             | Glyph('f') -> EList([OpenCurve([(TC, Start); (XL, CurveToLine); (BL, End)]); Line(XL, XC)])
             | Glyph('G') -> OpenCurve([(ToR, G2); (TC, G2); (HL, G2); (BC, G2); (HoR, CurveToLine); (HR, Corner); (HC, End)])
             | Glyph('g') -> EList([Part("adgqLoop");
@@ -418,15 +412,13 @@ module glyphs =
                 | SpiroClosedCurve(_, segments) ->
                     [ClosedCurve(Font.offsetSegments segments 0 (segments.Length-2) false true thickness);
                      ClosedCurve(reverseList(Font.offsetSegments segments 0 (segments.Length-2) true true thickness))]
-                | SpiroDot(p) ->
-                    let x,y = this.getXY true p
-                    [Font.dotToClosedCurve x y this.Axes.thickness]
+                | SpiroDot(p) -> [Dot(p)]
                 | SpiroSpace -> [Space]
             EList(List.collect spiroToOutline spiros)
 
-        member this.getStroked e = 
+        member this.getLine4 e = 
             let spiros = this.elementToSpirosOffset true e
-            let spiroToLines spiro =
+            let spiroToScratches spiro =
                 let thicknessby3 = float this.Axes.thickness/3.0
                 match spiro with
                 | SpiroOpenCurve(_, segments) ->
@@ -435,11 +427,9 @@ module glyphs =
                 | SpiroClosedCurve(_, segments) ->
                     [for t in -3..2..3 do 
                         ClosedCurve(Font.offsetSegments segments 0 (segments.Length-2) false true (thicknessby3*float t))]
-                | SpiroDot(p) ->
-                    let x,y = this.getXY true p
-                    [Font.dotToClosedCurve x y this.Axes.thickness; Font.dotToClosedCurve x y (this.Axes.thickness/2)]
+                | SpiroDot(p) -> [Dot(p)]
                 | SpiroSpace -> [Space]
-            EList(List.collect spiroToLines spiros) |> Font({this.Axes with thickness = 2}).getSansOutlines
+            EList(List.collect spiroToScratches spiros)
 
         member this.getScratches e = 
             let spiros = this.elementToSpirosOffset true e
@@ -496,8 +486,8 @@ module glyphs =
             | SpiroSpace -> ""
 
         member this.getOutline =
-            if this.Axes.stroked then
-                this.getStroked
+            if this.Axes.line4 then
+                this.getLine4
             elif this.Axes.scratches then
                 this.getScratches
             elif this.Axes.outline then
@@ -513,7 +503,7 @@ module glyphs =
                             | _ -> "nonzero"
             let svg = spiros |> List.map this.toSvgBezierCurve |> concatLines
             let fillStyle = if this.Axes.filled then "#000000" else "none"
-            sprintf "<path d='%s' transform='translate(%d,%d) scale(1,-1)' " svg offsetX offsetY +
+            sprintf "<path d='%s' transform='scale(1,-1) translate(%d,%d)' " svg offsetX offsetY +
                 sprintf "style='fill:%s;fill-rule:%s;stroke:#000000;stroke-width:%d'/>\n" fillStyle fillrule strokeWidth
 
         member this.getSvgKnots element offsetX offsetY =
@@ -531,52 +521,62 @@ module glyphs =
             sprintf "<!-- points --><path d='%s' transform='scale(1,-1) translate(%d,%d)' " svg offsetX offsetY + 
                 "style='fill:none;stroke:#ffaaaa;stroke-width:10'/>\n"
 
-        member this.charToSvg ch offsetX offsetY showKnots =
+        member this.charToSvg ch offsetX offsetY points =
             let element = Glyph(ch)
             sprintf "<!-- %c -->\n\n" ch +
             this.getSvgCurves element offsetX offsetY 5 +
-                (if showKnots then this.getSvgKnots element offsetX offsetY else "")
+                (if points then this.getSvgKnots element offsetX offsetY else "")
 
-        member this.stringToSvg (str : string) offsetX offsetY showKnots =
+        member this.stringToSvg (str : string) offsetX offsetY points =
             let widths = [for ch in str do this.width (Glyph(ch))]
             let offsetXs = List.scan (fun a e -> a+e+50) offsetX widths
             String.concat "\n"
                 [for c in 0 .. str.Length - 1 do
                     printfn "%c" str.[c]
-                    yield this.charToSvg str.[c] (offsetXs.[c]) offsetY showKnots]
+                    yield this.charToSvg str.[c] (offsetXs.[c]) offsetY points]
 
         member this.charToFontForge (ch : char) =
             // reverse engineered from saved font  
             // TODO: coords shifted by (thickness, thickness) (hard for beziers)
             let thickness = this.Axes.thickness
             let scpToString (scp : SCP) = sprintf "%f %f %c" scp.X scp.Y (char scp.Type)
-            let spiroToFF spiro =
+            let rec spiroToFF element : string =
+                let element = element |> Font({this.Axes with thickness = 2}).getSansOutlines
                 //rearrange SVG bezier curve format to fontforge format
                 let matchEval (amatch : Match) = amatch.Groups.[2].Value.Replace(","," ") + " "
                                                  + amatch.Groups.[1].Value.ToLower() + " 0"
                 let reorder s = Regex.Replace(s, "(.) (.*)", matchEval)
-                let bezierString = this.toSvgBezierCurve spiro |> fun s-> s.Split("\r\n") 
-                                   |> Array.map reorder |> String.concat "\n"
-                let spiroString =
-                    match spiro with
-                    | SpiroOpenCurve(scps, _) -> scps |> List.map scpToString |> concatLines
-                    | SpiroClosedCurve(scps, _) -> scps |> List.map scpToString |> concatLines
-                    | SpiroDot(p) -> let x,y = this.getXY true p 
-                                     sprintf "%d %d o " (x-thickness) (y) +
-                                     sprintf "%d %d o " (x) (y+thickness) +
-                                     sprintf "%d %d o " (x+thickness) (y)
-                    | SpiroSpace -> ""
-                sprintf """
-                        %s
-                        Spiro
-                        %s
-                        0 0 z
-                        EndSpiro
-                        """ bezierString spiroString
-            let spineSpiros = Glyph(ch) |> Font({this.Axes with thickness = 2}).getSansOutlines
-                              |> this.elementToSpirosOffset true |> List.map spiroToFF |> concatLines
-            let outlineSpiros = Glyph(ch) |> this.getOutline //|> Font({this.Axes with thickness = 2}).getSansOutlines 
-                                |> this.elementToSpiros |> List.map spiroToFF |> concatLines
+                match this.reduce(element) with
+                // | OpenCurve(_) ->
+                //     element |> Font({this.Axes with thickness = 2}).getSansOutlines |> spiroToFF
+                | ClosedCurve(_)
+                | Dot(_) ->
+                    let spiro = (this.elementToSpiros element).[0]
+                    let bezierString = this.toSvgBezierCurve spiro |> fun s-> s.Split("\r\n") 
+                                       |> Array.map reorder |> String.concat "\n"
+                    let spiroString =
+                        match spiro with
+                        // | SpiroOpenCurve(scps, _) -> scps |> List.map scpToString |> concatLines
+                        | SpiroClosedCurve(scps, _) -> scps |> List.map scpToString |> concatLines
+                        | SpiroDot(p) -> let x,y = this.getXY true p 
+                                         sprintf "%d %d o " (x-thickness) (y) +
+                                         sprintf "%d %d o " (x) (y+thickness) +
+                                         sprintf "%d %d o " (x+thickness) (y)
+                        | SpiroSpace -> ""
+                        | _ -> invalidArg "e" (sprintf "Unexpected spiro %A" spiro) 
+                    sprintf """
+                            %s
+                            Spiro
+                            %s
+                            0 0 z
+                            EndSpiro
+                            """ bezierString spiroString
+
+                | EList(el) -> List.map spiroToFF el |> concatLines
+                | Space -> ""
+                | _ -> invalidArg "e" (sprintf "Unreduced element %A" element) 
+            let frameSpiros = Glyph(ch) |> spiroToFF
+            let outlineSpiros = Glyph(ch) |> this.getOutline |> spiroToFF
             sprintf "StartChar: %c\n" ch +
             sprintf "Encoding: %d %d 0\n" (int ch) (int ch) +
             sprintf "Width: %d\n" (this.width (Glyph(ch)) + thickness) +
@@ -594,55 +594,15 @@ module glyphs =
                     EndSplineSet
                     EndChar
                     """
-                    spineSpiros outlineSpiros
+                    frameSpiros outlineSpiros
 
-    let fontForgeProps name weight =
-        let props = File.ReadAllText @".\font.props"
-        sprintf
-            """SplineFontDB: 3.2
-             FamilyName: Dactyl
-             FontName: %s
-             FullName: %s
-             Weight: %s
-             %s""" name name weight props
-
-    let fontForgeGlyphFile ch =
-        match(ch) with
-        | ch when ch >= 'A' && ch <='Z' -> sprintf "_%c" ch  //Capitals have underscore prefix
-        | ch when ch >= 'a' && ch <='z' -> string ch
-        | ch when ch >= '0' && ch <='9' -> string ch
-        // names from https://github.com/adobe-type-tools/agl-aglfn/blob/master/glyphlist.txt
-        | '!' -> "exclam"
-        | '"' -> "quotedbl"
-        | '#' -> "numbersign"
-        | '£' -> "sterling"
-        | '$' -> "dollar"
-        | '%' -> "percent"
-        | '&' -> "ampersand"
-        | ''' -> "quotesingle"
-        | '(' -> "parenleft"
-        | ')' -> "parenright"
-        | '*' -> "asterisk"
-        | '+' -> "plus"
-        | ',' -> "comma"
-        | '-' -> "hyphen"
-        | '.' -> "period"
-        | '/' -> "slash"
-        | ':' -> "colon"
-        | ';' -> "semicolon"
-        //| '' -> ""
-        | _ -> invalidArg "ch" (sprintf "Unknown char %c" ch)
-
-    let svgText x y text =
-        sprintf """<text x='%d' y='%d' font-size='200'>%s</text>\n""" x y text
-
-    let toSvgDocument height width svg =
+    let toSvgDocument rows cols path =
         sprintf """<svg xmlns='http://www.w3.org/2000/svg'
-                viewBox='0 0 %d %d'>
+                viewBox='0 -%d %d %d'>
                 <g id='layer1'>
                 %s
                 </g>
-                </svg>""" width height svg
+                </svg>""" (rows*1300) (cols*700) (rows*1300) path
 
 //end module
 
@@ -655,40 +615,39 @@ let writeFile filename (text : string) =
 
 [<EntryPoint>]
 let main argv =
-    let showKnots = false
-    let fonts = [
-        ("Dactyl Sans Extra Light", "Extra Light", glyphs.Font(glyphs.Axes.DefaultAxes));
-        ("Dactyl Sans", "Regular", glyphs.Font({glyphs.Axes.DefaultAxes with outline = true; thickness = 30;}));
-        ("Dactyl Sans Bold", "Bold", glyphs.Font({glyphs.Axes.DefaultAxes with outline = true; thickness = 60;}));
-        ("Dactyl Stroked", "Regular", glyphs.Font({glyphs.Axes.DefaultAxes with stroked = true; thickness = 60;}));
-        ("Dactyl Scratch", "Regular", glyphs.Font({glyphs.Axes.DefaultAxes with scratches = true; thickness = 60;}));
-    ]
+
+    //let chars = [ for c in 'A'..'Z' -> c ] @ [ for c in  'a'..'z' -> c ]
+    //let chars = "The truth is in there,  don't let it out"
+    let chars = "THE QUICK BROWN FOX JUMPS OVER  THE LAZY DOG the quick brown fox jumps over the lazy dog 0123456789"
+    //let chars = "j"
+    let cols = 18
+    let rows = (chars.Length - 1)/cols + 1
+    let showPoints = false
+    let font1 = glyphs.Font(glyphs.defaultAxes)
+    let font2 = glyphs.Font({glyphs.defaultAxes with line4 = true; thickness = 60;})
+
     // SVG output, side by side
-    let rowHeight = glyphs.Axes.DefaultAxes.height + 400
-    let svg = [for i in 0..fonts.Length-1 do
-                let name, _, font = fonts.[i]
-                let y = i*rowHeight*2
-                glyphs.svgText 0 (y+200) name +
-                font.stringToSvg "THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789" 0 (y+rowHeight+100) showKnots +
-                font.stringToSvg """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./""" 0 (y+rowHeight*2-100) showKnots
-              ] |> glyphs.concatLines
+    let rowHeight = 1024
+    printfn "charsPerRow: %d, rows: %d" cols rows |> ignore
+    let svgRows (font : glyphs.Font) xOffset =
+        [for r in 0 .. rows do
+            let rowChars = chars.[r*cols .. min ((r+1)*cols-1) (chars.Length-1)]
+            font.stringToSvg rowChars xOffset ((rows-r)*rowHeight) showPoints
+        ] |> String.concat("\n")
+    let svg = svgRows font1 -1000 + svgRows font2 6500
 
-    writeFile @".\allGlyphs.svg" (glyphs.toSvgDocument (fonts.Length * (rowHeight * 2+1)) (glyphs.Axes.DefaultAxes.width * 70) svg)
-
+    writeFile @".\allGlyphs.svg" (glyphs.toSvgDocument rows cols svg)
 
     // FontForge output
-    let writeFonts = true
-    if writeFonts then
-        for i in 0..fonts.Length-1 do
-            let name, weight, font = fonts.[i]
-            let dir = sprintf @".\fontforge\%s.sfdir" name
-            printfn "Writing font to %s" dir
-            if not (Directory.Exists dir) then
-                Directory.CreateDirectory dir |> printfn "%A"
-            writeFile (dir + @"\font.props") (glyphs.fontForgeProps name weight)
-            let allChars = ['A'..'Z'] @ ['a'..'z'] @ ['0'..'9'] @ List.ofSeq """!"#£$%&'()*+,-./"""
-            for ch in allChars do 
-                font.charToFontForge ch |> writeFile (sprintf @"%s\%s.glyph" dir (glyphs.fontForgeGlyphFile ch))
+    printfn(@"Writing font to dactyl\")
+    let dir = @".\dactyl.sfdir"
+    if not (Directory.Exists dir) then
+        Directory.CreateDirectory dir |> printfn "%A"
+        File.Copy(@".\font.props", dir)
+    let allChars = ['A'..'Z'] @ ['a'..'z'] @ ['0'..'9']
+    for ch in allChars do 
+        let prefix = if ch>='A' && ch<='Z' then "_" else ""
+        font2.charToFontForge ch |> writeFile (sprintf @"%s\%s%c.glyph" dir prefix ch)
 
     // Interpolate along font variable axes as in https://levien.com/spiro/s_interp2.png
     let outputInterpolatedStr = false
@@ -697,7 +656,7 @@ let main argv =
         [
             for r in 1..10 do
             for c in 1..10 do
-                let font = glyphs.Font({glyphs.Axes.DefaultAxes with 
+                let font = glyphs.Font({glyphs.defaultAxes with 
                                             x_height = (11-r)*60; offset = c*30; thickness = r*6;})
                 font.stringToSvg str (c*600*str.Length) ((11-r)*1000) false
         ] |> String.concat "\n" |> glyphs.toSvgDocument 10 30 |> writeFile @".\interp.svg"
