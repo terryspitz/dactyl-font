@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="SpiroPointType.fs" />
+    <Compile Include="SpiroControlPoint.fs" />
+    <Compile Include="IBezierContext.fs" />
+    <Compile Include="PathBezierContext.fs" />
+    <Compile Include="SpiroSegment.fs" />
+    <Compile Include="BandMatrix.fs" />
+    <Compile Include="SpiroImpl.fs" />
+    <Compile Include="Spiro.fs" />
+  </ItemGroup>
+</Project>
