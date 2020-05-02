@@ -9,7 +9,7 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/bin/Debug/netcoreapp3.0/dactyl.dll",
+            "program": "${workspaceFolder}/generator/bin/Debug/netcoreapp3.0/generator.dll",
             "args": [],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,

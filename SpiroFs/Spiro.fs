@@ -59,16 +59,15 @@ open SpiroPointType
 /// Console.WriteLine(bc);
 /// Console.WriteLine("Success: {0} ", success);
 /// </example>
-let SpiroCPsToSegments spiros n isClosed =
-    if n <= 0 then
-        None
-    elif isClosed then
-        SpiroImpl.run_spiro spiros n
+let SpiroCPsToSegments spiros isClosed =
+    if isClosed then
+        SpiroImpl.run_spiro spiros
     else
         let newspiros = Array.copy spiros
         newspiros.[0] <- {newspiros.[0] with Type = SpiroPointType.OpenContour}
-        newspiros.[n - 1] <- {newspiros.[n - 1] with Type = SpiroPointType.EndOpenContour}
-        SpiroImpl.run_spiro spiros n
+        newspiros.[newspiros.Length-1] <- {newspiros.[newspiros.Length-1]
+                                            with Type = SpiroPointType.EndOpenContour}
+        SpiroImpl.run_spiro newspiros
 
 
 /// <summary>
@@ -97,11 +96,9 @@ let SpiroCPsToSegments spiros n isClosed =
 /// Console.WriteLine(bc);
 /// Console.WriteLine("Success: {0} ", success);
 /// </example>
-let SpiroCPsToBezier spiros n isClosed bc =
-
-    let s = SpiroCPsToSegments spiros n isClosed
-    if s.IsSome then
-        SpiroImpl.spiro_to_bpath s.Value n bc
+let SpiroCPsToBezier spiros isClosed bc =
+    match SpiroCPsToSegments spiros isClosed with
+    | Some segs -> 
+        SpiroImpl.spiro_to_bpath segs bc
         true
-    else
-        false
+    | None -> false

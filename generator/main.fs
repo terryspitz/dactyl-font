@@ -1,13 +1,18 @@
 // Functional Fonts by terryspitz
 // Mar 2020
 
+open System
+open System.IO
+open System.Text.RegularExpressions
+
 open Generator
 
 let charToFontForge (this: Font) (ch : char) =
     // reverse engineered from saved font  
     // TODO: coords shifted by (thickness, thickness) (hard for beziers)
     let thickness = this.Axes.thickness
-    let scpToString (scp : SCP) = sprintf "%f %f %c" scp.X scp.Y (char scp.Type)
+    //let scpToString (scp : SCP) = sprintf "%f %f %c" scp.X scp.Y (char scp.Type)
+    let scpToString (scp : SCP) = sprintf "%f %f %A" scp.X scp.Y (scp.Type)
     let spiroToFF spiro =
         //rearrange SVG bezier curve format to fontforge format
         let matchEval (amatch : Match) = amatch.Groups.[2].Value.Replace(","," ") + " "
@@ -55,7 +60,7 @@ let charToFontForge (this: Font) (ch : char) =
             spineSpiros outlineSpiros
 
 let fontForgeProps name weight =
-    let props = File.ReadAllText @".\font.props"
+    let props = File.ReadAllText @".\generator\font.props"
     sprintf
         """SplineFontDB: 3.2
          FamilyName: Dactyl
@@ -122,6 +127,11 @@ let main argv =
         ("Dactyl Stroked", "Regular", Font({Axes.DefaultAxes with stroked = true; thickness = 60;}));
         ("Dactyl Scratch", "Regular", Font({Axes.DefaultAxes with scratches = true; thickness = 60;}));
     ]
+
+    //debug
+    let _, _, font = fonts.[0]
+    font.charToSvg 'Q' 0 0 false |> ignore
+
     // SVG output, side by side
     let rowHeight = Axes.DefaultAxes.height + 400
     let svg = [for i in 0..fonts.Length-1 do
@@ -147,7 +157,7 @@ let main argv =
             writeFile (dir + @"\font.props") (fontForgeProps name weight)
             let allChars = ['A'..'Z'] @ ['a'..'z'] @ ['0'..'9'] @ List.ofSeq """!"#£$%&'()*+,-./"""
             for ch in allChars do 
-                font.charToFontForge ch |> writeFile (sprintf @"%s\%s.glyph" dir (fontForgeGlyphFile ch))
+                charToFontForge font ch |> writeFile (sprintf @"%s\%s.glyph" dir (fontForgeGlyphFile ch))
 
     // Interpolate along font variable axes as in https://levien.com/spiro/s_interp2.png
     let outputInterpolatedStr = false

@@ -25,10 +25,10 @@ module BandMatrix
 /// <summary>
 /// The band matrix.
 /// </summary>
-type BandMatrix (a: float array, al: float array) = 
+type BandMatrix () = 
 
-    member this.a = a
-    member this.al = al
+    member this.a = Array.create 11 0.0
+    member this.al = Array.create 5 0.0
 
     /// <summary>
     /// Copy band matrix from source band matrix to current instance of band matrix.

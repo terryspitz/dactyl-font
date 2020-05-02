@@ -293,17 +293,16 @@ type Font (axes: Axes) =
 
     member this.reduce  e =
         match e with
-        | Line(p1, p2) -> OpenCurve([(YX(this.rewritePoint p1), Start); (YX(this.rewritePoint p2), End)])
+        | Line(p1, p2) -> OpenCurve([(p1, Start); (p2, End)]) |> this.reduce
         | PolyLine(points) -> let a = Array.ofList points
-                              OpenCurve([for i in 0 .. a.Length-1 do
-                                         let p = this.rewritePoint a.[i]
-                                         yield (YX(p), if i=(a.Length-1) then End else Corner)])
+                              OpenCurve([for i in 0 .. a.Length-1 do yield (a.[i], if i=(a.Length-1) then End else Corner)])
+                              |> this.reduce
         | OpenCurve(curvePoints) -> OpenCurve([for p, t in curvePoints do YX(this.rewritePoint p), t])
         | ClosedCurve(curvePoints) -> ClosedCurve([for p, t in curvePoints do YX(this.rewritePoint p), t])
         | Dot(p) -> Dot(YX(this.rewritePoint(p)))
-        | EList(el) -> EList(List.map (this.getGlyph >> this.reduce)  el)
+        | EList(el) -> EList(List.map this.reduce el)
         | Space -> Space
-        | e -> this.reduce(this.getGlyph(e))
+        | e -> this.getGlyph(e) |> this.reduce
 
     member this.width e =
         let thickness = this.Axes.thickness
@@ -323,13 +322,13 @@ type Font (axes: Axes) =
         match this.reduce(e) with
         | OpenCurve(curvePoints) ->
             let scps = [for p, t in curvePoints do makeSCP p t]
-            let segments = Spiro.SpiroCPsToSegments (Array.ofList scps) scps.Length false
+            let segments = Spiro.SpiroCPsToSegments (Array.ofList scps) false
             match segments with
             | Some segs -> [SpiroOpenCurve(scps, Array.toList segs)]
             | None -> [SpiroSpace]
         | ClosedCurve(curvePoints) ->
             let scps = [for p, t in curvePoints do makeSCP p t]
-            let segments = Spiro.SpiroCPsToSegments (Array.ofList scps) scps.Length true
+            let segments = Spiro.SpiroCPsToSegments (Array.ofList scps) true
             match segments with
             | Some segs -> [SpiroClosedCurve(scps, Array.toList segs)]
             | None -> [SpiroSpace]
@@ -482,11 +481,11 @@ type Font (axes: Axes) =
         match spiro with
         | SpiroOpenCurve(scps, _) ->
             let bc = PathBezierContext()
-            Spiro.SpiroCPsToBezier (Array.ofList scps) scps.Length false bc |> ignore
+            Spiro.SpiroCPsToBezier (Array.ofList scps) false bc |> ignore
             bc.ToString
         | SpiroClosedCurve(scps, _) ->
             let bc = PathBezierContext()
-            Spiro.SpiroCPsToBezier (Array.ofList scps) scps.Length true bc |> ignore
+            Spiro.SpiroCPsToBezier (Array.ofList scps) true bc |> ignore
             bc.ToString
         | SpiroDot(p) -> let x, y = this.getXY true p
                          svgCircle x y this.Axes.thickness

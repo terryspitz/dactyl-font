@@ -157,7 +157,6 @@ let integrate_spiro (ks : float[]) (xy : float[]) n =
         v <- v + (1.0 / 4.08748e+09) * t9_10
         u <- u - (1.0 / 4.08748e+10) * t10_10
 
-
         if n = 1 then
             x <- u
             y <- v
@@ -226,7 +225,7 @@ let mod_2pi th =
     2.0 * Math.PI * (u - floor (u + 0.5))
 
 
-let setup_path (src : SpiroControlPoint[]) (n : int) =
+let setup_path (src : SpiroControlPoint[]) =
 
     // #if CHECK_INPUT_FINITENESS
     //     // Verify that input values are within realistic limits
@@ -236,8 +235,10 @@ let setup_path (src : SpiroControlPoint[]) (n : int) =
     // #endif
 
     let isOpen = src.[0].Type = SpiroPointType.OpenContour
+    let n = src.Length
     let n_seg = if isOpen then n - 1 else n
-    let r = Array.map spiroSegment (if isOpen then src else Array.ofList (List.ofArray src @ [src.[0]]))
+    let looped_src = if isOpen then src else Array.ofList (List.ofArray src @ [src.[0]])
+    let r = Array.map spiroSegment looped_src
     assert (r.Length = (n_seg + 1))
     assert (r.[n_seg].X = src.[n_seg % n].X)
 
@@ -268,9 +269,8 @@ let bandec11 (m : BandMatrix[]) (perm : int[]) n =
         for j in 0..i+5 do
             m.[i].a.[j] <- m.[i].a.[j + 5 - i]
 
-        for j in (i+6)..19 do
+        for j in (i+6)..10 do
             m.[i].a.[j] <- 0.0
-
 
     let mutable l = 5
     let mutable pivot = 0
@@ -286,7 +286,6 @@ let bandec11 (m : BandMatrix[]) (perm : int[]) n =
             if (Math.Abs(m.[j].a.[0]) > Math.Abs(pivot_val)) then
                 pivot_val <- m.[j].a.[0]
                 pivot <- j
-
 
         perm.[k] <- pivot
 
@@ -312,7 +311,6 @@ let bandec11 (m : BandMatrix[]) (perm : int[]) n =
 
 
 let banbks11 (m : BandMatrix[]) (perm : int[]) (v : float[]) n =
-
     // forward substitution
     let mutable l = 5
     let mutable i = 0
@@ -357,7 +355,6 @@ let compute_jinc ty0 ty1 =
 
 
 let count_vec (s : SpiroSegment[]) nseg =
-    let mutable n = 0
     Seq.sum [for i in 0..nseg-1 do compute_jinc (s.[i].Type) (s.[i + 1].Type)]
 
 
@@ -379,6 +376,7 @@ let add_mat_line (m: BandMatrix[], v : float[], derivs : float[], x, y, j, jj, j
 
 
 let spiro_iter (s : SpiroSegment[]) (m: BandMatrix[]) (perm : int[]) (v : float[]) n nmat =
+
     let ends = Array2D.create 2 4 0.0
     let derivs = Array3D.create 4 2 4 0.0
 
@@ -400,7 +398,6 @@ let spiro_iter (s : SpiroSegment[]) (m: BandMatrix[]) (perm : int[]) (v : float[
              nmat - 1
         else
             0
-
     
     // double dk, th
     let mutable j = 0
@@ -416,7 +413,6 @@ let spiro_iter (s : SpiroSegment[]) (m: BandMatrix[]) (perm : int[]) (v : float[
     let mutable n_invert = 0 
 
     for i in 0..n-1 do
-
         let ty0 = s.[i].Type
         let ty1 = s.[i + 1].Type
         let jinc = compute_jinc ty0 ty1
@@ -467,12 +463,10 @@ let spiro_iter (s : SpiroSegment[]) (m: BandMatrix[]) (perm : int[]) (v : float[
 
         // constraints crossing right
         if (ty1 = SpiroPointType.G4 || ty1 = SpiroPointType.G2 || ty1 = SpiroPointType.Left || ty1 = SpiroPointType.Right) then
-
             jthr <- jj
             jk0r <- (jj + 1) % nmat
 
             if (ty1 = SpiroPointType.G4) then
-
                 jk1r <- (jj + 2) % nmat
                 jk2r <- (jj + 3) % nmat
 
@@ -542,12 +536,12 @@ let solve_spiro (s: SpiroSegment[]) nseg =
         if n_alloc < 5 then
             n_alloc <- 5
 
-        let m = Array.create n_alloc (BandMatrix(Array.create 11 0.0, Array.create 5 0.0))
+        let m = Array.create n_alloc (BandMatrix())
         let v = Array.create n_alloc 0.0
         let perm = Array.create n_alloc 0
 
         let threshold = 1e-12
-        let mutable norm = 0.0
+        let mutable norm = 1.0
         let mutable i = 0
         while i < 60 && norm > threshold && check_finiteness s nseg do
             i <- i + 1
@@ -600,10 +594,13 @@ let rec spiro_seg_to_bpath (ks : float[]) x0 y0 x1 y1 (bc : IBezierContext) dept
             spiro_seg_to_bpath ksub xmid ymid x1 y1 bc (depth + 1)
 
 
-let run_spiro (src : SpiroControlPoint[]) n =
-    let s = setup_path src n
+let run_spiro (src : SpiroControlPoint[]) =
+    let s = setup_path src
+    let n = src.Length
     let nseg = if src.[0].Type = SpiroPointType.OpenContour then n - 1 else n
-    if nseg > 1  && solve_spiro s nseg then
+    if nseg <= 1 then
+        Some s
+    elif solve_spiro s nseg then
         Some s
     else
         None        
@@ -622,9 +619,9 @@ let get_knot_th (s : SpiroSegment[]) i =
         s.[i - 1].seg_th + ends.[1,0]
 
 
-let spiro_to_bpath (s: SpiroSegment[]) n (bc : IBezierContext) =
-
-    let nsegs = if s.[n - 1].Type = SpiroPointType.EndOpenContour then n - 1 else n
+let spiro_to_bpath (s: SpiroSegment[]) (bc : IBezierContext) =
+    let n = s.Length
+    let nsegs = if s.[n - 1].Type = SpiroPointType.EndOpenContour then n - 2 else n - 1
     for i in 0..nsegs-1 do
         let x0 = s.[i].X
         let x1 = s.[i + 1].X
