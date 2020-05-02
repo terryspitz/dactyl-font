@@ -21,6 +21,11 @@ The five registered axes are weight, width, slant, italic, and optical size.
 
 https://developers.google.com/web/fundamentals/design-and-ux/typography/variable-fonts
 
+https://play.typedetail.com/
+
+https://www.axis-praxis.org/
+
+
 
 ## Font import formats
 

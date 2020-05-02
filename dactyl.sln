@@ -3,11 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29519.87
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "dactyl", "dactyl.fsproj", "{5EF30EE5-38D4-4034-8CAD-CA9B0CC0AB9C}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "generator", "generator\generator.fsproj", "{5EF30EE5-38D4-4034-8CAD-CA9B0CC0AB9C}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "explorer", "explorer", "{0E34D1C7-D302-4B57-8363-88EC8F0D2822}"
-EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "explore", "explorer\src\explore.fsproj", "{022F9CD7-44DD-4ABD-906D-E3D52C97B5C8}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "explorer", "explorer\src\explorer.fsproj", "{022F9CD7-44DD-4ABD-906D-E3D52C97B5C8}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "SpiroFs", "SpiroFs\SpiroFs.fsproj", "{CC98DF1C-6F4A-4856-9CF8-9AD6DC4C2727}"
 EndProject
@@ -29,14 +27,5 @@ Global
 		{CC98DF1C-6F4A-4856-9CF8-9AD6DC4C2727}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CC98DF1C-6F4A-4856-9CF8-9AD6DC4C2727}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CC98DF1C-6F4A-4856-9CF8-9AD6DC4C2727}.Release|Any CPU.Build.0 = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {7EA94F07-E41E-4C1A-8063-0BA6F547780E}
-	EndGlobalSection
-	GlobalSection(NestedProjects) = preSolution
-		{022F9CD7-44DD-4ABD-906D-E3D52C97B5C8} = {0E34D1C7-D302-4B57-8363-88EC8F0D2822}
 	EndGlobalSection
 EndGlobal

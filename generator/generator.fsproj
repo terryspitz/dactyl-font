@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SpiroFs\SpiroFs.fsproj">
+      <Name>SpiroFs.fsproj</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../README.md" />
+    <None Include="font.props" />
+    <Compile Include="generator.fs" />
+  </ItemGroup>
+</Project>

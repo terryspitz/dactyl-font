@@ -6,10 +6,12 @@
     <ProjectReference Include="..\..\SpiroFs\SpiroFs.fsproj">
       <Name>SpiroFs.fsproj</Name>
     </ProjectReference>
+    <ProjectReference Include="..\..\generator\generator.fsproj">
+      <Name>generator.fsproj</Name>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="generate-fabled.fs" />
-    <Compile Include="explore.fs" />
+    <Compile Include="explorer.fs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Fable.Browser.Dom" Version="1.1.0" />

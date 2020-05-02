@@ -60,15 +60,14 @@ open SpiroPointType
 /// Console.WriteLine("Success: {0} ", success);
 /// </example>
 let SpiroCPsToSegments spiros n isClosed =
-
     if n <= 0 then
         None
     elif isClosed then
         SpiroImpl.run_spiro spiros n
     else
-        let mutable newspiros = Array.copy spiros
-        newspiros.[0].Type <- SpiroPointType.OpenContour
-        newspiros.[n - 1].Type <- SpiroPointType.EndOpenContour
+        let newspiros = Array.copy spiros
+        newspiros.[0] <- {newspiros.[0] with Type = SpiroPointType.OpenContour}
+        newspiros.[n - 1] <- {newspiros.[n - 1] with Type = SpiroPointType.EndOpenContour}
         SpiroImpl.run_spiro spiros n
 
 

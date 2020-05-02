@@ -1,7 +1,7 @@
 module explorer
 
 open Browser.Dom
-open Dactyl
+open Generator
 
 // Get a reference to our button and cast the Element to an HTMLButtonElement
 let textbox = document.getElementById("text") :?> Browser.Types.HTMLInputElement
@@ -14,5 +14,5 @@ let output = document.getElementById("output")
 myButton.onclick <- fun _ ->
     let text = textbox.value
     let thickness = int thicknessInput.value
-    let font = Dactyl.Font({Dactyl.Axes.DefaultAxes with thickness=thickness;})
+    let font = Font({Axes.DefaultAxes with thickness=thickness;})
     output.innerHTML <- font.stringToSvg "THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789" 0 0 false

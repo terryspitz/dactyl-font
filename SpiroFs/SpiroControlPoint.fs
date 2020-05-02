@@ -27,26 +27,17 @@ open SpiroPointType
 /// <summary>
 /// User passes an array of spiros control points in this format for Spiro to solve.
 /// </summary>
-type SpiroControlPoint (X: float, Y: float, Type: SpiroPointType) =
-
+type SpiroControlPoint = {
     /// <summary>
     /// Spiro code point X location.
     /// </summary>
-    member this.X = X
-
+    X : float
     /// <summary>
     /// Spiro code point Y location.
     /// </summary>
-    member this.Y = Y
-
+    Y : float
     /// <summary>
     /// Spiro code point Type.
     /// </summary>
-    member this.Type = Type
-
-    /// <summary>
-    /// Returns string rendering of object.
-    /// </summary>
-    member this.ToString =
-
-        this.X.ToString() + ", " + this.Y.ToString() + ", " + this.Type.ToString();
+    Type : SpiroPointType
+}

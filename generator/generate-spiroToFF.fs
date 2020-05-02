@@ -42,7 +42,7 @@ module glyphs =
         line4 : bool    //each stroke is 4 parallel lines
         scratches : bool //horror font
         filled : bool   //(svg only) filled or empty outlines
-    }
+
     let defaultAxes = { 
         width = 300; height = 600; x_height = 400; offset = 100; thickness = 3; italic_fraction = 0.0;
         outline = true; line4 = false; scratches = false; filled = true; }
