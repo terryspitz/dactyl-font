@@ -225,7 +225,7 @@ let mod_2pi th =
     2.0 * Math.PI * (u - floor (u + 0.5))
 
 
-let setup_path (src : SpiroControlPoint[]) =
+let setup_path (src : SpiroControlPoint[]) n =
 
     // #if CHECK_INPUT_FINITENESS
     //     // Verify that input values are within realistic limits
@@ -235,7 +235,6 @@ let setup_path (src : SpiroControlPoint[]) =
     // #endif
 
     let isOpen = src.[0].Type = SpiroPointType.OpenContour
-    let n = src.Length
     let n_seg = if isOpen then n - 1 else n
     let looped_src = if isOpen then src else Array.ofList (List.ofArray src @ [src.[0]])
     let r = Array.map spiroSegment looped_src
@@ -283,7 +282,7 @@ let bandec11 (m : BandMatrix[]) (perm : int[]) n =
         l <- if l < n then l + 1 else n
 
         for j in k + 1..l-1 do
-            if (Math.Abs(m.[j].a.[0]) > Math.Abs(pivot_val)) then
+            if abs m.[j].a.[0] > abs pivot_val then
                 pivot_val <- m.[j].a.[0]
                 pivot <- j
 
@@ -295,7 +294,7 @@ let bandec11 (m : BandMatrix[]) (perm : int[]) n =
                 m.[k].a.[j] <- m.[pivot].a.[j]
                 m.[pivot].a.[j] <- tmp
 
-        if Math.Abs(pivot_val) < 1e-12 then
+        if abs pivot_val < 1e-12 then
             pivot_val <- 1e-12
 
         let pivot_scale = 1.0 / pivot_val
@@ -336,6 +335,7 @@ let banbks11 (m : BandMatrix[]) (perm : int[]) (v : float[]) n =
         let mutable x = v.[i]
         for k in 1..l-1 do
             x <- x - m.[i].a.[k] * v.[k + i]
+        assert (m.[i].a.[0] <> 0.0)
         v.[i] <- x / m.[i].a.[0]
         if l < 11 then
             l <- l+1
@@ -359,16 +359,15 @@ let count_vec (s : SpiroSegment[]) nseg =
 
 
 let add_mat_line (m: BandMatrix[], v : float[], derivs : float[], x, y, j, jj, jinc, nmat) =
-
     let mutable joff = 0
     let mutable k = 0
-
     if (jj >= 0) then
-        joff <- (j + 5 - jj + nmat) % nmat
         if nmat < 6 then
             joff <- j + 5 - jj
         elif nmat = 6 then
             joff <- 2 + (j + 3 - jj + nmat) % nmat
+        else        
+            joff <- (j + 5 - jj + nmat) % nmat
 
         v.[jj] <- v.[jj] + x
         for k in 0..jinc-1 do
@@ -376,40 +375,24 @@ let add_mat_line (m: BandMatrix[], v : float[], derivs : float[], x, y, j, jj, j
 
 
 let spiro_iter (s : SpiroSegment[]) (m: BandMatrix[]) (perm : int[]) (v : float[]) n nmat =
-
     let ends = Array2D.create 2 4 0.0
     let derivs = Array3D.create 4 2 4 0.0
-
     let cyclic = s.[0].Type <> SpiroPointType.OpenContour && s.[0].Type <> SpiroPointType.Corner
 
     for i in 0..nmat-1 do
         v.[i] <- 0.0
-
         for j in 0..10 do
             m.[i].a.[j] <- 0.0
-
         for j in 0..4 do
             m.[i].al.[j] <- 0.0
 
     let mutable jj =
-        if (s.[0].Type = SpiroPointType.G4) then
-            nmat - 2
-        elif (s.[0].Type = SpiroPointType.G2) then
-             nmat - 1
-        else
-            0
+        match s.[0].Type with
+        | SpiroPointType.G4 -> nmat - 2
+        | SpiroPointType.G2 -> nmat - 1
+        | _ -> 0
     
-    // double dk, th
     let mutable j = 0
-    let mutable jthl = 0
-    let mutable jj=0
-    let mutable jthr=0
-    let mutable jk0l=0
-    let mutable jk0r=0
-    let mutable jk1l=0
-    let mutable jk1r=0
-    let mutable jk2l=0
-    let mutable jk2r=0
     let mutable n_invert = 0 
 
     for i in 0..n-1 do
@@ -417,14 +400,14 @@ let spiro_iter (s : SpiroSegment[]) (m: BandMatrix[]) (perm : int[]) (v : float[
         let ty1 = s.[i + 1].Type
         let jinc = compute_jinc ty0 ty1
         let th = s.[i].bend_th
-        jthl <- -1
-        jk0l <- -1
-        jk1l <- -1
-        jk2l <- -1
-        jthr <- -1
-        jk0r <- -1
-        jk1r <- -1
-        jk2r <- -1
+        let mutable jthl = -1
+        let mutable jthr = -1
+        let mutable jk0l = -1
+        let mutable jk0r = -1
+        let mutable jk1l = -1
+        let mutable jk1r = -1
+        let mutable jk2l = -1
+        let mutable jk2r = -1
 
         compute_pderivs s.[i] ends derivs jinc
 
@@ -470,15 +453,15 @@ let spiro_iter (s : SpiroSegment[]) (m: BandMatrix[]) (perm : int[]) (v : float[
                 jk1r <- (jj + 2) % nmat
                 jk2r <- (jj + 3) % nmat
 
-        let getSlice i j = Array.ofList [for k in 0..3 do derivs.[i,j,k]]
-        add_mat_line(m, v, getSlice 0 0, th - ends.[0,0], 1.0, j, jthl, jinc, nmat)
-        add_mat_line(m, v, getSlice 1 0, ends.[0,1], -1.0, j, jk0l, jinc, nmat)
-        add_mat_line(m, v, getSlice 2 0, ends.[0,2], -1.0, j, jk1l, jinc, nmat)
-        add_mat_line(m, v, getSlice 3 0, ends.[0,3], -1.0, j, jk2l, jinc, nmat)
-        add_mat_line(m, v, getSlice 0 1, -ends.[1,0], 1.0, j, jthr, jinc, nmat)
-        add_mat_line(m, v, getSlice 1 1, -ends.[1,1], 1.0, j, jk0r, jinc, nmat)
-        add_mat_line(m, v, getSlice 2 1, -ends.[1,2], 1.0, j, jk1r, jinc, nmat)
-        add_mat_line(m, v, getSlice 3 1, -ends.[1,3], 1.0, j, jk2r, jinc, nmat)
+        let getDerivs i j = [|for k in 0..3 do derivs.[i,j,k]|]
+        add_mat_line(m, v, getDerivs 0 0, th - ends.[0,0], 1.0, j, jthl, jinc, nmat)
+        add_mat_line(m, v, getDerivs 1 0, ends.[0,1], -1.0, j, jk0l, jinc, nmat)
+        add_mat_line(m, v, getDerivs 2 0, ends.[0,2], -1.0, j, jk1l, jinc, nmat)
+        add_mat_line(m, v, getDerivs 3 0, ends.[0,3], -1.0, j, jk2l, jinc, nmat)
+        add_mat_line(m, v, getDerivs 0 1, -ends.[1,0], 1.0, j, jthr, jinc, nmat)
+        add_mat_line(m, v, getDerivs 1 1, -ends.[1,1], 1.0, j, jk0r, jinc, nmat)
+        add_mat_line(m, v, getDerivs 2 1, -ends.[1,2], 1.0, j, jk1r, jinc, nmat)
+        add_mat_line(m, v, getDerivs 3 1, -ends.[1,3], 1.0, j, jk2r, jinc, nmat)
 
         if (jthl >= 0) then
             v.[jthl] <- mod_2pi(v.[jthl])
@@ -498,7 +481,6 @@ let spiro_iter (s : SpiroSegment[]) (m: BandMatrix[]) (perm : int[]) (v : float[
     else
         n_invert <- nmat
         j <- 0
-
 
     bandec11 m perm n_invert
     banbks11 m perm v n_invert
@@ -536,7 +518,7 @@ let solve_spiro (s: SpiroSegment[]) nseg =
         if n_alloc < 5 then
             n_alloc <- 5
 
-        let m = Array.create n_alloc (BandMatrix())
+        let m = Array.init n_alloc (fun _ -> BandMatrix())
         let v = Array.create n_alloc 0.0
         let perm = Array.create n_alloc 0
 
@@ -550,7 +532,7 @@ let solve_spiro (s: SpiroSegment[]) nseg =
 
 
 let rec spiro_seg_to_bpath (ks : float[]) x0 y0 x1 y1 (bc : IBezierContext) depth =
-    let bend = Math.Abs(ks.[0]) + Math.Abs(0.5 * ks.[1]) + Math.Abs(0.125 * ks.[2]) + Math.Abs((1.0 / 48.0) * ks.[3])
+    let bend = abs ks.[0] + abs (0.5 * ks.[1]) + abs (0.125 * ks.[2]) + abs ((1.0 / 48.0) * ks.[3])
     if bend <= 1e-8 then
         bc.LineTo(x1, y1)
     else
@@ -595,8 +577,8 @@ let rec spiro_seg_to_bpath (ks : float[]) x0 y0 x1 y1 (bc : IBezierContext) dept
 
 
 let run_spiro (src : SpiroControlPoint[]) =
-    let s = setup_path src
     let n = src.Length
+    let s = setup_path src n
     let nseg = if src.[0].Type = SpiroPointType.OpenContour then n - 1 else n
     if nseg <= 1 then
         Some s
@@ -619,9 +601,8 @@ let get_knot_th (s : SpiroSegment[]) i =
         s.[i - 1].seg_th + ends.[1,0]
 
 
-let spiro_to_bpath (s: SpiroSegment[]) (bc : IBezierContext) =
-    let n = s.Length
-    let nsegs = if s.[n - 1].Type = SpiroPointType.EndOpenContour then n - 2 else n - 1
+let spiro_to_bpath (s: SpiroSegment[]) n (bc : IBezierContext) =
+    let nsegs = if s.[n - 1].Type = SpiroPointType.EndOpenContour then n - 1 else n
     for i in 0..nsegs-1 do
         let x0 = s.[i].X
         let x1 = s.[i + 1].X

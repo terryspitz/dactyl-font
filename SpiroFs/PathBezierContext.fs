@@ -36,7 +36,7 @@ let ToStringCulture = CultureInfo("en-GB")
 /// <param name="value"></param>
 /// <returns></returns>
 let Format (value : float) =
-    value.ToString(ToStringCulture)
+    value.ToString("F1", ToStringCulture)
 
 /// <summary>
 /// Bezier context implementation that handles the creation of Path data representation of bézier splines.

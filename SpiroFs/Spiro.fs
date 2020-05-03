@@ -99,6 +99,6 @@ let SpiroCPsToSegments spiros isClosed =
 let SpiroCPsToBezier spiros isClosed bc =
     match SpiroCPsToSegments spiros isClosed with
     | Some segs -> 
-        SpiroImpl.spiro_to_bpath segs bc
+        SpiroImpl.spiro_to_bpath segs spiros.Length bc
         true
     | None -> false

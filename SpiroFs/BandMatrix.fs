@@ -26,18 +26,10 @@ module BandMatrix
 /// The band matrix.
 /// </summary>
 type BandMatrix () = 
+    member val a = Array.create 11 0.0 with get, set
+    member val al = Array.create 5 0.0 with get, set
 
-    member this.a = Array.create 11 0.0
-    member this.al = Array.create 5 0.0
-
-    /// <summary>
-    /// Copy band matrix from source band matrix to current instance of band matrix.
-    /// </summary>
-    /// <param name="from">The source band matrix.</param>
-    member private this.CopyFrom (from : BandMatrix) =
-        System.Array.Copy(from.a, 0, this.a, 0, 11);
-        System.Array.Copy(from.al, 0, this.al, 0, 5);
-
+    override this.ToString() = sprintf "%A\n%A" this.a this.al
 
     /// <summary>
     /// The source band matrix.
@@ -49,4 +41,5 @@ type BandMatrix () =
     /// <param name="length">Number of elements to copy from source band matrix.</param>
     static member Copy (src : BandMatrix array) srcIndex (dst : BandMatrix array) dstIndex length =
         for i in 0..length-1 do
-            dst.[i + dstIndex].CopyFrom(src.[i + srcIndex]);
+            System.Array.Copy(src.[i + srcIndex].a, 0, dst.[i + dstIndex].a, 0, 11);
+            System.Array.Copy(src.[i + srcIndex].al, 0, dst.[i + dstIndex].al, 0, 5);

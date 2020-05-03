@@ -7,6 +7,7 @@ open System.Text.RegularExpressions
 
 open Generator
 
+
 let charToFontForge (this: Font) (ch : char) =
     // reverse engineered from saved font  
     // TODO: coords shifted by (thickness, thickness) (hard for beziers)
@@ -107,8 +108,6 @@ let toSvgDocument height width svg =
             </g>
             </svg>""" width height svg
 
-//end module
-
 
 let writeFile filename (text : string) = 
     let trim (x : string) = x.Trim()
@@ -129,8 +128,8 @@ let main argv =
     ]
 
     //debug
-    let _, _, font = fonts.[0]
-    font.charToSvg 'Q' 0 0 false |> ignore
+    // let _, _, font = fonts.[0]
+    // font.charToSvg 'O' 0 0 false |> ignore
 
     // SVG output, side by side
     let rowHeight = Axes.DefaultAxes.height + 400
