@@ -1,4 +1,4 @@
-module explorer
+module Explorer
 
 open Browser.Dom
 open Generator

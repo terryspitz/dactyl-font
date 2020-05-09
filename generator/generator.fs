@@ -97,16 +97,7 @@ let Corner = SpiroPointType.Corner
 let End = SpiroPointType.EndOpenContour
 let EndClosed = SpiroPointType.End
 
-// Attach extension method to segment class
 type SpiroSegment with 
-    member this.Tangents = 
-        // from https://levien.com/phd/thesis.pdf Equations 8.22 and 8.23
-        let psi = Math.Atan(this.ks.[1]/24.0)
-        let th0 = -this.ks.[0]/2.0 + this.ks.[1]/8.0 - this.ks.[2]/(8.0*6.0) + this.ks.[3]/(16.0*24.0) + psi
-        let th1 = this.ks.[0]/2.0 + this.ks.[1]/8.0 + this.ks.[2]/(8.0*6.0) + this.ks.[3]/(16.0*24.0) - psi
-        (this.seg_th + th0, this.seg_th + th1)
-    member this.Tangent1 = fst this.Tangents
-    member this.Tangent2 = snd this.Tangents
     member this.Offset theta dist = YX(int(this.Y + dist * sin(theta)), int(this.X + dist * cos(theta)))
 
 let offsetPoint X Y theta dist =
