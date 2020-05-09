@@ -11,6 +11,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <None Include="../public/index.html" />
     <Compile Include="explorer.fs" />
   </ItemGroup>
   <ItemGroup>

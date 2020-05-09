@@ -31,6 +31,7 @@ module SpiroImpl
 open System.Diagnostics.CodeAnalysis
 open System
 
+open Arrays
 open BandMatrix
 open SpiroSegment
 open SpiroPointType
@@ -172,7 +173,8 @@ let integrate_spiro (ks : float[]) (xy : float[]) n =
     xy.[1] <- y * ds
 
 
-let compute_ends (ks : float[]) (ends : float[,]) (seg_ch : float) =
+//let compute_ends (ks : float[]) (ends : float[,]) (seg_ch : float) =
+let compute_ends (ks : float[]) (ends : MyArray2D) (seg_ch : float) =
 
     let xy : float[] = Array.zeroCreate 2
     integrate_spiro ks xy N
@@ -182,29 +184,31 @@ let compute_ends (ks : float[]) (ends : float[,]) (seg_ch : float) =
 
     let th_even = 0.5 * ks.[0] + (1.0 / 48.0) * ks.[2]
     let th_odd = 0.125 * ks.[1] + (1.0 / 384.0) * ks.[3] - th
-    ends.[0,0] <- th_even - th_odd
-    ends.[1,0] <- th_even + th_odd
+    ends.[(0,0)] <- th_even - th_odd
+    ends.[(1,0)] <- th_even + th_odd
     let k0_even = l * (ks.[0] + 0.125 * ks.[2])
     let k0_odd = l * (0.5 * ks.[1] + (1.0 / 48.0) * ks.[3])
-    ends.[0,1] <- k0_even - k0_odd
-    ends.[1,1] <- k0_even + k0_odd
+    ends.[(0,1)] <- k0_even - k0_odd
+    ends.[(1,1)] <- k0_even + k0_odd
     let l2 = l * l
     let k1_even = l2 * (ks.[1] + 0.125 * ks.[3])
     let k1_odd = l2 * 0.5 * ks.[2]
-    ends.[0,2] <- k1_even - k1_odd
-    ends.[1,2] <- k1_even + k1_odd
+    ends.[(0,2)] <- k1_even - k1_odd
+    ends.[(1,2)] <- k1_even + k1_odd
     let l3 = l2 * l
     let k2_even = l3 * ks.[2]
     let k2_odd = l3 * 0.5 * ks.[3]
-    ends.[0,3] <- k2_even - k2_odd
-    ends.[1,3] <- k2_even + k2_odd
+    ends.[(0,3)] <- k2_even - k2_odd
+    ends.[(1,3)] <- k2_even + k2_odd
 
 
-let compute_pderivs (s : SpiroSegment) (ends : float[,]) (derivs : float[,,]) (jinc : int) : unit =
+//let compute_pderivs (s : SpiroSegment) (ends : float[,]) (derivs : float[,,]) (jinc : int) : unit =
+let compute_pderivs (s : SpiroSegment) (ends : MyArray2D) (derivs : MyArray3D) (jinc : int) : unit =
     let recip_d = 2e6
     let delta = 1.0 / recip_d
     let try_ks = Array.create 4 0.0
-    let try_ends = Array2D.create 2 4 0.0
+    //let try_ends = Array2D.create 2 4 0.0
+    let try_ends = MyArray2D(2, 4)
   
     compute_ends s.ks ends s.seg_ch
     
@@ -217,7 +221,7 @@ let compute_pderivs (s : SpiroSegment) (ends : float[,]) (derivs : float[,,]) (j
 
         for k in 0..1 do
             for j in 0..3 do
-                derivs.[j,k,i] <- recip_d * (try_ends.[k,j] - ends.[k,j])
+                derivs.[(j,k,i)] <- recip_d * (try_ends.[k,j] - ends.[k,j])
 
 
 let mod_2pi th =
@@ -375,8 +379,10 @@ let add_mat_line (m: BandMatrix[], v : float[], derivs : float[], x, y, j, jj, j
 
 
 let spiro_iter (s : SpiroSegment[]) (m: BandMatrix[]) (perm : int[]) (v : float[]) n nmat =
-    let ends = Array2D.create 2 4 0.0
-    let derivs = Array3D.create 4 2 4 0.0
+    //let ends = Array2D.create 2 4 0.0
+    //let derivs = Array3D.create 4 2 4 0.0
+    let ends = MyArray2D(2, 4)
+    let derivs = MyArray3D(4, 2, 4)
     let cyclic = s.[0].Type <> SpiroPointType.OpenContour && s.[0].Type <> SpiroPointType.Corner
 
     for i in 0..nmat-1 do
@@ -591,7 +597,8 @@ let run_spiro (src : SpiroControlPoint[]) =
 let get_knot_th (s : SpiroSegment[]) i =
 
     //double.[].[] ends = { new double.[4], new double.[4] }
-    let ends = Array2D.create 2 4 0.0
+    //let ends = Array2D.create 2 4 0.0
+    let ends = MyArray2D(2, 4)
 
     if i = 0 then
         compute_ends s.[i].ks ends s.[i].seg_ch

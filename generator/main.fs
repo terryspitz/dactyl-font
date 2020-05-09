@@ -1,6 +1,8 @@
 // Functional Fonts by terryspitz
 // Mar 2020
 
+module main
+
 open System
 open System.IO
 open System.Text.RegularExpressions
@@ -13,13 +15,14 @@ let charToFontForge (this: Font) (ch : char) =
     // TODO: coords shifted by (thickness, thickness) (hard for beziers)
     let thickness = this.Axes.thickness
     //let scpToString (scp : SCP) = sprintf "%f %f %c" scp.X scp.Y (char scp.Type)
-    let scpToString (scp : SCP) = sprintf "%f %f %A" scp.X scp.Y (scp.Type)
+    let scpToString (scp : SCP) = sprintf "%f %f %c" scp.X scp.Y (SpiroPointType.ToChar scp.Type)
     let spiroToFF spiro =
         //rearrange SVG bezier curve format to fontforge format
         let matchEval (amatch : Match) = amatch.Groups.[2].Value.Replace(","," ") + " "
                                          + amatch.Groups.[1].Value.ToLower() + " 0"
         let reorder s = Regex.Replace(s, "(.) (.*)", matchEval)
-        let bezierString = this.toSvgBezierCurve spiro |> fun s-> s.Split("\r\n") 
+        let bezierString = this.toSvgBezierCurve spiro |> fun s-> s.Split('\r', '\n') 
+        //let bezierString = this.toSvgBezierCurve spiro |> fun s-> s.Split([| "\r"; "\n" |], System.StringSplitOptions.None) 
                            |> Array.map reorder |> String.concat "\n"
         let spiroString =
             match spiro with
@@ -111,10 +114,11 @@ let toSvgDocument height width svg =
 
 let writeFile filename (text : string) = 
     let trim (x : string) = x.Trim()
-    let trimmedText = text.Split("\n") |> Array.map trim |> String.concat "\n"
+    let trimmedText = text.Split('\n') |> Array.map trim |> String.concat "\n"
     printfn "Writing %s" filename
     File.WriteAllText(filename, trimmedText) |> ignore
 
+#if NOFABLE
 [<EntryPoint>]
 let main argv =
     let showKnots = false
@@ -171,3 +175,4 @@ let main argv =
         ] |> String.concat "\n" |> toSvgDocument 10 30 |> writeFile @".\interp.svg"
 
     0 // return code
+#endif

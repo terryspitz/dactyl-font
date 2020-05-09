@@ -524,6 +524,11 @@ type Font (axes: Axes) =
         this.getSvgCurves element offsetX offsetY 5 +
             (if showKnots then this.getSvgKnots element offsetX offsetY else "")
 
+
+    member this.stringWidth (str : string) =
+        List.sum ([for ch in str do this.width (Glyph(ch))])
+
+
     member this.stringToSvg (str : string) offsetX offsetY showKnots =
         let widths = [for ch in str do this.width (Glyph(ch))]
         let offsetXs = List.scan (+) offsetX widths

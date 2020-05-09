@@ -9,6 +9,7 @@
     <Compile Include="PathBezierContext.fs" />
     <Compile Include="SpiroSegment.fs" />
     <Compile Include="BandMatrix.fs" />
+    <Compile Include="Arrays.fs" />
     <Compile Include="SpiroImpl.fs" />
     <Compile Include="Spiro.fs" />
   </ItemGroup>
