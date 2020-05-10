@@ -1,20 +1,20 @@
-A functional font generator in F#, in service of ticking 'create a font' off my bucket list!
+A functional font generator in F#, in service of ticking 'create a font' off my bucket list.
 
-Dactyl fonts are available in the [ttf/](ttf/) subdirectory (note: work in progress!)
+Dactyl fonts are available in the [ttf/](https://github.com/terryspitz/dactyl-font/tree/SpiroFs/ttf){:target="_blank" rel="noopener"} subdirectory (note: fonts are still a work in progress!)
 
-You can explore Dactyl live in your browser using the [Live Explorer](explorer/public/index.html)
+You can explore Dactyl live in your browser using the [Live Explorer](explorer/public/index.html){:target="_blank" rel="noopener"}
 
-Some of Dactyl's checkered past is here:
+See some of Dactyl's checkered past in this animation:
 
 ![font development](png/font.gif)
 
 ## Spiro spiral curves
 
-Dactyl fonts use Ralph Levien's Spiro curves https://www.levien.com/spiro/
+Dactyl fonts use Ralph Levien's pSpiro curves](https://www.levien.com/spiro/)
 
-ysing wieslawsoltes's C# port: https://github.com/wieslawsoltes/SpiroNet 
+using Wiesław Šoltés's [C# port](https://github.com/wieslawsoltes/SpiroNet)
 
-which I've ported to F# to run under the fantastic https://fable.io/
+which I've ported to F# to run under the fantastic [Fable](https://fable.io/)
 
 ## Variable fonts
 
@@ -28,20 +28,22 @@ https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Fonts/Variable_Fonts_Guide
 
 https://developers.google.com/web/fundamentals/design-and-ux/typography/variable-fonts
 
-https://play.typedetail.com/
+https://play.typedetail.com
 
-https://www.axis-praxis.org/
+https://www.axis-praxis.org
 
 
 ## Font import formats
 
-For creawting 
+[FontForge](https://fontforge.org/en-US) is an open-source font editor which supports Spiro, 
+which requires I write files in its native format, then import and generate TTF fonts.  It's
+also useful to interact with the outlines in here, any it has many validation and viewing features.
 
-https://fontforge.org/en-US/
+Other font interop formats don't support spiros:
 
 http://designwithfontforge.com/en-US/Importing_Glyphs_from_Other_Programs.html
 
-http://unifiedfontobject.org/versions/ufo3/glyphs/glif/
+http://unifiedfontobject.org/versions/ufo3/glyphs/glif
 
 
 ## Font design
