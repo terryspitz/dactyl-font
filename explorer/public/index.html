@@ -5,14 +5,14 @@
   <meta http-equiv='Content-Type' content='text/html; charset=utf-8'>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="shortcut icon" href="fable.ico" />
+  <link rel="stylesheet" type="text/css" href="index.css">
 </head>
 <body>
-  <p>Text</p>
-  <input id="text" value="Testing 123"/>
-  <p>Thickness</p>
-  <input type="range" id="thickness" min="0" max="100"/>
-  <!-- <button id="generate">Generate</button> -->
-  <div id="output"/>
+  <form id="inputs" class="input-table">
+    <label for="text">Text</label>
+    <input id="text" value="Testing 123"/>
+  </form>
+  <div id="output" class="fill-scroll"></div>
   <script src="bundle.js"></script>
 </body>
 </html>

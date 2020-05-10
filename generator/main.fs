@@ -46,7 +46,7 @@ let charToFontForge (this: Font) (ch : char) =
                         |> this.elementToSpiros |> List.map spiroToFF |> concatLines
     sprintf "StartChar: %c\n" ch +
     sprintf "Encoding: %d %d 0\n" (int ch) (int ch) +
-    sprintf "Width: %d\n" (this.width (Glyph(ch)) + thickness) +
+    sprintf "Width: %d\n" (this.charWidth (Glyph(ch)) + thickness) +
     sprintf """
             InSpiro: 1
             Flags: H
@@ -118,7 +118,6 @@ let writeFile filename (text : string) =
     printfn "Writing %s" filename
     File.WriteAllText(filename, trimmedText) |> ignore
 
-#if NOFABLE
 [<EntryPoint>]
 let main argv =
     let showKnots = false
@@ -175,4 +174,3 @@ let main argv =
         ] |> String.concat "\n" |> toSvgDocument 10 30 |> writeFile @".\interp.svg"
 
     0 // return code
-#endif

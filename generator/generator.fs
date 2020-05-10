@@ -295,7 +295,7 @@ type Font (axes: Axes) =
         | Space -> Space
         | e -> this.getGlyph(e) |> this.reduce
 
-    member this.width e =
+    member this.charWidth e =
         let thickness = this.Axes.thickness
         let nonItalic = Font({this.Axes with italic_fraction=0.0})
         let maxX curvePoints = this.Axes.leading + thickness*2 + List.fold max 0 (List.map (fst >> (nonItalic.getXY false) >> fst) curvePoints)
@@ -303,9 +303,14 @@ type Font (axes: Axes) =
         | OpenCurve(curvePoints) -> maxX curvePoints
         | ClosedCurve(curvePoints) -> maxX curvePoints
         | Dot(p) -> thickness*2 + fst (this.getXY false p)
-        | EList(el) -> List.fold max 0 (List.map this.width el)
+        | EList(el) -> List.fold max 0 (List.map this.charWidth el)
         | Space -> this.Axes.height / 4  //according to https://en.wikipedia.org/wiki/Whitespace_character#Variable-width_general-purpose_space
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" e)
+
+    member this.charHeight = this.Axes.height - D + this.Axes.thickness * 2
+
+    ///distance from bottom of descenders to baseline ()
+    member this.yBaselineOffset = - D + this.Axes.thickness
 
     member this.elementToSpirosOffset offset e =
         let getXY = this.getXY offset
@@ -526,11 +531,11 @@ type Font (axes: Axes) =
 
 
     member this.stringWidth (str : string) =
-        List.sum ([for ch in str do this.width (Glyph(ch))])
+        List.sum ([for ch in str do this.charWidth (Glyph(ch))])
 
 
     member this.stringToSvg (str : string) offsetX offsetY showKnots =
-        let widths = [for ch in str do this.width (Glyph(ch))]
+        let widths = [for ch in str do this.charWidth (Glyph(ch))]
         let offsetXs = List.scan (+) offsetX widths
         String.concat "\n"
             [for c in 0 .. str.Length - 1 do

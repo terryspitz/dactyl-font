@@ -1,0 +1,17 @@
+body {
+    display:grid;
+    grid-template-columns: max-content auto;
+    grid-gap:5px;
+}
+fill-scroll {
+    height:auto;
+    overflow:scroll;
+}
+form {
+    display:grid;
+    grid-template-columns: max-content max-content;
+    grid-template-rows: repeat(auto-fill, 1.5em); */
+    grid-gap:50px;
+}
+form label       { text-align:right; }
+form label:after { content: ":"; }
