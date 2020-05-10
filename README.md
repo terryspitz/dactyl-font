@@ -1,6 +1,8 @@
-h1. fontfunc
+# fontfunc
 
-A functional font glyph generator in F#.
+A functional font generator in F#.
+
+[Live Explorer](explorer/public/index.html)
 
 ![font development](png/font.gif)
 
