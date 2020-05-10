@@ -5,7 +5,6 @@
 //- move outline point inward only
 //- fixed-width font
 //- serifs
-//- make variable font
 //- join lines properly
 //- horiz/vertical endcaps
 //- correct tight bend in 5
@@ -17,6 +16,7 @@
 //Features :
 // Backscratch font (made of 4 parallel lines)
 // Generated FontForge fonts
+// Variable font explorer: https://terryspitz.github.io/dactyl-font/
 
 module Generator
 
@@ -134,7 +134,8 @@ type Font (axes: Axes) =
     let offset = axes.offset // offset from corners
     let dotHeight = max ((X+T)/2) (X+axes.thickness*3)
 
-    member this.Axes = axes
+    let thickness = if axes.stroked || axes.scratches then max axes.thickness 60 else axes.thickness
+    member this.Axes = {axes with thickness = thickness;}
     
     member this.rewritePoint p = 
         match p with
@@ -432,7 +433,8 @@ type Font (axes: Axes) =
                 let x,y = this.getXY true p
                 [Font.dotToClosedCurve x y this.Axes.thickness; Font.dotToClosedCurve x y (this.Axes.thickness/2)]
             | SpiroSpace -> [Space]
-        EList(List.collect spiroToLines spiros) |> Font({this.Axes with thickness = 2}).getSansOutlines
+        EList(List.collect spiroToLines spiros) |> 
+            Font({this.Axes with stroked = false; scratches = false; thickness = 2}).getSansOutlines
 
     member this.getScratches e = 
         let spiros = this.elementToSpirosOffset true e

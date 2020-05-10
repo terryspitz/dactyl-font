@@ -50,11 +50,16 @@ let generate _ =
                      | FracRange(_,_) -> System.Single.Parse input.value :> obj
                      | Checkbox -> input.``checked`` :> obj
                  |])
-    printfn "%A" axes     
     let font = Font(axes :?> Axes)
+    printfn "%A" font.Axes     
     let yOffset = font.charHeight - font.yBaselineOffset + font.Axes.thickness + 10
     let svg = font.stringToSvg text 0 yOffset |> toSvgDocument (int (float font.charHeight*1.25)) (font.stringWidth text)
     output.innerHTML <- svg
+
+let font = Font(Axes.DefaultAxes)
+let yOffset = font.charHeight - font.yBaselineOffset + font.Axes.thickness + 10
+let title = document.getElementById "title"
+title.innerHTML <- font.stringToSvg "Dactyl  Live" 0 yOffset |> toSvgDocument (font.charHeight+10) 2000
 
 for k,_ in fieldDefaults do
     let label = document.createElement "label" :?> HTMLLabelElement
