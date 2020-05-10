@@ -19,17 +19,17 @@ module.exports = {
     module: {
         rules: [{
             test: /\.fs(x|proj)?$/,
-            use: {
-                loader: "fable-loader",
-                options: {
-                    cli: {
-                        // This should be the path to your local clone of Fable
-                        path: "../../Fable/src/Fable.Cli"
-                    },
-                    DEBUG: 1
-                }
-            }
-            //use: "fable-loader"
+            // use: {
+            //     loader: "fable-loader",
+            //     options: {
+            //         cli: {
+            //             // This should be the path to your local clone of Fable
+            //             path: "../../Fable/src/Fable.Cli"
+            //         },
+            //         DEBUG: 1
+            //     }
+            // }
+            use: "fable-loader"
         }]
     }
 }

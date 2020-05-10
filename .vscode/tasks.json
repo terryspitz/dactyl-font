@@ -19,13 +19,29 @@
             "problemMatcher": "$msCompile"
         },
         {
+            "label": "build Release",
+            "command": "dotnet",
+            "type": "shell",
+            "args": [
+                "build",
+                "/property:GenerateFullPaths=true",
+                "-c",
+                "Release"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "silent"
+            },
+            "problemMatcher": "$msCompile"
+        }        
+        {
             "label": "run",
             "command": "dotnet",
             "type": "shell",
             "args": [
                 "run",
                 "/property:GenerateFullPaths=true",
-                "/consoleloggerparameters:NoSummary"
+                "/consoleloggerparameters:NoSummary",
             ],
             "group": "build",
             "presentation": {
@@ -39,6 +55,15 @@
             "path": "explorer/",
             "problemMatcher": [],
             "label": "npm: start - explorer",
+            "detail": "webpack-dev-server",
+            "group": "build",
+        },
+        {
+            "type": "npm",
+            "script": "build",
+            "path": "explorer/",
+            "problemMatcher": [],
+            "label": "npm: build - explorer",
             "detail": "webpack-dev-server",
             "group": "build",
         }
