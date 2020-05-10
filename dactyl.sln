@@ -9,6 +9,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "explorer", "explorer\src\ex
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "SpiroFs", "SpiroFs\SpiroFs.fsproj", "{CC98DF1C-6F4A-4856-9CF8-9AD6DC4C2727}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "main", "main\main.fsproj", "{B1C924AC-5CD1-4770-A2C2-396D33AAC3A6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,5 +29,9 @@ Global
 		{CC98DF1C-6F4A-4856-9CF8-9AD6DC4C2727}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CC98DF1C-6F4A-4856-9CF8-9AD6DC4C2727}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CC98DF1C-6F4A-4856-9CF8-9AD6DC4C2727}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B1C924AC-5CD1-4770-A2C2-396D33AAC3A6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B1C924AC-5CD1-4770-A2C2-396D33AAC3A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B1C924AC-5CD1-4770-A2C2-396D33AAC3A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B1C924AC-5CD1-4770-A2C2-396D33AAC3A6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

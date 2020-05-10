@@ -120,7 +120,6 @@ let writeFile filename (text : string) =
 
 [<EntryPoint>]
 let main argv =
-    let showKnots = false
     let fonts = [
         ("Dactyl Sans Extra Light", "Extra Light", Font(Axes.DefaultAxes));
         ("Dactyl Sans", "Regular", Font({Axes.DefaultAxes with outline = true; thickness = 30;}));
@@ -140,8 +139,8 @@ let main argv =
                 let name, _, font = fonts.[i]
                 let y = i*rowHeight*2
                 svgText 0 (y+200) name +
-                font.stringToSvg "THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789" 0 (y+rowHeight+100) showKnots +
-                font.stringToSvg """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./""" 0 (y+rowHeight*2-100) showKnots
+                font.stringToSvg "THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789" 0 (y+rowHeight+100) +
+                font.stringToSvg """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./""" 0 (y+rowHeight*2-100)
               ] |> concatLines
 
     writeFile @".\allGlyphs.svg" (toSvgDocument (fonts.Length * (rowHeight * 2+1)) (Axes.DefaultAxes.width * 70) svg)
@@ -170,7 +169,7 @@ let main argv =
             for c in 1..10 do
                 let font = Font({Axes.DefaultAxes with 
                                             x_height = (11-r)*60; offset = c*30; thickness = r*6;})
-                font.stringToSvg str (c*600*str.Length) ((11-r)*1000) false
+                font.stringToSvg str (c*600*str.Length) ((11-r)*1000)
         ] |> String.concat "\n" |> toSvgDocument 10 30 |> writeFile @".\interp.svg"
 
     0 // return code

@@ -9,7 +9,7 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/generator/bin/Debug/netcoreapp3.0/generator.dll",
+            "program": "${workspaceFolder}/main/bin/Debug/netcoreapp3.0/main.exe",
             "args": [],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,

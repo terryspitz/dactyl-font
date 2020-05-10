@@ -41,10 +41,11 @@ type Axes = {
     stroked : bool    //each stroke is 4 parallel lines
     scratches : bool //horror font
     filled : bool   //(svg only) filled or empty outlines
+    show_knots : bool
 } with
     static member DefaultAxes = { 
         width = 300; height = 600; x_height = 400; offset = 100; thickness = 3; italic_fraction = 0.0; leading = 50;
-        outline = true; stroked = false; scratches = false; filled = true; }
+        outline = true; stroked = false; scratches = false; filled = true; show_knots = false}
 
 type Point =
     // Raw coordinates
@@ -221,8 +222,8 @@ type Font (axes: Axes) =
         | Glyph('F') -> EList([PolyLine([TR; TL; BL]); Line(HL, HRo)])
         | Glyph('f') -> EList([OpenCurve([(TC, Start); (XL, CurveToLine); (BL, End)]); Line(XL, XC)])
         | Glyph('G') -> OpenCurve([(ToR, G2); (TC, G2); (HL, G2); (BC, G2); (HoR, CurveToLine); (HR, Corner); (HC, End)])
-        | Glyph('g') -> EList([Part("adgqLoop");
-                              OpenCurve([(XR, Corner); (BR, LineToCurve); (DC, G2); (DoL, End)])])
+        | Glyph('g') -> EList([OpenCurve([(XR, Corner); (BR, LineToCurve); (DC, G2); (DoL, End)]);
+                               Part("adgqLoop");])
         | Glyph('H') -> EList([Line(BL, TL); Line(HL, HR); Line(BR, TR)])
         | Glyph('h') -> EList([Line(BL, TL); OpenCurve([(XoL, Start); (XC, G2); (MR, CurveToLine); (BR, End)])])
         | Glyph('I') -> Line(BL, TL)
@@ -246,7 +247,7 @@ type Font (axes: Axes) =
         | Glyph('P') -> OpenCurve([(BL, Corner); (TL, Corner); (TC, LineToCurve); (Mid(TR, HR), G2); (HC, CurveToLine); (HL, End)])
         | Glyph('p') -> EList([Line(XL, DL)
                                OpenCurve([(XoL, Start); (XC, G2); (MR, G2); (BC, G2); (BoL, End)])])
-        | Glyph('Q') -> EList([Glyph('O'); Line(Mid(HC, BR), BR)])
+        | Glyph('Q') -> EList([Line(Mid(HC, BR), BR); Glyph('O'); ])
         | Glyph('q') -> EList([Line(XR, DR); Part("adgqLoop")])
         | Glyph('R') -> EList([Glyph('P'); PolyLine([HL; HC; BR])])
         | Glyph('r') -> EList([Line(BL,XL)
@@ -282,7 +283,7 @@ type Font (axes: Axes) =
                       Dot(XC)
         | any -> any
 
-    member this.reduce  e =
+    member this.reduce e =
         match e with
         | Line(p1, p2) -> OpenCurve([(p1, Start); (p2, End)]) |> this.reduce
         | PolyLine(points) -> let a = Array.ofList points
@@ -504,7 +505,7 @@ type Font (axes: Axes) =
                         | SpiroClosedCurve(_) -> "evenodd"
                         | _ -> "nonzero"
         let svg = spiros |> List.map this.toSvgBezierCurve |> concatLines
-        let fillStyle = if this.Axes.filled then "#000000" else "none"
+        let fillStyle = if this.Axes.outline && this.Axes.filled then "#000000" else "none"
         sprintf "<path d='%s' transform='translate(%d,%d) scale(1,-1)' " svg offsetX offsetY +
             sprintf "style='fill:%s;fill-rule:%s;stroke:#000000;stroke-width:%d'/>\n" fillStyle fillrule strokeWidth
 
@@ -512,35 +513,35 @@ type Font (axes: Axes) =
         //Get circles highlighting the knots (defined points on the spiro curves)
         let toSvgPoints (spiro : SpiroElement) : string = 
             let thickness = this.Axes.thickness
-            let circle(x,y) = svgCircle (int x + thickness) (int y + thickness) 50
+            let circle(x,y) = svgCircle (int x + thickness) (int y + thickness) 20
             match spiro with
-            | SpiroOpenCurve(scps, _) -> scps |> List.map (fun scp -> circle(scp.X, scp.Y)) |> concatLines
-            | SpiroClosedCurve(scps, _) -> scps |> List.map (fun scp -> circle(scp.X, scp.Y)) |> concatLines
+            | SpiroOpenCurve(scps, _) -> List.map (fun scp -> circle(scp.X, scp.Y)) scps |> concatLines
+            | SpiroClosedCurve(scps, _) -> List.map (fun scp -> circle(scp.X, scp.Y)) scps |> concatLines
             | SpiroDot(p) -> let x,y = this.getXY false p in circle(float(x), float(y))
             | SpiroSpace -> ""
         let svg = element |> this.elementToSpiros |> List.map toSvgPoints |> concatLines
         // small red circles
-        sprintf "<!-- points --><path d='%s' transform='scale(1,-1) translate(%d,%d)' " svg offsetX offsetY + 
+        sprintf "<!-- points --><path d='%s' transform='translate(%d,%d) scale(1,-1)' " svg offsetX offsetY + 
             "style='fill:none;stroke:#ffaaaa;stroke-width:10'/>\n"
 
-    member this.charToSvg ch offsetX offsetY showKnots =
+    member this.charToSvg ch offsetX offsetY =
         let element = Glyph(ch)
         sprintf "<!-- %c -->\n\n" ch +
         this.getSvgCurves element offsetX offsetY 5 +
-            (if showKnots then this.getSvgKnots element offsetX offsetY else "")
+            (if this.Axes.show_knots then this.getSvgKnots element offsetX offsetY else "")
 
 
     member this.stringWidth (str : string) =
         List.sum ([for ch in str do this.charWidth (Glyph(ch))])
 
 
-    member this.stringToSvg (str : string) offsetX offsetY showKnots =
+    member this.stringToSvg (str : string) offsetX offsetY =
         let widths = [for ch in str do this.charWidth (Glyph(ch))]
         let offsetXs = List.scan (+) offsetX widths
         String.concat "\n"
             [for c in 0 .. str.Length - 1 do
                 printfn "%c" str.[c]
-                yield this.charToSvg str.[c] (offsetXs.[c]) offsetY showKnots]
+                yield this.charToSvg str.[c] (offsetXs.[c]) offsetY]
 
 
 let svgText x y text =
@@ -555,5 +556,3 @@ let toSvgDocument height width svg =
             </svg>""" width height svg
 
 //end module
-
-

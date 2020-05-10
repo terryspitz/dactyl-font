@@ -35,7 +35,8 @@ let controls = Map.ofList [
     "outline", Checkbox;
     "stroked", Checkbox;
     "scratches", Checkbox;
-    "filled", Checkbox
+    "filled", Checkbox;
+    "show_knots", Checkbox
 ]
 
 let generate _ = 
@@ -52,7 +53,7 @@ let generate _ =
     printfn "%A" axes     
     let font = Font(axes :?> Axes)
     let yOffset = font.charHeight - font.yBaselineOffset + font.Axes.thickness + 10
-    let svg = font.stringToSvg text 0 yOffset false |> toSvgDocument (int (float font.charHeight*1.25)) (font.stringWidth text)
+    let svg = font.stringToSvg text 0 yOffset |> toSvgDocument (int (float font.charHeight*1.25)) (font.stringWidth text)
     output.innerHTML <- svg
 
 for k,_ in fieldDefaults do
