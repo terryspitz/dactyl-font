@@ -58,8 +58,9 @@ let generate _ =
 
 let font = Font(Axes.DefaultAxes)
 let yOffset = font.charHeight - font.yBaselineOffset + font.Axes.thickness + 10
-let title = document.getElementById "title"
-title.innerHTML <- font.stringToSvg "Dactyl  Live" 0 yOffset |> toSvgDocument (font.charHeight+10) 2000
+let titleElem = document.getElementById "title"
+let titleStr = "Dactyl Live"
+titleElem.innerHTML <- font.stringToSvg titleStr 0 yOffset |> toSvgDocument (font.charHeight+10) (font.stringWidth titleStr)
 
 for k,_ in fieldDefaults do
     let label = document.createElement "label" :?> HTMLLabelElement
