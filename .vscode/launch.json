@@ -5,7 +5,18 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": ".NET Core Launch (console)",
+            "name": "Launch main Debug",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/main/bin/Debug/netcoreapp3.0/main.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        },
+        {
+            "name": "Launch main Release",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build Release",
@@ -15,6 +26,5 @@
             "stopAtEntry": false,
             "console": "internalConsole"
         }
-
     ]
 }

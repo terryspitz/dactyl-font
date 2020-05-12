@@ -21,57 +21,58 @@ let charToFontForge (this: Font) (ch : char) =
         let matchEval (amatch : Match) = amatch.Groups.[2].Value.Replace(","," ") + " "
                                          + amatch.Groups.[1].Value.ToLower() + " 0"
         let reorder s = Regex.Replace(s, "(.) (.*)", matchEval)
-        let bezierString = this.toSvgBezierCurve spiro |> fun s-> s.Split('\r', '\n') 
-        //let bezierString = this.toSvgBezierCurve spiro |> fun s-> s.Split([| "\r"; "\n" |], System.StringSplitOptions.None) 
-                           |> Array.map reorder |> String.concat "\n"
+        let bezierString = this.toSvgBezierCurve spiro |> List.collect (fun (s:string)-> s.Split('\r', '\n') |> List.ofArray)
+                           |> List.map reorder
         let spiroString =
             match spiro with
-            | SpiroOpenCurve(scps, _) -> scps |> List.map scpToString |> concatLines
-            | SpiroClosedCurve(scps, _) -> scps |> List.map scpToString |> concatLines
-            | SpiroDot(p) -> let x,y = this.getXY true p 
-                             sprintf "%d %d o " (x-thickness) (y) +
-                             sprintf "%d %d o " (x) (y+thickness) +
-                             sprintf "%d %d o " (x+thickness) (y)
-            | SpiroSpace -> ""
-        sprintf """
-                %s
-                Spiro
-                %s
-                0 0 z
-                EndSpiro
-                """ bezierString spiroString
+            | SpiroOpenCurve(scps, _) -> scps |> List.map scpToString
+            | SpiroClosedCurve(scps, _) -> scps |> List.map scpToString
+            | SpiroDot(p) -> 
+                let x,y = this.getXY p 
+                [
+                    sprintf "%d %d o " (x-thickness) (y) +
+                    sprintf "%d %d o " (x) (y+thickness) +
+                    sprintf "%d %d o " (x+thickness) (y)]
+            | SpiroSpace -> []
+        bezierString @ ["Spiro"] @ spiroString @ ["0 0 z"; "EndSpiro";]
+
     let spineSpiros = Glyph(ch) |> Font({this.Axes with thickness = 2}).getSansOutlines
-                      |> this.elementToSpirosOffset true |> List.map spiroToFF |> concatLines
+                      |> this.elementToSpiros |> List.collect spiroToFF
     let outlineSpiros = Glyph(ch) |> this.getOutline //|> Font({this.Axes with thickness = 2}).getSansOutlines 
-                        |> this.elementToSpiros |> List.map spiroToFF |> concatLines
-    sprintf "StartChar: %c\n" ch +
-    sprintf "Encoding: %d %d 0\n" (int ch) (int ch) +
-    sprintf "Width: %d\n" (this.charWidth (Glyph(ch)) + thickness) +
-    sprintf """
-            InSpiro: 1
-            Flags: H
-            LayerCount: 2
-            Back
-            SplineSet
-                %s
-            EndSplineSet
-            Fore
-            SplineSet
-                %s
-            EndSplineSet
-            EndChar
-            """
-            spineSpiros outlineSpiros
+                        |> this.elementToSpiros |> List.collect spiroToFF
+    [
+        sprintf "StartChar: %c\n" ch;
+        sprintf "Encoding: %d %d 0\n" (int ch) (int ch);
+        sprintf "Width: %d\n" (this.charWidth ch + thickness);
+        """
+        InSpiro: 1
+        Flags: H
+        LayerCount: 2
+        Back
+        SplineSet
+        """;
+    ] @ spineSpiros @ [
+        """
+        EndSplineSet
+        Fore
+        SplineSet
+        """
+    ] @ outlineSpiros @ [
+        """
+        EndSplineSet
+        EndChar
+        """;
+    ]
 
 let fontForgeProps name weight =
     let props = File.ReadAllText @".\generator\font.props"
-    sprintf
-        """SplineFontDB: 3.2
-         FamilyName: Dactyl
-         FontName: %s
-         FullName: %s
-         Weight: %s
-         %s""" name name weight props
+    [
+        "SplineFontDB: 3.2";
+        "FamilyName: Dactyl";
+        sprintf "FontName: %s" name
+        sprintf "FullName: %s" name
+        sprintf "Weight: %s" weight
+    ] @ [props]//(props.Split('\r','\n') |> List.ofArray)
 
 let fontForgeGlyphFile ch =
     match(ch) with
@@ -104,27 +105,30 @@ let svgText x y text =
     sprintf """<text x='%d' y='%d' font-size='200'>%s</text>\n""" x y text
 
 let toSvgDocument height width svg =
-    sprintf """<svg xmlns='http://www.w3.org/2000/svg'
-            viewBox='0 0 %d %d'>
-            <g id='layer1'>
-            %s
-            </g>
-            </svg>""" width height svg
+    [
+        "<svg xmlns='http://www.w3.org/2000/svg'";
+        sprintf "viewBox='0 0 %d %d'>" width height;
+        "<g id='layer1'>";
+    ] @ svg @ [
+        "</g>";
+        "</svg>";
+    ]
 
 
-let writeFile filename (text : string) = 
+let writeFile filename text = 
     let trim (x : string) = x.Trim()
-    let trimmedText = text.Split('\n') |> Array.map trim |> String.concat "\n"
+    let trimmedText = List.map trim text
     printfn "Writing %s" filename
-    File.WriteAllText(filename, trimmedText) |> ignore
+    File.WriteAllLines(filename, trimmedText) |> ignore
 
 [<EntryPoint>]
 let main argv =
     let fonts = [
         ("Dactyl Sans Extra Light", "Extra Light", Font(Axes.DefaultAxes));
         ("Dactyl Sans", "Regular", Font({Axes.DefaultAxes with outline = true; thickness = 30;}));
-        ("Dactyl Sans Italic", "Italic", Font({Axes.DefaultAxes with outline = true; thickness = 30; italic_fraction = 0.15}));
+        ("Dactyl Sans Italic", "Italic", Font({Axes.DefaultAxes with outline = true; thickness = 30; italic = 0.15}));
         ("Dactyl Sans Bold", "Bold", Font({Axes.DefaultAxes with outline = true; thickness = 60;}));
+        ("Dactyl Mono", "Regular", Font({Axes.DefaultAxes with outline = true; thickness = 30; monospace = 1.0}));
         ("Dactyl Stroked", "Regular", Font({Axes.DefaultAxes with stroked = true; thickness = 60;}));
         ("Dactyl Scratch", "Regular", Font({Axes.DefaultAxes with scratches = true; thickness = 60;}));
     ]
@@ -137,13 +141,14 @@ let main argv =
     let rowHeight = Axes.DefaultAxes.height + 400
     let svg = [for i in 0..fonts.Length-1 do
                 let name, _, font = fonts.[i]
+                printfn "\n%s\n" name
                 let y = i*rowHeight*2
-                svgText 0 (y+200) name +
-                font.stringToSvg "THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789" 0 (y+rowHeight+100) +
-                font.stringToSvg """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./""" 0 (y+rowHeight*2-100)
-              ] |> concatLines
+                yield svgText 0 (y+200) name
+                yield! font.stringToSvg "THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789" 0 (y+rowHeight+100)
+                yield! font.stringToSvg """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./""" 0 (y+rowHeight*2-100)
+              ]
 
-    writeFile @".\allGlyphs.svg" (toSvgDocument (fonts.Length * (rowHeight * 2+1)) (Axes.DefaultAxes.width * 70) svg)
+    svg |> toSvgDocument (fonts.Length * (rowHeight * 2+1)) (Axes.DefaultAxes.width * 70) |> writeFile @".\allGlyphs.svg"
 
 
     // FontForge output
@@ -169,7 +174,7 @@ let main argv =
             for c in 1..10 do
                 let font = Font({Axes.DefaultAxes with 
                                             x_height = (11-r)*60; offset = c*30; thickness = r*6;})
-                font.stringToSvg str (c*600*str.Length) ((11-r)*1000)
-        ] |> String.concat "\n" |> toSvgDocument 10 30 |> writeFile @".\interp.svg"
+                yield! font.stringToSvg str (c*600*str.Length) ((11-r)*1000)
+        ] |> toSvgDocument 10 30 |> writeFile @".\interp.svg"
 
     0 // return code

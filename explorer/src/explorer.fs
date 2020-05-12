@@ -25,13 +25,14 @@ type Controls =
     | Checkbox
 
 let controls = Map.ofList [
+    "thickness", Range(0, 200);
     "width", Range(100, 1000);
     "height", Range(100, 1000);
     "x_height", Range(0, 1000);
-    "offset", Range(0, 500);
-    "thickness", Range(0, 200);
+    "offset", Range(0, 400);
     "leading", Range(0, 200);
-    "italic_fraction", FracRange(0.0, 1.0);
+    "monospace", FracRange(0.0, 1.0);
+    "italic", FracRange(0.0, 1.0);
     "outline", Checkbox;
     "stroked", Checkbox;
     "scratches", Checkbox;
@@ -54,13 +55,14 @@ let generate _ =
     printfn "%A" font.Axes     
     let yOffset = font.charHeight - font.yBaselineOffset + font.Axes.thickness + 10
     let svg = font.stringToSvg text 0 yOffset |> toSvgDocument (int (float font.charHeight*1.25)) (font.stringWidth text)
-    output.innerHTML <- svg
+    output.innerHTML <- String.concat "\n" svg
 
 let font = Font(Axes.DefaultAxes)
 let yOffset = font.charHeight - font.yBaselineOffset + font.Axes.thickness + 10
 let titleElem = document.getElementById "title"
 let titleStr = "Dactyl Live"
-titleElem.innerHTML <- font.stringToSvg titleStr 0 yOffset |> toSvgDocument (font.charHeight+10) (font.stringWidth titleStr)
+let svg = font.stringToSvg titleStr 0 yOffset |> toSvgDocument (font.charHeight+10) (font.stringWidth titleStr)
+titleElem.innerHTML <- String.concat "\n" svg
 
 for k,_ in fieldDefaults do
     let label = document.createElement "label" :?> HTMLLabelElement
