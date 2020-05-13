@@ -12,7 +12,6 @@ open Generator
 
 let charToFontForge (this: Font) (ch : char) =
     // reverse engineered from saved font  
-    // TODO: coords shifted by (thickness, thickness) (hard for beziers)
     let thickness = this.Axes.thickness
     //let scpToString (scp : SCP) = sprintf "%f %f %c" scp.X scp.Y (char scp.Type)
     let scpToString (scp : SCP) = sprintf "%f %f %c" scp.X scp.Y (SpiroPointType.ToChar scp.Type)
@@ -38,8 +37,7 @@ let charToFontForge (this: Font) (ch : char) =
 
     let spineSpiros = Glyph(ch) |> Font({this.Axes with thickness = 2}).getSansOutlines
                       |> this.elementToSpiros |> List.collect spiroToFF
-    let outlineSpiros = Glyph(ch) |> this.getOutline //|> Font({this.Axes with thickness = 2}).getSansOutlines 
-                        |> this.elementToSpiros |> List.collect spiroToFF
+    let outlineSpiros = Glyph(ch) |> this.getOutline |> this.elementToSpiros |> List.collect spiroToFF
     [
         sprintf "StartChar: %c\n" ch;
         sprintf "Encoding: %d %d 0\n" (int ch) (int ch);
@@ -124,7 +122,7 @@ let writeFile filename text =
 [<EntryPoint>]
 let main argv =
     let fonts = [
-        ("Dactyl Sans Extra Light", "Extra Light", Font(Axes.DefaultAxes));
+        ("Dactyl Sans Extra Light", "Extra Light", Font({Axes.DefaultAxes with outline = true; thickness = 3;}));
         ("Dactyl Sans", "Regular", Font({Axes.DefaultAxes with outline = true; thickness = 30;}));
         ("Dactyl Sans Italic", "Italic", Font({Axes.DefaultAxes with outline = true; thickness = 30; italic = 0.15}));
         ("Dactyl Sans Bold", "Bold", Font({Axes.DefaultAxes with outline = true; thickness = 60;}));

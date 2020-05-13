@@ -33,6 +33,7 @@ let controls = Map.ofList [
     "leading", Range(0, 200);
     "monospace", FracRange(0.0, 1.0);
     "italic", FracRange(0.0, 1.0);
+    "axis_align_caps", Checkbox;
     "outline", Checkbox;
     "stroked", Checkbox;
     "scratches", Checkbox;
