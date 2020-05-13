@@ -367,21 +367,22 @@ type Font (axes: Axes) =
                             | SpiroPointType.Right -> SpiroPointType.Left
                             | x -> x
                        else seg.Type
-        let angle = if reverse then -PI/2.0 else PI/2.0
+        let freverse = if reverse then -1.0 else 1.0
+        let angle = PI/2.0 * freverse
         match seg.Type with
         | SpiroPointType.Corner ->
             let th1, th2 = norm(lastSeg.Tangent2 + angle), norm(seg.Tangent1 + angle)
             let bend = norm(th2 - th1)
             if (not reverse && bend < -PI/2.0) || (reverse && bend > PI/2.0) then
                 //two points on sharp outer bend
-                [(seg.Offset th1 dist, newType);
-                 (seg.Offset th2 dist, newType)]
-            else //right angle or more outer bend or inner bend
+                [(seg.Offset (th1 - freverse * PI/4.0) (dist * sqrt 2.0), newType);
+                 (seg.Offset (th2 + freverse * PI/4.0) (dist * sqrt 2.0), newType)]
+            else //single point for right angle or more outer bend or any inner bend
                 let offset = min (min (dist/cos (bend/2.0)) seg.seg_ch) lastSeg.seg_ch
-                if (dist/cos (bend/2.0)) > seg.seg_ch || (dist/cos (bend/2.0)) > lastSeg.seg_ch then
-                    if Set.ofList [seg.Type; lastSeg.Type] = Set.ofList [Corner; G2] then
-                        printfn "corner/curve bend"
-                    printfn "inner bend %f offset %f chords %f %f " bend (dist/cos (bend/2.0)) seg.seg_ch lastSeg.seg_ch
+                // if (dist/cos (bend/2.0)) > seg.seg_ch || (dist/cos (bend/2.0)) > lastSeg.seg_ch then
+                //     if Set.ofList [seg.Type; lastSeg.Type] = Set.ofList [Corner; G2] then
+                //         printfn "corner/curve bend"
+                //     printfn "inner bend %f offset %f chords %f %f " bend (dist/cos (bend/2.0)) seg.seg_ch lastSeg.seg_ch
                 [(offsetPoint seg.X seg.Y (th1 + bend/2.0) offset, newType)]
         | SpiroPointType.Right ->
             //not sure why lastSeg.seg_th is different from (fst (tangents seg)) here
@@ -398,20 +399,19 @@ type Font (axes: Axes) =
             if i = 0 then
                 if closed then
                     let lastSeg = segments.[segments.Length-2]
-                    Font.offsetSegment seg lastSeg reverse dist
+                    yield! Font.offsetSegment seg lastSeg reverse dist
                 else
-                    [(seg.Offset (seg.Tangent1 + angle) dist, seg.Type)]
+                    (seg.Offset (seg.Tangent1 + angle) dist, seg.Type)
             elif i = segments.Length-1 then
                 if not closed then
                     let lastSeg = segments.[i-1]
-                    [(seg.Offset (lastSeg.Tangent2 + angle) dist, seg.Type)]
+                    (seg.Offset (lastSeg.Tangent2 + angle) dist, seg.Type)
             else
                 let lastSeg = segments.[i-1]
-                Font.offsetSegment seg lastSeg reverse dist
-        ] |> List.collect id
+                yield! Font.offsetSegment seg lastSeg reverse dist
+        ]
 
     member this.getSansOutlines e = 
-        let spiros = this.elementToSpiros e
         let thickness = float this.Axes.thickness
         let offsetPointCap X Y theta = offsetPoint X Y theta (thickness * sqrt 2.0)
         let offsetMidSegments segments reverse =
@@ -437,7 +437,7 @@ type Font (axes: Axes) =
                 let x,y = this.getXY p
                 [Font.dotToClosedCurve x y this.Axes.thickness]
             | SpiroSpace -> [Space]
-        EList(List.collect spiroToOutline spiros)
+        EList(this.elementToSpiros e |> List.collect spiroToOutline)
 
     member this.getStroked e = 
         let spiros = this.elementToSpiros e
@@ -552,9 +552,7 @@ type Font (axes: Axes) =
 
     member this.getSvgCurves element offsetX offsetY strokeWidth =
         let spiros = this.elementToSpiros element
-        let fillrule = match spiros.[0] with
-                        | SpiroClosedCurve(_) -> "evenodd"
-                        | _ -> "nonzero"
+        let fillrule = "nonzero"
         let svg = spiros |> List.collect this.toSvgBezierCurve
         let fillStyle = if this.Axes.outline && this.Axes.filled then "#000000" else "none"
         [
