@@ -1,20 +1,21 @@
 body {
     display:grid;
     grid-template-columns: max-content auto;
+    grid-template-rows: auto 1fr;
     grid-gap:5px;
-}
-fill-scroll {
-    height:auto;
-    overflow:scroll;
-}
-title-class {
-    grid-column:1/-1;
 }
 form {
+    grid-column:1;
     display:grid;
     grid-template-columns: max-content max-content;
-    grid-template-rows: auto repeat(auto-fill, 1.5em);
+    grid-template-rows: max-content repeat(20,1.5em);
     grid-gap:5px;
 }
-form label       { text-align:right; }
+form label       { text-align:right; height: 3.5em;}
 form label:after { content: ":"; }
+fill-scroll {
+    grid-column:-1;
+    /* height:auto;
+    width:auto; */
+    /* overflow:scroll; */
+}

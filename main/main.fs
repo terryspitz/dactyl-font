@@ -100,7 +100,7 @@ let fontForgeGlyphFile ch =
     | _ -> invalidArg "ch" (sprintf "Unknown char %c" ch)
 
 let svgText x y text =
-    sprintf """<text x='%d' y='%d' font-size='200'>%s</text>\n""" x y text
+    sprintf "<text x='%d' y='%d' font-size='200'>%s</text>" x y text
 
 let toSvgDocument height width svg =
     [
@@ -136,21 +136,20 @@ let main argv =
     // font.charToSvg 'O' 0 0 false |> ignore
 
     // SVG output, side by side
-    let rowHeight = Axes.DefaultAxes.height + 400
-    let svg = [for i in 0..fonts.Length-1 do
-                let name, _, font = fonts.[i]
-                printfn "\n%s\n" name
-                let y = i*rowHeight*2
-                yield svgText 0 (y+200) name
-                yield! font.stringToSvg "THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789" 0 (y+rowHeight+100)
-                yield! font.stringToSvg """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./""" 0 (y+rowHeight*2-100)
-              ]
-
-    svg |> toSvgDocument (fonts.Length * (rowHeight * 2+1)) (Axes.DefaultAxes.width * 70) |> writeFile @".\allGlyphs.svg"
+    let rowHeights = List.scan (+) 0 [for i in 0..fonts.Length-1 do let _, _, font = fonts.[i] in (200 + font.charHeight * 2)]
+    let text = "THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789\n" +
+                """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./""" 
+    [for i in 0..fonts.Length-1 do
+        let name, _, font = fonts.[i]
+        printfn "\n%s\n" name
+        let y = rowHeights.[i]
+        yield svgText 0 (y+200) name
+        yield! font.stringToSvgLines text 0 (y+400)
+    ] |> toSvgDocument (List.max rowHeights) (Axes.DefaultAxes.width * 70) |> writeFile @".\allGlyphs.svg"
 
 
     // FontForge output
-    let writeFonts = true
+    let writeFonts = false
     if writeFonts then
         for i in 0..fonts.Length-1 do
             let name, weight, font = fonts.[i]
@@ -172,7 +171,7 @@ let main argv =
             for c in 1..10 do
                 let font = Font({Axes.DefaultAxes with 
                                             x_height = (11-r)*60; offset = c*30; thickness = r*6;})
-                yield! font.stringToSvg str (c*600*str.Length) ((11-r)*1000)
-        ] |> toSvgDocument 10 30 |> writeFile @".\interp.svg"
+                yield! font.stringToSvg str 0 0
+        ] |> writeFile @".\interp.svg"
 
     0 // return code

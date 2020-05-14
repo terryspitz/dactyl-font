@@ -17,6 +17,7 @@
 // Variable font explorer: https://terryspitz.github.io/dactyl-font/
 // Mono (fixed-width) font
 // Horiz/vertical endcaps using axis_align_caps
+// Randomise in explorer
 
 module Generator
 
@@ -131,7 +132,6 @@ let svgCircle x y r =
     ]
 ///normalise angle to between PI/2 and -PI/2
 let norm th = if th>PI then th-PI*2.0 else if th<(-PI) then th+PI*2.0 else th
-
 
 //class
 type Font (axes: Axes) =
@@ -578,7 +578,7 @@ type Font (axes: Axes) =
         ] @ svg @ [
             "'";
             sprintf "transform='translate(%d,%d) scale(1,-1)'" offsetX offsetY;
-            sprintf "style='fill:%s;fill-rule:%s;stroke:#000000;stroke-width:%d'/>\n" fillStyle fillrule strokeWidth;
+            sprintf "style='fill:%s;fill-rule:%s;stroke:#000000;stroke-width:%d'/>" fillStyle fillrule strokeWidth;
         ]
 
     member this.getSvgKnots offsetX offsetY e =
@@ -609,7 +609,7 @@ type Font (axes: Axes) =
         let shift p = let x,y = this.getXY p
                       YX(y + this.Axes.thickness, x + this.Axes.thickness)
         let element = Glyph(ch) |> this.reduce |> monospace |> this.getOutline |> this.movePoints shift
-        let glyph = [sprintf "<!-- %c -->\n\n" ch] @ this.getSvgCurves element offsetX offsetY 5
+        let glyph = [sprintf "<!-- %c -->" ch] @ this.getSvgCurves element offsetX offsetY 5
         if this.Axes.show_knots then
             let backboneElement = Glyph(ch) |> this.reduce |> monospace |> this.movePoints shift
             glyph @ this.getSvgKnots offsetX offsetY backboneElement
@@ -623,26 +623,34 @@ type Font (axes: Axes) =
 
     member this.stringWidth str = List.sum (this.charWidths str)
 
-    member this.stringToSvg (str : string) offsetX offsetY =
-        let widths = this.charWidths str
-        printfn "%A" (List.zip widths (List.ofSeq str))
-        let offsetXs = List.scan (+) offsetX widths
-        [for c in 0 .. str.Length - 1 do
-            // printfn "%c" str.[c]
-            yield! this.charToSvg str.[c] (offsetXs.[c]) offsetY]
+    member this.stringToSvgLineInternal (multilineStr : string) offsetX offsetY =
+        let lines = multilineStr.Split('\r','\n')
+        let svg, lineWidths = 
+            List.unzip
+                [for i in 0..lines.Length-1 do
+                    let str = lines.[i]
+                    let widths = this.charWidths str
+                    let offsetXs = List.scan (+) offsetX widths
+                    let lineOffset = offsetY + this.charHeight * (i+1) - this.yBaselineOffset + this.Axes.thickness
+                    let svg = [for c in 0 .. str.Length - 1 do
+                                yield! this.charToSvg str.[c] (offsetXs.[c]) lineOffset]
+                    (svg, List.sum widths)
+                ]
+        (List.collect id svg, lineWidths)
 
+    member this.stringToSvgLines (multilineStr : string) offsetX offsetY =
+        fst (this.stringToSvgLineInternal multilineStr offsetX offsetY)
 
-let svgText x y text =
-    sprintf """<text x='%d' y='%d' font-size='200'>%s</text>\n""" x y text
-
-let toSvgDocument height width svg =
-    [
-        "<svg xmlns='http://www.w3.org/2000/svg'";
-        sprintf "viewBox='0 0 %d %d'>"  width height;
-        "<g id='layer1'>";
-    ] @ svg @ [
-        "</g>";
-        "</svg>";
-    ]
+    member this.stringToSvg (multilineStr : string) offsetX offsetY =
+        let svg, lineWidths = this.stringToSvgLineInternal multilineStr offsetX offsetY
+        [
+            "<svg xmlns='http://www.w3.org/2000/svg'"
+            sprintf "viewBox='0 0 %d %d'>"  (List.max lineWidths) (this.charHeight * lineWidths.Length)
+            "<g id='layer1'>"
+        ] @ svg @
+        [
+            "</g>"
+            "</svg>"
+        ]
 
 //end module
