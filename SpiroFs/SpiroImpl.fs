@@ -66,11 +66,12 @@ let IsFinite x =
     not (System.Double.IsInfinity x) && not (System.Double.IsNaN x)
 
 
-let N = 4
 
 // Integrate polynomial spiral curve over range -.5 .. .5.
 //[<SuppressMessage("Hints", "FL0049") >]
-let integrate_spiro (ks : float[]) (xy : float[]) n =
+let integrate_spiro (ks : float[]) =
+    let n = 4
+    
     let th1 = ks.[0]
     let th2 = 0.5 * ks.[1]
     let th3 = (1.0 / 6.0) * ks.[2]
@@ -169,19 +170,17 @@ let integrate_spiro (ks : float[]) (xy : float[]) n =
             y <- y + cth * v + sth * u
             s <- s + ds
 
-    xy.[0] <- x * ds
-    xy.[1] <- y * ds
+    (x * ds, y * ds)
 
 
 //let compute_ends (ks : float[]) (ends : float[,]) (seg_ch : float) =
-let compute_ends (ks : float[]) (ends : MyArray2D) (seg_ch : float) =
-
-    let xy : float[] = Array.zeroCreate 2
-    integrate_spiro ks xy N
-    let ch = hypot xy.[0] xy.[1]
-    let th = atan2 xy.[1] xy.[0]
+let compute_ends (ks : float[]) (seg_ch : float) =
+    let x, y = integrate_spiro ks
+    let ch = hypot x y
+    let th = atan2 y x
     let l = ch / seg_ch
 
+    let ends = Arrays.MyArray2D(2, 4)
     let th_even = 0.5 * ks.[0] + (1.0 / 48.0) * ks.[2]
     let th_odd = 0.125 * ks.[1] + (1.0 / 384.0) * ks.[3] - th
     ends.[(0,0)] <- th_even - th_odd
@@ -200,7 +199,8 @@ let compute_ends (ks : float[]) (ends : MyArray2D) (seg_ch : float) =
     let k2_odd = l3 * 0.5 * ks.[3]
     ends.[(0,3)] <- k2_even - k2_odd
     ends.[(1,3)] <- k2_even + k2_odd
-
+    
+    ends //return
 
 //let compute_pderivs (s : SpiroSegment) (ends : float[,]) (derivs : float[,,]) (jinc : int) : unit =
 let compute_pderivs (s : SpiroSegment) (ends : MyArray2D) (derivs : MyArray3D) (jinc : int) : unit =
@@ -210,14 +210,14 @@ let compute_pderivs (s : SpiroSegment) (ends : MyArray2D) (derivs : MyArray3D) (
     //let try_ends = Array2D.create 2 4 0.0
     let try_ends = MyArray2D(2, 4)
   
-    compute_ends s.ks ends s.seg_ch
+    ends.CopyFrom(compute_ends s.ks s.seg_ch)
     
     for i in 0..jinc-1 do
         for j in 0..3 do
             try_ks.[j] <- s.ks.[j]
 
         try_ks.[i] <- try_ks.[i] + delta
-        compute_ends try_ks try_ends s.seg_ch
+        try_ends.CopyFrom(compute_ends try_ks s.seg_ch)
 
         for k in 0..1 do
             for j in 0..3 do
@@ -544,10 +544,9 @@ let rec spiro_seg_to_bpath (ks : float[]) x0 y0 x1 y1 (bc : IBezierContext) dept
     else
         let seg_ch = hypot (x1 - x0) (y1 - y0)
         let seg_th = atan2 (y1 - y0) (x1 - x0)
-        let xy = Array.create 2 0.0
-        integrate_spiro ks xy N
-        let ch = hypot xy.[0] xy.[1]
-        let th = atan2 xy.[1] xy.[0]
+        let x, y = integrate_spiro ks
+        let ch = hypot x y
+        let th = atan2 y x
         let scale = seg_ch / ch
         let rot = seg_th - th
 
@@ -562,7 +561,6 @@ let rec spiro_seg_to_bpath (ks : float[]) x0 y0 x1 y1 (bc : IBezierContext) dept
 
         else
             let ksub = Array.create 4 0.0
-            let xysub = Array.create 2 0.0
 
             // subdivide
             ksub.[0] <- 0.5 * ks.[0] - 0.125 * ks.[1] + (1.0 / 64.0) * ks.[2] - (1.0 / 768.0) * ks.[3]
@@ -572,9 +570,9 @@ let rec spiro_seg_to_bpath (ks : float[]) x0 y0 x1 y1 (bc : IBezierContext) dept
             let thsub = rot - 0.25 * ks.[0] + (1.0 / 32.0) * ks.[1] - (1.0 / 384.0) * ks.[2] + (1.0 / 6144.0) * ks.[3]
             let cth = 0.5 * scale * cos thsub
             let sth = 0.5 * scale * sin thsub
-            integrate_spiro ksub xysub N
-            let xmid = x0 + cth * xysub.[0] - sth * xysub.[1]
-            let ymid = y0 + cth * xysub.[1] + sth * xysub.[0]
+            let xsub, ysub = integrate_spiro ksub
+            let xmid = x0 + cth * xsub - sth * ysub
+            let ymid = y0 + cth * ysub + sth * xsub
             spiro_seg_to_bpath ksub x0 y0 xmid ymid bc (depth + 1)
             ksub.[0] <- ksub.[0] + 0.25 * ks.[1] + (1.0 / 384.0) * ks.[3]
             ksub.[1] <- ksub.[1] + 0.125 * ks.[2]
@@ -595,16 +593,11 @@ let run_spiro (src : SpiroControlPoint[]) =
 
 
 let get_knot_th (s : SpiroSegment[]) i =
-
-    //double.[].[] ends = { new double.[4], new double.[4] }
-    //let ends = Array2D.create 2 4 0.0
-    let ends = MyArray2D(2, 4)
-
     if i = 0 then
-        compute_ends s.[i].ks ends s.[i].seg_ch
+        let ends = compute_ends s.[i].ks s.[i].seg_ch
         s.[i].seg_th - ends.[0,0]
     else
-        compute_ends s.[i - 1].ks ends s.[i - 1].seg_ch
+        let ends = compute_ends s.[i - 1].ks s.[i - 1].seg_ch
         s.[i - 1].seg_th + ends.[1,0]
 
 

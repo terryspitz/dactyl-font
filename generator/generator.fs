@@ -119,8 +119,7 @@ let EndClosed = SpiroPointType.End
 // Attach extension method to segment class
 type SpiroSegment with 
     member this.Tangents = 
-        let ends = Arrays.MyArray2D(2, 4)
-        SpiroImpl.compute_ends this.ks ends this.seg_ch
+        let ends = SpiroImpl.compute_ends this.ks this.seg_ch
         this.seg_th - ends.[0,0], this.seg_th + ends.[1,0]
     member this.Tangent1 = fst this.Tangents
     member this.Tangent2 = snd this.Tangents
