@@ -113,6 +113,12 @@ let randomise reset _ =
                                     rnd.NextDouble() < 0.5
     generate ()
 
+textbox.innerHTML <- "abcdefghijklm
+nopqrstuvwxyz
+0123456789"
+// textbox.innerHTML <- The Unbearable
+// Lightness
+// of Being"
 textbox.oninput <- generate
 (document.getElementById "reset").onclick <- randomise true
 (document.getElementById "randomise").onclick <- randomise false

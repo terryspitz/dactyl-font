@@ -153,6 +153,9 @@ type Font (axes: Axes) =
     let offset = axes.offset // offset from corners
     let dotHeight = max ((X+T)/2) (X+axes.thickness*3)
 
+    let minOffset = 100
+    let flooredOffset = if offset > minOffset then offset else minOffset
+    let flooredOffsetHalf = if offset/2 > minOffset then offset/2 else minOffset
     let thickness = if axes.stroked || axes.scratches then max axes.thickness 60 else axes.thickness
     member this.Axes = {axes with thickness = thickness;}
     
@@ -205,10 +208,14 @@ type Font (axes: Axes) =
         | Glyph('!') -> EList([Line(TL, ML); Dot(BL)])
 
         | Glyph('0') -> EList([ClosedCurve([(HL, G2); (BC, G2); (HR, G2); (TC, G2)]); Line(TR,BL)])
-        | Glyph('1') -> PolyLine([YX(T-offset,L); YX(T,L+offset); YX(B, L+offset)])
-        | Glyph('2') -> OpenCurve([(ToL, Start); (TLo, G2); (ToR, G2); (MC, CurveToLine); (BL, Corner); (BR, End)])
-        | Glyph('3') -> EList([OpenCurve([(ToL, Corner); (YX(T,R-offset), G2); (Mid(TR, HR), G2); (HC, G2)]);
-                              OpenCurve([(HC, G2); (Mid(HR, BR), G2); (BLo, G2); (BoL, End)])])
+        | Glyph('1') -> let midX = max offset (int ((float monospaceWidth * this.Axes.monospace) / 2.0))
+                        EList([PolyLine([XL; YX(T,midX); YX(B, midX)])] @
+                              if this.Axes.monospace > 0.0 then [Line(BL, YX(B,midX*2))] else [])
+        | Glyph('2') -> OpenCurve([(YX(T-offset,L), Start); (YX(T,L+flooredOffset), G2); (YX(T-flooredOffset,R), G2)
+                                   (MC, CurveToLine); (BL, Corner); (BR, End)])
+        | Glyph('3') -> EList([OpenCurve([(YX(T-offset,L), Start); (YX(T,L+flooredOffset), G2);
+                                          (Mid(TR, HR), G2); (HC, G2)]);
+                              OpenCurve([(HC, G2); (Mid(HR, BR), G2); (YX(B,L+flooredOffset), G2); (YX(B+offset,L), End)])])
         | Glyph('4') -> let X4 = X/4 in PolyLine([BN; TN; YX(X4,L); YX(X4,R)])
         //| Glyph('5') -> OpenCurve([(TR, Start); (TL, Corner); (YX(X-T/50,L), Corner); (XC, G2); (MR, G2); (BC, G2); (BoL, End)])
         | Glyph('5') -> OpenCurve([(TR, Start); (TL, Corner); (XL, Corner); (XC, G2); (MR, G2); (BC, G2); (BoL, End)])
@@ -216,9 +223,9 @@ type Font (axes: Axes) =
         | Glyph('7') -> PolyLine([TL; TR; BLo])
         | Glyph('8') -> let M = T*6/10
                         ClosedCurve([(TC, G2); (Mid(TL,HL), G2); 
-                                   (YX(M*11/10,C-offset), G2); (YX(M*9/10,C+offset), G2); 
+                                   (YX(M*11/10,C-flooredOffsetHalf), G2); (YX(M*9/10,C+flooredOffsetHalf), G2); 
                                    (Mid(HR,BR), G2); (BC, G2); (Mid(HL,BL), G2);
-                                   (YX(M*9/10,C-offset), G2); (YX(M*11/10,C+offset), G2); 
+                                   (YX(M*9/10,C-flooredOffsetHalf), G2); (YX(M*11/10,C+flooredOffsetHalf), G2); 
                                    (Mid(TR,HR), G2)])
         | Glyph('9') -> OpenCurve([(BLo, Start); (HR, G2); (TC, G2); (Mid(TL,HL), G2); (HC, G2); (Mid(TR,HR), End)])
 
@@ -234,9 +241,8 @@ type Font (axes: Axes) =
                                      (YX(H+offset,R), CurveToLine); (YX(H-offset,R), LineToCurve); (BLo, CurveToLine)])
         | Glyph('d') -> EList([Line(BR, TR); Part("adgqLoop")])
         | Glyph('E') -> EList([PolyLine([TR; TL; BL; BR]); Line(HL, HR)])
-        | Glyph('e') -> OpenCurve([(ML, Start); (MR, Corner); (YX(M+offset,R), G2); (XC, G2); (ML, G2);
-                        //(YX(B,C+offset), G2); (BoR, End)])
-                        (BC, G2); (BoR, End)])
+        | Glyph('e') -> OpenCurve([(ML, Start); (MR, Corner); (YX(M+flooredOffsetHalf,R), G2);
+                                   (XC, G2); (ML, G2); (BC, G2); (YX(offset/2,R), End)])
         | Glyph('F') -> EList([PolyLine([TR; TL; BL]); Line(HL, HRo)])
         | Glyph('f') -> EList([OpenCurve([(TC, Start); (XL, CurveToLine); (BL, End)]); Line(XL, XC)])
         | Glyph('G') -> OpenCurve([(ToR, G2); (TC, G2); (HL, G2); (BC, G2); (HoR, CurveToLine); (HR, Corner); (HC, End)])
@@ -244,20 +250,16 @@ type Font (axes: Axes) =
                                Part("adgqLoop");])
         | Glyph('H') -> EList([Line(BL, TL); Line(HL, HR); Line(BR, TR)])
         | Glyph('h') -> EList([Line(BL, TL); OpenCurve([(XoL, Start); (XC, G2); (MR, CurveToLine); (BR, End)])])
-        | Glyph('I') -> let x_pos = int (float this.Axes.width * this.Axes.monospace / 2.0)
-                        let vertical = Line(YX(T,x_pos), YX(B,x_pos))
+        | Glyph('I') -> let midX = int (float this.Axes.width * this.Axes.monospace / 2.0)
+                        let vertical = Line(YX(T,midX), YX(B,midX))
                         if this.Axes.monospace > 0.0 then
-                            EList([vertical; Line(BL, YX(B,x_pos*2)); Line(TL, YX(T,x_pos*2))])
+                            EList([vertical; Line(BL, YX(B,midX*2)); Line(TL, YX(T,midX*2))])
                         else 
                             vertical
-        | Glyph('i') -> let x_pos = int (float this.Axes.width * this.Axes.monospace / 2.0)
-                        EList([Line(YX(X,x_pos), YX(B,x_pos))
-                               Dot(YX(dotHeight,x_pos))]
-                               @ if this.Axes.monospace > 0.0 then
-                                    [Line(BL, YX(B,x_pos*2)); Line(XL, YX(X,x_pos))]
-                                 else
-                                    []
-                             )
+        | Glyph('i') -> let midX = int (float this.Axes.width * this.Axes.monospace / 2.0)
+                        EList([Line(YX(X,midX), YX(B,midX))
+                               Dot(YX(dotHeight,midX))] @
+                               if this.Axes.monospace > 0.0 then [Line(BL, YX(B,midX*2)); Line(XL, YX(X,midX))] else [])
         | Glyph('J') -> OpenCurve([(TL, Corner); (TR, Corner); (HR, LineToCurve); (BC, G2); (BoL, End)])
         | Glyph('j') -> EList([OpenCurve([(XR, Corner); (BR, LineToCurve); (DC, G2); (DoL, End)])
                                Dot(YX(dotHeight,R))])
@@ -267,7 +269,7 @@ type Font (axes: Axes) =
         | Glyph('l') -> OpenCurve([(TL, Corner); (ML, LineToCurve); (BC, G2)])
         | Glyph('M') -> PolyLine([BL; TL; YX(B,R*3/4); YX(T,R*3/2); YX(B,R*3/2)])
         | Glyph('m') -> EList([Glyph('n');
-                              OpenCurve([(YX(X-offset,N), Start); (YX(X,N+C), G2); (YX(M,N+N), CurveToLine); (YX(B,N+N), End)])])
+                              OpenCurve([(YX(X-flooredOffset,N), Start); (YX(X,N+C), G2); (YX(M,N+N), CurveToLine); (YX(B,N+N), End)])])
         | Glyph('N') -> PolyLine([BL; TL; BR; TR])
         | Glyph('n') -> EList([Line(XL,BL)
                                OpenCurve([(BL, Start); (XoL, Corner); (XC, G2); (YX(M,N), CurveToLine); (BN, End)])])
@@ -280,7 +282,8 @@ type Font (axes: Axes) =
         | Glyph('q') -> EList([Line(XR, DR); Part("adgqLoop")])
         | Glyph('R') -> EList([Glyph('P'); PolyLine([HL; HC; BR])])
         | Glyph('r') -> EList([Line(BL,XL)
-                               OpenCurve([(BL, Start); (XoL, Corner); (XC, G2); (XoN, End)])])
+                               //OpenCurve([(BL, Start); (XoL, LineToCurve); (XC, G2); (XoN, End)])])
+                               OpenCurve([(YX(X-minOffset,L), Corner); (XC, G2); (XoN, End)])])
         | Glyph('S') -> OpenCurve([(ToR, G2); (TC, G2); (Mid(TL,HL), G2); 
                                    (YX(H*11/10,C-offset), G2); (YX(H*9/10,C+offset), G2); 
                                    (Mid(HR,BR), G2); (BC, G2); (BoL, End)])
@@ -575,7 +578,9 @@ type Font (axes: Axes) =
         [
             "<path ";
             "d='";
-        ] @ svg @ [
+        ] @
+        svg @ 
+        [
             "'";
             sprintf "transform='translate(%d,%d) scale(1,-1)'" offsetX offsetY;
             sprintf "style='fill:%s;fill-rule:%s;stroke:#000000;stroke-width:%d'/>" fillStyle fillrule strokeWidth;
@@ -598,7 +603,9 @@ type Font (axes: Axes) =
         [
             "<!-- knots -->";
             "<path d='";
-        ] @ svg @ [
+        ] @
+        svg @
+        [
             "'";
             sprintf "transform='translate(%d,%d) scale(1,-1)'" offsetX offsetY;
             "style='fill:none;stroke:#ffaaaa;stroke-width:10'/>";
@@ -647,7 +654,8 @@ type Font (axes: Axes) =
             "<svg xmlns='http://www.w3.org/2000/svg'"
             sprintf "viewBox='0 0 %d %d'>"  (List.max lineWidths) (this.charHeight * lineWidths.Length)
             "<g id='layer1'>"
-        ] @ svg @
+        ] @
+        svg @
         [
             "</g>"
             "</svg>"
