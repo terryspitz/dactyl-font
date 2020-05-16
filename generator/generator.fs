@@ -34,7 +34,7 @@ type Axes = {
     width : int     //width of normal glyph
     height : int    //capital height
     x_height : int  //height of lower case
-    offset : int    //roundedness
+    roundedness : int    //roundedness
     thickness : int //stroke width
     leading : int   //gap between glyphs
     monospace : float //fraction to interpolate widths to monospaces
@@ -50,7 +50,7 @@ type Axes = {
         width = 300
         height = 600
         x_height = 400
-        offset = 100
+        roundedness = 100
         thickness = 30
         monospace = 0.0
         italic = 0.0
@@ -115,9 +115,9 @@ let End = SpiroPointType.EndOpenContour
 let EndClosed = SpiroPointType.End
 
 type SpiroSegment with 
-    member this.Offset theta dist = YX(int(this.Y + dist * sin(theta)), int(this.X + dist * cos(theta)))
+    member this.AddPolar theta dist = YX(int(this.Y + dist * sin(theta)), int(this.X + dist * cos(theta)))
 
-let offsetPoint X Y theta dist =
+let addPolar X Y theta dist =
     YX(int(Y + dist * sin(theta)), int(X + dist * cos(theta)))
 
 let PI = Math.PI        
@@ -150,7 +150,7 @@ type Font (axes: Axes) =
     let T = axes.height     // Top = standard glyph caps height
     let H = T/2             // Half total height
     let D = -axes.height/2  // descender height
-    let offset = axes.offset // offset from corners
+    let offset = axes.roundedness // offset from corners
     let dotHeight = max ((X+T)/2) (X+axes.thickness*3)
 
     let minOffset = 100
@@ -395,22 +395,22 @@ type Font (axes: Axes) =
             let bend = norm(th2 - th1)
             if (not reverse && bend < -PI/2.0) || (reverse && bend > PI/2.0) then
                 //two points on sharp outer bend
-                [(seg.Offset (this.align th1 - freverse * PI/4.0) (dist * sqrt 2.0), newType);
-                 (seg.Offset (this.align th2 + freverse * PI/4.0) (dist * sqrt 2.0), newType)]
+                [(seg.AddPolar (this.align th1 - freverse * PI/4.0) (dist * sqrt 2.0), newType);
+                 (seg.AddPolar (this.align th2 + freverse * PI/4.0) (dist * sqrt 2.0), newType)]
             else //single point for right angle or more outer bend or any inner bend
                 let offset = min (min (dist/cos (bend/2.0)) seg.seg_ch) lastSeg.seg_ch
                 // if (dist/cos (bend/2.0)) > seg.seg_ch || (dist/cos (bend/2.0)) > lastSeg.seg_ch then
                 //     if Set.ofList [seg.Type; lastSeg.Type] = Set.ofList [Corner; G2] then
                 //         printfn "corner/curve bend"
                 //     printfn "inner bend %f offset %f chords %f %f " bend (dist/cos (bend/2.0)) seg.seg_ch lastSeg.seg_ch
-                [(offsetPoint seg.X seg.Y (th1 + bend/2.0) offset, newType)]
+                [(addPolar seg.X seg.Y (th1 + bend/2.0) offset, newType)]
         | SpiroPointType.Right ->
             //not sure why lastSeg.seg_th is different from (fst (tangents seg)) here
-            [(seg.Offset (norm (lastSeg.seg_th + angle)) dist, newType)]
+            [(seg.AddPolar (norm (lastSeg.seg_th + angle)) dist, newType)]
         | SpiroPointType.Left ->
-            [(seg.Offset (norm (seg.seg_th + angle)) dist, newType)]
+            [(seg.AddPolar (norm (seg.seg_th + angle)) dist, newType)]
         | _ ->
-            [(seg.Offset (seg.Tangent1 + angle) dist, newType)]
+            [(seg.AddPolar (seg.Tangent1 + angle) dist, newType)]
 
     member this.offsetSegments (segments : list<SpiroSegment>) start endP reverse closed dist =
         [for i in start .. endP do
@@ -421,11 +421,11 @@ type Font (axes: Axes) =
                     let lastSeg = segments.[segments.Length-2]
                     yield! this.offsetSegment seg lastSeg reverse dist
                 else
-                    (seg.Offset (seg.Tangent1 + angle) dist, seg.Type)
+                    (seg.AddPolar (seg.Tangent1 + angle) dist, seg.Type)
             elif i = segments.Length-1 then
                 if not closed then
                     let lastSeg = segments.[i-1]
-                    (seg.Offset (lastSeg.Tangent2 + angle) dist, seg.Type)
+                    (seg.AddPolar (lastSeg.Tangent2 + angle) dist, seg.Type)
             else
                 let lastSeg = segments.[i-1]
                 yield! this.offsetSegment seg lastSeg reverse dist
@@ -433,7 +433,7 @@ type Font (axes: Axes) =
 
     member this.getSansOutlines e = 
         let thickness = float this.Axes.thickness
-        let offsetPointCap X Y theta = offsetPoint X Y theta (thickness * sqrt 2.0)
+        let offsetPointCap X Y theta = addPolar X Y theta (thickness * sqrt 2.0)
         let offsetMidSegments segments reverse =
             this.offsetSegments segments 1 (segments.Length-2) reverse false thickness
         let startCap (seg : SpiroSegment) =
@@ -493,11 +493,11 @@ type Font (axes: Axes) =
         
         let spiroToScratchOutlines spiro =
             let thicknessby3 = float this.Axes.thickness/3.0
-            let offsetPointCap X Y theta = offsetPoint X Y theta (thicknessby3 * sqrt 2.0)
+            let offsetPointCap X Y theta = addPolar X Y theta (thicknessby3 * sqrt 2.0)
             let offsetMidSegments segments reverse =
                 this.offsetSegments segments 1 (segments.Length-2) reverse false thicknessby3
             let startCap (seg : SpiroSegment) =
-                [(seg.Offset (seg.Tangent1 - PI * 0.90) (thicknessby3*3.0), Corner);
+                [(seg.AddPolar (seg.Tangent1 - PI * 0.90) (thicknessby3*3.0), Corner);
                 //[(offsetPointCap seg.X seg.Y (seg.Tangent1 - PI * 0.75), Corner);
                  //(offsetPointCap seg.X seg.Y (seg.Tangent1 + PI), Corner);
                  (offsetPointCap seg.X seg.Y (seg.Tangent1 + PI * 0.75), Corner)]

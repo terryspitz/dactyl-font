@@ -29,7 +29,7 @@ let controls = Map.ofList [
     "width", Range(100, 1000);
     "height", Range(400, 1000);
     "x_height", Range(0, 1000);
-    "offset", Range(0, 400);
+    "roundedness", Range(0, 400);
     "leading", Range(0, 200);
     "monospace", FracRange(0.0, 1.0);
     "italic", FracRange(0.0, 1.0);

@@ -63,7 +63,7 @@
             "script": "build",
             "path": "explorer/",
             "problemMatcher": [],
-            "label": "npm: build - explorer",
+            "label": "npm: build - explorer bundle",
             "detail": "webpack-dev-server",
             "group": "build",
         }

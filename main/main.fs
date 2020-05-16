@@ -170,7 +170,7 @@ let main argv =
             for r in 1..10 do
             for c in 1..10 do
                 let font = Font({Axes.DefaultAxes with 
-                                            x_height = (11-r)*60; offset = c*30; thickness = r*6;})
+                                            x_height = (11-r)*60; roundedness = c*30; thickness = r*6;})
                 yield! font.stringToSvg str 0 0
         ] |> writeFile @".\interp.svg"
 
