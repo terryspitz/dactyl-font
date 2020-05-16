@@ -2,14 +2,15 @@
 // Mar 2020
 
 //TODOs:
-//- move outline point inward only
-//- serifs
-//- join lines properly
-//- correct tight bend in 5
-//- remove overlap in SVG
-//- render animation
-//- try merging with https://magenta.tensorflow.org/svg-vae
-//- add punctuation chars
+// move outline point inward only
+// serifs
+// join lines properly
+// correct tight bend in 5
+// render animation
+// try merging with https://magenta.tensorflow.org/svg-vae
+// add punctuation chars
+// add Stress (horiz vs vert ratio)
+// 
 
 //Features :
 // Backscratch font (made of 4 parallel lines)
@@ -114,8 +115,17 @@ let Corner = SpiroPointType.Corner
 let End = SpiroPointType.EndOpenContour
 let EndClosed = SpiroPointType.End
 
+
+// Attach extension method to segment class
 type SpiroSegment with 
+    member this.Tangents = 
+        let ends = Arrays.MyArray2D(2, 4)
+        SpiroImpl.compute_ends this.ks ends this.seg_ch
+        this.seg_th - ends.[0,0], this.seg_th + ends.[1,0]
+    member this.Tangent1 = fst this.Tangents
+    member this.Tangent2 = snd this.Tangents
     member this.AddPolar theta dist = YX(int(this.Y + dist * sin(theta)), int(this.X + dist * cos(theta)))
+
 
 let addPolar X Y theta dist =
     YX(int(Y + dist * sin(theta)), int(X + dist * cos(theta)))
@@ -391,7 +401,7 @@ type Font (axes: Axes) =
         let angle = PI/2.0 * freverse
         match seg.Type with
         | SpiroPointType.Corner ->
-            let th1, th2 = norm(lastSeg.Tangent2 + angle), norm(seg.Tangent1 + angle)
+            let th1, th2 = norm(lastSeg.seg_th + angle), norm(seg.seg_th + angle)
             let bend = norm(th2 - th1)
             if (not reverse && bend < -PI/2.0) || (reverse && bend > PI/2.0) then
                 //two points on sharp outer bend
@@ -405,7 +415,8 @@ type Font (axes: Axes) =
                 //     printfn "inner bend %f offset %f chords %f %f " bend (dist/cos (bend/2.0)) seg.seg_ch lastSeg.seg_ch
                 [(addPolar seg.X seg.Y (th1 + bend/2.0) offset, newType)]
         | SpiroPointType.Right ->
-            //not sure why lastSeg.seg_th is different from (fst (tangents seg)) here
+            //weirdly, asserts in Fable's js but not in F# run
+            //assert ((abs (lastSeg.seg_th - seg.Tangent1)) < 1e-5)
             [(seg.AddPolar (norm (lastSeg.seg_th + angle)) dist, newType)]
         | SpiroPointType.Left ->
             [(seg.AddPolar (norm (seg.seg_th + angle)) dist, newType)]

@@ -58,16 +58,7 @@ type SpiroSegment = {
     /// The segment_theta angle for this spiro code point.
     /// </summary>
     mutable seg_th : float
-} with 
-    member this.Tangents = 
-        // from https://levien.com/phd/thesis.pdf Equations 8.22 and 8.23
-        let psi = atan (this.ks.[1]/24.0)
-        let th0 = -this.ks.[0]/2.0 + this.ks.[1]/8.0 - this.ks.[2]/(8.0*6.0) + this.ks.[3]/(16.0*24.0) + psi
-        let th1 = this.ks.[0]/2.0 + this.ks.[1]/8.0 + this.ks.[2]/(8.0*6.0) + this.ks.[3]/(16.0*24.0) - psi
-        (this.seg_th + th0, this.seg_th + th1)
-    member this.Tangent1 = fst this.Tangents
-    member this.Tangent2 = snd this.Tangents
-
+}
 
 let spiroSegment (s : SpiroControlPoint) =
     {

@@ -92,6 +92,7 @@ let init =
 let randomise reset _ = 
     let rnd = System.Random()
     let fracAsDefault = if reset then 1.0 else 0.4
+    let checkboxFracAsDefault = if reset then 1.0 else 0.7
     for k,_ in fieldDefaults do
         let input = document.getElementById k :?> HTMLInputElement
         let c = controls.[k]
@@ -107,15 +108,17 @@ let randomise reset _ =
                            else
                                 string (rnd.NextDouble() * (y-x) + x)
         | Checkbox ->
-            input.``checked`` <- if rnd.NextDouble() < fracAsDefault then
+            input.``checked`` <- if rnd.NextDouble() < checkboxFracAsDefault then
                                     fieldDefaultsMap.[k] :?> bool
                                  else
-                                    rnd.NextDouble() < 0.5
+                                    not (fieldDefaultsMap.[k] :?> bool)
     generate ()
 
 textbox.innerHTML <- "abcdefghijklm
 nopqrstuvwxyz
 0123456789"
+//textbox.innerHTML <- "O000o"
+//((document.getElementById "filled") :?> HTMLInputElement).``checked`` <- false
 // textbox.innerHTML <- The Unbearable
 // Lightness
 // of Being"
