@@ -19,28 +19,6 @@ let fieldDefaultsMap = Map.ofList fieldDefaults
 //Not supported in Fable :()
 //let axesConstructor = Reflection.FSharpValue.PreComputeRecordConstructor typeof<Axes> 
 
-type Controls = 
-    | Range of from : int * upto : int
-    | FracRange of from : float * upto : float
-    | Checkbox
-
-let controls = Map.ofList [
-    "thickness", Range(0, 200);
-    "width", Range(100, 1000);
-    "height", Range(400, 1000);
-    "x_height", Range(0, 1000);
-    "roundedness", Range(0, 400);
-    "leading", Range(0, 200);
-    "monospace", FracRange(0.0, 1.0);
-    "italic", FracRange(0.0, 1.0);
-    "axis_align_caps", Checkbox;
-    "outline", Checkbox;
-    "stroked", Checkbox;
-    "scratches", Checkbox;
-    "filled", Checkbox;
-    "show_knots", Checkbox
-]
-
 let font = Font({Axes.DefaultAxes with thickness=3})
 let titleElem = document.getElementById "title"
 titleElem.innerHTML <-  font.stringToSvg "Dactyl Live" 0 0 |> String.concat "\n"
@@ -50,14 +28,14 @@ let generate _ =
     let axes = Reflection.FSharpValue.MakeRecord(typeof<Axes>,
                 [|for k,_ in fieldDefaults do
                      let input = document.getElementById k  :?> HTMLInputElement
-                     let c = controls.[k]
+                     let c = Axes.controls.[k]
                      match c with
                      | Range(_) -> System.Int32.Parse input.value :> obj
                      | FracRange(_) -> System.Single.Parse input.value :> obj
                      | Checkbox -> input.``checked`` :> obj
                  |])
     let font = Font(axes :?> Axes)
-    printfn "%A" font.Axes     
+    printfn "%A" font.axes     
     let svg = font.stringToSvg text 0 0
     output.innerHTML <- String.concat "\n" svg
 
@@ -70,7 +48,7 @@ let init =
         let input = document.createElement "input" :?> HTMLInputElement
         input.id <- k
         input.oninput <- generate
-        let c = controls.[k]
+        let c = Axes.controls.[k]
         match c with
         | Range(x, y) -> 
             input.``type`` <- "range"
@@ -95,7 +73,7 @@ let randomise reset _ =
     let checkboxFracAsDefault = if reset then 1.0 else 0.7
     for k,_ in fieldDefaults do
         let input = document.getElementById k :?> HTMLInputElement
-        let c = controls.[k]
+        let c = Axes.controls.[k]
         match c with
         | Range(x, y) -> 
             input.value <- if rnd.NextDouble() < fracAsDefault then
@@ -116,8 +94,11 @@ let randomise reset _ =
 
 textbox.innerHTML <- "abcdefghijklm
 nopqrstuvwxyz
-0123456789"
-//textbox.innerHTML <- "O000o"
+0123456789
+ABCDEFGHIJKLM
+NOPQRSTUVWXYZ"
+
+//textbox.innerHTML <- "c    "
 //((document.getElementById "filled") :?> HTMLInputElement).``checked`` <- false
 // textbox.innerHTML <- The Unbearable
 // Lightness

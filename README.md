@@ -1,20 +1,24 @@
-A functional font generator in F#, in service of ticking 'create a font' off my bucket list.
+A functional font generator written in F#, in service of ticking 'create a font' off my bucket list.
 
-Dactyl fonts are available in the [ttf/](https://github.com/terryspitz/dactyl-font/tree/SpiroFs/ttf){:target="_blank" rel="noopener"} subdirectory (note: fonts are still a work in progress!)
+Dactyl fonts are available in the [ttf/](https://github.com/terryspitz/dactyl-font/tree/SpiroFs/ttf){:target="_blank" rel="noopener"} subdirectory (note: these fonts are still a work in progress and do not have good spacing or kerning.)
 
-You can explore Dactyl live in your browser using the [Live Explorer](explorer/public/index.html){:target="_blank" rel="noopener"}
+You can explore Dactyl live in your browser using the [Live Explorer](https://terryspitz.github.io/dactyl-font/explorer/public/index.html){:target="_blank" rel="noopener"}
 
 See some of Dactyl's checkered past in this animation:
 
 ![font development](png/font.gif)
 
+And current samples:
+
+![font samples](allGlyphs.svg)
+
 ## Spiro spiral curves
 
-Dactyl fonts use Ralph Levien's pSpiro curves](https://www.levien.com/spiro/)
+Dactyl fonts use and are inspired by Ralph Levien's [Spiro curves](https://www.levien.com/spiro/)
 
 using Wiesław Šoltés's [C# port](https://github.com/wieslawsoltes/SpiroNet)
 
-which I've ported to F# to run under the fantastic [Fable](https://fable.io/)
+which I've ported to F# to run under the fantastic [Fable](https://fable.io/) to transpile to javascript.
 
 ## Variable fonts
 
@@ -35,11 +39,11 @@ https://www.axis-praxis.org
 
 ## Font import formats
 
-[FontForge](https://fontforge.org/en-US) is an open-source font editor which supports Spiro, 
-which requires I write files in its native format, then import and generate TTF fonts.  It's
-also useful to interact with the outlines in here, any it has many validation and viewing features.
+[FontForge](https://fontforge.org/en-US) is an open-source font editor which supports Spiro.  
 
-Other font interop formats don't support spiros:
+Since font interop formats don't seem to support spiros I write files in FontForge native format,
+then import and generate TTF fonts.  
+FontForge is useful to interact with the letter glyphs: it has great validation, viewing and editing features.
 
 http://designwithfontforge.com/en-US/Importing_Glyphs_from_Other_Programs.html
 

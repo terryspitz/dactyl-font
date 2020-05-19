@@ -40,7 +40,7 @@ open IBezierContext
 
 
 /// <summary>
-/// Compute hypotenuse. The function returns what would be the square root of the sum of the squares of x and y (as per the Pythagorean theorem), but without incurring in undue overflow or underflow of intermediate values.
+/// Compute hypotenuse.
 /// </summary>
 /// <param name="x">The X floating point value corresponding to the legs of a right-angled triangle for which the hypotenuse is computed.</param>
 /// <param name="y">The Y floating point value corresponding to the legs of a right-angled triangle for which the hypotenuse is computed.</param>
@@ -537,18 +537,37 @@ let solve_spiro (s: SpiroSegment[]) nseg =
         norm <= threshold
 
 
+let get_scale_rot dx dy ks =
+    let seg_ch = hypot dx dy
+    let seg_th = atan2 dy dx
+    let x, y = integrate_spiro ks
+    let ch = hypot x y
+    let th = atan2 y x
+    let scale = seg_ch / ch
+    let rot = seg_th - th
+    (scale, rot)
+
+
+let get_mid x0 y0 x1 y1 scale rot (ks : float[]) (ksub : float[]) =
+    ksub.[0] <- 0.5 * ks.[0] - 0.125 * ks.[1] + (1.0 / 64.0) * ks.[2] - (1.0 / 768.0) * ks.[3]
+    ksub.[1] <- 0.25 * ks.[1] - (1.0 / 16.0) * ks.[2] + (1.0 / 128.0) * ks.[3]
+    ksub.[2] <- 0.125 * ks.[2] - (1.0 / 32.0) * ks.[3]
+    ksub.[3] <- (1.0 / 16.0) * ks.[3]
+    let thsub = rot - 0.25 * ks.[0] + (1.0 / 32.0) * ks.[1] - (1.0 / 384.0) * ks.[2] + (1.0 / 6144.0) * ks.[3]
+    let cth = 0.5 * scale * cos thsub
+    let sth = 0.5 * scale * sin thsub
+    let xsub, ysub = integrate_spiro ksub
+    let xmid = x0 + cth * xsub - sth * ysub
+    let ymid = y0 + cth * ysub + sth * xsub
+    (xmid, ymid)
+
+
 let rec spiro_seg_to_bpath (ks : float[]) x0 y0 x1 y1 (bc : IBezierContext) depth =
     let bend = abs ks.[0] + abs (0.5 * ks.[1]) + abs (0.125 * ks.[2]) + abs ((1.0 / 48.0) * ks.[3])
     if bend <= 1e-8 then
         bc.LineTo(x1, y1)
     else
-        let seg_ch = hypot (x1 - x0) (y1 - y0)
-        let seg_th = atan2 (y1 - y0) (x1 - x0)
-        let x, y = integrate_spiro ks
-        let ch = hypot x y
-        let th = atan2 y x
-        let scale = seg_ch / ch
-        let rot = seg_th - th
+        let scale, rot = get_scale_rot (x1 - x0) (y1 - y0) ks
 
         if depth > 5 || bend < 1.0 then
             let th_even = (1.0 / 384.0) * ks.[3] + (1.0 / 8.0) * ks.[1] + rot
@@ -558,21 +577,10 @@ let rec spiro_seg_to_bpath (ks : float[]) x0 y0 x1 y1 (bc : IBezierContext) dept
             let ur = (scale * (1.0 / 3.0)) * cos (th_even + th_odd)
             let vr = (scale * (1.0 / 3.0)) * sin (th_even + th_odd)
             bc.CurveTo(x0 + ul, y0 + vl, x1 - ur, y1 - vr, x1, y1)
-
         else
-            let ksub = Array.create 4 0.0
-
             // subdivide
-            ksub.[0] <- 0.5 * ks.[0] - 0.125 * ks.[1] + (1.0 / 64.0) * ks.[2] - (1.0 / 768.0) * ks.[3]
-            ksub.[1] <- 0.25 * ks.[1] - (1.0 / 16.0) * ks.[2] + (1.0 / 128.0) * ks.[3]
-            ksub.[2] <- 0.125 * ks.[2] - (1.0 / 32.0) * ks.[3]
-            ksub.[3] <- (1.0 / 16.0) * ks.[3]
-            let thsub = rot - 0.25 * ks.[0] + (1.0 / 32.0) * ks.[1] - (1.0 / 384.0) * ks.[2] + (1.0 / 6144.0) * ks.[3]
-            let cth = 0.5 * scale * cos thsub
-            let sth = 0.5 * scale * sin thsub
-            let xsub, ysub = integrate_spiro ksub
-            let xmid = x0 + cth * xsub - sth * ysub
-            let ymid = y0 + cth * ysub + sth * xsub
+            let ksub = Array.create 4 0.0
+            let xmid, ymid = get_mid x0 y0 x1 y1 scale rot ks ksub
             spiro_seg_to_bpath ksub x0 y0 xmid ymid bc (depth + 1)
             ksub.[0] <- ksub.[0] + 0.25 * ks.[1] + (1.0 / 384.0) * ks.[3]
             ksub.[1] <- ksub.[1] + 0.125 * ks.[2]

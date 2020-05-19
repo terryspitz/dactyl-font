@@ -10,7 +10,7 @@
 // try merging with https://magenta.tensorflow.org/svg-vae
 // add punctuation chars
 // add Stress (horiz vs vert ratio)
-// 
+// 'bowtie' where lines all cross
 
 //Features :
 // Backscratch font (made of 4 parallel lines)
@@ -30,22 +30,28 @@ open SpiroSegment
 open SpiroControlPoint
 open PathBezierContext
 
+type Controls = 
+    | Range of from : int * upto : int
+    | FracRange of from : float * upto : float
+    | Checkbox
+
 // Variable values for the font
 type Axes = {
-    width : int     //width of normal glyph
-    height : int    //capital height
-    x_height : int  //height of lower case
-    roundedness : int    //roundedness
-    thickness : int //stroke width
-    leading : int   //gap between glyphs
-    monospace : float //fraction to interpolate widths to monospaces
-    italic : float  //fraction to sheer glyphs
+    width : int         //width of normal glyph
+    height : int        //capital height
+    x_height : int      //height of lower case
+    roundedness : int   //roundedness
+    thickness : int     //stroke width
+    leading : int       //gap between glyphs
+    monospace : float   //fraction to interpolate widths to monospaces
+    italic : float      //fraction to sheer glyphs
+    serif : int        //serif size
     axis_align_caps : bool //round angle of caps to horizontal/vertical
-    outline : bool  //use thickness to expand stroke width
-    stroked : bool  //each stroke is 4 parallel lines
-    scratches : bool //horror/paint strokes font
-    filled : bool   //(svg only) filled or empty outlines
-    show_knots : bool
+    outline : bool      //use thickness to expand stroke width
+    stroked : bool      //each stroke is 4 parallel lines
+    scratches : bool    //horror/paint strokes font
+    filled : bool       //(svg only) filled or empty outlines
+    show_knots : bool   //show small circles for the points used to define lines/curves
 } with
     static member DefaultAxes = { 
         width = 300
@@ -55,6 +61,7 @@ type Axes = {
         thickness = 30
         monospace = 0.0
         italic = 0.0
+        serif = 0
         leading = 50
         axis_align_caps = true
         outline = true
@@ -63,6 +70,24 @@ type Axes = {
         filled = true
         show_knots = false
     }
+    static member controls = Map.ofList [
+        "thickness", Range(0, 200);
+        "width", Range(100, 1000);
+        "height", Range(400, 1000);
+        "x_height", Range(0, 1000);
+        "roundedness", Range(0, 400);
+        "leading", Range(0, 200);
+        "monospace", FracRange(0.0, 1.0);
+        "italic", FracRange(0.0, 1.0);
+        "serif", Range(0, 500)
+        "axis_align_caps", Checkbox;
+        "outline", Checkbox;
+        "stroked", Checkbox;
+        "scratches", Checkbox;
+        "filled", Checkbox;
+        "show_knots", Checkbox
+    ]
+
 
 type Point =
     // Raw coordinates
@@ -166,7 +191,7 @@ type Font (axes: Axes) =
     let flooredOffset = if offset > minOffset then offset else minOffset
     let flooredOffsetHalf = if offset/2 > minOffset then offset/2 else minOffset
     let thickness = if axes.stroked || axes.scratches then max axes.thickness 60 else axes.thickness
-    member this.Axes = {axes with thickness = thickness;}
+    member this.axes = {axes with thickness = thickness;}
     
     member this.reducePoint p = 
         match p with
@@ -217,9 +242,9 @@ type Font (axes: Axes) =
         | Glyph('!') -> EList([Line(TL, ML); Dot(BL)])
 
         | Glyph('0') -> EList([ClosedCurve([(HL, G2); (BC, G2); (HR, G2); (TC, G2)]); Line(TR,BL)])
-        | Glyph('1') -> let midX = max offset (int ((float monospaceWidth * this.Axes.monospace) / 2.0))
+        | Glyph('1') -> let midX = max offset (int ((float monospaceWidth * this.axes.monospace) / 2.0))
                         EList([PolyLine([XL; YX(T,midX); YX(B, midX)])] @
-                              if this.Axes.monospace > 0.0 then [Line(BL, YX(B,midX*2))] else [])
+                              if this.axes.monospace > 0.0 then [Line(BL, YX(B,midX*2))] else [])
         | Glyph('2') -> OpenCurve([(YX(T-offset,L), Start); (YX(T,L+flooredOffset), G2); (YX(T-flooredOffset,R), G2)
                                    (MC, CurveToLine); (BL, Corner); (BR, End)])
         | Glyph('3') -> EList([OpenCurve([(YX(T-offset,L), Start); (YX(T,L+flooredOffset), G2);
@@ -259,16 +284,16 @@ type Font (axes: Axes) =
                                Part("adgqLoop");])
         | Glyph('H') -> EList([Line(BL, TL); Line(HL, HR); Line(BR, TR)])
         | Glyph('h') -> EList([Line(BL, TL); OpenCurve([(XoL, Start); (XC, G2); (MR, CurveToLine); (BR, End)])])
-        | Glyph('I') -> let midX = int (float this.Axes.width * this.Axes.monospace / 2.0)
+        | Glyph('I') -> let midX = int (float this.axes.width * this.axes.monospace / 2.0)
                         let vertical = Line(YX(T,midX), YX(B,midX))
-                        if this.Axes.monospace > 0.0 then
+                        if this.axes.monospace > 0.0 then
                             EList([vertical; Line(BL, YX(B,midX*2)); Line(TL, YX(T,midX*2))])
                         else 
                             vertical
-        | Glyph('i') -> let midX = int (float this.Axes.width * this.Axes.monospace / 2.0)
+        | Glyph('i') -> let midX = int (float this.axes.width * this.axes.monospace / 2.0)
                         EList([Line(YX(X,midX), YX(B,midX))
                                Dot(YX(dotHeight,midX))] @
-                               if this.Axes.monospace > 0.0 then [Line(BL, YX(B,midX*2)); Line(XL, YX(X,midX))] else [])
+                               if this.axes.monospace > 0.0 then [Line(BL, YX(B,midX*2)); Line(XL, YX(X,midX))] else [])
         | Glyph('J') -> OpenCurve([(TL, Corner); (TR, Corner); (HR, LineToCurve); (BC, G2); (BoL, End)])
         | Glyph('j') -> EList([OpenCurve([(XR, Corner); (BR, LineToCurve); (DC, G2); (DoL, End)])
                                Dot(YX(dotHeight,R))])
@@ -338,7 +363,7 @@ type Font (axes: Axes) =
         | e -> this.getGlyph(e) |> this.reduce
 
     member this.elemWidth e =
-        let thickness = this.Axes.thickness
+        let thickness = this.axes.thickness
         let maxX curvePoints = List.fold max 0 (List.map (fst >> this.getXY >> fst) curvePoints)
         match e with
         | OpenCurve(curvePoints) -> maxX curvePoints
@@ -346,17 +371,17 @@ type Font (axes: Axes) =
         | Dot(p) -> fst (this.getXY p)
         | EList(el) -> List.fold max 0 (List.map this.elemWidth el)
         | Space -> 
-            let space = this.Axes.height / 4  //according to https://en.wikipedia.org/wiki/Whitespace_character#Variable-width_general-purpose_space
-            int ((1.0-this.Axes.monospace) * float space + this.Axes.monospace * float monospaceWidth)
+            let space = this.axes.height / 4  //according to https://en.wikipedia.org/wiki/Whitespace_character#Variable-width_general-purpose_space
+            int ((1.0-this.axes.monospace) * float space + this.axes.monospace * float monospaceWidth)
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" e)
 
-    member this.charHeight = this.Axes.height - D + this.Axes.thickness * 2
+    member this.charHeight = this.axes.height - D + this.axes.thickness * 2
 
     ///distance from bottom of descenders to baseline ()
-    member this.yBaselineOffset = - D + this.Axes.thickness
+    member this.yBaselineOffset = - D + this.axes.thickness
 
     member this.elementToSpiros e =
-        let makeSCP p t = let x,y = this.getXY p in{ SCP.X=float(x); Y=float(y); Type=t}
+        let makeSCP p t = let x,y = this.getXY p in { SCP.X=float(x); Y=float(y); Type=t}
         match this.reduce(e) with
         | OpenCurve(pts) ->
             let scps = [for p, t in pts do makeSCP p t]
@@ -377,7 +402,7 @@ type Font (axes: Axes) =
 
     member this.align angle =
         let angle = norm angle
-        if this.Axes.axis_align_caps then
+        if this.axes.axis_align_caps then
             if abs angle < PI / 6.0 then
                 0.0
             elif abs angle > PI * 5.0 / 6.0 then
@@ -391,11 +416,14 @@ type Font (axes: Axes) =
 
     member this.offsetSegment (seg : SpiroSegment) (lastSeg : SpiroSegment) reverse dist =
         let newType = if reverse then 
-                            match seg.Type with
-                            | SpiroPointType.Left -> SpiroPointType.Right
-                            | SpiroPointType.Right -> SpiroPointType.Left
-                            | x -> x
-                       else seg.Type
+                        match seg.Type with
+                        | SpiroPointType.Left -> SpiroPointType.Right
+                        | SpiroPointType.Right -> SpiroPointType.Left
+                        | _ -> seg.Type
+                       else 
+                        match seg.Type with
+                        | SpiroPointType.EndOpenContour -> Corner
+                        | _ -> seg.Type
         let freverse = if reverse then -1.0 else 1.0
         let angle = PI/2.0 * freverse
         match seg.Type with
@@ -442,16 +470,28 @@ type Font (axes: Axes) =
         ]
 
     member this.getSansOutlines e = 
-        let thickness = float this.Axes.thickness
+        let thickness = float this.axes.thickness
+        let serif = float this.axes.serif
         let offsetPointCap X Y theta = addPolar X Y theta (thickness * sqrt 2.0)
         let offsetMidSegments segments reverse =
             this.offsetSegments segments 1 (segments.Length-2) reverse false thickness
+        let cap X Y theta =
+            if serif > 0.0 then
+                let serifDist = SpiroImpl.hypot (serif + thickness) thickness
+                let serifAng = atan2 thickness (serif + thickness)
+                [(addPolar X Y (theta + PI * 0.75) (thickness * sqrt 2.0), Corner);
+                 (addPolar X Y (theta + PI * 0.5 + serifAng) serifDist, Corner);
+                 (addPolar X Y (theta + PI * 0.5 - serifAng) serifDist, Corner);
+                 (addPolar X Y (theta - PI * 0.5 + serifAng) serifDist, Corner);
+                 (addPolar X Y (theta - PI * 0.5 - serifAng) serifDist, Corner);
+                 (addPolar X Y (theta - PI * 0.75) (thickness * sqrt 2.0), Corner)]
+            else
+                [(offsetPointCap X Y (theta + PI * 0.25), Corner);
+                 (offsetPointCap X Y (theta - PI * 0.25), Corner)]
         let startCap (seg : SpiroSegment) =
-            [(offsetPointCap seg.X seg.Y (this.align (seg.Tangent1) - PI * 0.75), Corner);
-             (offsetPointCap seg.X seg.Y (this.align (seg.Tangent1) + PI * 0.75), Corner)]
+            cap seg.X seg.Y (this.align (seg.Tangent1) + PI)
         let endCap (seg : SpiroSegment) (lastSeg : SpiroSegment) = 
-            [(offsetPointCap seg.X seg.Y (this.align (lastSeg.Tangent2) + PI/4.0), Corner);
-             (offsetPointCap seg.X seg.Y (this.align (lastSeg.Tangent2) - PI/4.0), Corner)]
+            cap seg.X seg.Y (this.align (lastSeg.Tangent2))
         let spiroToOutline spiro =
             match spiro with
             | SpiroOpenCurve(_, segments) ->
@@ -465,14 +505,14 @@ type Font (axes: Axes) =
                  ClosedCurve(this.offsetSegments segments 0 (segments.Length-2) true true thickness |> List.rev)]
             | SpiroDot(p) ->
                 let x,y = this.getXY p
-                [Font.dotToClosedCurve x y this.Axes.thickness]
+                [Font.dotToClosedCurve x y this.axes.thickness]
             | SpiroSpace -> [Space]
         EList(this.elementToSpiros e |> List.collect spiroToOutline)
 
     member this.getStroked e = 
         let spiros = this.elementToSpiros e
         let spiroToLines spiro =
-            let thicknessby3 = float this.Axes.thickness / 3.0
+            let thicknessby3 = float this.axes.thickness / 3.0
             match spiro with
             | SpiroOpenCurve(_, segments) ->
                 [for t in -3..2..3 do 
@@ -482,15 +522,15 @@ type Font (axes: Axes) =
                     ClosedCurve(this.offsetSegments segments 0 (segments.Length-2) false true (thicknessby3*float t))]
             | SpiroDot(p) ->
                 let x,y = this.getXY p
-                [Font.dotToClosedCurve x y this.Axes.thickness; Font.dotToClosedCurve x y (this.Axes.thickness/2)]
+                [Font.dotToClosedCurve x y this.axes.thickness; Font.dotToClosedCurve x y (this.axes.thickness/2)]
             | SpiroSpace -> [Space]
         EList(List.collect spiroToLines spiros) |> 
-            Font({this.Axes with stroked = false; scratches = false; thickness = 2}).getSansOutlines
+            Font({this.axes with stroked = false; scratches = false; thickness = 2}).getSansOutlines
 
     member this.getScratches e = 
         let spiros = this.elementToSpiros e
         let spiroToScratches spiro =
-            let thicknessby3 = float this.Axes.thickness/3.0
+            let thicknessby3 = float this.axes.thickness/3.0
             match spiro with
             | SpiroOpenCurve(_, segments) ->
                 [for t in -3..3..3 do 
@@ -502,7 +542,7 @@ type Font (axes: Axes) =
             | SpiroSpace -> [Space]
         
         let spiroToScratchOutlines spiro =
-            let thicknessby3 = float this.Axes.thickness/3.0
+            let thicknessby3 = float this.axes.thickness/3.0
             let offsetPointCap X Y theta = addPolar X Y theta (thicknessby3 * sqrt 2.0)
             let offsetMidSegments segments reverse =
                 this.offsetSegments segments 1 (segments.Length-2) reverse false thicknessby3
@@ -529,7 +569,7 @@ type Font (axes: Axes) =
 
     member this.italicise p =
         let x,y = this.getXY p
-        YX(y, x + int(this.Axes.italic * float y))
+        YX(y, x + int(this.axes.italic * float y))
 
     member this.movePoints fn e = 
         match e with
@@ -542,25 +582,64 @@ type Font (axes: Axes) =
         | Space -> Space
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" e) 
 
-    member this.getItalic = this.movePoints this.italicise
+    /// Italicising the outlines leads to strange curves.  Attempt to subdivide the original curves so the
+    /// italicised versions are closer to a shear.
+    member this.subdivide e =
+        let splitSegments (seg1 : SpiroSegment) (seg2 : SpiroSegment) =
+            if (seg1.Type=Corner || seg1.Type=CurveToLine) && (seg2.Type=Corner || seg2.Type=LineToCurve) then
+                [(YX(int seg1.Y, int seg1.X), seg1.Type)]
+            else        
+                let scale, rot = SpiroImpl.get_scale_rot (seg2.X - seg1.X) (seg2.Y - seg1.Y) seg1.ks
+                let ksub = Array.create 4 0.0
+                let xmid, ymid = SpiroImpl.get_mid seg1.X seg1.Y seg2.X seg2.Y scale rot seg1.ks ksub
+                let midType = 
+                    match seg1.Type, seg2.Type with
+                    | (SpiroPointType.OpenContour, t) -> t
+                    | (SpiroPointType.EndOpenContour, _) -> G2
+                    | (_, SpiroPointType.G2) | (_, SpiroPointType.Left) -> G2
+                    | (SpiroPointType.G2, _) | (SpiroPointType.Right, _)-> G2
+                    | (_, _) -> seg1.Type
+                [(YX(int seg1.Y, int seg1.X), seg1.Type); (YX(int ymid, int xmid), midType)]
+        EList([for el in this.elementToSpiros e do
+                match el with
+                | SpiroOpenCurve(scps, segments) ->
+                    OpenCurve(
+                        [for i in 0..segments.Length-2 do
+                            yield! splitSegments segments.[i] segments.[i+1]
+                        ] @
+                        [let scp = scps.[scps.Length-1] in YX(int scp.Y, int scp.X), scp.Type])
+                | SpiroClosedCurve(scps, segments) ->
+                    //note Spiro has added first point at end for closed curves
+                    ClosedCurve(
+                        [for i in 0..segments.Length-2 do
+                            yield! splitSegments segments.[i] segments.[i+1]
+                        ])
+                | _ -> e
+        ])
+
+    member this.getItalic e = 
+        if this.axes.italic>0.0 then
+            e |> this.subdivide |> this.movePoints this.italicise
+        else
+            e        
 
     member this.getOutline =
-        if this.Axes.stroked then
+        if this.axes.stroked then
             this.getStroked
-        elif this.Axes.scratches then
+        elif this.axes.scratches then
             this.getScratches
-        elif this.Axes.outline then
+        elif this.axes.outline then
             this.getSansOutlines
         else 
             id
-        >> if this.Axes.italic>0.0 then this.getItalic else id         
+        >> this.getItalic
 
     member this.getMonospace e =
-        if this.Axes.monospace > 0.0 then
-            let nonMono = Font({this.Axes with monospace=0.0})
+        if this.axes.monospace > 0.0 then
+            let nonMono = Font({this.axes with monospace=0.0})
             let mono p = let x,y = this.getXY p
                          let full_scale = float monospaceWidth / float (this.elemWidth e)
-                         let x_scale = (1.0 - this.Axes.monospace) + this.Axes.monospace * full_scale
+                         let x_scale = (1.0 - this.axes.monospace) + this.axes.monospace * full_scale
                          YX(y, int (float x * x_scale))
             this.movePoints mono e
         else
@@ -577,14 +656,14 @@ type Font (axes: Axes) =
             Spiro.SpiroCPsToBezier (Array.ofList scps) true bc |> ignore
             [bc.ToString]
         | SpiroDot(p) -> let x, y = this.getXY p
-                         svgCircle x y this.Axes.thickness
+                         svgCircle x y this.axes.thickness
         | SpiroSpace -> []
 
     member this.getSvgCurves element offsetX offsetY strokeWidth =
         let spiros = this.elementToSpiros element
         let fillrule = "nonzero"
         let svg = spiros |> List.collect this.toSvgBezierCurve
-        let fillStyle = if this.Axes.outline && this.Axes.filled then "#000000" else "none"
+        let fillStyle = if this.axes.outline && this.axes.filled then "#000000" else "none"
         [
             "<path ";
             "d='";
@@ -596,15 +675,14 @@ type Font (axes: Axes) =
             sprintf "style='fill:%s;fill-rule:%s;stroke:#000000;stroke-width:%d'/>" fillStyle fillrule strokeWidth;
         ]
 
-    member this.getSvgKnots offsetX offsetY e =
+    member this.getSvgKnots offsetX offsetY e outline =
         //Get circles highlighting the knots (defined points on the spiro curves)
         let rec toSvgPoints e = 
-            let circle p = let x,y = this.getXY p in svgCircle x y 20
-            let iCircle = (this.italicise >> circle)
+            let circle p = let x,y = this.getXY p in svgCircle x y (if outline then 10 else 20)
             match e with
-            | OpenCurve(pts) -> pts |> List.map fst |> List.collect iCircle
-            | ClosedCurve(pts) -> pts |> List.map fst |> List.collect iCircle
-            | Dot(p) -> iCircle p
+            | OpenCurve(pts) -> pts |> List.map fst |> List.collect circle
+            | ClosedCurve(pts) -> pts |> List.map fst |> List.collect circle
+            | Dot(p) -> circle p
             | EList(elems) -> List.collect toSvgPoints elems
             | Space -> []
             | _ -> invalidArg "e" (sprintf "Unreduced element %A" e) 
@@ -618,23 +696,25 @@ type Font (axes: Axes) =
         [
             "'";
             sprintf "transform='translate(%d,%d) scale(1,-1)'" offsetX offsetY;
-            "style='fill:none;stroke:#ffaaaa;stroke-width:10'/>";
+            sprintf "style='fill:none;stroke:%s;stroke-width:10'/>" (if outline then "#aaaaff" else "#ffaaaa")
         ]
 
     member this.charToSvg ch offsetX offsetY =
-        let monospace = if this.Axes.monospace > 0.0 then this.getMonospace else id
+        let monospace = if this.axes.monospace > 0.0 then this.getMonospace else id
         let shift p = let x,y = this.getXY p
-                      YX(y + this.Axes.thickness, x + this.Axes.thickness)
+                      YX(y + this.axes.thickness, x + this.axes.thickness)
         let element = Glyph(ch) |> this.reduce |> monospace |> this.getOutline |> this.movePoints shift
         let glyph = [sprintf "<!-- %c -->" ch] @ this.getSvgCurves element offsetX offsetY 5
-        if this.Axes.show_knots then
-            let backboneElement = Glyph(ch) |> this.reduce |> monospace |> this.movePoints shift
-            glyph @ this.getSvgKnots offsetX offsetY backboneElement
+        if this.axes.show_knots then
+            let backboneElement = Glyph(ch) |> this.reduce |> monospace |> this.getItalic |> this.movePoints shift
+            glyph @
+            this.getSvgKnots offsetX offsetY backboneElement false @
+            if this.axes.outline then this.getSvgKnots offsetX offsetY element true else []
         else
             glyph
 
     member this.charWidth ch =
-        (Glyph(ch) |> this.reduce |> this.getMonospace |> this.elemWidth) + this.Axes.leading + thickness*2
+        (Glyph(ch) |> this.reduce |> this.getMonospace |> this.elemWidth) + this.axes.leading + thickness*2
 
     member this.charWidths str = Seq.map this.charWidth str |> List.ofSeq
 
@@ -648,7 +728,7 @@ type Font (axes: Axes) =
                     let str = lines.[i]
                     let widths = this.charWidths str
                     let offsetXs = List.scan (+) offsetX widths
-                    let lineOffset = offsetY + this.charHeight * (i+1) - this.yBaselineOffset + this.Axes.thickness
+                    let lineOffset = offsetY + this.charHeight * (i+1) - this.yBaselineOffset + this.axes.thickness
                     let svg = [for c in 0 .. str.Length - 1 do
                                 yield! this.charToSvg str.[c] (offsetXs.[c]) lineOffset]
                     (svg, List.sum widths)

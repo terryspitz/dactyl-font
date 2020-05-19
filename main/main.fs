@@ -12,7 +12,7 @@ open Generator
 
 let charToFontForge (this: Font) (ch : char) =
     // reverse engineered from saved font  
-    let thickness = this.Axes.thickness
+    let thickness = this.axes.thickness
     //let scpToString (scp : SCP) = sprintf "%f %f %c" scp.X scp.Y (char scp.Type)
     let scpToString (scp : SCP) = sprintf "%f %f %c" scp.X scp.Y (SpiroPointType.ToChar scp.Type)
     let spiroToFF spiro =
@@ -35,7 +35,7 @@ let charToFontForge (this: Font) (ch : char) =
             | SpiroSpace -> []
         bezierString @ ["Spiro"] @ spiroString @ ["0 0 z"; "EndSpiro";]
 
-    let spineSpiros = Glyph(ch) |> Font({this.Axes with thickness = 2}).getSansOutlines
+    let spineSpiros = Glyph(ch) |> Font({this.axes with thickness = 2}).getSansOutlines
                       |> this.elementToSpiros |> List.collect spiroToFF
     let outlineSpiros = Glyph(ch) |> this.getOutline |> this.elementToSpiros |> List.collect spiroToFF
     [
@@ -122,11 +122,11 @@ let writeFile filename text =
 [<EntryPoint>]
 let main argv =
     let fonts = [
-        ("Dactyl Sans Extra Light", "Extra Light", Font({Axes.DefaultAxes with outline = true; thickness = 3;}));
-        ("Dactyl Sans", "Regular", Font({Axes.DefaultAxes with outline = true; thickness = 30;}));
-        ("Dactyl Sans Italic", "Italic", Font({Axes.DefaultAxes with outline = true; thickness = 30; italic = 0.15}));
-        ("Dactyl Sans Bold", "Bold", Font({Axes.DefaultAxes with outline = true; thickness = 60;}));
-        ("Dactyl Mono", "Regular", Font({Axes.DefaultAxes with outline = true; thickness = 30; monospace = 1.0}));
+        ("Dactyl Sans Extra Light", "Extra Light", Font({Axes.DefaultAxes with thickness = 3;}));
+        ("Dactyl Sans", "Regular", Font({Axes.DefaultAxes with thickness = 30;}));
+        ("Dactyl Sans Italic", "Italic", Font({Axes.DefaultAxes with thickness = 30; italic = 0.15}));
+        ("Dactyl Sans Bold", "Bold", Font({Axes.DefaultAxes with thickness = 60;}));
+        ("Dactyl Mono", "Regular", Font({Axes.DefaultAxes with thickness = 30; monospace = 1.0}));
         ("Dactyl Stroked", "Regular", Font({Axes.DefaultAxes with stroked = true; thickness = 60;}));
         ("Dactyl Scratch", "Regular", Font({Axes.DefaultAxes with scratches = true; thickness = 60;}));
     ]
