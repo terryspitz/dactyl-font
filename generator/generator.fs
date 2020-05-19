@@ -96,13 +96,12 @@ type Point =
     // Y coordinate: Top,X-height,Half-height,Bottom
     // X coordinate: Left,Centre,Right
     // o adds/subtracts an offset to the dimension it follows
-    | TL | TLo | TC | TR        // Top points: Left, Left offset inward, Centre, Right
+    | TL | TLo | TC | TRo | TR        // Top points: Left, Left offset inward, Centre, Right
     | ToL | ToC | ToR           // Top offset down
     | XL | XLo | XC | XRo | XR  // x-height
     | XoL | XoC | XoR           // x-height offset down
     | ML | MC | MR              // Midway down from x-height
     | HL | HLo | HC | HRo | HR  // half glyph height
-    | HoR                       // half offset down
     | BoL | BoC | BoR           // Bottom offset up
     | BL | BLo | BC | BRo | BR  // Bottom
     | DoL                       // Descender offset up
@@ -196,13 +195,12 @@ type Font (axes: Axes) =
     member this.reducePoint p = 
         match p with
         | YX(y,x) -> (y,x)
-        | TL -> (T,L) | TLo -> (T,L+offset) | TC -> (T,C) | TR -> (T,R)
+        | TL -> (T,L) | TLo -> (T,L+offset) | TC -> (T,C) | TRo -> (T,R-offset) | TR -> (T,R)
         | ToL -> (T-offset,L) | ToC -> (T-offset,C) | ToR -> (T-offset,R)
         | XL -> (X,L) | XLo -> (X,L+offset) | XC -> (X,C) | XRo -> (X,R-offset) | XR -> (X,R)
         | XoL -> (X-offset,L) | XoC -> (X-offset,C) | XoR -> (X-offset,R)
         | ML -> (M,L) | MC -> (M,C) | MR -> (M,R)
         | HL -> (H,L) | HLo -> (H,L+offset) | HC -> (H,C) | HRo -> (H,R-offset) | HR -> (H,R)
-        | HoR -> (H-offset,R)
         | BoL -> (B+offset,L) | BoC -> (B+offset,C) | BoR -> (B+offset,R)
         | BL -> (B,L) | BLo -> (B,L+offset) | BC -> (B,C) | BRo -> (B,R-offset) | BR -> (B,R)
         | DoL -> (D+offset,L)
@@ -231,15 +229,50 @@ type Font (axes: Axes) =
     member this.getGlyph e =
 
         match e with
+        | Glyph('!') -> EList([Line(TL, ML); Dot(BL)])
+        | Glyph('"') -> EList([Line(TL, YX(T-flooredOffset,L)); Line(TC, YX(T-flooredOffset,C))])
+        | Glyph('#') -> let Y3 = T/3
+                        EList([Line(YX(Y3*2,L), YX(Y3*2,R)); Line(YX(Y3,L), YX(Y3,R));
+                               Line(YX(T,R-R/4), YX(B,R-R/4)); Line(YX(T,R/4), YX(B,R/4))])
+        | Glyph('£') -> EList([OpenCurve([(ToR, Start); (YX(T,R-flooredOffset), G2); (YX(H,R/4), CurveToLine); (YX(B,R/4), End)]);
+                               Line(BL,BR); Line(HL,HC)])
+        | Glyph('$') -> EList([Glyph('S'); Line(YX(T+thickness,C),YX(B-thickness,C))])
+        | Glyph('%') -> EList([Line(TR,BL);
+                               ClosedCurve([(YX(T-T/5,L), G2); (YX(T,R/5), G2); (YX(T-T/5,R*2/5), G2)]);
+                               ClosedCurve([(YX(T/5,R), G2); (YX(B,R-R/5), G2); (YX(T/5,R*3/5), G2)])])
+        | Glyph('&') -> OpenCurve([(BR, Start); (YX(T/4,C), LineToCurve); (YX(T-flooredOffset,L), G2); (TC, G2);
+                                   (YX(T-flooredOffset,R-offset), G2); (YX(H,(R-offset)/2), G2);
+                                   (YX(B+flooredOffset,L), G2); (BLo, G2); (BoR, End)])
+        | Glyph(''') -> Line(TL, YX(T-flooredOffset,L))
+        | Glyph('(') -> OpenCurve([(YX(T+thickness, flooredOffset), Start); (HL, G2); (YX(B-thickness,flooredOffset), End)])
+        | Glyph(')') -> OpenCurve([(YX(T+thickness, L), Start); (YX(H,flooredOffset), G2); (YX(B-thickness,0), End)])
+        | Glyph('*') -> let sin30 = int (0.866 * float T / 4.0)
+                        EList([Line(YX(T*2/3,L), YX(T*2/3,N)); 
+                               Line(YX(T*2/3+sin30,R/5), YX(T*2/3-sin30,N*4/5)); Line(YX(T*2/3+sin30,N*4/5), YX(T*2/3-sin30,R/5))])
+        | Glyph('+') -> EList([Line(HL, HR); Line(YX(T-T/4,C), YX(T/4,C))])
+        | Glyph('-') -> Line(HL, HN)
+        | Glyph('.') -> Dot(BC)
+        | Glyph(',') -> Line(BC, YX(B-min thickness 50,C-min thickness 50))
+        | Glyph('/') -> Line(TR, BL)
+        | Glyph(':') -> EList([Dot(BC); Dot(YX(T/3,C))])
+        | Glyph(';') -> EList([Glyph(','); Dot(YX(T/3,C))])
+        | Glyph('<') -> PolyLine([XR; YX(X/2,L); BR])
+        | Glyph('=') -> EList([Line(YX(X*2/3,L), YX(X*2/3,N)); Line(YX(X/3,L), YX(X/3,N))])
+        | Glyph('>') -> PolyLine([XL; YX(X/2,R); BL])
+
 
         // TODO: 
-        // !"#£$%&'()*+,-./
-        // 0123456789
-        // :;<=>?@
-        // [\]^_` {|}~
-        // | Glyph('') -> 
+        // ?@
 
-        | Glyph('!') -> EList([Line(TL, ML); Dot(BL)])
+        | Glyph('[') -> PolyLine([YX(T+thickness,C); YX(T+thickness,L); YX(B-thickness,L);YX(B-thickness,C);])
+        | Glyph('\\') -> Line(TL, BR)
+        | Glyph(']') -> PolyLine([YX(T+thickness,L); YX(T+thickness,C); YX(B-thickness,C);YX(B-thickness,L);])
+        | Glyph('^') -> PolyLine([YX(T*2/3,L); TC; YX(T*2/3,R)])
+        | Glyph('_') -> Line(YX(B-thickness*2,L), YX(B-thickness*2,N))
+        
+        // `{|}~
+
+
 
         | Glyph('0') -> EList([ClosedCurve([(HL, G2); (BC, G2); (HR, G2); (TC, G2)]); Line(TR,BL)])
         | Glyph('1') -> let midX = max offset (int ((float monospaceWidth * this.axes.monospace) / 2.0))
@@ -250,16 +283,16 @@ type Font (axes: Axes) =
         | Glyph('3') -> EList([OpenCurve([(YX(T-offset,L), Start); (YX(T,L+flooredOffset), G2);
                                           (Mid(TR, HR), G2); (HC, G2)]);
                               OpenCurve([(HC, G2); (Mid(HR, BR), G2); (YX(B,L+flooredOffset), G2); (YX(B+offset,L), End)])])
-        | Glyph('4') -> let X4 = X/4 in PolyLine([BN; TN; YX(X4,L); YX(X4,R)])
+        | Glyph('4') -> PolyLine([BN; TN; YX(T/4,L); YX(T/4,R)])
         //| Glyph('5') -> OpenCurve([(TR, Start); (TL, Corner); (YX(X-T/50,L), Corner); (XC, G2); (MR, G2); (BC, G2); (BoL, End)])
         | Glyph('5') -> OpenCurve([(TR, Start); (TL, Corner); (XL, Corner); (XC, G2); (MR, G2); (BC, G2); (BoL, End)])
         | Glyph('6') -> OpenCurve([(ToR, Start); (TC, G2); (HL, G2); (BC, G2); (MR, G2); (XC, G2); (HL, End)])
         | Glyph('7') -> PolyLine([TL; TR; BLo])
-        | Glyph('8') -> let M = T*6/10
+        | Glyph('8') -> let M = T/2
                         ClosedCurve([(TC, G2); (Mid(TL,HL), G2); 
-                                   (YX(M*11/10,C-flooredOffsetHalf), G2); (YX(M*9/10,C+flooredOffsetHalf), G2); 
+                                   (YX(T*6/10,C-flooredOffsetHalf), G2); (YX(T*4/10,C+flooredOffsetHalf), G2); 
                                    (Mid(HR,BR), G2); (BC, G2); (Mid(HL,BL), G2);
-                                   (YX(M*9/10,C-flooredOffsetHalf), G2); (YX(M*11/10,C+flooredOffsetHalf), G2); 
+                                   (YX(T*4/10,C-flooredOffsetHalf), G2); (YX(T*6/10,C+flooredOffsetHalf), G2); 
                                    (Mid(TR,HR), G2)])
         | Glyph('9') -> OpenCurve([(BLo, Start); (HR, G2); (Mid(TR,HR), G2);(TC, G2);
                                    (Mid(TL,HL), G2); (HC, G2); (Mid(TR,HR), End)])
@@ -272,15 +305,16 @@ type Font (axes: Axes) =
         | Glyph('b') -> EList([Line(BL, TL); OpenCurve([(XoL, Start); (XC, G2); (MR, G2); (BC, G2); (BoL, End)])])
         | Glyph('C') -> OpenCurve([(ToR, Start); (TC, G2); (HL, G2); (BC, G2); (BoR, End)])
         | Glyph('c') -> OpenCurve([(XoR, Start); (XC, G2); (ML, G2); (BC, G2); (BoR, End)])
-        | Glyph('D') -> ClosedCurve([(BL, Corner); (TL, Corner); (TLo, LineToCurve);
-                                     (YX(H+offset,R), CurveToLine); (YX(H-offset,R), LineToCurve); (BLo, CurveToLine)])
+        | Glyph('D') -> ClosedCurve([(BL, Corner); (TL, Corner); (YX(T,L+flooredOffset), LineToCurve);
+                                     (YX(H+flooredOffset,R), CurveToLine); (YX(H-flooredOffset,R), LineToCurve);
+                                     (YX(B,L+flooredOffset), CurveToLine)])
         | Glyph('d') -> EList([Line(BR, TR); Part("adgqLoop")])
         | Glyph('E') -> EList([PolyLine([TR; TL; BL; BR]); Line(HL, HR)])
         | Glyph('e') -> OpenCurve([(ML, Start); (MR, Corner); (YX(M+flooredOffsetHalf,R), G2);
                                    (XC, G2); (ML, G2); (BC, G2); (YX(offset/2,R), End)])
         | Glyph('F') -> EList([PolyLine([TR; TL; BL]); Line(HL, HRo)])
         | Glyph('f') -> EList([OpenCurve([(TC, Start); (XL, CurveToLine); (BL, End)]); Line(XL, XC)])
-        | Glyph('G') -> OpenCurve([(ToR, G2); (TC, G2); (HL, G2); (BC, G2); (HoR, CurveToLine); (HR, Corner); (HC, End)])
+        | Glyph('G') -> OpenCurve([(ToR, G2); (TC, G2); (HL, G2); (BC, G2); (YX(H-flooredOffset,R), CurveToLine); (HR, Corner); (HC, End)])
         | Glyph('g') -> EList([OpenCurve([(XR, Corner); (BR, LineToCurve); (DC, G2); (DoL, End)]);
                                Part("adgqLoop");])
         | Glyph('H') -> EList([Line(BL, TL); Line(HL, HR); Line(BR, TR)])
@@ -364,7 +398,6 @@ type Font (axes: Axes) =
         | e -> this.getGlyph(e) |> this.reduce
 
     member this.elemWidth e =
-        let thickness = this.axes.thickness
         let maxX curvePoints = List.fold max 0 (List.map (fst >> this.getXY >> fst) curvePoints)
         match e with
         | OpenCurve(curvePoints) -> maxX curvePoints
@@ -376,10 +409,10 @@ type Font (axes: Axes) =
             int ((1.0-this.axes.monospace) * float space + this.axes.monospace * float monospaceWidth)
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" e)
 
-    member this.charHeight = this.axes.height - D + this.axes.thickness * 2
+    member this.charHeight = this.axes.height - D + thickness * 2
 
     ///distance from bottom of descenders to baseline ()
-    member this.yBaselineOffset = - D + this.axes.thickness
+    member this.yBaselineOffset = - D + thickness
 
     member this.elementToSpiros e =
         let makeSCP p t = let x,y = this.getXY p in { SCP.X=float(x); Y=float(y); Type=t}
@@ -433,8 +466,8 @@ type Font (axes: Axes) =
             let bend = norm(th2 - th1)
             if (not reverse && bend < -PI/2.0) || (reverse && bend > PI/2.0) then
                 //two points on sharp outer bend
-                [(seg.AddPolar (this.align th1 - freverse * PI/4.0) (dist * sqrt 2.0), newType);
-                 (seg.AddPolar (this.align th2 + freverse * PI/4.0) (dist * sqrt 2.0), newType)]
+                [(seg.AddPolar (this.align (th1 - freverse * PI/4.0)) (dist * sqrt 2.0), newType);
+                 (seg.AddPolar (this.align (th2 + freverse * PI/4.0)) (dist * sqrt 2.0), newType)]
             else //single point for right angle or more outer bend or any inner bend
                 let offset = min (min (dist/cos (bend/2.0)) seg.seg_ch) lastSeg.seg_ch
                 // if (dist/cos (bend/2.0)) > seg.seg_ch || (dist/cos (bend/2.0)) > lastSeg.seg_ch then
@@ -471,21 +504,21 @@ type Font (axes: Axes) =
         ]
 
     member this.getSansOutlines e = 
-        let thickness = float this.axes.thickness
+        let fthickness = float thickness
         let serif = float this.axes.serif
-        let offsetPointCap X Y theta = addPolar X Y theta (thickness * sqrt 2.0)
+        let offsetPointCap X Y theta = addPolar X Y theta (fthickness * sqrt 2.0)
         let offsetMidSegments segments reverse =
-            this.offsetSegments segments 1 (segments.Length-2) reverse false thickness
+            this.offsetSegments segments 1 (segments.Length-2) reverse false fthickness
         let cap X Y theta =
             if serif > 0.0 then
-                let serifDist = SpiroImpl.hypot (serif + thickness) thickness
-                let serifAng = atan2 thickness (serif + thickness)
-                [(addPolar X Y (theta + PI * 0.75) (thickness * sqrt 2.0), Corner);
+                let serifDist = SpiroImpl.hypot (serif + fthickness) fthickness
+                let serifAng = atan2 fthickness (serif + fthickness)
+                [(addPolar X Y (theta + PI * 0.75) (fthickness * sqrt 2.0), Corner);
                  (addPolar X Y (theta + PI * 0.5 + serifAng) serifDist, Corner);
                  (addPolar X Y (theta + PI * 0.5 - serifAng) serifDist, Corner);
                  (addPolar X Y (theta - PI * 0.5 + serifAng) serifDist, Corner);
                  (addPolar X Y (theta - PI * 0.5 - serifAng) serifDist, Corner);
-                 (addPolar X Y (theta - PI * 0.75) (thickness * sqrt 2.0), Corner)]
+                 (addPolar X Y (theta - PI * 0.75) (fthickness * sqrt 2.0), Corner)]
             else
                 [(offsetPointCap X Y (theta + PI * 0.25), Corner);
                  (offsetPointCap X Y (theta - PI * 0.25), Corner)]
@@ -502,18 +535,18 @@ type Font (axes: Axes) =
                              @ (offsetMidSegments segments true |> List.rev)
                 [ClosedCurve(points)]
             | SpiroClosedCurve(_, segments) ->
-                [ClosedCurve(this.offsetSegments segments 0 (segments.Length-2) false true thickness);
-                 ClosedCurve(this.offsetSegments segments 0 (segments.Length-2) true true thickness |> List.rev)]
+                [ClosedCurve(this.offsetSegments segments 0 (segments.Length-2) false true fthickness);
+                 ClosedCurve(this.offsetSegments segments 0 (segments.Length-2) true true fthickness |> List.rev)]
             | SpiroDot(p) ->
                 let x,y = this.getXY p
-                [Font.dotToClosedCurve x y this.axes.thickness]
+                [Font.dotToClosedCurve x y thickness]
             | SpiroSpace -> [Space]
         EList(this.elementToSpiros e |> List.collect spiroToOutline)
 
     member this.getStroked e = 
         let spiros = this.elementToSpiros e
         let spiroToLines spiro =
-            let thicknessby3 = float this.axes.thickness / 3.0
+            let thicknessby3 = float thickness / 3.0
             match spiro with
             | SpiroOpenCurve(_, segments) ->
                 [for t in -3..2..3 do 
@@ -523,7 +556,7 @@ type Font (axes: Axes) =
                     ClosedCurve(this.offsetSegments segments 0 (segments.Length-2) false true (thicknessby3*float t))]
             | SpiroDot(p) ->
                 let x,y = this.getXY p
-                [Font.dotToClosedCurve x y this.axes.thickness; Font.dotToClosedCurve x y (this.axes.thickness/2)]
+                [Font.dotToClosedCurve x y thickness; Font.dotToClosedCurve x y (thickness/2)]
             | SpiroSpace -> [Space]
         EList(List.collect spiroToLines spiros) |> 
             Font({this.axes with stroked = false; scratches = false; thickness = 2}).getSansOutlines
@@ -531,7 +564,7 @@ type Font (axes: Axes) =
     member this.getScratches e = 
         let spiros = this.elementToSpiros e
         let spiroToScratches spiro =
-            let thicknessby3 = float this.axes.thickness/3.0
+            let thicknessby3 = float thickness/3.0
             match spiro with
             | SpiroOpenCurve(_, segments) ->
                 [for t in -3..3..3 do 
@@ -543,7 +576,7 @@ type Font (axes: Axes) =
             | SpiroSpace -> [Space]
         
         let spiroToScratchOutlines spiro =
-            let thicknessby3 = float this.axes.thickness/3.0
+            let thicknessby3 = float thickness/3.0
             let offsetPointCap X Y theta = addPolar X Y theta (thicknessby3 * sqrt 2.0)
             let offsetMidSegments segments reverse =
                 this.offsetSegments segments 1 (segments.Length-2) reverse false thicknessby3
@@ -657,7 +690,7 @@ type Font (axes: Axes) =
             Spiro.SpiroCPsToBezier (Array.ofList scps) true bc |> ignore
             [bc.ToString]
         | SpiroDot(p) -> let x, y = this.getXY p
-                         svgCircle x y this.axes.thickness
+                         svgCircle x y thickness
         | SpiroSpace -> []
 
     member this.getSvgCurves element offsetX offsetY strokeWidth =
@@ -703,7 +736,7 @@ type Font (axes: Axes) =
     member this.charToSvg ch offsetX offsetY =
         let monospace = if this.axes.monospace > 0.0 then this.getMonospace else id
         let shift p = let x,y = this.getXY p
-                      YX(y + this.axes.thickness, x + this.axes.thickness)
+                      YX(y + thickness, x + thickness)
         let element = Glyph(ch) |> this.reduce |> monospace |> this.getOutline |> this.movePoints shift
         let glyph = [sprintf "<!-- %c -->" ch] @ this.getSvgCurves element offsetX offsetY 5
         if this.axes.show_knots then
@@ -729,7 +762,7 @@ type Font (axes: Axes) =
                     let str = lines.[i]
                     let widths = this.charWidths str
                     let offsetXs = List.scan (+) offsetX widths
-                    let lineOffset = offsetY + this.charHeight * (i+1) - this.yBaselineOffset + this.axes.thickness
+                    let lineOffset = offsetY + this.charHeight * (i+1) - this.yBaselineOffset + thickness
                     let svg = [for c in 0 .. str.Length - 1 do
                                 yield! this.charToSvg str.[c] (offsetXs.[c]) lineOffset]
                     (svg, List.sum widths)
@@ -740,10 +773,11 @@ type Font (axes: Axes) =
         fst (this.stringToSvgLineInternal multilineStr offsetX offsetY)
 
     member this.stringToSvg (multilineStr : string) offsetX offsetY =
+        let margin = 50
         let svg, lineWidths = this.stringToSvgLineInternal multilineStr offsetX offsetY
         [
             "<svg xmlns='http://www.w3.org/2000/svg'"
-            sprintf "viewBox='0 0 %d %d'>"  (List.max lineWidths) (this.charHeight * lineWidths.Length)
+            sprintf "viewBox='%d %d %d %d'>" -margin -margin (List.max lineWidths + margin) (this.charHeight * lineWidths.Length + margin)
             "<g id='layer1'>"
         ] @
         svg @

@@ -92,7 +92,10 @@ let randomise reset _ =
                                     not (fieldDefaultsMap.[k] :?> bool)
     generate ()
 
-textbox.innerHTML <- "abcdefghijklm
+textbox.innerHTML <- "!\"#£$%&'()*+,-./
+:;<=>?@
+[\\]^_` {|}~
+abcdefghijklm
 nopqrstuvwxyz
 0123456789
 ABCDEFGHIJKLM
