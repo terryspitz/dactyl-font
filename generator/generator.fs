@@ -261,7 +261,8 @@ type Font (axes: Axes) =
                                    (Mid(HR,BR), G2); (BC, G2); (Mid(HL,BL), G2);
                                    (YX(M*9/10,C-flooredOffsetHalf), G2); (YX(M*11/10,C+flooredOffsetHalf), G2); 
                                    (Mid(TR,HR), G2)])
-        | Glyph('9') -> OpenCurve([(BLo, Start); (HR, G2); (TC, G2); (Mid(TL,HL), G2); (HC, G2); (Mid(TR,HR), End)])
+        | Glyph('9') -> OpenCurve([(BLo, Start); (HR, G2); (Mid(TR,HR), G2);(TC, G2);
+                                   (Mid(TL,HL), G2); (HC, G2); (Mid(TR,HR), End)])
 
         | Part("adgqLoop") -> ClosedCurve([(XoR, Corner); (XC, G2); (ML, G2); (BC, G2); (BoR, Corner)])
         | Glyph('A') -> let f = float(H/2)/float(T)
