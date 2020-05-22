@@ -1,6 +1,6 @@
 A functional font generator written in F#, in service of ticking 'create a font' off my bucket list.
 
-Dactyl fonts are available in the [ttf/](https://github.com/terryspitz/dactyl-font/tree/SpiroFs/ttf){:target="_blank" rel="noopener"} subdirectory (note: these fonts are still a work in progress and do not have good spacing or kerning.)
+Dactyl fonts are available in the [ttf/](https://github.com/terryspitz/dactyl-font/tree/SpiroFs/ttf){:target="_blank" rel="noopener"} subdirectory Note: these fonts are still a work in progress and do not have good spacing or kerning, or even good shapes under some settings.
 
 You can explore Dactyl live in your browser using the [Live Explorer](https://terryspitz.github.io/dactyl-font/explorer/public/index.html){:target="_blank" rel="noopener"}
 
@@ -22,7 +22,7 @@ which I've ported to F# to run under the fantastic [Fable](https://fable.io/) to
 
 ## Variable fonts
 
-Inspired by Variable Fonts technology
+Dactyl is also inspired by Variable Fonts technology
 
 https://v-fonts.com/
 
@@ -37,13 +37,12 @@ https://play.typedetail.com
 https://www.axis-praxis.org
 
 
-## Font import formats
+## Font creation/import formats
 
 [FontForge](https://fontforge.org/en-US) is an open-source font editor which supports Spiro.  
 
-Since font interop formats don't seem to support spiros I write files in FontForge native format,
-then import and generate TTF fonts.  
-FontForge is useful to interact with the letter glyphs: it has great validation, viewing and editing features.
+Since none of the font interop formats I found support spiros the Dactyl generator writes files in FontForge native format (a .fsdir directory of .glyph files), which I can load into FontForge and generate TTF fonts.  
+FontForge is also useful to view and interact with the letter glyphs in detail: it has great validation, viewing and editing features.
 
 http://designwithfontforge.com/en-US/Importing_Glyphs_from_Other_Programs.html
 
@@ -52,8 +51,14 @@ http://unifiedfontobject.org/versions/ufo3/glyphs/glif
 
 ## Font design
 
+This project is a great opportunity to dive into the vast world of typographic design.  A few of the sites and articles that
+have caught my eye so far:
+
 http://designwithfontforge.com/en-US/Creating_o_and_n.html
 
 http://designwithfontforge.com/en-US/Trusting_Your_Eyes.html
 
 https://www.reddit.com/r/neography/comments/8186cc/creating_fonts_with_inkscape_and_fontforge_part1/
+
+https://www.typography.com/blog/text-for-proofing-fonts
+

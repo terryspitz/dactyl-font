@@ -92,14 +92,13 @@ let randomise reset _ =
                                     not (fieldDefaultsMap.[k] :?> bool)
     generate ()
 
-textbox.innerHTML <- "!\"#£$%&'()*+,-./
-:;<=>?@
-[\\]^_` {|}~
-abcdefghijklm
+textbox.innerHTML <- "abcdefghijklm
 nopqrstuvwxyz
 0123456789
 ABCDEFGHIJKLM
-NOPQRSTUVWXYZ"
+NOPQRSTUVWXYZ
+!\"#£$%&'()*+,-./:;
+<=>?@[\\]^_`{|}~"
 
 //textbox.innerHTML <- "c    "
 //((document.getElementById "filled") :?> HTMLInputElement).``checked`` <- false

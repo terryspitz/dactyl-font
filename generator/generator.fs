@@ -79,7 +79,7 @@ type Axes = {
         "leading", Range(0, 200);
         "monospace", FracRange(0.0, 1.0);
         "italic", FracRange(0.0, 1.0);
-        "serif", Range(0, 500)
+        "serif", Range(0, 70)
         "axis_align_caps", Checkbox;
         "outline", Checkbox;
         "stroked", Checkbox;
@@ -245,7 +245,7 @@ type Font (axes: Axes) =
                                    (YX(B+flooredOffset,L), G2); (BLo, G2); (BoR, End)])
         | Glyph(''') -> Line(TL, YX(T-flooredOffset,L))
         | Glyph('(') -> OpenCurve([(YX(T+thickness, flooredOffset), Start); (HL, G2); (YX(B-thickness,flooredOffset), End)])
-        | Glyph(')') -> OpenCurve([(YX(T+thickness, L), Start); (YX(H,flooredOffset), G2); (YX(B-thickness,0), End)])
+        | Glyph(')') -> this.reflect (Glyph('('))
         | Glyph('*') -> let sin30 = int (0.866 * float T / 4.0)
                         EList([Line(YX(T*2/3,L), YX(T*2/3,N)); 
                                Line(YX(T*2/3+sin30,R/5), YX(T*2/3-sin30,N*4/5)); Line(YX(T*2/3+sin30,N*4/5), YX(T*2/3-sin30,R/5))])
@@ -253,40 +253,46 @@ type Font (axes: Axes) =
         | Glyph('-') -> Line(HL, HN)
         | Glyph('.') -> Dot(BC)
         | Glyph(',') -> Line(BC, YX(B-min thickness 50,C-min thickness 50))
-        | Glyph('/') -> Line(TR, BL)
+        | Glyph('/') -> this.reflect (Glyph('\\'))
         | Glyph(':') -> EList([Dot(BC); Dot(YX(T/3,C))])
         | Glyph(';') -> EList([Glyph(','); Dot(YX(T/3,C))])
         | Glyph('<') -> PolyLine([XR; YX(X/2,L); BR])
         | Glyph('=') -> EList([Line(YX(X*2/3,L), YX(X*2/3,N)); Line(YX(X/3,L), YX(X/3,N))])
-        | Glyph('>') -> PolyLine([XL; YX(X/2,R); BL])
-
-
-        // TODO: 
-        // ?@
-
+        | Glyph('>') -> this.reflect (Glyph('<'))
+        | Glyph('?') -> EList([OpenCurve([(YX(T-flooredOffset,L), G2); (TC, G2); (Mid(TR,HR), G2);
+                                         (HC, Corner); (YX(T/4,C), End);])
+                               Dot(BC)])
+        | Glyph('@') -> OpenCurve([(YX(T/3,R*3/4), Corner); (YX(T/4,C), G2); (YX(H,R/4), G2); (YX(T*2/3,C), G2); (YX(H,R*3/4), CurveToLine)
+                                   (YX(T/3,R*3/4), LineToCurve); (YX(T/4,R), CurveToLine); (YX(T/2,R), LineToCurve)
+                                   (TC,G2); (HL,G2); (BLo,G2); (BR,End)])
         | Glyph('[') -> PolyLine([YX(T+thickness,C); YX(T+thickness,L); YX(B-thickness,L);YX(B-thickness,C);])
-        | Glyph('\\') -> Line(TL, BR)
-        | Glyph(']') -> PolyLine([YX(T+thickness,L); YX(T+thickness,C); YX(B-thickness,C);YX(B-thickness,L);])
+        | Glyph('\\') -> Line(YX(T+thickness,L), YX(B-thickness,R))
+        | Glyph(']') -> this.reflect (Glyph('['))
         | Glyph('^') -> PolyLine([YX(T*2/3,L); TC; YX(T*2/3,R)])
         | Glyph('_') -> Line(YX(B-thickness*2,L), YX(B-thickness*2,N))
-        
-        // `{|}~
-
-
+        | Glyph('`') -> Line(TC, YX(T-min thickness 50,C+min thickness 50))
+        | Glyph('{') -> EList([OpenCurve([(YX(T+thickness, N), Start); (YX(T+thickness, N-10), LineToCurve);
+                                   (YX(H+flooredOffset, L+flooredOffset/2), G2); (HL, G2); ]);
+                               OpenCurve([(YX(B-thickness, N), Start); (YX(B-thickness, N-10), LineToCurve);
+                                   (YX(H-flooredOffset, L+flooredOffset/2), G2); (HL, G2); ])])
+        | Glyph('|') -> Line(TC,BC)
+        | Glyph('}') -> this.reflect (Glyph('{'))
+        | Glyph('~') -> let h = flooredOffset/2
+                        OpenCurve([(YX(T-h,L), Start); (YX(T,R/4), G2); (YX(T-h,R/2), G2); (YX(T-h*2,R*3/4), G2); (YX(T-h,R), G2); ])
 
         | Glyph('0') -> EList([ClosedCurve([(HL, G2); (BC, G2); (HR, G2); (TC, G2)]); Line(TR,BL)])
         | Glyph('1') -> let midX = max offset (int ((float monospaceWidth * this.axes.monospace) / 2.0))
-                        EList([PolyLine([XL; YX(T,midX); YX(B, midX)])] @
+                        EList([PolyLine([YX(T*2/3,L); YX(T,midX); YX(B, midX)])] @
                               if this.axes.monospace > 0.0 then [Line(BL, YX(B,midX*2))] else [])
         | Glyph('2') -> OpenCurve([(YX(T-offset,L), Start); (YX(T,L+flooredOffset), G2); (YX(T-flooredOffset,R), G2)
-                                   (MC, CurveToLine); (BL, Corner); (BR, End)])
+                                   (YX(T/3,C), CurveToLine); (BL, Corner); (BR, End)])
         | Glyph('3') -> EList([OpenCurve([(YX(T-offset,L), Start); (YX(T,L+flooredOffset), G2);
                                           (Mid(TR, HR), G2); (HC, G2)]);
                               OpenCurve([(HC, G2); (Mid(HR, BR), G2); (YX(B,L+flooredOffset), G2); (YX(B+offset,L), End)])])
         | Glyph('4') -> PolyLine([BN; TN; YX(T/4,L); YX(T/4,R)])
         //| Glyph('5') -> OpenCurve([(TR, Start); (TL, Corner); (YX(X-T/50,L), Corner); (XC, G2); (MR, G2); (BC, G2); (BoL, End)])
-        | Glyph('5') -> OpenCurve([(TR, Start); (TL, Corner); (XL, Corner); (XC, G2); (MR, G2); (BC, G2); (BoL, End)])
-        | Glyph('6') -> OpenCurve([(ToR, Start); (TC, G2); (HL, G2); (BC, G2); (MR, G2); (XC, G2); (HL, End)])
+        | Glyph('5') -> OpenCurve([(TR, Start); (TL, Corner); (HL, Corner); (YX(T*2/3,C), G2); (YX(T/4,R), G2); (BC, G2); (BoL, End)])
+        | Glyph('6') -> OpenCurve([(ToR, Start); (TC, G2); (HL, G2); (BC, G2); (YX(T/3,R), G2); (YX(T*2/3,C), G2); (HL, End)])
         | Glyph('7') -> PolyLine([TL; TR; BLo])
         | Glyph('8') -> let M = T/2
                         ClosedCurve([(TC, G2); (Mid(TL,HL), G2); 
@@ -462,12 +468,11 @@ type Font (axes: Axes) =
         let angle = PI/2.0 * freverse
         match seg.Type with
         | SpiroPointType.Corner ->
-            let th1, th2 = norm(lastSeg.seg_th + angle), norm(seg.seg_th + angle)
-            let bend = norm(th2 - th1)
-            if (not reverse && bend < -PI/2.0) || (reverse && bend > PI/2.0) then
+            let th1, th2, bend = norm(lastSeg.seg_th + angle), norm(seg.seg_th + angle), norm(seg.seg_th - lastSeg.seg_th)
+            if (not reverse && bend < -PI/2.0) || (reverse && bend > PI/2.0) then555
                 //two points on sharp outer bend
-                [(seg.AddPolar (this.align (th1 - freverse * PI/4.0)) (dist * sqrt 2.0), newType);
-                 (seg.AddPolar (this.align (th2 + freverse * PI/4.0)) (dist * sqrt 2.0), newType)]
+                [(seg.AddPolar (this.align th1 - freverse * PI/4.0) (dist * sqrt 2.0), newType);
+                 (seg.AddPolar (this.align th2 + freverse * PI/4.0) (dist * sqrt 2.0), newType)]
             else //single point for right angle or more outer bend or any inner bend
                 let offset = min (min (dist/cos (bend/2.0)) seg.seg_ch) lastSeg.seg_ch
                 // if (dist/cos (bend/2.0)) > seg.seg_ch || (dist/cos (bend/2.0)) > lastSeg.seg_ch then
@@ -601,9 +606,17 @@ type Font (axes: Axes) =
             | SpiroSpace -> [Space]
         EList(List.collect spiroToScratches spiros |> List.collect this.elementToSpiros |> List.collect spiroToScratchOutlines)
 
-    member this.italicise p =
+    member this.italiciseP p =
         let x,y = this.getXY p
         YX(y, x + int(this.axes.italic * float y))
+
+    member this.reflect e =
+        let el = this.reduce e
+        let w = this.width el
+        let reflectP p = 
+            let x,y = this.getXY p
+            YX(y, w-x)
+        this.movePoints reflectP el
 
     member this.movePoints fn e = 
         match e with
@@ -651,9 +664,9 @@ type Font (axes: Axes) =
                 | _ -> e
         ])
 
-    member this.getItalic e = 
+    member this.italicise e = 
         if this.axes.italic>0.0 then
-            e |> this.subdivide |> this.movePoints this.italicise
+            e |> this.subdivide |> this.movePoints this.italiciseP
         else
             e        
 
@@ -666,7 +679,7 @@ type Font (axes: Axes) =
             this.getSansOutlines
         else 
             id
-        >> this.getItalic
+        >> this.italicise
 
     member this.getMonospace e =
         if this.axes.monospace > 0.0 then
@@ -740,7 +753,7 @@ type Font (axes: Axes) =
         let element = Glyph(ch) |> this.reduce |> monospace |> this.getOutline |> this.movePoints shift
         let glyph = [sprintf "<!-- %c -->" ch] @ this.getSvgCurves element offsetX offsetY 5
         if this.axes.show_knots then
-            let backboneElement = Glyph(ch) |> this.reduce |> monospace |> this.getItalic |> this.movePoints shift
+            let backboneElement = Glyph(ch) |> this.reduce |> monospace |> this.italicise |> this.movePoints shift
             glyph @
             this.getSvgKnots offsetX offsetY backboneElement false @
             if this.axes.outline then this.getSvgKnots offsetX offsetY element true else []
@@ -748,7 +761,10 @@ type Font (axes: Axes) =
             glyph
 
     member this.charWidth ch =
-        (Glyph(ch) |> this.reduce |> this.getMonospace |> this.elemWidth) + this.axes.leading + thickness*2
+        this.width (Glyph(ch))
+
+    member this.width e =
+        (e |> this.reduce |> this.getMonospace |> this.elemWidth) + this.axes.leading + thickness*2
 
     member this.charWidths str = Seq.map this.charWidth str |> List.ofSeq
 

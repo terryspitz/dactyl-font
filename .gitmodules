@@ -1,0 +1,3 @@
+[submodule "proofs"]
+	path = proofs
+	url = https://github.com/hoeflerco/proofs.git
