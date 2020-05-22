@@ -48,7 +48,8 @@ type Axes = {
     leading : int       //gap between glyphs
     monospace : float   //fraction to interpolate widths to monospaces
     italic : float      //fraction to sheer glyphs
-    serif : int        //serif size
+    end_bulb : float   //fraction of thickness to apply curves to endcaps
+    serif : int         //serif size
     axis_align_caps : bool //round angle of caps to horizontal/vertical
     outline : bool      //use thickness to expand stroke width
     stroked : bool      //each stroke is 4 parallel lines
@@ -64,6 +65,7 @@ type Axes = {
         thickness = 30
         monospace = 0.0
         italic = 0.0
+        end_bulb = 0.0
         serif = 0
         leading = 50
         axis_align_caps = true
@@ -82,6 +84,7 @@ type Axes = {
         "leading", Range(0, 200);
         "monospace", FracRange(0.0, 1.0);
         "italic", FracRange(0.0, 1.0);
+        "end_bulb", FracRange(-1.0, 3.0);
         "serif", Range(0, 70)
         "axis_align_caps", Checkbox;
         "outline", Checkbox;
@@ -539,8 +542,13 @@ type Font (axes: Axes) =
                  (addPolar X Y (theta - PI * 0.5 - serifAng) serifDist, Corner);
                  (addPolar X Y (theta - PI * 0.75) (fthickness * sqrt 2.0), Corner)]
             else
-                [(offsetPointCap X Y (theta + PI * 0.25), Corner);
-                 (offsetPointCap X Y (theta - PI * 0.25), Corner)]
+                if this.axes.end_bulb = 0.0 then
+                    [(offsetPointCap X Y (theta + PI * 0.25), Corner);
+                     (offsetPointCap X Y (theta - PI * 0.25), Corner)]
+                else                 
+                    [(offsetPointCap X Y (theta + PI * 0.25), Corner);
+                     (addPolar X Y theta (fthickness * (1.0+this.axes.end_bulb)), G2);
+                     (offsetPointCap X Y (theta - PI * 0.25), Corner)]
         let startCap (seg : SpiroSegment) =
             cap seg.X seg.Y (this.align (seg.Tangent1) + PI)
         let endCap (seg : SpiroSegment) (lastSeg : SpiroSegment) = 
