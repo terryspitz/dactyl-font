@@ -13,7 +13,7 @@
 // 'bowtie' where lines all cross
 // mark joins to remove serifs
 // generate proofs
-// add bulb
+// calculate kerning
 
 //Features :
 // Backscratch font (made of 4 parallel lines)
@@ -45,7 +45,8 @@ type Axes = {
     x_height : int      //height of lower case
     roundedness : int   //roundedness
     thickness : int     //stroke width
-    leading : int       //gap between glyphs
+    tracking : int      //gap between glyphs
+    leading : int       //gap between lines
     monospace : float   //fraction to interpolate widths to monospaces
     italic : float      //fraction to sheer glyphs
     end_bulb : float   //fraction of thickness to apply curves to endcaps
@@ -62,11 +63,12 @@ type Axes = {
         height = 600
         x_height = 400
         roundedness = 100
-        thickness = 30
+        thickness = 50
         monospace = 0.0
         italic = 0.0
         end_bulb = 0.0
         serif = 0
+        tracking = 40
         leading = 50
         axis_align_caps = true
         outline = true
@@ -81,7 +83,8 @@ type Axes = {
         "height", Range(400, 1000);
         "x_height", Range(0, 1000);
         "roundedness", Range(0, 400);
-        "leading", Range(0, 200);
+        "tracking", Range(0, 100);
+        "leading", Range(-100, 200);
         "monospace", FracRange(0.0, 1.0);
         "italic", FracRange(0.0, 1.0);
         "end_bulb", FracRange(-1.0, 3.0);
@@ -373,8 +376,8 @@ type Font (axes: Axes) =
                                Dot(YX(dotHeight,midX))] @
                                if this.axes.monospace > 0.0 then [Line(BL, YX(B,midX*2)); Line(XL, YX(X,midX))] else [])
         | Glyph('J') -> OpenCurve([(TL, Corner); (TR, Corner); (HR, LineToCurve); (BC, G2); (BoL, End)])
-        | Glyph('j') -> EList([OpenCurve([(XR, Start); (BR, LineToCurve); (DC, G2); (DoL, End)])
-                               Dot(YX(dotHeight,R))])
+        | Glyph('j') -> EList([OpenCurve([(XN, Start); (BN, LineToCurve); (DC, G2); (DoL, End)])
+                               Dot(YX(dotHeight,N))])
         | Glyph('K') -> EList([PolyLine([TR; HL; BL]); PolyLine([TL; HL; BR])])
         | Glyph('k') -> EList([Line(TL, BL); PolyLine([YX(X,N); ML; YX(B,N)])])
         | Glyph('L') -> PolyLine([TL; BL; BR])
@@ -431,7 +434,7 @@ type Font (axes: Axes) =
         match e with
         | Line(p1, p2) -> OpenCurve([(p1, Start); (p2, End)]) |> this.reduce
         | PolyLine(points) -> let a = Array.ofList points
-                              OpenCurve([for i in 0 .. a.Length-1 do yield (a.[i], if i=(a.Length-1) then End else Corner)])
+                              OpenCurve([for i in 0..a.Length-1 do yield (a.[i], if i=(a.Length-1) then End else Corner)])
                               |> this.reduce
         | OpenCurve(pts) -> OpenCurve([for p, t in pts do YX(reducePoint p), t])
         | ClosedCurve(pts) -> ClosedCurve([for p, t in pts do YX(reducePoint p), t])
@@ -452,7 +455,7 @@ type Font (axes: Axes) =
             int ((1.0-this.axes.monospace) * float space + this.axes.monospace * float monospaceWidth)
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" e)
 
-    member this.charHeight = this.axes.height - D + thickness * 2
+    member this.charHeight = this.axes.height - D + thickness * 2 + this.axes.leading
 
     ///distance from bottom of descenders to baseline ()
     member this.yBaselineOffset = - D + thickness
@@ -775,14 +778,13 @@ type Font (axes: Axes) =
         this.width (Glyph(ch))
 
     member this.width e =
-        (e |> this.reduce |> this.getMonospace |> this.elemWidth) + this.axes.leading + thickness*2
+        (e |> this.reduce |> this.getMonospace |> this.elemWidth) + this.axes.tracking + thickness*2
 
     member this.charWidths str = Seq.map this.charWidth str |> List.ofSeq
 
     member this.stringWidth str = List.sum (this.charWidths str)
 
-    member this.stringToSvgLineInternal (multilineStr : string) offsetX offsetY =
-        let lines = multilineStr.Split('\r','\n')
+    member this.stringToSvgLineInternal (lines : string list) offsetX offsetY =
         let svg, lineWidths = 
             List.unzip
                 [for i in 0..lines.Length-1 do
@@ -796,12 +798,12 @@ type Font (axes: Axes) =
                 ]
         (List.collect id svg, lineWidths)
 
-    member this.stringToSvgLines (multilineStr : string) offsetX offsetY =
-        fst (this.stringToSvgLineInternal multilineStr offsetX offsetY)
+    member this.stringToSvgLines (lines : string list) offsetX offsetY =
+        fst (this.stringToSvgLineInternal lines offsetX offsetY)
 
-    member this.stringToSvg (multilineStr : string) offsetX offsetY =
+    member this.stringToSvg (lines : string list) offsetX offsetY =
         let margin = 50
-        let svg, lineWidths = this.stringToSvgLineInternal multilineStr offsetX offsetY
+        let svg, lineWidths = this.stringToSvgLineInternal lines offsetX offsetY
         [
             "<svg xmlns='http://www.w3.org/2000/svg'"
             sprintf "viewBox='%d %d %d %d'>" -margin -margin (List.max lineWidths + margin) (this.charHeight * lineWidths.Length + margin)

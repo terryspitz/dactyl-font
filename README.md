@@ -15,14 +15,14 @@ And current samples:
 ## Spiro spiral curves
 
 Dactyl fonts use and are inspired by Ralph Levien's [Spiro curves](https://www.levien.com/spiro/)
-
 using Wiesław Šoltés's [C# port](https://github.com/wieslawsoltes/SpiroNet)
-
 which I've ported to F# to run under the fantastic [Fable](https://fable.io/) to transpile to javascript.
 
 ## Variable fonts
 
-Dactyl is also inspired by Variable Fonts technology
+Dactyl is also inspired by Variable Fonts technology although it unfortunately isn't easy to output as a variable font
+(since they can only interpolate between two glyphs with the exact same knot points, which is hard to achieve with
+Spiros-created bezier curves.)
 
 https://v-fonts.com/
 

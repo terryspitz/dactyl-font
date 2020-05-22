@@ -138,8 +138,8 @@ let main argv =
 
     // SVG output, side by side
     let rowHeights = List.scan (+) 0 [for i in 0..fonts.Length-1 do let _, _, font = fonts.[i] in (200 + font.charHeight * 2)]
-    let text = "THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789\n" +
-                """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./""" 
+    let text = ["THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789"
+                """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./"""]
     [for i in 0..fonts.Length-1 do
         let name, _, font = fonts.[i]
         printfn "\n%s\n" name
@@ -149,6 +149,30 @@ let main argv =
     ] |> toSvgDocument (List.max rowHeights) (Axes.DefaultAxes.width * 70) |> writeFile @".\allGlyphs.svg"
 
 
+    // Proofs output using https://www.typography.com/blog/text-for-proofing-fonts
+    printfn "\nProofs\n" 
+    let proofDir = @".\proofs\text files\design\alphabet (latin)\"
+    let splitWords (s:string)= s.Split('\n','\r') |> Seq.filter (fun w -> w.Length > 0 && w.[0] <> '#')
+                               |> Seq.collect (fun s -> s.Split(' ')) |> List.ofSeq
+    let lowercase = File.ReadAllText (proofDir + "lowercase (latin).txt") |> splitWords
+    //let lowercaseLengths = List.map (fun (w : string) -> w.Length) lowercase
+    let uppercase = File.ReadAllText (proofDir + "uppercase (latin).txt") |> splitWords
+    let targetWidth = 20000
+    for i in 0..fonts.Length-1 do
+        let name, _, font = fonts.[i]
+        let charsPerLine = targetWidth / Axes.DefaultAxes.width
+        let wrap lines (w : string) =
+            let lineLength = List.fold (fun len (word : string) -> len + word.Length + 1) 0
+            match lines with
+            | head::tail -> if (w.Length + lineLength head) < charsPerLine then
+                                (head @ [w]) :: tail
+                            else
+                                [w] :: head :: tail
+            | [] -> [[w]]
+        let lines = name :: (List.fold wrap [] lowercase |> List.map (String.concat " ") |> List.rev)
+        printfn "\n%s\n" name
+        font.stringToSvg lines 0 0 |> writeFile (sprintf @".\svg\%s_lower.svg" name)
+    
     // FontForge output
     let writeFonts = false
     if writeFonts then
@@ -172,7 +196,7 @@ let main argv =
             for c in 1..10 do
                 let font = Font({Axes.DefaultAxes with 
                                             x_height = (11-r)*60; roundedness = c*30; thickness = r*6;})
-                yield! font.stringToSvg str 0 0
+                yield! font.stringToSvg [str] 0 0
         ] |> writeFile @".\interp.svg"
 
     0 // return code

@@ -21,7 +21,7 @@ let fieldDefaultsMap = Map.ofList fieldDefaults
 
 let font = Font({Axes.DefaultAxes with thickness=3})
 let titleElem = document.getElementById "title"
-titleElem.innerHTML <-  font.stringToSvg "Dactyl Live" 0 0 |> String.concat "\n"
+titleElem.innerHTML <-  font.stringToSvg ["Dactyl Live"] 0 0 |> String.concat "\n"
 
 let generate _ = 
     let text = textbox.value
@@ -35,8 +35,9 @@ let generate _ =
                      | Checkbox -> input.``checked`` :> obj
                  |])
     let font = Font(axes :?> Axes)
-    printfn "%A" font.axes     
-    let svg = font.stringToSvg text 0 0
+    printfn "%A" font.axes
+    let lines = text.Split('\r','\n') |> List.ofArray
+    let svg = font.stringToSvg lines 0 0
     output.innerHTML <- String.concat "\n" svg
 
 let init = 
