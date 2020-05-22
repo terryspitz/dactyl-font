@@ -20,14 +20,14 @@ let charToFontForge (this: Font) (ch : char) =
         let matchEval (amatch : Match) = amatch.Groups.[2].Value.Replace(","," ") + " "
                                          + amatch.Groups.[1].Value.ToLower() + " 0"
         let reorder s = Regex.Replace(s, "(.) (.*)", matchEval)
-        let bezierString = this.toSvgBezierCurve spiro |> List.collect (fun (s:string)-> s.Split('\r', '\n') |> List.ofArray)
+        let bezierString = this.spiroToSvg spiro |> List.collect (fun (s:string)-> s.Split('\r', '\n') |> List.ofArray)
                            |> List.map reorder
         let spiroString =
             match spiro with
             | SpiroOpenCurve(scps, _) -> scps |> List.map scpToString
             | SpiroClosedCurve(scps, _) -> scps |> List.map scpToString
             | SpiroDot(p) -> 
-                let x,y = this.getXY p 
+                let x,y = this.GetXY p 
                 [
                     sprintf "%d %d o " (x-thickness) (y) +
                     sprintf "%d %d o " (x) (y+thickness) +
@@ -36,8 +36,9 @@ let charToFontForge (this: Font) (ch : char) =
         bezierString @ ["Spiro"] @ spiroString @ ["0 0 z"; "EndSpiro";]
 
     let spineSpiros = Glyph(ch) |> Font({this.axes with thickness = 2}).getSansOutlines
-                      |> this.elementToSpiros |> List.collect spiroToFF
-    let outlineSpiros = Glyph(ch) |> this.getOutline |> this.elementToSpiros |> List.collect spiroToFF
+                      |> this.ElementToSpiros |> List.collect spiroToFF
+    let outlineSpiros = Glyph(ch) |> this.getOutline
+                        |> this.ElementToSpiros |> List.collect spiroToFF
     [
         sprintf "StartChar: %c\n" ch;
         sprintf "Encoding: %d %d 0\n" (int ch) (int ch);
