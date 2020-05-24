@@ -18,6 +18,7 @@
 //  balance (mid height > 1/2)
 // Add tooltips on explorer slides
 // fix fontforge errors: direction, non-integral coords
+// fix serifs: curve joints, check Y{}, spacing
 
 //Features :
 // Backscratch font (made of 4 parallel lines)
@@ -43,7 +44,7 @@ type Controls =
     | FracRange of from : float * upto : float
     | Checkbox
 
-// Variable values for the font
+// Variable values for the font (using Variable Font terminology)
 type Axes = {
     width : int         //width of normal glyph
     height : int        //capital height
@@ -64,6 +65,7 @@ type Axes = {
     scratches : bool    //horror/paint strokes font
     filled : bool       //(svg only) filled or empty outlines
     show_knots : bool   //show small circles for the points used to define lines/curves
+    joints : bool       //check joints to turn off serifs
 } with
     static member DefaultAxes = { 
         width = 300
@@ -84,6 +86,7 @@ type Axes = {
         scratches = false
         filled = true
         show_knots = false
+        joints = true
     }
     static member controls = Map.ofList [
         "width", Range(100, 1000);
@@ -104,6 +107,7 @@ type Axes = {
         "scratches", Checkbox;
         "filled", Checkbox;
         "show_knots", Checkbox
+        "joints", Checkbox
     ]
 
 
@@ -205,7 +209,7 @@ type Font (axes: Axes) =
     // let flooredOffsetHalf = if offset/2 > minOffset then offset/2 else minOffset
     let flooredOffset = offset + minOffset
     let flooredOffsetHalf = offset/2 + minOffset
-    let thickness = if axes.stroked || axes.scratches then max axes.thickness 60 else axes.thickness
+    let thickness = if axes.stroked || axes.scratches then max axes.thickness 30 else axes.thickness
 
     //basic manipulation using class variables
 
@@ -262,6 +266,16 @@ type Font (axes: Axes) =
     let applyToSpiros fn elem = 
         let elems = elementToSpiros elem |> List.collect fn
         if elems.Length > 1 then EList(elems) else elems.[0]
+
+    //inside class, so it gets rebuilt for each new instance with different axes
+    let memoize fn =
+      let cache = new System.Collections.Generic.Dictionary<_,_>()
+      (fun x ->
+        match cache.TryGetValue x with
+        | true, v -> v
+        | false, _ -> let v = fn (x)
+                      cache.Add(x,v)
+                      v)
 
     //MEMBERS
 
@@ -450,17 +464,17 @@ type Font (axes: Axes) =
         | OpenCurve(pts) -> OpenCurve([for p, t in pts do YX(reducePoint p), t])
         | ClosedCurve(pts) -> ClosedCurve([for p, t in pts do YX(reducePoint p), t])
         | Dot(p) -> Dot(YX(reducePoint(p)))
-        | EList(el) -> EList(List.map this.reduce el)
+        | EList(elems) -> EList(List.map this.reduce elems)
         | Space -> Space
         | e -> this.getGlyph(e) |> this.reduce
 
     member this.elemWidth e =
-        let maxX curvePoints = List.fold max 0 (List.map (fst >> getXY >> fst) curvePoints)
+        let maxX pts = List.fold max 0 (List.map (fst >> getXY >> fst) pts)
         match e with
-        | OpenCurve(curvePoints) -> maxX curvePoints
-        | ClosedCurve(curvePoints) -> maxX curvePoints
+        | OpenCurve(pts) -> maxX pts
+        | ClosedCurve(pts) -> maxX pts
         | Dot(p) -> fst (getXY p)
-        | EList(el) -> List.fold max 0 (List.map this.elemWidth el)
+        | EList(elems) -> List.fold max 0 (List.map this.elemWidth elems)
         | Space -> 
             let space = this.axes.height / 4  //according to https://en.wikipedia.org/wiki/Whitespace_character#Variable-width_general-purpose_space
             int ((1.0-this.axes.monospace) * float space + this.axes.monospace * float monospaceWidth)
@@ -470,6 +484,39 @@ type Font (axes: Axes) =
 
     ///distance from bottom of descenders to baseline ()
     member this.yBaselineOffset = - D + thickness
+
+    member this.isJointRaw (ch, X, Y) =
+        let checkXYColinearPoints (pts : list<Point * SpiroPointType>) =
+            List.fold (||) false 
+                [for i in 0..pts.Length-2 do
+                    let (x1,y1),(x2,y2) = getXY (fst pts.[i]),getXY (fst pts.[i+1])
+                    if (x1=X && y1=Y) || (x2=X && y2=Y) then
+                        false
+                    elif not ((x1 <= X && X <= x2 && y1 <= Y && Y <= y2)
+                              || (x2 <= X && X <= x1 && y2 <= Y && Y <= y1)) then
+                        false
+                    else
+                        let perpX, perpY = (y2-y1), -(x2-x1)
+                        assert ((x1*perpX + y1*perpY) = (x2*perpX + y2*perpY))
+                        let perpDist = (X*perpX + Y*perpY) - (x1*perpX + y1*perpY)
+                        (perpDist > -thickness) && (perpDist < thickness)
+                ]
+        //TODO: check joints on curves
+        let rec checkElem e =
+            match e with
+            | OpenCurve(pts) -> checkXYColinearPoints pts
+            | ClosedCurve(pts) -> checkXYColinearPoints pts
+            | Dot(p) -> false
+            | EList(elems) -> List.fold (||) false (List.map checkElem elems)
+            | Space -> false
+            | _ -> invalidArg "e" (sprintf "Unreduced element %A" e)
+        Glyph(ch) |> this.reduce |> checkElem
+
+    member this.isJoint ch (seg : SpiroSegment) = 
+        if axes.joints then
+            memoize this.isJointRaw (ch, int seg.X, int seg.Y)
+        else
+            false
 
     ///align an angle to horizontal or vertical axis
     member this.align angle =
@@ -553,14 +600,14 @@ type Font (axes: Axes) =
                 yield! this.offsetSegment seg lastSeg reverse dist
         ]
 
-    member this.getSansOutlines e = 
+    member this.getSansOutlines ch e = 
         let fthickness = float thickness
         let serif = float this.axes.serif
         let offsetPointCap X Y theta = addPolar X Y theta (fthickness * sqrt 2.0)
         let offsetMidSegments segments reverse =
             this.offsetSegments segments 1 (segments.Length-2) reverse false fthickness
-        let cap X Y theta =
-            if serif > 0.0 then
+        let cap X Y theta isJoint =
+            if serif > 0.0 && not isJoint then
                 let serifDist = SpiroImpl.hypot (serif + fthickness) fthickness
                 let serifAng = atan2 fthickness (serif + fthickness)
                 [(addPolar X Y (theta + PI * 0.75) (fthickness * sqrt 2.0), Corner);
@@ -578,9 +625,9 @@ type Font (axes: Axes) =
                      (addPolar X Y theta (fthickness * (1.0+this.axes.end_bulb)), G2);
                      (offsetPointCap X Y (theta - PI * 0.25), Corner)]
         let startCap (seg : SpiroSegment) =
-            cap seg.X seg.Y (this.align (seg.Tangent1) + PI)
+            cap seg.X seg.Y (this.align (seg.Tangent1) + PI) (this.isJoint ch seg)
         let endCap (seg : SpiroSegment) (lastSeg : SpiroSegment) = 
-            cap seg.X seg.Y (this.align (lastSeg.Tangent2))
+            cap seg.X seg.Y (this.align (lastSeg.Tangent2)) (this.isJoint ch seg)
         let spiroToOutline spiro =
             match spiro with
             | SpiroOpenCurve(_, segments) ->
@@ -617,8 +664,9 @@ type Font (axes: Axes) =
         | SpiroSpace -> [Space]
 
     member this.getStroked = 
-        applyToSpiros (this.spiroToLines 4) >> 
-            Font({this.axes with stroked = false; scratches = false; thickness = 2}).getSansOutlines
+        applyToSpiros (this.spiroToLines 4) >>
+            let dummyChar = ' '
+            Font({this.axes with stroked = false; scratches = false; thickness = 2}).getSansOutlines dummyChar
 
     member this.getScratches e = 
         let spiroToScratchOutlines spiro =
@@ -712,13 +760,13 @@ type Font (axes: Axes) =
         else
             e        
 
-    member this.getOutline =
+    member this.getOutline ch =
         if this.axes.stroked then
             this.getStroked
         elif this.axes.scratches then
             this.getScratches
         elif this.axes.outline then
-            this.getSansOutlines
+            this.getSansOutlines ch
         else 
             id
         >> this.italicise
@@ -792,7 +840,7 @@ type Font (axes: Axes) =
     member this.translateByThickness = this.movePoints this.shift
 
     member this.charToOutline ch =
-        Glyph(ch) |> this.reduce |> this.monospace |> this.getOutline
+        Glyph(ch) |> this.reduce |> this.monospace |> (this.getOutline ch)
 
     member this.charToSvg ch offsetX offsetY =
         let element = this.charToOutline ch |> this.translateByThickness

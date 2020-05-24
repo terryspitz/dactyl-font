@@ -135,6 +135,7 @@ let main argv =
         ("Dactyl Mono", "Regular", Font({Axes.DefaultAxes with thickness = 30; monospace = 1.0}));
         ("Dactyl Stroked", "Regular", Font({Axes.DefaultAxes with stroked = true; thickness = 60;}));
         ("Dactyl Scratch", "Regular", Font({Axes.DefaultAxes with scratches = true; thickness = 60;}));
+        ("Dactyl Roman", "Regular", Font({Axes.DefaultAxes with thickness = 30; serif=30}));
     ]
 
     //debug
