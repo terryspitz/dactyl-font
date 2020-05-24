@@ -10,57 +10,62 @@ open System.Text.RegularExpressions
 open Generator
 
 
-let charToFontForge (this: Font) (ch : char) =
+let charToFontForge (font: Font) (ch : char) =
     // reverse engineered from saved font  
-    let thickness = this.axes.thickness
+    let thickness = font.axes.thickness
     //let scpToString (scp : SCP) = sprintf "%f %f %c" scp.X scp.Y (char scp.Type)
     let scpToString (scp : SCP) = sprintf "%f %f %c" scp.X scp.Y (SpiroPointType.ToChar scp.Type)
     let spiroToFF spiro =
         //rearrange SVG bezier curve format to fontforge format
-        let matchEval (amatch : Match) = amatch.Groups.[2].Value.Replace(","," ") + " "
-                                         + amatch.Groups.[1].Value.ToLower() + " 0"
+        let matchEval (amatch : Match) = 
+            sprintf "%s %s @" (amatch.Groups.[2].Value.Replace(","," ")) (amatch.Groups.[1].Value.ToLower())
         let reorder s = Regex.Replace(s, "(.) (.*)", matchEval)
-        let bezierString = this.spiroToSvg spiro |> List.collect (fun (s:string)-> s.Split('\r', '\n') |> List.ofArray)
+        let bezierString = font.spiroToSvg spiro |> List.collect (fun (s:string)-> s.Split('\r', '\n') |> List.ofArray)
                            |> List.map reorder
         let spiroString =
             match spiro with
             | SpiroOpenCurve(scps, _) -> scps |> List.map scpToString
             | SpiroClosedCurve(scps, _) -> scps |> List.map scpToString
             | SpiroDot(p) -> 
-                let x,y = this.GetXY p 
+                let x,y = font.GetXY p 
                 [
-                    sprintf "%d %d o " (x-thickness) (y) +
-                    sprintf "%d %d o " (x) (y+thickness) +
-                    sprintf "%d %d o " (x+thickness) (y)]
+                    sprintf "%d %d o " (x-thickness) (y)
+                    sprintf "%d %d o " (x) (y+thickness)
+                    sprintf "%d %d o " (x+thickness) (y)
+                ]
             | SpiroSpace -> []
-        bezierString @ ["Spiro"] @ spiroString @ ["0 0 z"; "EndSpiro";]
+        bezierString 
+        @ ["Spiro"] 
+        @ spiroString 
+        @ ["0 0 z"; "EndSpiro";]
 
-    let spineSpiros = Glyph(ch) |> Font({this.axes with thickness = 2}).getSansOutlines
-                      |> this.ElementToSpiros |> List.collect spiroToFF
-    let outlineSpiros = Glyph(ch) |> this.getOutline
-                        |> this.ElementToSpiros |> List.collect spiroToFF
+    let spineSpiros = Font({font.axes with thickness = 2; outline = true}).charToOutline ch |> font.translateByThickness
+                      |> font.ElementToSpiros |> List.collect spiroToFF
+    let outlineSpiros = font.charToOutline ch |> font.translateByThickness |> font.ElementToSpiros |> List.collect spiroToFF
     [
-        sprintf "StartChar: %c\n" ch;
-        sprintf "Encoding: %d %d 0\n" (int ch) (int ch);
-        sprintf "Width: %d\n" (this.charWidth ch + thickness);
+        sprintf "StartChar: %c\n" ch
+        sprintf "Encoding: %d %d 0\n" (int ch) (int ch)
+        sprintf "Width: %d\n" (font.charWidth ch + thickness)
         """
         InSpiro: 1
         Flags: H
         LayerCount: 2
         Back
         SplineSet
-        """;
-    ] @ spineSpiros @ [
+        """] 
+    @ spineSpiros
+    @ [
         """
         EndSplineSet
         Fore
         SplineSet
-        """
-    ] @ outlineSpiros @ [
+        """] 
+    @ outlineSpiros 
+    @ [
         """
         EndSplineSet
         EndChar
-        """;
+        """
     ]
 
 let fontForgeProps name weight =
@@ -140,6 +145,7 @@ let main argv =
     let rowHeights = List.scan (+) 0 [for i in 0..fonts.Length-1 do let _, _, font = fonts.[i] in (200 + font.charHeight * 2)]
     let text = ["THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789"
                 """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./"""]
+    //let text = ["5"]
     [for i in 0..fonts.Length-1 do
         let name, _, font = fonts.[i]
         printfn "\n%s\n" name
@@ -150,31 +156,33 @@ let main argv =
 
 
     // Proofs output using https://www.typography.com/blog/text-for-proofing-fonts
-    printfn "\nProofs\n" 
-    let proofDir = @".\proofs\text files\design\alphabet (latin)\"
-    let splitWords (s:string)= s.Split('\n','\r') |> Seq.filter (fun w -> w.Length > 0 && w.[0] <> '#')
-                               |> Seq.collect (fun s -> s.Split(' ')) |> List.ofSeq
-    let lowercase = File.ReadAllText (proofDir + "lowercase (latin).txt") |> splitWords
-    //let lowercaseLengths = List.map (fun (w : string) -> w.Length) lowercase
-    let uppercase = File.ReadAllText (proofDir + "uppercase (latin).txt") |> splitWords
-    let targetWidth = 20000
-    for i in 0..fonts.Length-1 do
-        let name, _, font = fonts.[i]
-        let charsPerLine = targetWidth / Axes.DefaultAxes.width
-        let wrap lines (w : string) =
-            let lineLength = List.fold (fun len (word : string) -> len + word.Length + 1) 0
-            match lines with
-            | head::tail -> if (w.Length + lineLength head) < charsPerLine then
-                                (head @ [w]) :: tail
-                            else
-                                [w] :: head :: tail
-            | [] -> [[w]]
-        let lines = name :: (List.fold wrap [] lowercase |> List.map (String.concat " ") |> List.rev)
-        printfn "\n%s\n" name
-        font.stringToSvg lines 0 0 |> writeFile (sprintf @".\svg\%s_lower.svg" name)
+    let outputProofs = false
+    if outputProofs then
+        printfn "\nProofs\n" 
+        let proofDir = @".\proofs\text files\design\alphabet (latin)\"
+        let splitWords (s:string)= s.Split('\n','\r') |> Seq.filter (fun w -> w.Length > 0 && w.[0] <> '#')
+                                   |> Seq.collect (fun s -> s.Split(' ')) |> List.ofSeq
+        let lowercase = File.ReadAllText (proofDir + "lowercase (latin).txt") |> splitWords
+        // let lowercaseLengths = List.map (fun (w : string) -> w.Length) lowercase
+        // let uppercase = File.ReadAllText (proofDir + "uppercase (latin).txt") |> splitWords
+        let targetWidth = 20000
+        for i in 0..fonts.Length-1 do
+            let name, _, font = fonts.[i]
+            let charsPerLine = targetWidth / Axes.DefaultAxes.width
+            let wrap lines (w : string) =
+                let lineLength = List.fold (fun len (word : string) -> len + word.Length + 1) 0
+                match lines with
+                | head::tail -> if (w.Length + lineLength head) < charsPerLine then
+                                    (head @ [w]) :: tail
+                                else
+                                    [w] :: head :: tail
+                | [] -> [[w]]
+            let lines = name :: (List.fold wrap [] lowercase |> List.map (String.concat " ") |> List.rev)
+            printfn "\n%s\n" name
+            font.stringToSvg lines 0 0 |> writeFile (sprintf @".\svg\%s_lower.svg" name)
     
     // FontForge output
-    let writeFonts = false
+    let writeFonts = true
     if writeFonts then
         for i in 0..fonts.Length-1 do
             let name, weight, font = fonts.[i]

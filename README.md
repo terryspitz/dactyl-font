@@ -24,7 +24,7 @@ Dactyl is also inspired by Variable Fonts technology although it unfortunately i
 (since they can only interpolate between two glyphs with the exact same knot points, which is hard to achieve with
 Spiros-created bezier curves.)
 
-https://v-fonts.com/
+<https://v-fonts.com/>
 
 https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Fonts/Variable_Fonts_Guide
 
@@ -54,11 +54,23 @@ http://unifiedfontobject.org/versions/ufo3/glyphs/glif
 This project is a great opportunity to dive into the vast world of typographic design.  A few of the sites and articles that
 have caught my eye so far:
 
-http://designwithfontforge.com/en-US/Creating_o_and_n.html
+<http://designwithfontforge.com/en-US/Creating_o_and_n.html>
 
-http://designwithfontforge.com/en-US/Trusting_Your_Eyes.html
+<http://designwithfontforge.com/en-US/Trusting_Your_Eyes.html>
 
-https://www.reddit.com/r/neography/comments/8186cc/creating_fonts_with_inkscape_and_fontforge_part1/
+<https://www.reddit.com/r/neography/comments/8186cc/creating_fonts_with_inkscape_and_fontforge_part1>
 
-https://www.typography.com/blog/text-for-proofing-fonts
+<https://www.typography.com/blog/text-for-proofing-fonts>
+
+On letter spacing, tracking and kerning: 
+
+<http://www.fermello.org/FernandoMello_essay.pdf>
+
+<https://www.fontshop.com/content/adventures-in-space_spacing>
+
+<https://typefacts.com/artikel/kerningtest>
+
+## Where it all started
+
+http://www.math.lsa.umich.edu/~millerpd/docs/501_Winter13/Knuth79.pdf
 

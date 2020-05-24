@@ -19,9 +19,9 @@ let fieldDefaultsMap = Map.ofList fieldDefaults
 //Not supported in Fable :()
 //let axesConstructor = Reflection.FSharpValue.PreComputeRecordConstructor typeof<Axes> 
 
-let font = Font({Axes.DefaultAxes with thickness=3})
+let titleFont = Font({Axes.DefaultAxes with thickness=3})
 let titleElem = document.getElementById "title"
-titleElem.innerHTML <-  font.stringToSvg ["Dactyl Live"] 0 0 |> String.concat "\n"
+titleElem.innerHTML <-  titleFont.stringToSvg ["Dactyl Live"] 0 0 |> String.concat "\n"
 
 let generate _ = 
     let text = textbox.value
@@ -101,8 +101,8 @@ NOPQRSTUVWXYZ
 !\"#£$%&'()*+,-./:;
 <=>?@[\\]^_`{|}~"
 
-//textbox.innerHTML <- "c    "
-//((document.getElementById "filled") :?> HTMLInputElement).``checked`` <- false
+//textbox.innerHTML <- "56vw  "
+//((document.getElementById "show_knots") :?> HTMLInputElement).``checked`` <- true
 // textbox.innerHTML <- The Unbearable
 // Lightness
 // of Being"
