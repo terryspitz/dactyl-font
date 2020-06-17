@@ -39,9 +39,9 @@ let charToFontForge (font: Font) (ch : char) =
         @ spiroString 
         @ ["0 0 z"; "EndSpiro";]
 
-    let spineSpiros = Font({font.axes with thickness = 2; outline = true}).charToOutline ch |> font.translateByThickness
+    let spineSpiros = Font({font.axes with thickness = 2; outline = true}).charToOutline ch |> font.translateBy
                       |> font.ElementToSpiros |> List.collect spiroToFF
-    let outlineSpiros = font.charToOutline ch |> font.translateByThickness |> font.ElementToSpiros |> List.collect spiroToFF
+    let outlineSpiros = font.charToOutline ch |> font.translateBy |> font.ElementToSpiros |> List.collect spiroToFF
     [
         sprintf "StartChar: %c\n" ch
         sprintf "Encoding: %d %d 0\n" (int ch) (int ch)

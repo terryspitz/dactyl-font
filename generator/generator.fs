@@ -19,6 +19,7 @@
 // Add tooltips on explorer slides
 // fix fontforge errors: direction, non-integral coords
 // fix serifs: curve joints, check Y{}, spacing
+// Caustics overlay
 
 //Features :
 // Backscratch font (made of 4 parallel lines)
@@ -52,13 +53,14 @@ type Axes = {
     thickness : int     //stroke width
     contrast : float    //make vertical lines thicker
     roundedness : int   //roundedness
-    serif : int         //serif size
-    // overshoot : int     //curves are larger by this amount to compensate for looking smaller
+    // overshoot : int  //curves are larger by this amount to compensate for looking smaller
     tracking : int      //gap between glyphs
     leading : int       //gap between lines
     monospace : float   //fraction to interpolate widths to monospaces
     italic : float      //fraction to sheer glyphs
-    end_bulb : float   //fraction of thickness to apply curves to endcaps
+    end_bulb : float    //fraction of thickness to apply curves to endcaps
+    serif : int         //serif size
+    flare : float       //end caps expand by this amount
     axis_align_caps : bool //round angle of caps to horizontal/vertical
     outline : bool      //use thickness to expand stroke width
     stroked : bool      //each stroke is 4 parallel lines
@@ -74,12 +76,13 @@ type Axes = {
         thickness = 30
         contrast = 0.05
         roundedness = 100
-        serif = 0
         tracking = 40
         leading = 50
         monospace = 0.0
         italic = 0.0
+        serif = 0
         end_bulb = 0.0
+        flare = 0.0
         axis_align_caps = true
         outline = true
         stroked = false
@@ -95,12 +98,13 @@ type Axes = {
         "thickness", Range(1, 200);
         "contrast", FracRange(-0.5, 0.5);
         "roundedness", Range(0, 300);
-        "serif", Range(0, 70)
         "tracking", Range(0, 100);
         "leading", Range(-100, 200);
         "monospace", FracRange(0.0, 1.0);
         "italic", FracRange(0.0, 1.0);
+        "serif", Range(0, 70)
         "end_bulb", FracRange(-1.0, 3.0);
+        "flare", FracRange(-10.0, 50.0);
         "axis_align_caps", Checkbox;
         "outline", Checkbox;
         "stroked", Checkbox;
@@ -213,11 +217,13 @@ type Font (axes: Axes) =
 
     //basic manipulation using class variables
 
-    let addPolar X Y theta dist =
+    let toPolar dy dx = SpiroImpl.hypot dx dy, atan2 dy dx
+
+    let addPolarContrast X Y theta dist =
         YX(int(Y + dist * sin(theta)), int(X + dist * cos(theta) + axes.contrast * float thickness * cos(theta)))
     
     let segAddPolar (seg : SpiroSegment) theta dist = 
-            addPolar seg.X seg.Y theta dist
+            addPolarContrast seg.X seg.Y theta dist
 
     let rec reducePoint p = 
         match p with
@@ -510,6 +516,7 @@ type Font (axes: Axes) =
             | EList(elems) -> List.fold (||) false (List.map checkElem elems)
             | Space -> false
             | _ -> invalidArg "e" (sprintf "Unreduced element %A" e)
+
         Glyph(ch) |> this.reduce |> checkElem
 
     member this.isJoint ch (seg : SpiroSegment) = 
@@ -571,7 +578,7 @@ type Font (axes: Axes) =
                 //     if Set.ofList [seg.Type; lastSeg.Type] = Set.ofList [Corner; G2] then
                 //         printfn "corner/curve bend"
                 //     printfn "inner bend %f offset %f chords %f %f " bend (dist/cos (bend/2.0)) seg.seg_ch lastSeg.seg_ch
-                [(addPolar seg.X seg.Y (th1 + bend/2.0) offset, newType)]
+                [(addPolarContrast seg.X seg.Y (th1 + bend/2.0) offset, newType)]
         | SpiroPointType.Right ->
             //weirdly, asserts in Fable's js but not in F# run
             //assert ((abs (lastSeg.seg_th - seg.Tangent1)) < 1e-5)
@@ -603,31 +610,43 @@ type Font (axes: Axes) =
     member this.getSansOutlines ch e = 
         let fthickness = float thickness
         let serif = float this.axes.serif
-        let offsetPointCap X Y theta = addPolar X Y theta (fthickness * sqrt 2.0)
+        let offsetPointCap X Y theta = addPolarContrast X Y theta (fthickness * sqrt 2.0)
         let offsetMidSegments segments reverse =
             this.offsetSegments segments 1 (segments.Length-2) reverse false fthickness
         let cap X Y theta isJoint =
+            let thetaAligned = this.align theta
+            //make serif on endcap
             if serif > 0.0 && not isJoint then
                 let serifDist = SpiroImpl.hypot (serif + fthickness) fthickness
                 let serifAng = atan2 fthickness (serif + fthickness)
-                [(addPolar X Y (theta + PI * 0.75) (fthickness * sqrt 2.0), Corner);
-                 (addPolar X Y (theta + PI * 0.5 + serifAng) serifDist, Corner);
-                 (addPolar X Y (theta + PI * 0.5 - serifAng) serifDist, Corner);
-                 (addPolar X Y (theta - PI * 0.5 + serifAng) serifDist, Corner);
-                 (addPolar X Y (theta - PI * 0.5 - serifAng) serifDist, Corner);
-                 (addPolar X Y (theta - PI * 0.75) (fthickness * sqrt 2.0), Corner)]
+                [(addPolarContrast X Y (thetaAligned + PI * 0.75) (fthickness * sqrt 2.0), Corner);
+                 (addPolarContrast X Y (thetaAligned + PI * 0.5 + serifAng) serifDist, Corner);
+                 (addPolarContrast X Y (thetaAligned + PI * 0.5 - serifAng) serifDist, Corner);
+                 (addPolarContrast X Y (thetaAligned - PI * 0.5 + serifAng) serifDist, Corner);
+                 (addPolarContrast X Y (thetaAligned - PI * 0.5 - serifAng) serifDist, Corner);
+                 (addPolarContrast X Y (thetaAligned - PI * 0.75) (fthickness * sqrt 2.0), Corner)]
+            //make flared endcap
+            elif this.axes.flare <> 0.0 && not isJoint then
+                let preflareDist, preflareAng = toPolar fthickness -(fthickness*0.80)
+                let flareDist, flareAng = toPolar fthickness (this.axes.flare + fthickness)
+                [(addPolarContrast X Y (theta + PI * 0.75) (fthickness * sqrt 2.0), Corner);
+                 (addPolarContrast X Y (theta + preflareAng) preflareDist, LineToCurve);
+                 (addPolarContrast X Y (thetaAligned + PI * 0.5 - flareAng) flareDist, Corner);
+                 (addPolarContrast X Y (thetaAligned - PI * 0.5 + flareAng) flareDist, Corner);
+                 (addPolarContrast X Y (theta - preflareAng) preflareDist, CurveToLine);
+                 (addPolarContrast X Y (theta - PI * 0.75) (fthickness * sqrt 2.0), Corner)]
             else
                 if this.axes.end_bulb = 0.0 then
-                    [(offsetPointCap X Y (theta + PI * 0.25), Corner);
-                     (offsetPointCap X Y (theta - PI * 0.25), Corner)]
+                    [(offsetPointCap X Y (thetaAligned + PI * 0.25), Corner);
+                     (offsetPointCap X Y (thetaAligned - PI * 0.25), Corner)]
                 else                 
-                    [(offsetPointCap X Y (theta + PI * 0.25), Corner);
-                     (addPolar X Y theta (fthickness * (1.0+this.axes.end_bulb)), G2);
-                     (offsetPointCap X Y (theta - PI * 0.25), Corner)]
+                    [(offsetPointCap X Y (thetaAligned + PI * 0.25), Corner);
+                     (addPolarContrast X Y thetaAligned (fthickness * (1.0+this.axes.end_bulb)), G2);
+                     (offsetPointCap X Y (thetaAligned - PI * 0.25), Corner)]
         let startCap (seg : SpiroSegment) =
-            cap seg.X seg.Y (this.align (seg.Tangent1) + PI) (this.isJoint ch seg)
+            cap seg.X seg.Y (seg.Tangent1 + PI) (this.isJoint ch seg)
         let endCap (seg : SpiroSegment) (lastSeg : SpiroSegment) = 
-            cap seg.X seg.Y (this.align (lastSeg.Tangent2)) (this.isJoint ch seg)
+            cap seg.X seg.Y (lastSeg.Tangent2) (this.isJoint ch seg)
         let spiroToOutline spiro =
             match spiro with
             | SpiroOpenCurve(_, segments) ->
@@ -635,8 +654,8 @@ type Font (axes: Axes) =
                              @ offsetMidSegments segments false
                              @ endCap segments.[segments.Length-1] segments.[segments.Length-2]
                              @ (offsetMidSegments segments true |> List.rev)
-                            //  @ (offsetMidSegments (this.reverseSegments segments) false)
-                             
+                             // reversed segments can't properly calculate last chord theta
+                             //  @ (offsetMidSegments (this.reverseSegments segments) false)                             
                 [ClosedCurve(points)]
             | SpiroClosedCurve(_, segments) ->
                 [ClosedCurve(this.offsetSegments segments 0 (segments.Length-2) false true fthickness);
@@ -671,7 +690,7 @@ type Font (axes: Axes) =
     member this.getScratches e = 
         let spiroToScratchOutlines spiro =
             let thicknessby3 = float thickness/3.0
-            let offsetPointCap X Y theta = addPolar X Y theta (thicknessby3 * sqrt 2.0)
+            let offsetPointCap X Y theta = addPolarContrast X Y theta (thicknessby3 * sqrt 2.0)
             let offsetMidSegments segments reverse =
                 this.offsetSegments segments 1 (segments.Length-2) reverse false thicknessby3
             let startCap (seg : SpiroSegment) =
@@ -837,13 +856,14 @@ type Font (axes: Axes) =
 
     member this.monospace = if this.axes.monospace > 0.0 then this.getMonospace else id
     member this.shift p = let x,y = getXY p in YX(y + thickness, x + thickness)
-    member this.translateByThickness = this.movePoints this.shift
+    member this.translateBy = this.movePoints this.shift
 
     member this.charToOutline ch =
         Glyph(ch) |> this.reduce |> this.monospace |> (this.getOutline ch)
 
     member this.charToSvg ch offsetX offsetY =
-        let element = this.charToOutline ch |> this.translateByThickness
+        // printfn "%c" ch
+        let element = this.charToOutline ch |> this.translateBy
         let glyph = [sprintf "<!-- %c -->" ch] @ this.getSvgCurves element offsetX offsetY 5
         if this.axes.show_knots then
             let spineElement = Glyph(ch) |> this.reduce |> this.monospace |> this.italicise |> this.movePoints this.shift
