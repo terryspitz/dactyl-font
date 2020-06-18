@@ -58,8 +58,8 @@ type Axes = {
     leading : int       //gap between lines
     monospace : float   //fraction to interpolate widths to monospaces
     italic : float      //fraction to sheer glyphs
-    end_bulb : float    //fraction of thickness to apply curves to endcaps
     serif : int         //serif size
+    end_bulb : float    //fraction of thickness to apply curves to endcaps
     flare : float       //end caps expand by this amount
     axis_align_caps : bool //round angle of caps to horizontal/vertical
     outline : bool      //use thickness to expand stroke width
@@ -104,7 +104,7 @@ type Axes = {
         "italic", FracRange(0.0, 1.0);
         "serif", Range(0, 70)
         "end_bulb", FracRange(-1.0, 3.0);
-        "flare", FracRange(-10.0, 50.0);
+        "flare", FracRange(-1.0, 1.0);
         "axis_align_caps", Checkbox;
         "outline", Checkbox;
         "stroked", Checkbox;
@@ -362,7 +362,9 @@ type Font (axes: Axes) =
                                           (Mid(TR, HR), G2); (HC, G2)]);
                               OpenCurve([(HC, G2); (Mid(HR, BR), G2); (YX(B,L+flooredOffset), G2); (YX(B+offset,L), End)])])
         | Glyph('4') -> PolyLine([BN; TN; YX(T/4,L); YX(T/4,R)])
-        | Glyph('5') -> OpenCurve([(TR, Start); (TL, Corner); (YX(T*2/3-offset,L), Corner); (YX(T*2/3,C), G2); (YX(T/3,R), G2); (YX(B,L+flooredOffset), G2); (BoL, End)])
+        // | Glyph('5') -> OpenCurve([(TR, Start); (TL, Corner); (YX(T*2/3-offset,L), Corner); (YX(T*2/3,C), G2); (YX(T/3,R), G2); (YX(B,L+flooredOffset), G2); (BoL, End)])
+        | Glyph('5') -> EList([OpenCurve([(TR, Start); (TL, Corner); (YX(T*2/3-offset,L), Corner)])
+                               OpenCurve([(YX(T*2/3-offset,L), Corner); (YX(T*2/3,C), G2); (YX(T/3,R), G2); (YX(B,L+flooredOffset), G2); (BoL, End)])])
         | Glyph('6') -> OpenCurve([(ToR, Start); (YX(T,R-flooredOffset), G2); (HL, G2); (BC, G2); (YX(T/3,R), G2); (YX(T*2/3,C), G2); (HL, End)])
         | Glyph('7') -> PolyLine([TL; TR; BLo])
         | Glyph('8') -> let M = T/2
@@ -628,7 +630,7 @@ type Font (axes: Axes) =
             //make flared endcap
             elif this.axes.flare <> 0.0 && not isJoint then
                 let preflareDist, preflareAng = toPolar fthickness -(fthickness*0.80)
-                let flareDist, flareAng = toPolar fthickness (this.axes.flare + fthickness)
+                let flareDist, flareAng = toPolar fthickness ((this.axes.flare + 1.0) * fthickness)
                 [(addPolarContrast X Y (theta + PI * 0.75) (fthickness * sqrt 2.0), Corner);
                  (addPolarContrast X Y (theta + preflareAng) preflareDist, LineToCurve);
                  (addPolarContrast X Y (thetaAligned + PI * 0.5 - flareAng) flareDist, Corner);
@@ -636,7 +638,7 @@ type Font (axes: Axes) =
                  (addPolarContrast X Y (theta - preflareAng) preflareDist, CurveToLine);
                  (addPolarContrast X Y (theta - PI * 0.75) (fthickness * sqrt 2.0), Corner)]
             else
-                if this.axes.end_bulb = 0.0 then
+                if this.axes.end_bulb = 0.0 && not isJoint then
                     [(offsetPointCap X Y (thetaAligned + PI * 0.25), Corner);
                      (offsetPointCap X Y (thetaAligned - PI * 0.25), Corner)]
                 else                 
