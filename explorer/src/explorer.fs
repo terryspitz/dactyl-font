@@ -1,9 +1,10 @@
 module Explorer
 
-open Browser.Dom
-open Generator
+open System
 open Microsoft.FSharp.Reflection
+open Browser.Dom
 open Browser.Types
+open Generator
 
 let textbox = document.getElementById("text") :?> HTMLInputElement
 let inputs = document.getElementById("inputs")
@@ -37,7 +38,9 @@ let generate _ =
     let font = Font(axes :?> Axes)
     printfn "%A" font.axes
     let lines = text.Split('\r','\n') |> List.ofArray
+    let start = DateTime.UtcNow.Ticks
     let svg = font.stringToSvg lines 0 0
+    printfn "%d ms" ((DateTime.UtcNow.Ticks-start)/10000L)
     output.innerHTML <- String.concat "\n" svg
 
 let init = 
@@ -101,9 +104,9 @@ NOPQRSTUVWXYZ
 !\"#£$%&'()*+,-./:;
 <=>?@[\\]^_`{|}~"
 
-//textbox.innerHTML <- "56vw  "
-//((document.getElementById "show_knots") :?> HTMLInputElement).``checked`` <- true
-// textbox.innerHTML <- The Unbearable
+//textbox.innerHTML <- "56zvwx  "
+// ((document.getElementById "show_knots") :?> HTMLInputElement).``checked`` <- true
+// textbox.innerHTML <- "The Unbearable
 // Lightness
 // of Being"
 textbox.oninput <- generate

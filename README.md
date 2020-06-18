@@ -48,6 +48,7 @@ FontForge is also useful to view and interact with the letter glyphs in detail: 
 
 <http://unifiedfontobject.org/versions/ufo3/glyphs/glif>
 
+<https://opentype.js.org/glyph-inspector.html>
 
 ## Font design
 

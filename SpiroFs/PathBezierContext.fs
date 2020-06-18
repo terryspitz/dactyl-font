@@ -37,8 +37,10 @@ open IBezierContext
 /// <param name="value"></param>
 /// <returns></returns>
 let Format (value : float) =
-    //value.ToString("F1", ToStringCulture)
-    value.ToString("F1")
+    // value.ToString("F1", ToStringCulture)
+    // value.ToString("F1")
+    // sprintf "%d" (int value)
+    (int value).ToString()
 
 /// <summary>
 /// Bezier context implementation that handles the creation of Path data representation of bézier splines.
@@ -80,7 +82,7 @@ type PathBezierContext() =
             if _needToClose then
                 _sb.AppendLine("Z")  |> ignore
 
-            let move = String.Format("M {0},{1}", Format(x), Format(y))
+            let move = sprintf "M %s,%s" (Format x) (Format y)
             _sb.AppendLine(move) |> ignore
             _needToClose <- not isOpen
 
@@ -91,7 +93,7 @@ type PathBezierContext() =
         /// <param name="x">The X coordinate of the new end point.</param>
         /// <param name="y">The Y coordinate of the new end point.</param>
         member this.LineTo(x, y) =
-            let line = String.Format("L {0},{1}", Format(x), Format(y))
+            let line = sprintf "L %s,%s" (Format x) (Format y)
             _sb.AppendLine(line) |> ignore
 
 
@@ -103,7 +105,7 @@ type PathBezierContext() =
         /// <param name="x2">The X coordinate of the new end point.</param>
         /// <param name="y2">The Y coordinate of the new end point.</param>
         member this.QuadTo(x1, y1, x2, y2) =
-            let quad = String.Format("Q {0},{1} {2},{3}", Format(x1), Format(y1), Format(x2), Format(y2))
+            let quad = sprintf "Q %s,%s %s,%s" (Format x1) (Format y1) (Format x2) (Format y2)
             _sb.AppendLine(quad) |> ignore
 
 
@@ -117,7 +119,7 @@ type PathBezierContext() =
         /// <param name="x3">The X coordinate of the new end point.</param>
         /// <param name="y3">The Y coordinate of the new end point.</param>
         member this.CurveTo(x1, y1, x2, y2, x3, y3) =
-            let curve = String.Format("C {0},{1} {2},{3} {4},{5}", Format(x1), Format(y1), Format(x2), Format(y2), Format(x3), Format(y3))
+            let curve = sprintf "C %s,%s %s,%s %s,%s" (Format x1) (Format y1) (Format x2) (Format y2) (Format x3) (Format y3)
             _sb.AppendLine(curve) |> ignore
 
 

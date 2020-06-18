@@ -362,7 +362,7 @@ let count_vec (s : SpiroSegment[]) nseg =
     Seq.sum [for i in 0..nseg-1 do compute_jinc (s.[i].Type) (s.[i + 1].Type)]
 
 
-let add_mat_line (m: BandMatrix[], v : float[], derivs : float[], x, y, j, jj, jinc, nmat) =
+let add_mat_line (m: BandMatrix[], v : float[], derivs : MyArray3D, di, dj, x, y, j, jj, jinc, nmat) =
     let mutable joff = 0
     let mutable k = 0
     if (jj >= 0) then
@@ -375,7 +375,7 @@ let add_mat_line (m: BandMatrix[], v : float[], derivs : float[], x, y, j, jj, j
 
         v.[jj] <- v.[jj] + x
         for k in 0..jinc-1 do
-            m.[jj].a.[joff + k] <- m.[jj].a.[joff + k] + y * derivs.[k]
+            m.[jj].a.[joff + k] <- m.[jj].a.[joff + k] + y * derivs.[(di,dj,k)]
 
 
 let spiro_iter (s : SpiroSegment[]) (m: BandMatrix[]) (perm : int[]) (v : float[]) n nmat =
@@ -459,15 +459,14 @@ let spiro_iter (s : SpiroSegment[]) (m: BandMatrix[]) (perm : int[]) (v : float[
                 jk1r <- (jj + 2) % nmat
                 jk2r <- (jj + 3) % nmat
 
-        let getDerivs i j = [|for k in 0..3 do derivs.[i,j,k]|]
-        add_mat_line(m, v, getDerivs 0 0, th - ends.[0,0], 1.0, j, jthl, jinc, nmat)
-        add_mat_line(m, v, getDerivs 1 0, ends.[0,1], -1.0, j, jk0l, jinc, nmat)
-        add_mat_line(m, v, getDerivs 2 0, ends.[0,2], -1.0, j, jk1l, jinc, nmat)
-        add_mat_line(m, v, getDerivs 3 0, ends.[0,3], -1.0, j, jk2l, jinc, nmat)
-        add_mat_line(m, v, getDerivs 0 1, -ends.[1,0], 1.0, j, jthr, jinc, nmat)
-        add_mat_line(m, v, getDerivs 1 1, -ends.[1,1], 1.0, j, jk0r, jinc, nmat)
-        add_mat_line(m, v, getDerivs 2 1, -ends.[1,2], 1.0, j, jk1r, jinc, nmat)
-        add_mat_line(m, v, getDerivs 3 1, -ends.[1,3], 1.0, j, jk2r, jinc, nmat)
+        add_mat_line(m, v, derivs, 0, 0, th - ends.[0,0], 1.0, j, jthl, jinc, nmat)
+        add_mat_line(m, v, derivs, 1, 0, ends.[0,1], -1.0, j, jk0l, jinc, nmat)
+        add_mat_line(m, v, derivs, 2, 0, ends.[0,2], -1.0, j, jk1l, jinc, nmat)
+        add_mat_line(m, v, derivs, 3, 0, ends.[0,3], -1.0, j, jk2l, jinc, nmat)
+        add_mat_line(m, v, derivs, 0, 1, -ends.[1,0], 1.0, j, jthr, jinc, nmat)
+        add_mat_line(m, v, derivs, 1, 1, -ends.[1,1], 1.0, j, jk0r, jinc, nmat)
+        add_mat_line(m, v, derivs, 2, 1, -ends.[1,2], 1.0, j, jk1r, jinc, nmat)
+        add_mat_line(m, v, derivs, 3, 1, -ends.[1,3], 1.0, j, jk2r, jinc, nmat)
 
         if (jthl >= 0) then
             v.[jthl] <- mod_2pi(v.[jthl])
