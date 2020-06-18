@@ -29,6 +29,7 @@
 // Horiz/vertical endcaps using axis_align_caps
 // Randomise in explorer
 // Contrast (horiz vs vert stroke width ratio)
+// Flared endcaps
 
 module Generator
 
@@ -98,7 +99,7 @@ type Axes = {
         "thickness", Range(1, 200);
         "contrast", FracRange(-0.5, 0.5);
         "roundedness", Range(0, 300);
-        "tracking", Range(0, 100);
+        "tracking", Range(0, 200);
         "leading", Range(-100, 200);
         "monospace", FracRange(0.0, 1.0);
         "italic", FracRange(0.0, 1.0);
@@ -365,7 +366,7 @@ type Font (axes: Axes) =
         // | Glyph('5') -> OpenCurve([(TR, Start); (TL, Corner); (YX(T*2/3-offset,L), Corner); (YX(T*2/3,C), G2); (YX(T/3,R), G2); (YX(B,L+flooredOffset), G2); (BoL, End)])
         | Glyph('5') -> EList([OpenCurve([(TR, Start); (TL, Corner); (YX(T*2/3-offset,L), Corner)])
                                OpenCurve([(YX(T*2/3-offset,L), Corner); (YX(T*2/3,C), G2); (YX(T/3,R), G2); (YX(B,L+flooredOffset), G2); (BoL, End)])])
-        | Glyph('6') -> OpenCurve([(ToR, Start); (YX(T,R-flooredOffset), G2); (HL, G2); (BC, G2); (YX(T/3,R), G2); (YX(T*2/3,C), G2); (HL, End)])
+        | Glyph('6') -> OpenCurve([(ToR, Start); (TC, G2); (HL, G2); (BC, G2); (YX(T/3,R), G2); (YX(T*2/3,C), G2); (HL, End)])
         | Glyph('7') -> PolyLine([TL; TR; BLo])
         | Glyph('8') -> let M = T/2
                         ClosedCurve([(TC, G2); (Mid(TL,HL), G2); 
@@ -383,14 +384,15 @@ type Font (axes: Axes) =
         | Glyph('B') -> EList([Glyph('P'); OpenCurve([(HL, Corner); (HC, LineToCurve); (Mid(HR, BR), G2); (BC, CurveToLine); (BL, End)])])
         | Glyph('b') -> EList([Line(BL, TL); OpenCurve([(XoL, Start); (XC, G2); (MR, G2); (BC, G2); (BoL, End)])])
         | Glyph('C') -> OpenCurve([(ToR, Start); (TC, G2); (HL, G2); (BC, G2); (BoR, End)])
-        | Glyph('c') -> OpenCurve([(XoR, Start); (XC, G2); (ML, G2); (BC, G2); (BoR, End)])
+        | Glyph('c') -> OpenCurve([(YX(X - max 0 (offset-thickness),R), Start); (XC, G2); (ML, G2); (BC, G2)
+                                   (YX(B + max 0 (offset-thickness),R), End)])
         | Glyph('D') -> ClosedCurve([(BL, Corner); (TL, Corner); (YX(T,L+flooredOffset), LineToCurve);
                                      (YX(H+flooredOffset,R), CurveToLine); (YX(H-flooredOffset,R), LineToCurve);
                                      (YX(B,L+flooredOffset), CurveToLine)])
         | Glyph('d') -> EList([Line(BR, TR); Part("adgqLoop")])
         | Glyph('E') -> EList([PolyLine([TR; TL; BL; BR]); Line(HL, HR)])
-        | Glyph('e') -> OpenCurve([(ML, Start); (MR, Corner); (YX(M+flooredOffsetHalf,R), G2);
-                                   (XC, G2); (ML, G2); (BC, G2); (YX(offset/2,R), End)])
+        | Glyph('e') -> OpenCurve([(YX(M,L+thickness), Start); (MR, Corner); (YX(M+flooredOffsetHalf,R), G2);
+                                   (XC, G2); (ML, G2); (BC, G2); (YX(B + max 0 (offset-thickness),R), End)])
         | Glyph('F') -> EList([PolyLine([TR; TL; BL]); Line(HL, HRo)])
         | Glyph('f') -> EList([OpenCurve([(TC, Start); (XL, CurveToLine); (BL, End)]); Line(XL, XC)])
         | Glyph('G') -> OpenCurve([(ToR, G2); (TC, G2); (HL, G2); (BC, G2); (YX(H-flooredOffset,R), CurveToLine); (HR, Corner); (HC, End)])
@@ -417,7 +419,7 @@ type Font (axes: Axes) =
         | Glyph('l') -> OpenCurve([(TL, Corner); (ML, LineToCurve); (BC, G2)])
         | Glyph('M') -> PolyLine([BL; TL; YX(B,R*3/4); YX(T,R*3/2); YX(B,R*3/2)])
         | Glyph('m') -> EList([Glyph('n');
-                              OpenCurve([(YX(X-flooredOffset,N), Start); (YX(X,N+C), G2); (YX(M,N+N), CurveToLine); (YX(B,N+N), End)])])
+                              OpenCurve([(YX(X-flooredOffset,N), Start); (YX(X-flooredOffset+1,N), LineToCurve); (YX(X,N+C), G2); (YX(M,N+N), CurveToLine); (YX(B,N+N), End)])])
         | Glyph('N') -> PolyLine([BL; TL; BR; TR])
         | Glyph('n') -> EList([Line(XL,BL)
                                OpenCurve([(BL, Start); (XoL, Corner); (XC, G2); (YX(M,N), CurveToLine); (BN, End)])])
@@ -435,10 +437,10 @@ type Font (axes: Axes) =
         | Glyph('S') -> OpenCurve([(ToR, G2); (TC, G2); (Mid(TL,HL), G2); 
                                    (YX(H*11/10,C-offset), G2); (YX(H*9/10,C+offset), G2); 
                                    (Mid(HR,BR), G2); (BC, G2); (BoL, End)])
-        | Glyph('s') -> let X14, X2, X34, cOffset = X/4, X/2, X*3/4, C/8
-                        OpenCurve([(YX(X-offset,R), G2); (YX(X, C-offset/2), G2); (YX(X34,L), G2);
-                                   (YX(X2,C-cOffset), CurveToLine); (YX(X2,C+cOffset), LineToCurve); 
-                                   (YX(X14,R), G2); (YX(B,C+offset/2), G2); (YX(B+offset,L), End)])
+        | Glyph('s') -> let X14, X2, X34, cOffsetX, cOffsetY = X/4, X/2, X*3/4, C/8, 1
+                        OpenCurve([(YX(X-max 0 (offset-thickness),R), G2); (YX(X, C-offset/2), G2); (YX(X34,L), G2);
+                                   (YX(X2+cOffsetY,C-cOffsetX), CurveToLine); (YX(X2-cOffsetY,C+cOffsetX), LineToCurve); 
+                                   (YX(X14,R), G2); (YX(B,C+offset/2), G2); (YX(B+max 0 (offset-thickness),L), End)])
         | Glyph('T') -> EList([Line(TL, TR); Line(TC, BC)])
         | Glyph('t') -> EList([Glyph('l'); Line(XL,XC)])
         | Glyph('U') -> OpenCurve([(TL, Corner); (HL, LineToCurve); (BC, G2); (HR, CurveToLine); (TR, End)])
@@ -536,9 +538,9 @@ type Font (axes: Axes) =
             elif abs angle > PI * 3.0 / 4.0 then
                 PI
             elif angle > 0.0 then
-                PI / 2.0
+                PI/2.
             else
-                -PI / 2.0                                
+                -PI/2.                                
         else
             angle        
 
@@ -566,11 +568,11 @@ type Font (axes: Axes) =
                         | SpiroPointType.EndOpenContour -> Corner
                         | _ -> seg.Type
         let freverse = if reverse then -1.0 else 1.0
-        let angle = PI/2.0 * freverse
+        let angle = PI/2. * freverse
         match seg.Type with
         | SpiroPointType.Corner ->
             let th1, th2, bend = norm(lastSeg.seg_th + angle), norm(seg.seg_th + angle), norm(seg.seg_th - lastSeg.seg_th)
-            if (not reverse && bend < -PI/2.0) || (reverse && bend > PI/2.0) then
+            if (not reverse && bend < -PI/8.0) || (reverse && bend > PI/8.0) then
                 //two points on sharp outer bend
                 [(segAddPolar seg (this.align th1 - freverse * PI/4.0) (dist * sqrt 2.0), newType);
                  (segAddPolar seg (this.align th2 + freverse * PI/4.0) (dist * sqrt 2.0), newType)]
@@ -593,7 +595,7 @@ type Font (axes: Axes) =
     member this.offsetSegments (segments : list<SpiroSegment>) start endP reverse closed dist =
         [for i in start .. endP do
             let seg = segments.[i]
-            let angle = if reverse then -PI/2.0 else PI/2.0
+            let angle = if reverse then -PI/2. else PI/2.
             if i = 0 then
                 if closed then
                     let lastSeg = segments.[segments.Length-2]
@@ -637,14 +639,13 @@ type Font (axes: Axes) =
                  (addPolarContrast X Y (thetaAligned - PI * 0.5 + flareAng) flareDist, Corner);
                  (addPolarContrast X Y (theta - preflareAng) preflareDist, CurveToLine);
                  (addPolarContrast X Y (theta - PI * 0.75) (fthickness * sqrt 2.0), Corner)]
+            elif this.axes.end_bulb = 0.0 && not isJoint then
+                [(offsetPointCap X Y (thetaAligned + PI * 0.25), Corner);
+                 (offsetPointCap X Y (thetaAligned - PI * 0.25), Corner)]
             else
-                if this.axes.end_bulb = 0.0 && not isJoint then
-                    [(offsetPointCap X Y (thetaAligned + PI * 0.25), Corner);
-                     (offsetPointCap X Y (thetaAligned - PI * 0.25), Corner)]
-                else                 
-                    [(offsetPointCap X Y (thetaAligned + PI * 0.25), Corner);
-                     (addPolarContrast X Y thetaAligned (fthickness * (1.0+this.axes.end_bulb)), G2);
-                     (offsetPointCap X Y (thetaAligned - PI * 0.25), Corner)]
+                [(offsetPointCap X Y (thetaAligned + PI * 0.25), Corner);
+                 (addPolarContrast X Y thetaAligned (fthickness * (1.0+this.axes.end_bulb)), G2);
+                 (offsetPointCap X Y (thetaAligned - PI * 0.25), Corner)]
         let startCap (seg : SpiroSegment) =
             cap seg.X seg.Y (seg.Tangent1 + PI) (this.isJoint ch seg)
         let endCap (seg : SpiroSegment) (lastSeg : SpiroSegment) = 
@@ -664,7 +665,7 @@ type Font (axes: Axes) =
                  ClosedCurve(this.offsetSegments segments 0 (segments.Length-2) true true fthickness |> List.rev)]
             | SpiroDot(p) ->
                 let x,y = getXY p
-                [Font.dotToClosedCurve x y thickness]
+                [Font.dotToClosedCurve x y (thickness + 5)]
             | SpiroSpace -> [Space]
         applyToSpiros spiroToOutline e
 
