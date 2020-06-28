@@ -1,5 +1,4 @@
-﻿// /*
-// libspiro - conversion between spiro control points and bezier's
+﻿// libspiro - conversion between spiro control points and bezier's
 // Copyright (C) 2007 Raph Levien
 //               2019 converted to C# by Wiesław Šoltés
 
@@ -18,15 +17,13 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 // 02110-1301, USA.
 
-// */
-
 module Spiro
 
 open SpiroImpl
 open SpiroPointType
 
 /// <summary>
-/// C# implementation of third-order polynomial spirals.
+/// F# implementation of third-order polynomial spirals.
 /// Interface routines for Raph's spiro package.
 /// </summary>
 
@@ -42,7 +39,7 @@ open SpiroPointType
 /// Close contours do not need to end with 'z'.
 /// 
 /// This function is kept for backwards compatibility for older programs. 
-/// Please use the function that return success/failure replies when done.	
+/// Please use the function that return success/failure replies when done.
 /// </summary>
 /// <param name="spiros">An array of input spiros.</param>
 /// <param name="n">The number of elements in the spiros array.</param>
@@ -60,14 +57,7 @@ open SpiroPointType
 /// Console.WriteLine("Success: {0} ", success);
 /// </example>
 let SpiroCPsToSegments spiros isClosed =
-    if isClosed then
-        SpiroImpl.run_spiro spiros
-    else
-        let newspiros = Array.copy spiros
-        newspiros.[0] <- {newspiros.[0] with Type = SpiroPointType.OpenContour}
-        newspiros.[newspiros.Length-1] <- {newspiros.[newspiros.Length-1]
-                                            with Type = SpiroPointType.EndOpenContour}
-        SpiroImpl.run_spiro newspiros
+    SpiroImpl.run_spiro spiros isClosed
 
 
 /// <summary>
@@ -97,7 +87,7 @@ let SpiroCPsToSegments spiros isClosed =
 /// Console.WriteLine("Success: {0} ", success);
 /// </example>
 let SpiroCPsToBezier spiros isClosed bc =
-    match SpiroCPsToSegments spiros isClosed with
+    match SpiroImpl.run_spiro spiros isClosed with
     | Some segs -> 
         SpiroImpl.spiro_to_bpath segs spiros.Length bc
         true

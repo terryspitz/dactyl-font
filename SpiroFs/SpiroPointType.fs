@@ -76,6 +76,13 @@ type SpiroPointType =
     /// </summary>
     | EndOpenContour = 7
 
+    /// <summary>
+    /// An Anchor sets a point on the curve at which the tangent falls on
+    /// the line from anchor to handle.  The Handle point is not on the curve.
+    /// </summary>
+    | Anchor = 8
+    | Handle = 9
+
 let ToChar (_type : SpiroPointType) =
     match _type with
     | SpiroPointType.Corner -> 'v'
@@ -86,4 +93,12 @@ let ToChar (_type : SpiroPointType) =
     | SpiroPointType.End -> 'z'
     | SpiroPointType.OpenContour -> '{'
     | SpiroPointType.EndOpenContour -> '}'
+    | SpiroPointType.Anchor -> 'a'
+    | SpiroPointType.Handle -> 'h'  
     | _ -> invalidArg "_type" (sprintf "Unknown type %A" _type)
+
+let FromChar (ch : char) =
+    let sptypes = [for t in System.Enum.GetValues(typeof<SpiroPointType>) do t :?> SpiroPointType]
+    match Seq.tryFind (fun t -> ToChar t = ch) sptypes with
+    | Some t -> t
+    | _ -> invalidArg "ch" (sprintf "Unrecognised char %c" ch)

@@ -1,5 +1,4 @@
-﻿// /*
-// libspiro - conversion between spiro control points and bezier's
+﻿// libspiro - conversion between spiro control points and bezier's
 // Copyright (C) 2007 Raph Levien
 //               2019 converted to C# by Wiesław Šoltés
 
@@ -18,8 +17,6 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 // 02110-1301, USA.
 
-// */
-
 module SpiroSegment
 
 open SpiroPointType
@@ -33,11 +30,11 @@ type SpiroSegment = {
     /// <summary>
     /// Spiro code point segment_chord startX.
     /// </summary>
-    X : float
+    mutable X : float
     /// <summary>
     /// Spiro code point segment_chord startY.
     /// </summary>
-    Y : float
+    mutable Y : float
     /// <summary>
     /// Spiro code point Type.
     /// </summary>

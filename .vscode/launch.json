@@ -8,7 +8,7 @@
             "name": "Launch main Debug",
             "type": "coreclr",
             "request": "launch",
-            "preLaunchTask": "build",
+            "preLaunchTask": "build Debug",
             "program": "${workspaceFolder}/main/bin/Debug/netcoreapp3.0/main.exe",
             "args": [],
             "cwd": "${workspaceFolder}",
@@ -22,6 +22,17 @@
             "preLaunchTask": "build Release",
             "program": "${workspaceFolder}/main/bin/Release/netcoreapp3.0/main.exe",
             "args": [],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        },
+        {
+            "name": "Launch tests",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build Debug",
+            "program": "dotnet",
+            "args": ["test", "./SpiroFsTest/SpiroFsTest.fsproj"],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
             "console": "internalConsole"

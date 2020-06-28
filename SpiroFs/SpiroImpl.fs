@@ -1,5 +1,4 @@
-﻿// /*
-// libspiro - conversion between spiro control points and bezier's
+﻿// libspiro - conversion between spiro control points and bezier's
 // Copyright (C) 2007 Raph Levien
 //               2019 converted to C# by Wiesław Šoltés
 
@@ -18,12 +17,11 @@
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 // 02110-1301, USA.
 
-// */
 
 /// <summary>
-/// C# implementation of third-order polynomial spirals.
-/// Internal implementation of spiro using ORDER equal to 12.
+/// F# implementation of third-order polynomial spirals.
 /// </summary>
+
 module SpiroImpl
 
 //TODO incr
@@ -231,40 +229,40 @@ let mod_2pi th =
 
 let setup_path (src : SpiroControlPoint[]) n =
 
-    // #if CHECK_INPUT_FINITENESS
-    //     // Verify that input values are within realistic limits
-    //     for (i = 0; i < n; i++)
-    //         if (IsFinite(src.[i].X) = 0 || IsFinite(src.[i].Y) = 0)
-    //             null
-    // #endif
-
+    if src.[0].Type = SpiroPointType.Handle || src.[n - 1].Type = SpiroPointType.Anchor then
+        invalidArg "src" "Cannot have Handle as first or Anchor as last point"
     let isOpen = src.[0].Type = SpiroPointType.OpenContour
-    let n_seg = if isOpen then n - 1 else n
-    let looped_src = if isOpen then src else Array.ofList (List.ofArray src @ [src.[0]])
-    let r = Array.map spiroSegment looped_src
-    assert (r.Length = (n_seg + 1))
-    assert (r.[n_seg].X = src.[n_seg % n].X)
+    let nSeg = if isOpen then n - 1 else n
+    let loopedSrc = if isOpen then src else Array.ofList (List.ofArray src @ [src.[0]])
+    let ret = Array.map spiroSegment loopedSrc
+    assert (ret.Length = (nSeg + 1))
+    assert (ret.[nSeg].X = src.[nSeg % n].X)
 
-    for i in 0..n_seg-1 do
-        let dx = r.[i + 1].X - r.[i].X
-        let dy = r.[i + 1].Y - r.[i].Y
-        //#if !CHECK_INPUT_FINITENESS
-        r.[i].seg_ch <- hypot dx dy
-        //#else
-        //if (IsFinite(dx) || IsFinite(dy) || IsFinite((r.[i].seg_ch = hypot(dx, dy))))
-        //    null
-        //#endif
-        r.[i].seg_th <- atan2 dy dx
+    for i in 0..nSeg-1 do
+        let prev =
+            if ret.[i].Type = SpiroPointType.Handle 
+                || (i = nSeg-1 && i > 0
+                    && ret.[i - 1].Type = SpiroPointType.Anchor
+                    && ret.[i].Type = SpiroPointType.EndOpenContour) then
+                // Curve fitting is based on vectors and angles
+                // but final curves will be based on x,y points
+                // ret.[i].X <- ret.[i - 1].X;
+                // ret.[i].Y <- ret.[i - 1].Y;
+                i-1 else i
+        let dx = ret.[i + 1].X - ret.[prev].X
+        let dy = ret.[i + 1].Y - ret.[prev].Y
+        ret.[i].seg_ch <- hypot dx dy
+        ret.[i].seg_th <- atan2 dy dx
 
-    let mutable ilast = n_seg - 1
+    let mutable ilast = nSeg - 1
 
-    for i in 0..n_seg-1 do
-        if r.[i].Type = SpiroPointType.OpenContour || r.[i].Type = SpiroPointType.EndOpenContour || r.[i].Type = SpiroPointType.Corner then
-            r.[i].bend_th <- 0.0
+    for i in 0..nSeg-1 do
+        if ret.[i].Type = SpiroPointType.OpenContour || ret.[i].Type = SpiroPointType.EndOpenContour || ret.[i].Type = SpiroPointType.Corner then
+            ret.[i].bend_th <- 0.0
         else
-            r.[i].bend_th <- mod_2pi(r.[i].seg_th - r.[ilast].seg_th)
+            ret.[i].bend_th <- mod_2pi(ret.[i].seg_th - ret.[ilast].seg_th)
         ilast <- i
-    r
+    ret
 
 let bandec11 (m : BandMatrix[]) (perm : int[]) n =
     // pack top triangle to the left.
@@ -347,12 +345,14 @@ let banbks11 (m : BandMatrix[]) (perm : int[]) (v : float[]) n =
 
 let compute_jinc ty0 ty1 =
 
-    if ty0 = SpiroPointType.G4 || ty1 = SpiroPointType.G4 || ty0 = SpiroPointType.Right || ty1 = SpiroPointType.Left then
+    if ty0 = SpiroPointType.G4 || ty1 = SpiroPointType.G4 
+        || ty0 = SpiroPointType.Right || ty1 = SpiroPointType.Left
+        || ty0 = SpiroPointType.Handle || ty1 = SpiroPointType.Anchor then
         4
     elif ty0 = SpiroPointType.G2 && ty1 = SpiroPointType.G2 then
         2
-    elif (((ty0 = SpiroPointType.OpenContour || ty0 = SpiroPointType.Corner || ty0 = SpiroPointType.Left) && ty1 = SpiroPointType.G2)
-        || (ty0 = SpiroPointType.G2 && (ty1 = SpiroPointType.EndOpenContour || ty1 = SpiroPointType.Corner || ty1 = SpiroPointType.Right))) then
+    elif (ty1 = SpiroPointType.G2 && (ty0 = SpiroPointType.OpenContour || ty0 = SpiroPointType.Corner || ty0 = SpiroPointType.Left || ty0 = SpiroPointType.Anchor))
+        || (ty0 = SpiroPointType.G2 && (ty1 = SpiroPointType.EndOpenContour || ty1 = SpiroPointType.Corner || ty1 = SpiroPointType.Right || ty1 = SpiroPointType.Handle)) then
         1
     else
         0
@@ -418,7 +418,9 @@ let spiro_iter (s : SpiroSegment[]) (m: BandMatrix[]) (perm : int[]) (v : float[
         compute_pderivs s.[i] ends derivs jinc
 
         // constraints crossing left
-        if (ty0 = SpiroPointType.G4 || ty0 = SpiroPointType.G2 || ty0 = SpiroPointType.Left || ty0 = SpiroPointType.Right) then
+        if (ty0 = SpiroPointType.G4 || ty0 = SpiroPointType.G2 
+            || ty0 = SpiroPointType.Left || ty0 = SpiroPointType.Right
+            || ty0 = SpiroPointType.Anchor || ty0 = SpiroPointType.Handle) then
             jthl <- jj
             jj <- jj + 1
             jj <- jj % nmat
@@ -433,7 +435,8 @@ let spiro_iter (s : SpiroSegment[]) (m: BandMatrix[]) (perm : int[]) (v : float[
                 jj <- jj + 1
 
         // constraints on left
-        if ((ty0 = SpiroPointType.Left || ty0 = SpiroPointType.Corner || ty0 = SpiroPointType.OpenContour || ty0 = SpiroPointType.G2) && jinc = 4) then
+        if ((ty0 = SpiroPointType.Left || ty0 = SpiroPointType.Corner || ty0 = SpiroPointType.OpenContour
+            || ty0 = SpiroPointType.G2 || ty0 = SpiroPointType.Anchor) && jinc = 4) then
             if (ty0 <> SpiroPointType.G2) then
                 jk1l <- jj
                 jj <- jj + 1
@@ -442,7 +445,8 @@ let spiro_iter (s : SpiroSegment[]) (m: BandMatrix[]) (perm : int[]) (v : float[
             jj <- jj + 1
 
         // constraints on right
-        if ((ty1 = SpiroPointType.Right || ty1 = SpiroPointType.Corner || ty1 = SpiroPointType.EndOpenContour || ty1 = SpiroPointType.G2) && jinc = 4) then
+        if ((ty1 = SpiroPointType.Right || ty1 = SpiroPointType.Corner || ty1 = SpiroPointType.EndOpenContour
+            || ty1 = SpiroPointType.G2 || ty1 = SpiroPointType.Handle) && jinc = 4) then
             if (ty1 <> SpiroPointType.G2) then
                 jk1r <- jj
                 jj <- jj + 1
@@ -451,7 +455,9 @@ let spiro_iter (s : SpiroSegment[]) (m: BandMatrix[]) (perm : int[]) (v : float[
             jj <- jj + 1
 
         // constraints crossing right
-        if (ty1 = SpiroPointType.G4 || ty1 = SpiroPointType.G2 || ty1 = SpiroPointType.Left || ty1 = SpiroPointType.Right) then
+        if (ty1 = SpiroPointType.G4 || ty1 = SpiroPointType.G2
+            || ty1 = SpiroPointType.Left || ty1 = SpiroPointType.Right
+            || ty1 = SpiroPointType.Anchor || ty1 = SpiroPointType.Handle) then
             jthr <- jj
             jk0r <- (jj + 1) % nmat
 
@@ -561,6 +567,30 @@ let get_mid x0 y0 x1 y1 scale rot (ks : float[]) (ksub : float[]) =
     (xmid, ymid)
 
 
+let run_spiro (src : SpiroControlPoint[]) isClosed =
+    let n = src.Length
+    if not isClosed then
+        src.[0].Type <- SpiroPointType.OpenContour
+        src.[n-1].Type <- SpiroPointType.EndOpenContour
+    let s = setup_path src n
+    let nseg = if src.[0].Type = SpiroPointType.OpenContour then n - 1 else n
+    if nseg <= 1 then
+        Some s
+    elif solve_spiro s nseg then
+        Some s
+    else
+        None        
+
+
+let get_knot_th (s : SpiroSegment[]) i =
+    if i = 0 then
+        let ends = compute_ends s.[i].ks s.[i].seg_ch
+        s.[i].seg_th - ends.[0,0]
+    else
+        let ends = compute_ends s.[i - 1].ks s.[i - 1].seg_ch
+        s.[i - 1].seg_th + ends.[1,0]
+
+
 let rec spiro_seg_to_bpath (ks : float[]) x0 y0 x1 y1 (bc : IBezierContext) depth =
     let bend = abs ks.[0] + abs (0.5 * ks.[1]) + abs (0.125 * ks.[2]) + abs ((1.0 / 48.0) * ks.[3])
     if bend <= 1e-8 then
@@ -587,39 +617,31 @@ let rec spiro_seg_to_bpath (ks : float[]) x0 y0 x1 y1 (bc : IBezierContext) dept
             spiro_seg_to_bpath ksub xmid ymid x1 y1 bc (depth + 1)
 
 
-let run_spiro (src : SpiroControlPoint[]) =
-    let n = src.Length
-    let s = setup_path src n
-    let nseg = if src.[0].Type = SpiroPointType.OpenContour then n - 1 else n
-    if nseg <= 1 then
-        Some s
-    elif solve_spiro s nseg then
-        Some s
-    else
-        None        
-
-
-let get_knot_th (s : SpiroSegment[]) i =
-    if i = 0 then
-        let ends = compute_ends s.[i].ks s.[i].seg_ch
-        s.[i].seg_th - ends.[0,0]
-    else
-        let ends = compute_ends s.[i - 1].ks s.[i - 1].seg_ch
-        s.[i - 1].seg_th + ends.[1,0]
-
-
 let spiro_to_bpath (s: SpiroSegment[]) n (bc : IBezierContext) =
-    let nsegs = if s.[n - 1].Type = SpiroPointType.EndOpenContour then n - 1 else n
-    for i in 0..nsegs-1 do
+    let nsegs = 
+        if (s.[n - 1].Type = SpiroPointType.EndOpenContour || s.[n - 1].Type = SpiroPointType.Handle)
+            && s.[n - 2].Type = SpiroPointType.Anchor then n - 2 
+        elif s.[n - 1].Type = SpiroPointType.EndOpenContour then n - 1
+        else n
+        // if s.[n - 1].Type = SpiroPointType.EndOpenContour then n - 1 else n
+    let mutable i = 0
+    let mutable j = 0
+    while i < nsegs do
         let x0 = s.[i].X
-        let x1 = s.[i + 1].X
         let y0 = s.[i].Y
-        let y1 = s.[i + 1].Y
         if i = 0 then
             bc.MoveTo(x0, y0, s.[0].Type = SpiroPointType.OpenContour)
-
-        bc.MarkKnot(i, get_knot_th s i, s.[i].X, s.[i].Y, s.[i].Type)
+            if nsegs > 1 && s.[1].Type = SpiroPointType.Handle then
+                i <- i+1
+        else
+            if s.[i].Type = SpiroPointType.Anchor then
+                i <- i+1
+        let x1 = s.[i + 1].X
+        let y1 = s.[i + 1].Y
+        bc.MarkKnot(i, get_knot_th s i, x0, y0, s.[i].Type)
         spiro_seg_to_bpath s.[i].ks x0 y0 x1 y1 bc 0
+        i <- i+1
+        j <- j+1
 
     if nsegs = n - 1 then
-        bc.MarkKnot(n - 1, get_knot_th s (n - 1), s.[n - 1].X, s.[n - 1].Y, s.[n - 1].Type)
+        bc.MarkKnot(nsegs, get_knot_th s (n - 1), s.[n - 1].X, s.[n - 1].Y, s.[n - 1].Type)

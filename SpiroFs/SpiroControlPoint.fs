@@ -39,5 +39,5 @@ type SpiroControlPoint = {
     /// <summary>
     /// Spiro code point Type.
     /// </summary>
-    Type : SpiroPointType
+    mutable Type : SpiroPointType
 }

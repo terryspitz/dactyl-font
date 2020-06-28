@@ -106,6 +106,7 @@ NOPQRSTUVWXYZ
 
 //textbox.innerHTML <- "56zvwx  "
 // ((document.getElementById "show_knots") :?> HTMLInputElement).``checked`` <- true
+// ((document.getElementById "serif") :?> HTMLInputElement).value <- "20"
 // textbox.innerHTML <- "The Unbearable
 // Lightness
 // of Being"
