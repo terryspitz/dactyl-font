@@ -216,6 +216,20 @@ let svgSemiCircle x y r (ch : char) =
         "Z"
     ]
 
+let svgText x y text =
+    sprintf "<text x='%d' y='%d' font-size='200'>%s</text>" x y text
+
+let toSvgDocument left bottom width height svg =
+    [
+        "<svg xmlns='http://www.w3.org/2000/svg'";
+        sprintf "viewBox='%d %d %d %d'>" left bottom width height;
+        "<g id='layer1'>";
+    ] @ svg @ [
+        "</g>";
+        "</svg>";
+    ]
+
+
 ///normalise angle to between PI/2 and -PI/2
 let norm th = if th>PI then th-PI*2.0 else if th<(-PI) then th+PI*2.0 else th
 
@@ -973,7 +987,7 @@ type Font (axes: Axes) =
 
     member this.width e =
         (e |> this.reduce |> this.getMonospace |> this.elemWidth) + this.axes.tracking
-         + int ((1.0 + this.axes.contrast) * float thickness * 2.0)
+         + int ((1.0 + this.axes.contrast) * float thickness * 2. + float this.axes.serif)
 
     member this.charWidths str = Seq.map this.charWidth str |> List.ofSeq
 
@@ -999,16 +1013,12 @@ type Font (axes: Axes) =
     member this.stringToSvg (lines : string list) offsetX offsetY =
         let margin = 50
         let svg, lineWidths = this.stringToSvgLineInternal lines offsetX offsetY
-        [
-            "<svg xmlns='http://www.w3.org/2000/svg'"
-            sprintf "viewBox='%d %d %d %d'>" -margin -margin (List.max lineWidths + margin) (this.charHeight * lineWidths.Length + margin)
-            "<g id='layer1'>"
-        ] @
-        svg @
-        [
-            "</g>"
-            "</svg>"
-        ]
+        toSvgDocument 
+            -margin
+            -margin
+            (List.max lineWidths + margin)
+            (this.charHeight * lineWidths.Length + margin)
+            svg
 
     member this.ElementToSpiros = elementToSpiros
     member this.GetXY = getXY

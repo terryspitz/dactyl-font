@@ -10,19 +10,6 @@ open Generator
 open FontForge
 
 
-let svgText x y text =
-    sprintf "<text x='%d' y='%d' font-size='200'>%s</text>" x y text
-
-let toSvgDocument height width svg =
-    [
-        "<svg xmlns='http://www.w3.org/2000/svg'";
-        sprintf "viewBox='0 0 %d %d'>" width height;
-        "<g id='layer1'>";
-    ] @ svg @ [
-        "</g>";
-        "</svg>";
-    ]
-
 
 let writeFile filename text = 
     let trim (x : string) = x.Trim()
@@ -60,7 +47,7 @@ let main argv =
         let y = rowHeights.[i]
         yield svgText 0 (y+200) name
         yield! font.stringToSvgLines text 0 (y+400)
-    ] |> toSvgDocument (List.max rowHeights) (Axes.DefaultAxes.width * 70) |> writeFile @".\allGlyphs.svg"
+    ] |> toSvgDocument 0 0 (Axes.DefaultAxes.width * 70) (List.max rowHeights) |> writeFile @".\allGlyphs.svg"
 
 
     // Proofs output using https://www.typography.com/blog/text-for-proofing-fonts
