@@ -55,6 +55,14 @@ type SpiroSegment = {
     /// The segment_theta angle for this spiro code point.
     /// </summary>
     mutable seg_th : float
+    /// <summary>
+    /// The tangent angle at the start, pointing towards the end.
+    /// </summary>
+    mutable tangent1 : float
+    /// <summary>
+    /// The tangent angle at the end, pointing towards the next segment.
+    /// </summary>
+    mutable tangent2 : float
 }
 
 let spiroSegment (s : SpiroControlPoint) =
@@ -62,8 +70,10 @@ let spiroSegment (s : SpiroControlPoint) =
         X = s.X
         Y = s.Y
         Type = s.Type
-        bend_th = 0.0
+        bend_th = 0.
         ks = Array.zeroCreate 4
-        seg_ch = 0.0
-        seg_th = 0.0
+        seg_ch = 0.
+        seg_th = 0.
+        tangent1 = 0.
+        tangent2 = 0.
     }

@@ -4,13 +4,14 @@ open System
 open Microsoft.FSharp.Reflection
 open Browser.Dom
 open Browser.Types
+open Axes
 open Generator
 
 let textbox = document.getElementById("text") :?> HTMLInputElement
 let inputs = document.getElementById("inputs")
 let output = document.getElementById("output")
 
-let axisFields = FSharpType.GetRecordFields (typeof<Generator.Axes>)
+let axisFields = FSharpType.GetRecordFields (typeof<Axes>)
 let fieldDefaults = [
     for propinfo in axisFields do
         propinfo.Name, Reflection.FSharpValue.GetRecordField(Axes.DefaultAxes, propinfo)

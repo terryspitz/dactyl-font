@@ -171,7 +171,6 @@ let integrate_spiro (ks : float[]) =
     (x * ds, y * ds)
 
 
-//let compute_ends (ks : float[]) (ends : float[,]) (seg_ch : float) =
 let compute_ends (ks : float[]) (seg_ch : float) =
     let x, y = integrate_spiro ks
     let ch = hypot x y
@@ -227,13 +226,13 @@ let mod_2pi th =
     2.0 * Math.PI * (u - floor (u + 0.5))
 
 
-let setup_path (src : SpiroControlPoint[]) n =
-
+let setup_path (src : SpiroControlPoint[]) n isClosed =
     if src.[0].Type = SpiroPointType.Handle || src.[n - 1].Type = SpiroPointType.Anchor then
         invalidArg "src" "Cannot have Handle as first or Anchor as last point"
-    let isOpen = src.[0].Type = SpiroPointType.OpenContour
-    let nSeg = if isOpen then n - 1 else n
-    let loopedSrc = if isOpen then src else Array.ofList (List.ofArray src @ [src.[0]])
+    let nSeg = if isClosed then n else n - 1
+    let loopedSrc = if isClosed then Array.ofList (List.ofArray src @ [src.[0]]) else src
+    if loopedSrc.[loopedSrc.Length-1].Type = SpiroPointType.Anchor then
+        loopedSrc.[loopedSrc.Length-1].Type <- SpiroPointType.G2
     let ret = Array.map spiroSegment loopedSrc
     assert (ret.Length = (nSeg + 1))
     assert (ret.[nSeg].X = src.[nSeg % n].X)
@@ -344,7 +343,6 @@ let banbks11 (m : BandMatrix[]) (perm : int[]) (v : float[]) n =
 
 
 let compute_jinc ty0 ty1 =
-
     if ty0 = SpiroPointType.G4 || ty1 = SpiroPointType.G4 
         || ty0 = SpiroPointType.Right || ty1 = SpiroPointType.Left
         || ty0 = SpiroPointType.Handle || ty1 = SpiroPointType.Anchor then
@@ -359,7 +357,8 @@ let compute_jinc ty0 ty1 =
 
 
 let count_vec (s : SpiroSegment[]) nseg =
-    Seq.sum [for i in 0..nseg-1 do compute_jinc (s.[i].Type) (s.[i + 1].Type)]
+    Seq.sum [for i in 0..nseg-1 do 
+                compute_jinc (s.[i].Type) (s.[i + 1].Type)]
 
 
 let add_mat_line (m: BandMatrix[], v : float[], derivs : MyArray3D, di, dj, x, y, j, jj, jinc, nmat) =
@@ -520,10 +519,10 @@ let check_finiteness (segs : SpiroSegment[]) num_segs =
 
 let solve_spiro (s: SpiroSegment[]) nseg =
     let nmat = count_vec s nseg
-    let mutable n_alloc = nmat
     if nmat = 0 then
         true // no convergence problems
     else
+        let mutable n_alloc = nmat
         if (s.[0].Type <> SpiroPointType.OpenContour && s.[0].Type <> SpiroPointType.Corner) then
             n_alloc <- n_alloc * 3
         if n_alloc < 5 then
@@ -539,7 +538,9 @@ let solve_spiro (s: SpiroSegment[]) nseg =
         while i < 60 && norm > threshold && check_finiteness s nseg do
             i <- i + 1
             norm <- spiro_iter s m perm v nseg nmat
+
         norm <= threshold
+
 
 
 let get_scale_rot dx dy ks =
@@ -572,11 +573,16 @@ let run_spiro (src : SpiroControlPoint[]) isClosed =
     if not isClosed then
         src.[0].Type <- SpiroPointType.OpenContour
         src.[n-1].Type <- SpiroPointType.EndOpenContour
-    let s = setup_path src n
-    let nseg = if src.[0].Type = SpiroPointType.OpenContour then n - 1 else n
-    if nseg <= 1 then
-        Some s
-    elif solve_spiro s nseg then
+    let s = setup_path src n isClosed
+    let nseg = if isClosed then n else n - 1
+    if nseg <= 1 || solve_spiro s nseg then
+        for i in 0..nseg do
+            let ends = compute_ends s.[i].ks s.[i].seg_ch
+            s.[i].tangent1 <- mod_2pi (s.[i].seg_th - ends.[0,0])
+            s.[i].tangent2 <- mod_2pi (s.[i].seg_th + ends.[1,0])
+        let cyclic = s.[0].Type <> SpiroPointType.OpenContour && s.[0].Type <> SpiroPointType.Corner
+        if not isClosed then
+            s.[nseg].tangent1 <- s.[nseg-1].tangent2
         Some s
     else
         None        

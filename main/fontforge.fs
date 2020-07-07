@@ -7,38 +7,42 @@ open Generator
 
 
 let charToFontForge (font: Font) (ch : char) =
-    // reverse engineered from saved font  
+    // reverse engineered from saved font
     let thickness = font.axes.thickness
     //let scpToString (scp : SCP) = sprintf "%f %f %c" scp.X scp.Y (char scp.Type)
-    let scpToString (scp : SCP) = sprintf "%f %f %c" scp.X scp.Y (SpiroPointType.ToChar scp.Type)
-    let spiroToFF spiro =
+    let ptToString (p, t) =  let x,y = font.GetXY p in sprintf "%d %d %c" x y (SpiroPointType.ToChar t)
+    let elemToFF elem =
         //rearrange SVG bezier curve format to fontforge format
         let matchEval (amatch : Match) = 
-            sprintf "%s %s @" (amatch.Groups.[2].Value.Replace(","," ")) (amatch.Groups.[1].Value.ToLower())
+            sprintf "%s %s 0" (amatch.Groups.[2].Value.Replace(","," ")) (amatch.Groups.[1].Value.ToLower())
         let reorder s = Regex.Replace(s, "(.) (.*)", matchEval)
-        let bezierString = font.spiroToSvg spiro 
-                            |> List.collect (fun (s:string)-> s.Split('\r', '\n') |> List.ofArray)
-                            |> List.map reorder
-        let spiroString =
-            match spiro with
-            | SpiroOpenCurve(scps, _) -> scps |> List.map scpToString
-            | SpiroClosedCurve(scps, _) -> scps |> List.map scpToString
-            | SpiroDot(p) -> 
+        let split (s : string) = s.Split([|'\r'; '\n'|], System.StringSplitOptions.RemoveEmptyEntries) |> List.ofArray
+        let bezierString spiro = font.spiroToSvg spiro
+                                    |> List.collect split
+                                    |> List.map reorder
+        let rec toSpiroString elem =
+            match elem with
+            | OpenCurve(pts) | ClosedCurve(pts) -> List.map ptToString pts
+            | EList(elems) -> List.collect toSpiroString elems
+            | Dot(p) -> 
                 let x,y = font.GetXY p 
                 [
                     sprintf "%d %d o " (x-thickness) (y)
                     sprintf "%d %d o " (x) (y+thickness)
                     sprintf "%d %d o " (x+thickness) (y)
                 ]
-            | SpiroSpace -> []
-        bezierString 
+            | Space -> []
+            | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
+        (font.ElementToSpiros elem |> List.collect bezierString)
         @ ["Spiro"] 
-        @ spiroString 
-        @ ["0 0 z"; "EndSpiro";]
+        @ toSpiroString elem 
+        @ ["0 0 z"; "EndSpiro"]
 
-    let spineSpiros = Font({font.axes with thickness = 2; outline = true}).charToOutline ch |> font.translateByThickness
-                      |> font.ElementToSpiros |> List.collect spiroToFF
-    let outlineSpiros = font.charToOutline ch |> font.translateByThickness |> font.ElementToSpiros |> List.collect spiroToFF
+    let spineSpiros = Font({font.axes with thickness = 2; outline = true}).charToOutline ch 
+                        |> font.translateByThickness
+                        |> elemToFF
+    let outlineSpiros = font.charToOutline ch
+                        |> elemToFF
     [
         sprintf "StartChar: %c\n" ch
         sprintf "Encoding: %d %d 0\n" (int ch) (int ch)

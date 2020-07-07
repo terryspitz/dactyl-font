@@ -29,66 +29,22 @@ open SpiroPointType
 
 
 /// <summary>
-/// Convert a set of spiro control points into a set of bézier curves.
-/// 
-/// As it does so it will call the appropriate routine in your bézier context with this information 
-/// – this should allow you to create your own internal representation of those curves.
-/// 
-/// Open contours do not need to start with '{', nor to end with '}'.
-/// 
-/// Close contours do not need to end with 'z'.
-/// 
-/// This function is kept for backwards compatibility for older programs. 
-/// Please use the function that return success/failure replies when done.
+/// Convert a set of spiro control points into a list of SpiroSegments.
 /// </summary>
 /// <param name="spiros">An array of input spiros.</param>
-/// <param name="n">The number of elements in the spiros array.</param>
 /// <param name="isClosed">Whether this describes a closed (True) or open (False) contour.</param>
 /// <returns>SpiroSegment array or null on failure.</returns>
-/// <example>
-/// var points = new SpiroControlPoint[4];
-/// points[0].X = -100; points[0].Y = 0; points[0].Type = SpiroPointType.G4;
-/// points[1].X = 0; points[1].Y = 100; points[1].Type = SpiroPointType.G4;
-/// points[2].X = 100; points[2].Y = 0; points[2].Type = SpiroPointType.G4;
-/// points[3].X = 0; points[3].Y = -100; points[3].Type = SpiroPointType.G4;
-/// var bc = new PathBezierContext();
-/// var success = Spiro.SpiroCPsToBezier0(points, 4, true, bc);
-/// Console.WriteLine(bc);
-/// Console.WriteLine("Success: {0} ", success);
-/// </example>
 let SpiroCPsToSegments spiros isClosed =
     SpiroImpl.run_spiro spiros isClosed
 
 
 /// <summary>
-/// Convert a set of spiro control points into a set of bézier curves.
-/// 
-/// As it does so it will call the appropriate routine in your bézier context with this information 
-/// – this should allow you to create your own internal representation of those curves.
-/// 
-/// Open contours do not need to start with '{', nor to end with '}'.
-/// 
-/// Close contours do not need to end with 'z'.
+/// Convert spiro segment list into bezier curves, using the output of SpiroCPsToSegments.
 /// </summary>
-/// <param name="spiros">An array of input spiros.</param>
-/// <param name="n">The number of elements in the spiros array.</param>
-/// <param name="isClosed">Whether this describes a closed (True) or open (False) contour.</param>
-/// <param name="bc">A bézier results output context.</param>
-/// <returns>An boolean success flag. True = completed task and have valid bézier results, or False = unable to complete task, bézier results are invalid.</returns>
-/// <example>
-/// var points = new SpiroControlPoint[4];
-/// points[0].X = -100; points[0].Y = 0; points[0].Type = SpiroPointType.G4;
-/// points[1].X = 0; points[1].Y = 100; points[1].Type = SpiroPointType.G4;
-/// points[2].X = 100; points[2].Y = 0; points[2].Type = SpiroPointType.G4;
-/// points[3].X = 0; points[3].Y = -100; points[3].Type = SpiroPointType.G4;
-/// var bc = new PathBezierContext();
-/// var success = Spiro.SpiroCPsToBezier0(points, 4, true, bc);
-/// Console.WriteLine(bc);
-/// Console.WriteLine("Success: {0} ", success);
-/// </example>
-let SpiroCPsToBezier spiros isClosed bc =
-    match SpiroImpl.run_spiro spiros isClosed with
+let SpirosToBezier (spiros : SpiroSegment.SpiroSegment[] option) isClosed bc =
+    match spiros with
     | Some segs -> 
-        SpiroImpl.spiro_to_bpath segs spiros.Length bc
+        let nSeg = if isClosed then segs.Length - 1 else segs.Length
+        SpiroImpl.spiro_to_bpath segs nSeg bc
         true
     | None -> false

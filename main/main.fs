@@ -6,9 +6,9 @@ module Main
 open System
 open System.IO
 
+open Axes
 open Generator
 open FontForge
-
 
 
 let writeFile filename text = 
@@ -22,6 +22,7 @@ let main argv =
 
     let fonts = [
         // ("Dactyl Knots", "Extra Light", Font({Axes.DefaultAxes with show_knots = true}))
+        ("Dactyl Round", "Round", Font({Axes.DefaultAxes with roundedness = 300}))
         ("Dactyl Sans Extra Light", "Extra Light", Font({Axes.DefaultAxes with thickness = 3}))
         ("Dactyl Sans", "Regular", Font({Axes.DefaultAxes with thickness = 30}))
         ("Dactyl Sans Italic", "Italic", Font({Axes.DefaultAxes with thickness = 30; italic = 0.15}))
@@ -38,9 +39,9 @@ let main argv =
 
     // SVG output, side by side
     let rowHeights = List.scan (+) 0 [for i in 0..fonts.Length-1 do let _, _, font = fonts.[i] in (200 + font.charHeight * 2)]
-    let text = ["THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789"
-                """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./"""]
-    // let text = ["3"]
+    // let text = ["THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789"
+    //             """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./"""]
+    let text = ["o"]
     [for i in 0..fonts.Length-1 do
         let name, _, font = fonts.[i]
         printfn "\n%s\n" name
@@ -77,7 +78,7 @@ let main argv =
             font.stringToSvg lines 0 0 |> writeFile (sprintf @".\svg\%s_lower.svg" name)
     
     // FontForge output
-    let writeFonts = false
+    let writeFonts = true
     if writeFonts then
         for i in 0..fonts.Length-1 do
             let name, weight, font = fonts.[i]
