@@ -5,6 +5,9 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\generator\generator.fsproj" />
+    <ProjectReference Include="..\spline-research\spline-research.fsproj">
+      <Name>spline-research.fsproj</Name>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="fontforge.fs" />

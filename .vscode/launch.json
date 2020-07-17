@@ -4,6 +4,7 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
             "name": "Launch main Debug",
             "type": "coreclr",
@@ -27,12 +28,23 @@
             "console": "internalConsole"
         },
         {
-            "name": "Launch tests",
+            "name": "Launch spiro tests",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build Debug",
             "program": "dotnet",
-            "args": ["test", "./SpiroFsTest/SpiroFsTest.fsproj"],
+            "args": ["test", "./SpiroFs/SpiroFsTest/SpiroFsTest.fsproj"],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        },
+        {
+            "name": "Launch spline-research tests",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build Debug",
+            "program": "dotnet",
+            "args": ["test", "./spline-research/Test/spline-research-test.fsproj"],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
             "console": "internalConsole"

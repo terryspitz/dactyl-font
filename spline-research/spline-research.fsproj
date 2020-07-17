@@ -1,0 +1,13 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.0</TargetFramework>
+    <RootNamespace>raph_spline_research</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="bezpath.fs" />
+    <Compile Include="curves.fs" />
+  </ItemGroup>
+
+</Project>
