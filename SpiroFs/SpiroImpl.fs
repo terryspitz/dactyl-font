@@ -66,7 +66,7 @@ let IsFinite x =
 
 
 // Integrate polynomial spiral curve over range -.5 .. .5.
-//[<SuppressMessage("Hints", "FL0049") >]
+[<SuppressMessage("Hints", "FL0049") >]
 let integrate_spiro (ks : float[]) =
     let n = 4
     

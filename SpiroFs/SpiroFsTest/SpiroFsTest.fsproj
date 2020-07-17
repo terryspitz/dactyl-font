@@ -3,7 +3,7 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\SpiroFs\SpiroFs.fsproj">
+    <ProjectReference Include="..\SpiroFs.fsproj">
       <Name>SpiroFs.fsproj</Name>
     </ProjectReference>
   </ItemGroup>
