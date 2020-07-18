@@ -31,19 +31,18 @@ type Vec2 = {
         this.x * other.y - this.y * other.x
 
 
-type PointType =
+type SplinePointType =
     | Corner = 0
     | Smooth = 1
 
 /// ControlPoint is a lot like `Knot` but has no UI, is used for spline solving.
-type ControlPoint(pt, ty, lth, rth) = 
-    new(pt, ty) = ControlPoint(pt, ty, None, None)
+type SplineControlPoint(pt, ty, lth, rth) = 
+    new(pt, ty) = SplineControlPoint(pt, ty, None, None)
 
     member val pt : Vec2 = pt with get
-    member val ty : PointType = ty with get
+    member val ty : SplinePointType = ty with get
     member val lth : float option = lth with get
     member val rth : float option = lth with get
-    
 
     member val kBlend : float option = lth with get, set
     //not the best naming convention, using one capital letter difference
@@ -167,7 +166,6 @@ let hermite5(x0 : float, x1, v0, v1, a0, a1) =
 //         x.[i] <- (d.[i] - c.[i] * x.[i + 1]) / b.[i]
    
 
-
 /// Create a smooth cubic bezier.
 let myCubic th0 th1 =
     let myCubicLen th0 th1 =
@@ -187,7 +185,6 @@ let myCubic th0 th1 =
     let len0 = myCubicLen th0 th1
     coords.[2] <- cos th0 * len0
     coords.[3] <- sin th0 * len0
-
     let len1 = myCubicLen th1 th0
     coords.[4] <- 1. - cos th1 * len1
     coords.[5] <- sin th1 * len1
@@ -532,7 +529,7 @@ type TwoParamSpline(curve, ctrlPts) =
 
 /// Spline handles more general cases, including corners.
 type Spline (ctrlPts, isClosed) =
-    member this.ctrlPts : ControlPoint array = ctrlPts
+    member this.ctrlPts : SplineControlPoint array = ctrlPts
     member this.isClosed = isClosed
     member this.curve = MyCurve()
 
@@ -544,7 +541,7 @@ type Spline (ctrlPts, isClosed) =
         if not this.isClosed then
             0
         else 
-            match Array.tryFindIndex (fun (pt : ControlPoint) -> pt.ty = PointType.Corner || pt.lth.IsSome) this.ctrlPts with
+            match Array.tryFindIndex (fun (pt : SplineControlPoint) -> pt.ty = SplinePointType.Corner || pt.lth.IsSome) this.ctrlPts with
             | Some i -> i
             | None -> 0 // Path is all-smooth and closed.
 
@@ -555,7 +552,7 @@ type Spline (ctrlPts, isClosed) =
         while i < length do
             let ptI = this.pt(i, start)
             let ptI1 = this.pt(i + 1, start)
-            if i + 1 = length || ptI1.ty = PointType.Corner
+            if i + 1 = length || ptI1.ty = SplinePointType.Corner
                 && ptI.rth.IsNone && ptI1.lth.IsNone then
                 let dx = ptI1.pt.x - ptI.pt.x
                 let dy = ptI1.pt.y - ptI.pt.y
@@ -574,7 +571,7 @@ type Spline (ctrlPts, isClosed) =
                             let ptJ = this.pt(j, start)
                             yield (ptJ.pt)
                             j <- j + 1
-                            if ptJ.ty = PointType.Corner || ptJ.lth.IsSome then
+                            if ptJ.ty = SplinePointType.Corner || ptJ.lth.IsSome then
                                 break_ <- true
                     ]
                 //console.log(innerPts)
@@ -616,7 +613,7 @@ type Spline (ctrlPts, isClosed) =
         let length = this.ctrlPts.Length - if this.isClosed then 0 else 1
         for i in 0..length-1 do
             let pt = this.pt(i, 0)
-            if pt.ty = PointType.Smooth && pt.lth.IsSome then
+            if pt.ty = SplinePointType.Smooth && pt.lth.IsSome then
                 // let thresh = Math.PI / 2. - 1e-6
                 //if (Math.abs(pt.rAk) > thresh || Math.abs(pt.lAk) > thresh) {
                 //    // Don't blend reversals. We might reconsider this, but punt for now.

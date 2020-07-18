@@ -8,29 +8,30 @@ type Controls =
 
 // Variable which define the font characteristics (named after Variable Font terminology)
 type Axes = {
-    width : int         //width of normal glyph
-    height : int        //capital height
-    x_height : int      //height of lower case
-    thickness : int     //stroke width
-    contrast : float    //make vertical lines thicker
-    roundedness : int   //roundedness
-    // overshoot : int  //curves are larger by this amount to compensate for looking smaller
-    tracking : int      //gap between glyphs
-    leading : int       //gap between lines
-    monospace : float   //fraction to interpolate widths to monospaces
-    italic : float      //fraction to sheer glyphs
-    serif : int         //serif size
-    end_bulb : float    //fraction of thickness to apply curves to endcaps
-    flare : float       //end caps expand by this amount
-    axis_align_caps : bool //round angle of caps to horizontal/vertical
-    //spine : bool        //show the single width glyph, use with outline off or filled off
-    outline : bool      //use thickness to expand stroke width
-    stroked : bool      //each stroke is 4 parallel lines
-    scratches : bool    //horror/paint strokes font
-    filled : bool       //(svg only) filled or empty outlines
-    show_knots : bool   //show small circles for the points used to define lines/curves
-    joints : bool       //check joints to turn off serifs
-    constraints : bool       //check joints to turn off serifs
+    width : int                 //width of normal glyph
+    height : int                //capital height
+    x_height : int              //height of lower case
+    thickness : int             //stroke width
+    contrast : float            //make vertical lines thicker
+    roundedness : int           //roundedness
+    // overshoot : int          //curves are larger by this amount to compensate for looking smaller
+    tracking : int              //gap between glyphs
+    leading : int               //gap between lines
+    monospace : float           //fraction to interpolate widths to monospaces
+    italic : float              //fraction to sheer glyphs
+    serif : int                 //serif size
+    end_bulb : float            //fraction of thickness to apply curves to endcaps
+    flare : float               //end caps expand by this amount
+    axis_align_caps : bool      //round angle of caps to horizontal/vertical
+    //spine : bool              //show the single width glyph, use with outline off or filled off
+    outline : bool              //use thickness to expand stroke width
+    stroked : bool              //each stroke is 4 parallel lines
+    scratches : bool            //horror/paint strokes font
+    filled : bool               //(svg only) filled or empty outlines
+    spline_not_spiro : bool      //use original Spiro (false) or new spline-research splines (true)
+    show_knots : bool           //show small circles for the points used to define lines/curves
+    joints : bool               //check joints to turn off serifs
+    constraints : bool               //check joints to turn off serifs
 } with
     static member DefaultAxes = { 
         width = 300
@@ -51,6 +52,7 @@ type Axes = {
         stroked = false
         scratches = false
         filled = true
+        spline_not_spiro = true
         show_knots = false
         joints = true
         constraints = false
@@ -74,6 +76,7 @@ type Axes = {
         "stroked", Checkbox
         "scratches", Checkbox
         "filled", Checkbox
+        "spline_not_spiro", Checkbox
         "show_knots", Checkbox
         "joints", Checkbox
         "constraints", Checkbox

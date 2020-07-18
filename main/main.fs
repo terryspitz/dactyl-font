@@ -22,23 +22,6 @@ let writeFile filename text =
 [<EntryPoint>]
 let main argv =
 
-    let ctrlPts = [|
-        ControlPoint({x=80.;y=738.}, PointType.Smooth)
-        ControlPoint({x=749.;y=540.}, PointType.Smooth)
-        ControlPoint({x=671.;y=309.}, PointType.Smooth)
-        ControlPoint({x=521.;y=396.}, PointType.Smooth)
-        ControlPoint({x=377.;y=333.}, PointType.Smooth)
-        ControlPoint({x=467.;y=231.}, PointType.Smooth)
-    |]
-    // let pt = new ControlPoint(new Vec2(knot.x, knot.y), knot.ty, knot.lth, knot.rth);
-    let spline = Spline(ctrlPts, false)
-    spline.solve()
-    // Should this be bundled into solve?
-    spline.computeCurvatureBlending()
-    let bezpath = spline.render()
-    printfn "%A" (bezpath.renderSvg())
-
-
     let fonts = [
         // ("Dactyl Knots", "Extra Light", Font({Axes.DefaultAxes with show_knots = true}))
         ("Dactyl Round", "Round", Font({Axes.DefaultAxes with roundedness = 300}))
@@ -97,7 +80,7 @@ let main argv =
             font.stringToSvg lines 0 0 |> writeFile (sprintf @".\svg\%s_lower.svg" name)
     
     // FontForge output
-    let writeFonts = true
+    let writeFonts = false
     if writeFonts then
         for i in 0..fonts.Length-1 do
             let name, weight, font = fonts.[i]

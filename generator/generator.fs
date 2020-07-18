@@ -20,6 +20,7 @@
 // fix fontforge errors: direction, non-integral coords
 // fix serifs: curve joints, check Y{}, spacing
 // Caustics overlay
+// Italic with spline (subdivide)
 
 //Features :
 // Backscratch font (made of 4 parallel lines)
@@ -41,6 +42,8 @@ open SpiroSegment
 open SpiroControlPoint
 open PathBezierContext
 open Axes
+open Curves
+
 
 type Point =
     // Raw coordinates
@@ -215,8 +218,8 @@ type Font (axes: Axes) =
         let y, x = reducePoint p
         (x, y)
 
-    let makeSCP (p, t) = let x,y = getXY p in { SCP.X=float(x); Y=float(y); Type=t}
     let rec elementToSpiros elem =
+        let makeSCP (p, t) = let x,y = getXY p in { SCP.X=float(x); Y=float(y); Type=t}
         match elem with
         | OpenCurve(pts) ->
             match Spiro.SpiroCPsToSegments (List.map makeSCP pts |> Array.ofList) false with
@@ -231,9 +234,67 @@ type Font (axes: Axes) =
         | Space -> [SpiroSpace]
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem) 
 
+    let toSplineControlPoint (p : Point, t : SpiroPointType) =
+        let x,y = getXY p
+        let ty = match t with 
+                    | SpiroPointType.G2 | SpiroPointType.G4
+                        -> SplinePointType.Smooth
+                    | SpiroPointType.Corner | SpiroPointType.OpenContour | SpiroPointType.EndOpenContour
+                    | SpiroPointType.Left | SpiroPointType.Right | SpiroPointType.End
+                    | SpiroPointType.Anchor | SpiroPointType.Handle | _
+                        -> SplinePointType.Corner
+        // let pt = new ControlPoint(new Vec2(knot.x, knot.y), knot.ty, knot.lth, knot.rth);
+        SplineControlPoint({x=float x;y=float y}, ty)
+    
+    let rec elementToSpline elem =
+        let toSpiroSegment (pt : SplineControlPoint) ty =
+            let toTangent th = match th with | Some th -> th | None -> 0.
+            {
+                SpiroSegment.X = pt.pt.x; Y = pt.pt.y; Type = ty
+                bend_th = 0.; ks = Array.empty ; seg_ch = 0.; seg_th = 0.
+                tangent1 = toTangent (pt.lth); tangent2 = toTangent pt.rth
+            }
+        let toSegs pts isClosed =
+            let ctrlPts = List.map toSplineControlPoint pts |> Array.ofList
+            let spline = Spline(ctrlPts, isClosed)
+            spline.solve()
+            spline.computeCurvatureBlending()
+            let types = List.map (fun pt -> snd pt) pts |> Array.ofList
+            Array.map2 toSpiroSegment spline.ctrlPts types |> Array.toList
+        match elem with
+        | OpenCurve(pts) ->
+            [SpiroOpenCurve(toSegs pts false)]
+        | ClosedCurve(pts) ->
+            [SpiroClosedCurve(toSegs pts true)]
+        | Dot(p) -> [SpiroDot(p)]
+        | EList(elems) -> List.collect elementToSpline elems
+        | Space -> [SpiroSpace]
+        | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem) 
+
+    let elementToSegments elem =
+        if axes.spline_not_spiro then
+            elementToSpline elem
+        else
+            elementToSpiros elem
+
+    let rec elementToSplineSvg elem =
+        let toSvg pts isClosed =
+            let ctrlPts = List.map toSplineControlPoint pts |> Array.ofList
+            let spline = Spline(ctrlPts, isClosed)
+            spline.solve()
+            spline.computeCurvatureBlending()
+            [spline.render().renderSvg()]
+        match elem with
+        | OpenCurve(pts) -> toSvg pts false
+        | ClosedCurve(pts) -> toSvg pts true
+        | Dot(p) -> let x, y = getXY p in svgCircle x y thickness
+        | EList(elems) -> List.collect elementToSplineSvg elems
+        | Space -> []
+        | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem) 
+
     //apply a transformation fn: Spiros -> Elements
-    let applyToSpiros fn elem = 
-        let elems = elementToSpiros elem |> List.collect fn
+    let applyToSegments fn elem = 
+        let elems = elementToSegments elem |> List.collect fn
         if elems.Length > 1 then EList(elems) else elems.[0]
 
     //cache fn results to avoid recalcs
@@ -400,7 +461,8 @@ type Font (axes: Axes) =
         | Glyph('l') -> OpenCurve([(TL, Corner); (ML, LineToCurve); (BC, G2)])
         | Glyph('M') -> PolyLine([BL; TL; YX(B,R*3/4); YX(T,R*3/2); YX(B,R*3/2)])
         | Glyph('m') -> EList([Glyph('n');
-                              OpenCurve([(BN, Start); (YX(X-flooredOffset,N), LineToCurve); (YX(X,N+C), G2); (YX(M,N+N), CurveToLine); (YX(B,N+N), End)])])
+                              OpenCurve([(BN, Start); (YX(X-flooredOffset,N), LineToCurve); (YX(X,N+C), G2)
+                                         (YX(M,N+N), CurveToLine); (YX(B,N+N), End)])])
         | Glyph('N') -> PolyLine([BL; TL; BR; TR])
         | Glyph('n') -> EList([Line(XL,BL)
                                OpenCurve([(BL, Start); (XoL, Corner); (XC, G2); (YX(M,N), CurveToLine); (BN, End)])])
@@ -653,7 +715,7 @@ type Font (axes: Axes) =
                 let x,y = getXY p
                 [Font.dotToClosedCurve x y (thickness + 5)]
             | SpiroSpace -> [Space]
-        applyToSpiros spiroToOutline e
+        applyToSegments spiroToOutline e
 
     member this.spiroToLines lines spiro =
         let thicknessby3 = float thickness / 3.0
@@ -672,7 +734,7 @@ type Font (axes: Axes) =
         | SpiroSpace -> [Space]
 
     member this.getStroked = 
-        applyToSpiros (this.spiroToLines 4) >>
+        applyToSegments (this.spiroToLines 4) >>
             let dummyChar = ' '
             Font({this.axes with stroked = false; scratches = false; thickness = 2}).getSansOutlines dummyChar
 
@@ -701,7 +763,7 @@ type Font (axes: Axes) =
                  ClosedCurve(this.offsetSegments segments 0 (segments.Length-1) true true thicknessby3 |> List.rev)]
             | SpiroDot(p) -> [Dot(p)]
             | SpiroSpace -> [Space]
-        applyToSpiros (this.spiroToLines 3) e |> applyToSpiros spiroToScratchOutlines
+        applyToSegments (this.spiroToLines 3) e |> applyToSegments spiroToScratchOutlines
 
     member this.italiciseP p =
         let x,y = getXY p
@@ -763,10 +825,10 @@ type Font (axes: Axes) =
                     ])
             | SpiroDot(p) -> Dot(p)
             | SpiroSpace -> Space
-        EList(elementToSpiros e |> List.map splitSegment)
+        EList(elementToSegments e |> List.map splitSegment)
 
     member this.italicise e = 
-        if this.axes.italic>0.0 then
+        if this.axes.italic>0.0 && not this.axes.spline_not_spiro then
             e |> this.subdivide |> this.movePoints this.italiciseP
         else
             e        
@@ -819,7 +881,7 @@ type Font (axes: Axes) =
                 [ClosedCurve(List.collect constrainStart segments)]
             | SpiroDot(p) -> [Dot(p)]
             | SpiroSpace -> [Space]
-        applyToSpiros spiroConstrain e
+        applyToSegments spiroConstrain e
 
     ///Scale width of glyph to monospace width based on axis monospace fraction
     member this.monospace e =
@@ -851,7 +913,10 @@ type Font (axes: Axes) =
 
     ///Convert element to bezier SVG curves
     member this.elementToSvg elem = 
-        elementToSpiros elem |> List.collect this.spiroToSvg
+        if axes.spline_not_spiro then
+            elementToSplineSvg elem
+        else
+            elementToSegments elem |> List.collect this.spiroToSvg
 
     member this.getSvgPath element offsetX offsetY strokeWidth =
         let fillrule = "nonzero"
@@ -972,5 +1037,5 @@ type Font (axes: Axes) =
             (this.charHeight * lineWidths.Length + margin)
             svg
 
-    member this.ElementToSpiros = elementToSpiros
+    member this.ElementToSegments = elementToSegments
     member this.GetXY = getXY

@@ -5,13 +5,13 @@
     "build": "webpack --mode production"
   },
   "dependencies": {
-    "@babel/core": "^7.8.4",
-    "fable-compiler": "^2.4.15",
-    "fable-loader": "^2.1.8",
-    "react": "^16.12.0",
+    "@babel/core": "^7.10.5",
+    "fable-compiler": "^2.10.1",
+    "fable-loader": "^2.1.9",
+    "react": "^16.13.1",
     "react-dom": "^16.12.0",
     "webpack": "^4.41.6",
     "webpack-cli": "^3.3.11",
-    "webpack-dev-server": "^3.10.3"
+    "webpack-dev-server": "^3.11.0"
   }
 }

@@ -6,6 +6,9 @@
     <ProjectReference Include="..\SpiroFs\SpiroFs.fsproj">
       <Name>SpiroFs.fsproj</Name>
     </ProjectReference>
+    <ProjectReference Include="..\spline-research\spline-research.fsproj">
+      <Name>spline-research.fsproj</Name>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <None Include="../README.md" />
