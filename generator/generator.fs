@@ -21,6 +21,7 @@
 // fix serifs: curve joints, check Y{}, spacing
 // Caustics overlay
 // Italic with spline (subdivide)
+// Dactyl-smooth, no corners
 
 //Features :
 // Backscratch font (made of 4 parallel lines)
@@ -237,28 +238,32 @@ type Font (axes: Axes) =
     let toSplineControlPoint (p : Point, t : SpiroPointType) =
         let x,y = getXY p
         let ty = match t with 
+                    | SpiroPointType.Corner 
+                    | SpiroPointType.OpenContour | SpiroPointType.EndOpenContour | SpiroPointType.End
+                    | SpiroPointType.Anchor | SpiroPointType.Handle
+                        -> if axes.smooth then SplinePointType.Smooth else SplinePointType.Corner
+                    | SpiroPointType.Left 
+                        -> SplinePointType.CurveToLine
+                    | SpiroPointType.Right 
+                        -> SplinePointType.LineToCurve
                     | SpiroPointType.G2 | SpiroPointType.G4
                         -> SplinePointType.Smooth
-                    | SpiroPointType.Corner | SpiroPointType.OpenContour | SpiroPointType.EndOpenContour
-                    | SpiroPointType.Left | SpiroPointType.Right | SpiroPointType.End
-                    | SpiroPointType.Anchor | SpiroPointType.Handle | _
-                        -> SplinePointType.Corner
+                    | _ -> invalidArg "ty" (sprintf "Unexpected SpiroPointType %A" t) 
+
         // let pt = new ControlPoint(new Vec2(knot.x, knot.y), knot.ty, knot.lth, knot.rth);
         SplineControlPoint({x=float x;y=float y}, ty)
     
     let rec elementToSpline elem =
         let toSpiroSegment (pt : SplineControlPoint) ty =
-            let toTangent th = match th with | Some th -> th | None -> 0.
             {
                 SpiroSegment.X = pt.pt.x; Y = pt.pt.y; Type = ty
                 bend_th = 0.; ks = Array.empty ; seg_ch = 0.; seg_th = 0.
-                tangent1 = toTangent (pt.lth); tangent2 = toTangent pt.rth
+                tangent1 = pt.lTh; tangent2 = pt.rTh
             }
         let toSegs pts isClosed =
             let ctrlPts = List.map toSplineControlPoint pts |> Array.ofList
             let spline = Spline(ctrlPts, isClosed)
             spline.solve()
-            spline.computeCurvatureBlending()
             let types = List.map (fun pt -> snd pt) pts |> Array.ofList
             Array.map2 toSpiroSegment spline.ctrlPts types |> Array.toList
         match elem with
@@ -282,7 +287,6 @@ type Font (axes: Axes) =
             let ctrlPts = List.map toSplineControlPoint pts |> Array.ofList
             let spline = Spline(ctrlPts, isClosed)
             spline.solve()
-            spline.computeCurvatureBlending()
             [spline.render().renderSvg()]
         match elem with
         | OpenCurve(pts) -> toSvg pts false

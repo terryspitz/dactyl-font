@@ -24,15 +24,16 @@ let main argv =
 
     let fonts = [
         // ("Dactyl Knots", "Extra Light", Font({Axes.DefaultAxes with show_knots = true}))
-        ("Dactyl Round", "Round", Font({Axes.DefaultAxes with roundedness = 300}))
         ("Dactyl Sans Extra Light", "Extra Light", Font({Axes.DefaultAxes with thickness = 3}))
         ("Dactyl Sans", "Regular", Font({Axes.DefaultAxes with thickness = 30}))
-        ("Dactyl Sans Italic", "Italic", Font({Axes.DefaultAxes with thickness = 30; italic = 0.15}))
+        ("Dactyl Sans Italic", "Italic", Font({Axes.DefaultAxes with italic = 0.15}))
         ("Dactyl Sans Bold", "Bold", Font({Axes.DefaultAxes with thickness = 60}))
-        ("Dactyl Mono", "Regular", Font({Axes.DefaultAxes with thickness = 30; monospace = 1.0}))
+        ("Dactyl Round", "Round", Font({Axes.DefaultAxes with roundedness = 300}))
+        ("Dactyl Mono", "Regular", Font({Axes.DefaultAxes with monospace = 1.0}))
         ("Dactyl Stroked", "Regular", Font({Axes.DefaultAxes with stroked = true; thickness = 60;}))
         ("Dactyl Scratch", "Regular", Font({Axes.DefaultAxes with scratches = true; thickness = 60;}))
-        ("Dactyl Roman", "Regular", Font({Axes.DefaultAxes with thickness = 30; serif=30}))
+        ("Dactyl Roman", "Regular", Font({Axes.DefaultAxes with serif=30}))
+        ("Dactyl Smooth", "Regular", Font({Axes.DefaultAxes with spline_not_spiro=true; smooth=false}))
     ]
 
     //debug

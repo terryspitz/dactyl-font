@@ -31,7 +31,8 @@ type Axes = {
     spline_not_spiro : bool      //use original Spiro (false) or new spline-research splines (true)
     show_knots : bool           //show small circles for the points used to define lines/curves
     joints : bool               //check joints to turn off serifs
-    constraints : bool               //check joints to turn off serifs
+    constraints : bool          //check joints to turn off serifs
+    smooth : bool               //no corners
 } with
     static member DefaultAxes = { 
         width = 300
@@ -56,6 +57,7 @@ type Axes = {
         show_knots = false
         joints = true
         constraints = false
+        smooth = false
     }
     static member controls = Map.ofList [
         "width", Range(100, 1000)
@@ -80,4 +82,5 @@ type Axes = {
         "show_knots", Checkbox
         "joints", Checkbox
         "constraints", Checkbox
+        "smooth", Checkbox
     ]

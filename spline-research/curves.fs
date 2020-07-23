@@ -34,15 +34,18 @@ type Vec2 = {
 type SplinePointType =
     | Corner = 0
     | Smooth = 1
+    | LineToCurve = 2
+    | CurveToLine = 3
+
 
 /// ControlPoint is a lot like `Knot` but has no UI, is used for spline solving.
 type SplineControlPoint(pt, ty, lth, rth) = 
     new(pt, ty) = SplineControlPoint(pt, ty, None, None)
 
     member val pt : Vec2 = pt with get
-    member val ty : SplinePointType = ty with get
-    member val lth : float option = lth with get
-    member val rth : float option = lth with get
+    member val ty : SplinePointType = ty with get, set
+    member val lth : float option = lth with get, set
+    member val rth : float option = lth with get, set
 
     member val kBlend : float option = lth with get, set
     //not the best naming convention, using one capital letter difference
@@ -370,39 +373,41 @@ type ths = {
 let hypot(x, y) =
     sqrt (x * x + y * y)
 
-type TwoParamSpline(curve, ctrlPts) =
+type TwoParamSpline(curve : MyCurve, ctrlPts : Vec2 array, isClosed : bool) =
+    let _ths : float array = Array.zeroCreate ctrlPts.Length
     member this.curve : MyCurve = curve
     member this.ctrlPts : Vec2 array = ctrlPts
+    member this.isClosed = isClosed
     // member this.startTh : float option = None
     // member this.endTh : float option = None
     member val startTh : float option = None with get, set
     member val endTh : float option = None with get, set
-    member this.ths : float array = Array.zeroCreate (ctrlPts.Length)
+    member this.ths = _ths
 
     /// Determine initial tangent angles, given array of Vec2 control points.
     member this.initialThs() =
-        for i in 1..this.ths.Length - 2 do
+        for i in 1.._ths.Length - 2 do
             let dx0 = this.ctrlPts.[i].x - this.ctrlPts.[i - 1].x
             let dy0 = this.ctrlPts.[i].y - this.ctrlPts.[i - 1].y
             let l0 = hypot(dx0, dy0)
+            let th0 = atan2 dy0 dx0
             let dx1 = this.ctrlPts.[i + 1].x - this.ctrlPts.[i].x
             let dy1 = this.ctrlPts.[i + 1].y - this.ctrlPts.[i].y
             let l1 = hypot(dx1, dy1)
-            let th0 = atan2 dy0 dx0
             let th1 = atan2 dy1 dx1
             let bend = mod2pi (th1 - th0)
             let th = mod2pi (th0 + bend * l0 / (l0 + l1))
-            this.ths.[i] <- th
-            if i = 1 then this.ths.[0] <- th0
-            if i = this.ths.Length - 2 then this.ths.[i + 1] <- th1
+            _ths.[i] <- th
+            if i = 1 then _ths.[0] <- th0
+            if i = _ths.Length - 2 then _ths.[i + 1] <- th1
 
         match this.startTh with
         | Some th -> 
-            this.ths.[0] <- th
+            _ths.[0] <- th
         | None -> ()
         match this.endTh with
         | Some th ->
-            this.ths.[this.ths.Length - 1] <- th
+            _ths.[_ths.Length - 1] <- th
         | None -> ()
 
     /// Get tangent angles relative to endpoints, and chord Length.
@@ -410,8 +415,8 @@ type TwoParamSpline(curve, ctrlPts) =
         let dx = this.ctrlPts.[i + 1].x - this.ctrlPts.[i].x
         let dy = this.ctrlPts.[i + 1].y - this.ctrlPts.[i].y
         let th =  atan2 dy dx
-        let th0 = mod2pi(this.ths.[i] - th)
-        let th1 = mod2pi(th - this.ths.[i + 1])
+        let th0 = mod2pi(_ths.[i] - th)
+        let th1 = mod2pi(th - _ths.[i + 1])
         let chord = hypot(dx, dy)
         {th0 = th0; th1 = th1; chord = chord}
 
@@ -431,12 +436,17 @@ type TwoParamSpline(curve, ctrlPts) =
         // Fix endpoint tangents; we rely on iteration for this to converge
         if this.startTh.IsNone then
             let ths0 = this.getThs(0)
-            this.ths.[0] <- this.ths.[0] + this.curve.endpointTangent(ths0.th1) - ths0.th0
+            _ths.[0] <- _ths.[0] + (this.curve.endpointTangent(ths0.th1) - ths0.th0)
 
         if this.endTh.IsNone then
             let ths0 = this.getThs(n - 2)
-            this.ths.[n - 1] <- this.ths.[n - 1] - this.curve.endpointTangent(ths0.th0) - ths0.th1
+            _ths.[n - 1] <- _ths.[n - 1] - (this.curve.endpointTangent(ths0.th0) - ths0.th1)
         
+        if this.isClosed && this.startTh.IsNone && this.endTh.IsNone then
+            let avgth = (_ths.[0] + _ths.[n - 1]) / 2.
+            _ths.[0] <- avgth
+            _ths.[n - 1] <- avgth
+
         if n < 3 then 0. else
 
         let mutable absErr = 0.
@@ -453,16 +463,17 @@ type TwoParamSpline(curve, ctrlPts) =
             let ak0p = this.curve.computeCurvature(ths0.th0, ths0.th1 + epsilon)
             let ak1p = this.curve.computeCurvature(ths1.th0 - epsilon, ths1.th1)
             let errp = computeErr(ths0, ak0p, ths1, ak1p)
-            let derr = (errp - err) * (1. / epsilon)
+            let derr = (errp - err) / epsilon
             x.[i] <- err / derr
 
             ths0 <- ths1
             ak0 <- ak1
 
+        let scale = tanh (0.25 * (float iter + 1.))
         for i in 0..n - 3 do
-            let scale = tanh (0.25 * (float iter + 1.))
-            this.ths.[i + 1] <- this.ths.[i + 1] + scale * x.[i]
+            _ths.[i + 1] <- _ths.[i + 1] + scale * x.[i]
 
+        printfn "abs err %f at iter %d" absErr iter
         absErr
 
     /// Perform one step of a Newton solver.
@@ -502,7 +513,7 @@ type TwoParamSpline(curve, ctrlPts) =
 
     //     tridiag(a, b, c, d, x)
     //     for (var i = 0; i < n - 2; i++) {
-    //         this.ths.[i + 1] -= x.[i]
+    //         _ths.[i + 1] -= x.[i]
     //     }
     // }
 
@@ -548,11 +559,29 @@ type Spline (ctrlPts, isClosed) =
     member this.solve() =
         let start = this.startIx()
         let length = this.ctrlPts.Length - if this.isClosed then 0 else 1
+
+        //implement LineToCurve and CurveToLine as Corners with fixed theta from Line
+        for i in 0..length do
+            let ptI = this.pt(i, start)
+            if ptI.ty = SplinePointType.LineToCurve || ptI.ty = SplinePointType.CurveToLine then
+                assert (ptI.lth.IsNone && ptI.rth.IsNone)
+                let ptI1 = if ptI.ty = SplinePointType.LineToCurve then 
+                                this.pt(i - 1, start)
+                            else
+                                this.pt(i + 1, start)
+                assert (ptI1.ty <> SplinePointType.Smooth)
+                ptI.ty <- SplinePointType.Corner
+                let dx = ptI1.pt.x - ptI.pt.x
+                let dy = ptI1.pt.y - ptI.pt.y
+                let th = atan2 dy dx
+                ptI.lth <- Some th
+                ptI.rth <- Some (mod2pi (th + Math.PI))
+
         let mutable i = 0
         while i < length do
             let ptI = this.pt(i, start)
             let ptI1 = this.pt(i + 1, start)
-            if i + 1 = length || ptI1.ty = SplinePointType.Corner
+            if (i + 1 = length || ptI1.ty = SplinePointType.Corner)
                 && ptI.rth.IsNone && ptI1.lth.IsNone then
                 let dx = ptI1.pt.x - ptI.pt.x
                 let dy = ptI1.pt.y - ptI.pt.y
@@ -575,13 +604,13 @@ type Spline (ctrlPts, isClosed) =
                                 break_ <- true
                     ]
                 //console.log(innerPts)
-                let inner = TwoParamSpline(this.curve, Array.ofList innerPts)
+                let inner = TwoParamSpline(this.curve, Array.ofList innerPts, this.isClosed)
                 inner.startTh <- this.pt(i, start).rth
                 inner.endTh <- this.pt(j - 1, start).lth
-                let nIter = 10
                 inner.initialThs()
-                for k in 0..nIter-1 do
-                    inner.iterDumb (k) |> ignore
+                let MAX_ITERS = 10
+                for k in 0..MAX_ITERS-1 do
+                    inner.iterDumb k |> ignore
                 for k in i..j-2 do
                     this.pt(k, start).rTh <- inner.ths.[k - i]
                     this.pt(k + 1, start).lTh <- inner.ths.[k + 1 - i]
@@ -592,6 +621,16 @@ type Spline (ctrlPts, isClosed) =
                     this.pt(k + 1, start).lAk <- aks.ak1
 
                 i <- j - 1
+
+        if not this.isClosed then
+            let firstPt = this.ctrlPts.[0]
+            assert (firstPt.lTh = 0.)
+            firstPt.lTh <- firstPt.rTh
+            let lastPt = this.ctrlPts.[this.ctrlPts.Length-1]
+            assert (lastPt.rTh = 0.)
+            lastPt.rTh <- lastPt.lTh
+        this.computeCurvatureBlending()
+
 
     member this.chordLen(i) =
         let ptI = this.pt(i, 0).pt
