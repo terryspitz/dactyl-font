@@ -11,8 +11,11 @@
 module Curves
 
 
-open System
+//open System
 open BezPath
+
+let PI = System.Math.PI
+let isnan = System.Double.IsNaN
 
 /// <summary>
 /// A simple container for 2-vectors
@@ -34,6 +37,7 @@ type Vec2 = {
 type SplinePointType =
     | Corner = 0
     | Smooth = 1
+    //terryspitz: add continuous tangents
     | LineToCurve = 2
     | CurveToLine = 3
 
@@ -49,15 +53,16 @@ type SplineControlPoint(pt, ty, lth, rth) =
 
     member val kBlend : float option = lth with get, set
     //not the best naming convention, using one capital letter difference
-    member val lTh : float = 0. with get, set
-    member val rTh : float = 0. with get, set
-    member val lAk : float = 0. with get, set
-    member val rAk : float = 0. with get, set
+    member val lTh : float = nan with get, set
+    member val rTh : float = nan with get, set
+    member val lAk : float = nan with get, set
+    member val rAk : float = nan with get, set
 
 
 /// Constructor argument is array of coordinate values [x0, y0, x1, y1, x2, y2, x3, y3].
 type CubicBez (c : float []) =
     member this.c = c
+
     member this.weightsum(c0, c1, c2, c3) =
         let x = c0 * this.c.[0] + c1 * this.c.[2] + c2 * this.c.[4] + c3 * this.c.[6]
         let y = c0 * this.c.[1] + c1 * this.c.[3] + c2 * this.c.[5] + c3 * this.c.[7]
@@ -141,7 +146,7 @@ type Polynomial (c : float []) =
         Polynomial c
 
 
-let hermite5(x0 : float, x1, v0, v1, a0, a1) =
+let hermite5(x0, x1, v0, v1, a0, a1) =
     Polynomial([|
                 x0
                 v0
@@ -303,6 +308,7 @@ type MyCurve() = //extends TwoParamCurve =
     // into two cubic segments), but for now, just approximate...
     member this.render4Cubic(th0, th1, k0, k1) =
         let cb = CubicBez (myCubic th0 th1)
+
         let deriv_scale(t, th, k : float Option) =
             match k with
             | Some k ->
@@ -352,14 +358,15 @@ type MyCurve() = //extends TwoParamCurve =
 
     member this.endpointTangent(th) =
         // Same value as parabola:
-        //return Math.atan(2 * Math.tan(th)) - th
+        //return atan(2 * tan(th)) - th
         0.5 * sin (2. * th)
+        //terryspitz: https://www.google.com/search?q=atan%282+*+tan%28x%29%29+-+x%2C+0.5+*+sin+%282.+*+x%29
 
 //! Global spline solver
 
 // normalize theta to -pi..pi
 let mod2pi(th) =
-    let twopi = 2. * Math.PI
+    let twopi = 2. * PI
     let frac = th * (1. / twopi)
     twopi * (frac - round frac)
 
@@ -435,13 +442,13 @@ type TwoParamSpline(curve : MyCurve, ctrlPts : Vec2 array, isClosed : bool) =
         let n = this.ctrlPts.Length
         // Fix endpoint tangents; we rely on iteration for this to converge
         if this.startTh.IsNone then
-            let ths0 = this.getThs(0)
-            _ths.[0] <- _ths.[0] + (this.curve.endpointTangent(ths0.th1) - ths0.th0)
-
+            let startThs = this.getThs(0)
+            _ths.[0] <- _ths.[0] + (this.curve.endpointTangent(startThs.th1) - startThs.th0)
         if this.endTh.IsNone then
-            let ths0 = this.getThs(n - 2)
-            _ths.[n - 1] <- _ths.[n - 1] - (this.curve.endpointTangent(ths0.th0) - ths0.th1)
+            let endThs = this.getThs(n - 2)
+            _ths.[n - 1] <- _ths.[n - 1] - (this.curve.endpointTangent(endThs.th0) - endThs.th1)
         
+        //terryspitz: correction to match start/end tangents on closed curves
         if this.isClosed && this.startTh.IsNone && this.endTh.IsNone then
             let avgth = (_ths.[0] + _ths.[n - 1]) / 2.
             _ths.[0] <- avgth
@@ -473,7 +480,7 @@ type TwoParamSpline(curve : MyCurve, ctrlPts : Vec2 array, isClosed : bool) =
         for i in 0..n - 3 do
             _ths.[i + 1] <- _ths.[i + 1] + scale * x.[i]
 
-        printfn "abs err %f at iter %d" absErr iter
+        // printfn "abs err %f at iter %d" absErr iter
         absErr
 
     /// Perform one step of a Newton solver.
@@ -552,15 +559,17 @@ type Spline (ctrlPts, isClosed) =
         if not this.isClosed then
             0
         else 
-            match Array.tryFindIndex (fun (pt : SplineControlPoint) -> pt.ty = SplinePointType.Corner || pt.lth.IsSome) this.ctrlPts with
+            match Array.tryFindIndex 
+                (fun (pt : SplineControlPoint) -> pt.ty = SplinePointType.Corner || pt.lth.IsSome)
+                this.ctrlPts with
             | Some i -> i
             | None -> 0 // Path is all-smooth and closed.
 
-    member this.solve() =
+    member this.solve(maxIter) =
         let start = this.startIx()
         let length = this.ctrlPts.Length - if this.isClosed then 0 else 1
 
-        //implement LineToCurve and CurveToLine as Corners with fixed theta from Line
+        //terryspitz: implement LineToCurve and CurveToLine as Corners with fixed theta from Line
         for i in 0..length do
             let ptI = this.pt(i, start)
             if ptI.ty = SplinePointType.LineToCurve || ptI.ty = SplinePointType.CurveToLine then
@@ -570,12 +579,12 @@ type Spline (ctrlPts, isClosed) =
                             else
                                 this.pt(i + 1, start)
                 assert (ptI1.ty <> SplinePointType.Smooth)
-                ptI.ty <- SplinePointType.Corner
-                let dx = ptI1.pt.x - ptI.pt.x
-                let dy = ptI1.pt.y - ptI.pt.y
+                let dx = ptI.pt.x - ptI1.pt.x
+                let dy = ptI.pt.y - ptI1.pt.y
                 let th = atan2 dy dx
+                ptI.ty <- SplinePointType.Corner
                 ptI.lth <- Some th
-                ptI.rth <- Some (mod2pi (th + Math.PI))
+                ptI.rth <- Some th
 
         let mutable i = 0
         while i < length do
@@ -608,12 +617,25 @@ type Spline (ctrlPts, isClosed) =
                 inner.startTh <- this.pt(i, start).rth
                 inner.endTh <- this.pt(j - 1, start).lth
                 inner.initialThs()
-                let MAX_ITERS = 10
-                for k in 0..MAX_ITERS-1 do
-                    inner.iterDumb k |> ignore
+                let CONVERGED_ERR = 1e-6
+                let mutable iter = 0
+                while inner.iterDumb iter > CONVERGED_ERR && iter < maxIter do
+                    iter <- iter + 1
                 for k in i..j-2 do
-                    this.pt(k, start).rTh <- inner.ths.[k - i]
-                    this.pt(k + 1, start).lTh <- inner.ths.[k + 1 - i]
+                    let ptK = this.pt(k, start)
+                    let ptK1 = this.pt(k + 1, start)
+                    //terryspitz: spline solve has undefined direction (same solution for tangents at 180) 
+                    //so align thetas with chord direction to next point
+                    let dx = ptK1.pt.x - ptK.pt.x
+                    let dy = ptK1.pt.y - ptK.pt.y
+                    let chordTh = atan2 dy dx
+                    let alignTh th = 
+                        if abs (mod2pi (th - chordTh)) < PI/2. then
+                            th
+                        else
+                            mod2pi (th + PI)
+                    ptK.rTh <- alignTh inner.ths.[k - i]
+                    ptK1.lTh <- alignTh inner.ths.[k + 1 - i]
                     // Record curvatures (for blending, not all will be used)
                     let ths = inner.getThs(k - i)
                     let aks = this.curve.computeCurvature(ths.th0, ths.th1)
@@ -622,13 +644,14 @@ type Spline (ctrlPts, isClosed) =
 
                 i <- j - 1
 
+        //terryspitz: fix start and end
         if not this.isClosed then
             let firstPt = this.ctrlPts.[0]
-            assert (firstPt.lTh = 0.)
-            firstPt.lTh <- firstPt.rTh
+            assert (isnan firstPt.lTh)
+            //firstPt.lTh <- firstPt.rTh
             let lastPt = this.ctrlPts.[this.ctrlPts.Length-1]
-            assert (lastPt.rTh = 0.)
-            lastPt.rTh <- lastPt.lTh
+            assert (isnan lastPt.rTh)
+            //lastPt.rTh <- lastPt.lTh
         this.computeCurvatureBlending()
 
 
@@ -641,10 +664,10 @@ type Spline (ctrlPts, isClosed) =
     // the blended curvature. To be invoked after solving.
     member this.computeCurvatureBlending() =
         let myTan (th) =
-            if (th > Math.PI / 2.) then
-                tan (Math.PI - th)
-            elif (th < -Math.PI / 2.) then
-                tan (-Math.PI - th)
+            if (th > PI / 2.) then
+                tan (PI - th)
+            elif (th < -PI / 2.) then
+                tan (-PI - th)
             else
                 tan (th)
         for pt in this.ctrlPts do
@@ -653,8 +676,8 @@ type Spline (ctrlPts, isClosed) =
         for i in 0..length-1 do
             let pt = this.pt(i, 0)
             if pt.ty = SplinePointType.Smooth && pt.lth.IsSome then
-                // let thresh = Math.PI / 2. - 1e-6
-                //if (Math.abs(pt.rAk) > thresh || Math.abs(pt.lAk) > thresh) {
+                // let thresh = PI / 2. - 1e-6
+                //if (abs(pt.rAk) > thresh || abs(pt.lAk) > thresh) {
                 //    // Don't blend reversals. We might reconsider this, but punt for now.
                 //    continue
                 //}
@@ -669,10 +692,8 @@ type Spline (ctrlPts, isClosed) =
     member this.render() =
         let path = BezPath()
         if this.ctrlPts.Length = 0 then path else
-        let pt0 = this.ctrlPts.[0]
-        path.moveto(pt0.pt.x, pt0.pt.y)
+        let pt0 = this.ctrlPts.[0] in path.moveto(pt0.pt.x, pt0.pt.y)
         let length = this.ctrlPts.Length - if this.isClosed then 0 else 1
-        let i = 0
         for i in 0..length-1 do
             path.mark i
             let ptI = this.pt(i, 0)

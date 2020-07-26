@@ -254,39 +254,66 @@ type Font (axes: Axes) =
         SplineControlPoint({x=float x;y=float y}, ty)
     
     let rec elementToSpline elem =
-        let toSpiroSegment (pt : SplineControlPoint) ty =
-            {
-                SpiroSegment.X = pt.pt.x; Y = pt.pt.y; Type = ty
-                bend_th = 0.; ks = Array.empty ; seg_ch = 0.; seg_th = 0.
-                tangent1 = pt.lTh; tangent2 = pt.rTh
-            }
         let toSegs pts isClosed =
             let ctrlPts = List.map toSplineControlPoint pts |> Array.ofList
             let spline = Spline(ctrlPts, isClosed)
-            spline.solve()
-            let types = List.map (fun pt -> snd pt) pts |> Array.ofList
-            Array.map2 toSpiroSegment spline.ctrlPts types |> Array.toList
+            spline.solve(axes.max_spline_iter)
+            printfn "spline"
+            for pt in spline.ctrlPts do
+                printfn "%f %f %f %f" pt.pt.x pt.pt.y pt.lTh pt.rTh
+            assert (spline.ctrlPts.Length = pts.Length)
+            [for i in 0..pts.Length-1 do
+                let ty = snd pts.[i]
+                let pt = spline.ctrlPts.[i]
+                {
+                    SpiroSegment.X = pt.pt.x; Y = pt.pt.y; Type = ty
+                    bend_th = 0.; ks = Array.empty ; seg_ch = 0.; seg_th = 0.
+                    //spiro has tangents at start/end of segment pointing along curve,
+                    //while spline has tangents at point, facing left/right
+                    tangent1 = pt.rTh
+                    tangent2 = if i < pts.Length-1 then 
+                                    norm (spline.ctrlPts.[i+1].lTh )
+                                else
+                                    if isClosed then
+                                        norm (spline.ctrlPts.[0].lTh + PI)
+                                    else 
+                                        nan
+                }
+            ]
         match elem with
         | OpenCurve(pts) ->
             [SpiroOpenCurve(toSegs pts false)]
         | ClosedCurve(pts) ->
-            [SpiroClosedCurve(toSegs pts true)]
+            let segs = toSegs pts true
+            [SpiroClosedCurve(segs @ [segs.[0]])]
         | Dot(p) -> [SpiroDot(p)]
         | EList(elems) -> List.collect elementToSpline elems
         | Space -> [SpiroSpace]
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem) 
 
     let elementToSegments elem =
-        if axes.spline_not_spiro then
-            elementToSpline elem
-        else
-            elementToSpiros elem
+        let e = 
+            if axes.spline_not_spiro then
+                elementToSpline elem
+            else
+                elementToSpiros elem
+        printfn "segments"
+        for seg in e do
+            match seg with
+            | SpiroOpenCurve(segs) ->
+                for seg in segs do
+                    printfn "%f,%f %f %f" seg.X seg.Y seg.tangent1 seg.tangent2
+            | SpiroClosedCurve(segs) ->
+                for seg in segs do
+                    printfn "%f,%f %f %f" seg.X seg.Y seg.tangent1 seg.tangent2
+            | _ -> ()
+        e
 
     let rec elementToSplineSvg elem =
         let toSvg pts isClosed =
             let ctrlPts = List.map toSplineControlPoint pts |> Array.ofList
             let spline = Spline(ctrlPts, isClosed)
-            spline.solve()
+            spline.solve(axes.max_spline_iter)
             [spline.render().renderSvg()]
         match elem with
         | OpenCurve(pts) -> toSvg pts false
@@ -617,7 +644,7 @@ type Font (axes: Axes) =
         let angle = if reverse then -PI/2. else PI/2.
         match seg.Type with
         | SpiroPointType.Corner ->
-            let th1, th2, bend = norm(lastSeg.seg_th + angle), norm(seg.seg_th + angle), norm(seg.seg_th - lastSeg.seg_th)
+            let th1, th2, bend = norm(lastSeg.tangent2 + angle), norm(seg.tangent1 + angle), norm(seg.tangent1 - lastSeg.tangent2)
             if (not reverse && bend < -PI/8.0) || (reverse && bend > PI/8.0) then
                 //two points on sharp outer bend
                 [(segAddPolar seg (this.align th1 - angle/2.) (dist * sqrt 2.0), newType);
@@ -631,10 +658,10 @@ type Font (axes: Axes) =
                 [(addPolarContrast seg.X seg.Y (th1 + bend/2.0) offset, newType)]
         | SpiroPointType.Right ->
             //weirdly, asserts in Fable's js but not in F# run
-            //assert ((abs (lastSeg.seg_th - seg.Tangent1)) < 1e-5)
-            [(segAddPolar seg (norm (lastSeg.seg_th + angle)) dist, newType)]
+            //assert ((abs (lastSeg.seg_th - seg.tangent1)) < 1e-5)
+            [(segAddPolar seg (norm (lastSeg.tangent2 + angle)) dist, newType)]
         | SpiroPointType.Left ->
-            [(segAddPolar seg (norm (seg.seg_th + angle)) dist, newType)]
+            [(segAddPolar seg (norm (seg.tangent1 + angle)) dist, newType)]
         | SpiroPointType.Anchor when reverse -> []  //reverse both points below
         | SpiroPointType.Handle when reverse ->
             //assert (lastSeg.Type = SpiroPointType.Anchor)
@@ -691,12 +718,12 @@ type Font (axes: Axes) =
                  (addPolarContrast X Y (thetaAligned - PI * 0.5 + flareAng) flareDist, Corner);
                  (addPolarContrast X Y (theta - preflareAng) preflareDist, CurveToLine);
                  (addPolarContrast X Y (theta - PI * 0.75) (fthickness * sqrt 2.0), Corner)]
-            elif this.axes.end_bulb = 0.0 && not isJoint then
+            elif this.axes.end_bulb <> 0.0 || isJoint then
                 [(offsetPointCap X Y (thetaAligned + PI * 0.25), Corner);
+                 (addPolarContrast X Y thetaAligned (fthickness * (1.0+this.axes.end_bulb)), G2);
                  (offsetPointCap X Y (thetaAligned - PI * 0.25), Corner)]
             else
                 [(offsetPointCap X Y (thetaAligned + PI * 0.25), Corner);
-                 (addPolarContrast X Y thetaAligned (fthickness * (1.0+this.axes.end_bulb)), G2);
                  (offsetPointCap X Y (thetaAligned - PI * 0.25), Corner)]
         let startCap (seg : SpiroSegment) =
             cap seg.X seg.Y (seg.tangent1 + PI) (this.isJoint ch seg)

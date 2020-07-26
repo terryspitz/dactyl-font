@@ -20,6 +20,6 @@ type TestClass() =
         |]
         // let pt = new ControlPoint(new Vec2(knot.x, knot.y), knot.ty, knot.lth, knot.rth);
         let spline = Spline(ctrlPts, false)
-        spline.solve()
+        spline.solve(10)
         let bezpath = spline.render()
         printfn "%A" bezpath

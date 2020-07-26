@@ -24,6 +24,7 @@ let main argv =
 
     let fonts = [
         // ("Dactyl Knots", "Extra Light", Font({Axes.DefaultAxes with show_knots = true}))
+        // ("Dactyl Spiro", "Extra Light", Font({Axes.DefaultAxes with spline_not_spiro = false}))
         ("Dactyl Sans Extra Light", "Extra Light", Font({Axes.DefaultAxes with thickness = 3}))
         ("Dactyl Sans", "Regular", Font({Axes.DefaultAxes with thickness = 30}))
         ("Dactyl Sans Italic", "Italic", Font({Axes.DefaultAxes with italic = 0.15}))
@@ -44,7 +45,7 @@ let main argv =
     let rowHeights = List.scan (+) 0 [for i in 0..fonts.Length-1 do let _, _, font = fonts.[i] in (200 + font.charHeight * 2)]
     // let text = ["THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789"
     //             """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./"""]
-    let text = ["o"]
+    let text = ["r"]
     [for i in 0..fonts.Length-1 do
         let name, _, font = fonts.[i]
         printfn "\n%s\n" name

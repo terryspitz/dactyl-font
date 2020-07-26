@@ -24,11 +24,12 @@ type Axes = {
     flare : float               //end caps expand by this amount
     axis_align_caps : bool      //round angle of caps to horizontal/vertical
     //spine : bool              //show the single width glyph, use with outline off or filled off
+    filled : bool               //(svg only) filled or empty outlines
     outline : bool              //use thickness to expand stroke width
     stroked : bool              //each stroke is 4 parallel lines
     scratches : bool            //horror/paint strokes font
-    filled : bool               //(svg only) filled or empty outlines
-    spline_not_spiro : bool      //use original Spiro (false) or new spline-research splines (true)
+    spline_not_spiro : bool     //use original Spiro (false) or new spline-research splines (true)
+    max_spline_iter : int       //max number of iterations to solve spline curves
     show_knots : bool           //show small circles for the points used to define lines/curves
     joints : bool               //check joints to turn off serifs
     constraints : bool          //check joints to turn off serifs
@@ -49,11 +50,12 @@ type Axes = {
         end_bulb = 0.0
         flare = 0.0
         axis_align_caps = true
+        filled = true
         outline = true
         stroked = false
         scratches = false
-        filled = true
-        spline_not_spiro = true
+        spline_not_spiro = false
+        max_spline_iter = 10
         show_knots = false
         joints = true
         constraints = false
@@ -74,11 +76,12 @@ type Axes = {
         "end_bulb", FracRange(-1.0, 3.0)
         "flare", FracRange(-1.0, 1.0)
         "axis_align_caps", Checkbox
+        "filled", Checkbox
         "outline", Checkbox
         "stroked", Checkbox
         "scratches", Checkbox
-        "filled", Checkbox
         "spline_not_spiro", Checkbox
+        // "max_spline_iter", Range(0, 15)
         "show_knots", Checkbox
         "joints", Checkbox
         "constraints", Checkbox
