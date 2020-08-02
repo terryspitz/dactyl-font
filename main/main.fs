@@ -43,9 +43,9 @@ let main argv =
 
     // SVG output, side by side
     let rowHeights = List.scan (+) 0 [for i in 0..fonts.Length-1 do let _, _, font = fonts.[i] in (200 + font.charHeight * 2)]
-    // let text = ["THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789"
-    //             """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./"""]
-    let text = ["r"]
+    let text = ["THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789"
+                """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./"""]
+    // let text = ["D"]
     [for i in 0..fonts.Length-1 do
         let name, _, font = fonts.[i]
         printfn "\n%s\n" name

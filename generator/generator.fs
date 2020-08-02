@@ -258,26 +258,24 @@ type Font (axes: Axes) =
             let ctrlPts = List.map toSplineControlPoint pts |> Array.ofList
             let spline = Spline(ctrlPts, isClosed)
             spline.solve(axes.max_spline_iter)
-            printfn "spline"
-            for pt in spline.ctrlPts do
-                printfn "%f %f %f %f" pt.pt.x pt.pt.y pt.lTh pt.rTh
+            // printfn "spline"
+            // for pt in spline.ctrlPts do
+            //     printfn "%f %f %f %f" pt.pt.x pt.pt.y pt.lTh pt.rTh
             assert (spline.ctrlPts.Length = pts.Length)
             [for i in 0..pts.Length-1 do
                 let ty = snd pts.[i]
                 let pt = spline.ctrlPts.[i]
+                let pt1 = if i<pts.Length-1 then spline.ctrlPts.[i+1] else spline.ctrlPts.[0]
                 {
                     SpiroSegment.X = pt.pt.x; Y = pt.pt.y; Type = ty
-                    bend_th = 0.; ks = Array.empty ; seg_ch = 0.; seg_th = 0.
+                    bend_th = 0.
+                    ks = Array.empty
+                    seg_ch = hypot(pt1.pt.x-pt.pt.x,pt1.pt.y-pt.pt.y)
+                    seg_th = 0.
                     //spiro has tangents at start/end of segment pointing along curve,
                     //while spline has tangents at point, facing left/right
                     tangent1 = pt.rTh
-                    tangent2 = if i < pts.Length-1 then 
-                                    norm (spline.ctrlPts.[i+1].lTh )
-                                else
-                                    if isClosed then
-                                        norm (spline.ctrlPts.[0].lTh + PI)
-                                    else 
-                                        nan
+                    tangent2 = pt1.lTh
                 }
             ]
         match elem with
@@ -297,16 +295,16 @@ type Font (axes: Axes) =
                 elementToSpline elem
             else
                 elementToSpiros elem
-        printfn "segments"
-        for seg in e do
-            match seg with
-            | SpiroOpenCurve(segs) ->
-                for seg in segs do
-                    printfn "%f,%f %f %f" seg.X seg.Y seg.tangent1 seg.tangent2
-            | SpiroClosedCurve(segs) ->
-                for seg in segs do
-                    printfn "%f,%f %f %f" seg.X seg.Y seg.tangent1 seg.tangent2
-            | _ -> ()
+        // for seg in e do
+        //     printfn "segments"
+        //     match seg with
+        //     | SpiroOpenCurve(segs) ->
+        //         for seg in segs do
+        //             printfn "%f,%f %f %f" seg.X seg.Y seg.tangent1 seg.tangent2
+        //     | SpiroClosedCurve(segs) ->
+        //         for seg in segs do
+        //             printfn "%f,%f %f %f" seg.X seg.Y seg.tangent1 seg.tangent2
+        //     | _ -> ()
         e
 
     let rec elementToSplineSvg elem =
@@ -430,7 +428,7 @@ type Font (axes: Axes) =
                                    (YX((T-offset)/3,C), CurveToLine); 
                                    (BL, Corner); (BR, End)])
         | Glyph('3') -> EList([OpenCurve([(YX(T-offset,L), Start); (YX(T,L+min flooredOffset R), G2);
-                                          (Mid(TR, HR), G2); (YX(H,C+1), CurveToLine); (HC, G2)]);
+                                          (Mid(TR, HR), G2); (YX(H,C+1), CurveToLine); (HC, End)]);
                                OpenCurve([(HC, Start); (YX(H,C+1), LineToCurve); (Mid(HR, BR), G2)
                                           (YX(B,L+flooredOffset), G2); (YX(B+min offset R,L), End)])])
         | Glyph('4') -> PolyLine([BN; TN; YX(T/4,L); YX(T/4,R)])

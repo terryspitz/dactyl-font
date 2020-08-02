@@ -603,7 +603,7 @@ type Spline (ctrlPts, isClosed) =
                 let mutable j = i + 1
                 let mutable break_ = false
                 let innerPts =
-                    [ptI.pt] @ 
+                    ptI.pt ::
                     [
                         while j < length + 1 && not break_ do
                             let ptJ = this.pt(j, start)
@@ -613,7 +613,8 @@ type Spline (ctrlPts, isClosed) =
                                 break_ <- true
                     ]
                 //console.log(innerPts)
-                let inner = TwoParamSpline(this.curve, Array.ofList innerPts, this.isClosed)
+                let inner = TwoParamSpline(this.curve, Array.ofList innerPts, 
+                                this.isClosed && innerPts.Length-1 = length)
                 inner.startTh <- this.pt(i, start).rth
                 inner.endTh <- this.pt(j - 1, start).lth
                 inner.initialThs()
