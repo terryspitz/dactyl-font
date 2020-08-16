@@ -295,16 +295,18 @@ type Font (axes: Axes) =
                 elementToSpline elem
             else
                 elementToSpiros elem
-        // for seg in e do
-        //     printfn "segments"
-        //     match seg with
-        //     | SpiroOpenCurve(segs) ->
-        //         for seg in segs do
-        //             printfn "%f,%f %f %f" seg.X seg.Y seg.tangent1 seg.tangent2
-        //     | SpiroClosedCurve(segs) ->
-        //         for seg in segs do
-        //             printfn "%f,%f %f %f" seg.X seg.Y seg.tangent1 seg.tangent2
-        //     | _ -> ()
+        let debug = false
+        if debug then
+            for seg in e do
+                printfn "segments"
+                match seg with
+                | SpiroOpenCurve(segs) ->
+                    for seg in segs do
+                        printfn "%f,%f %f %f" seg.X seg.Y seg.tangent1 seg.tangent2
+                | SpiroClosedCurve(segs) ->
+                    for seg in segs do
+                        printfn "%f,%f %f %f" seg.X seg.Y seg.tangent1 seg.tangent2
+                | _ -> ()
         e
 
     let rec elementToSplineSvg elem =
@@ -738,7 +740,7 @@ type Font (axes: Axes) =
                              //  @ (offsetMidSegments (this.reverseSegments segments) false)                             
                 [ClosedCurve(points)]
             | SpiroClosedCurve(segments) ->
-                [ClosedCurve(this.offsetSegments segments 0 (segments.Length-2) false true fthickness);
+                [ClosedCurve(this.offsetSegments segments 0 (segments.Length-2) false true fthickness)
                  ClosedCurve(this.offsetSegments segments 0 (segments.Length-2) true true fthickness |> List.rev)]
             | SpiroDot(p) ->
                 let x,y = getXY p
@@ -788,8 +790,9 @@ type Font (axes: Axes) =
                              @ (offsetMidSegments segments true |> List.rev)
                 [ClosedCurve(points)]
             | SpiroClosedCurve(segments) ->
-                [ClosedCurve(this.offsetSegments segments 0 (segments.Length-1) false true thicknessby3);
-                 ClosedCurve(this.offsetSegments segments 0 (segments.Length-1) true true thicknessby3 |> List.rev)]
+                let fthickness = thicknessby3/3.
+                [ClosedCurve(this.offsetSegments segments 0 (segments.Length-2) false true fthickness)
+                 ClosedCurve(this.offsetSegments segments 0 (segments.Length-2) true true fthickness |> List.rev)]
             | SpiroDot(p) -> [Dot(p)]
             | SpiroSpace -> [Space]
         applyToSegments (this.spiroToLines 3) e |> applyToSegments spiroToScratchOutlines

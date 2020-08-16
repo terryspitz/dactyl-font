@@ -37,15 +37,18 @@ let main argv =
         ("Dactyl Smooth", "Regular", Font({Axes.DefaultAxes with spline_not_spiro=true; smooth=false}))
     ]
 
-    //debug
-    // let _, _, font = fonts.[0]
-    // font.charToSvg 'O' 0 0 false |> ignore
+    let debug = false
+    if debug then
+        let _, _, font = fonts.[0]
+        font.charToSvg 'O' 0 0 |> ignore
 
     // SVG output, side by side
-    let rowHeights = List.scan (+) 0 [for i in 0..fonts.Length-1 do let _, _, font = fonts.[i] in (200 + font.charHeight * 2)]
+    let rowHeights = List.scan (+) 0 [
+        for i in 0..fonts.Length-1 do
+            let _, _, font = fonts.[i] in (200 + font.charHeight * 2)]
     let text = ["THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789"
                 """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./"""]
-    // let text = ["D"]
+    // let text = ["Q"]
     [for i in 0..fonts.Length-1 do
         let name, _, font = fonts.[i]
         printfn "\n%s\n" name

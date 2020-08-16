@@ -61,7 +61,7 @@ type Axes = {
         constraints = false
         smooth = false
     }
-    static member controls = Map.ofList [
+    static member controls = [
         "width", Range(100, 1000)
         "height", Range(400, 1000)
         "x_height", Range(0, 1000)

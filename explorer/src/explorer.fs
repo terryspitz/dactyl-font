@@ -27,9 +27,10 @@ titleElem.innerHTML <-  titleFont.stringToSvg ["Dactyl Live"] 0 0 |> String.conc
 
 ///Read UI into array of current values
 let currentFieldValues () = 
+    let controlsMap = Axes.controls |> Map.ofList
     [for f, def in fieldDefaults do
         let input = document.getElementById f  :?> HTMLInputElement
-        let found, c = Axes.controls.TryGetValue(f)
+        let found, c = controlsMap.TryGetValue(f)
         if found then
             match c with
             | Range(_) -> f, System.Int32.Parse input.value :> obj
@@ -47,7 +48,7 @@ let tweensSvg (text : string) =
     let mutable yOffset = 0
     let svg, lineWidths, lineHeights =
         List.unzip3
-            [for field, c in Axes.controls |> Map.toSeq do
+            [for field, c in Axes.controls do
                 let fonts = 
                     match c with
                     | Range(from, upto) ->
@@ -112,42 +113,39 @@ let init =
     tweens.``type`` <- "checkbox"
     inputs.appendChild tweens |> ignore
 
-    for f, _ in fieldDefaults do
-        if Axes.controls.ContainsKey f then
-            let label = document.createElement "label" :?> HTMLLabelElement
-            label.htmlFor <- f
-            label.innerText <- (f + "  ")
-            inputs.appendChild label |> ignore
-            let input = document.createElement "input" :?> HTMLInputElement
-            input.id <- f
-            input.oninput <- generate
-            let c = Axes.controls.[f]
-            match c with
-            | Range(x, y) -> 
-                input.``type`` <- "range"
-                input.min <- string x
-                input.max <- string y 
-                input.step <- string ((y-x)/20)
-                input.value <- string fieldDefaultsMap.[f]
-            | FracRange(x, y) ->
-                input.``type`` <- "range"
-                input.min <- string x
-                input.max <- string y
-                input.step <- "0.05" 
-                input.value <- string fieldDefaultsMap.[f]
-            | Checkbox ->
-                input.``type`` <- "checkbox"
-                input.``checked`` <- fieldDefaultsMap.[f] :?> bool
-            inputs.appendChild input |> ignore
+    for f, c in Axes.controls do
+        let label = document.createElement "label" :?> HTMLLabelElement
+        label.htmlFor <- f
+        label.innerText <- (f + "  ")
+        inputs.appendChild label |> ignore
+        let input = document.createElement "input" :?> HTMLInputElement
+        input.id <- f
+        input.oninput <- generate
+        match c with
+        | Range(x, y) -> 
+            input.``type`` <- "range"
+            input.min <- string x
+            input.max <- string y 
+            input.step <- string ((y-x)/20)
+            input.value <- string fieldDefaultsMap.[f]
+        | FracRange(x, y) ->
+            input.``type`` <- "range"
+            input.min <- string x
+            input.max <- string y
+            input.step <- "0.05" 
+            input.value <- string fieldDefaultsMap.[f]
+        | Checkbox ->
+            input.``type`` <- "checkbox"
+            input.``checked`` <- fieldDefaultsMap.[f] :?> bool
+        inputs.appendChild input |> ignore
 
 ///Pick random inputs
 let randomise reset _ = 
     let rnd = System.Random()
     let fracAsDefault = if reset then 1.0 else 0.4
     let checkboxFracAsDefault = if reset then 1.0 else 0.7
-    for f, c in Axes.controls |> Map.toSeq do
+    for f, c in Axes.controls do
         let input = document.getElementById f :?> HTMLInputElement
-        let c = Axes.controls.[f]
         match c with
         | Range(x, y) -> 
             input.value <- if rnd.NextDouble() < fracAsDefault then
