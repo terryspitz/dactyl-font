@@ -43,7 +43,7 @@ type SplinePointType =
 
 
 /// ControlPoint is a lot like `Knot` but has no UI, is used for spline solving.
-type SplineControlPoint(pt, ty, lth, rth) = 
+type SplineControlPoint(pt, ty, lth : float option, rth : float option) = 
     new(pt, ty) = SplineControlPoint(pt, ty, None, None)
 
     member val pt : Vec2 = pt with get

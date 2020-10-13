@@ -17,7 +17,7 @@ A few predefined Dactyl fonts are available to download in the [ttf](https://git
 Dactyl fonts use and are inspired by Ralph Levien's [Spiro curves](https://www.levien.com/spiro/).  I used Wiesław Šoltés's [C# port](https://github.com/wieslawsoltes/SpiroNet)
 which I've ported to F# to run under the fantastic [Fable](https://fable.io/) to transpile to javascript.
 
-Raph superceded his spiro curves in 2018 with https://github.com/raphlinus/spline-research.  This might be a future direction for Dactyl as it offers direct control of tangents specifically to help font design.
+Raph superceded his spiro curves in 2018 with https://github.com/raphlinus/spline-research.  This might be a future direction for Dactyl as it offers direct control of tangents specifically to help font design. See https://www.youtube.com/watch?v=eqNngVkMBzE
 
 ## Variable fonts
 
@@ -34,6 +34,8 @@ Dactyl is also inspired by Variable Fonts technology.  Unfortunately though it i
 <https://play.typedetail.com>
 
 <https://www.axis-praxis.org>
+
+<https://alistapart.com/article/user-interfaces-for-variable-fonts/>
 
 
 ## Font creation/import formats
@@ -68,6 +70,14 @@ On letter spacing, tracking and kerning:
 <https://www.fontshop.com/content/adventures-in-space_spacing>
 
 <https://typefacts.com/artikel/kerningtest>
+
+<https://www.typography.com/blog/typographic-illusions>
+
+<https://www.typography.com/blog/turning-type-sideways>
+
+<https://design.google/library/google-fonts>
+
+
 
 ## Where it all started
 

@@ -10,7 +10,7 @@ type Controls =
 type Axes = {
     width : int                 //width of normal glyph
     height : int                //capital height
-    x_height : int              //height of lower case
+    x_height : float            //height of lower case as a fraction of capitals
     thickness : int             //stroke width
     contrast : float            //make vertical lines thicker
     roundedness : int           //roundedness
@@ -38,7 +38,7 @@ type Axes = {
     static member DefaultAxes = { 
         width = 300
         height = 600
-        x_height = 400
+        x_height = 0.6
         thickness = 30
         contrast = 0.05
         roundedness = 100
@@ -64,7 +64,7 @@ type Axes = {
     static member controls = [
         "width", Range(100, 1000)
         "height", Range(400, 1000)
-        "x_height", Range(0, 1000)
+        "x_height", FracRange(0., 2.)
         "thickness", Range(1, 200)
         "contrast", FracRange(-0.5, 0.5)
         "roundedness", Range(0, 300)

@@ -34,13 +34,15 @@ let main argv =
         ("Dactyl Stroked", "Regular", Font({Axes.DefaultAxes with stroked = true; thickness = 60;}))
         ("Dactyl Scratch", "Regular", Font({Axes.DefaultAxes with scratches = true; thickness = 60;}))
         ("Dactyl Roman", "Regular", Font({Axes.DefaultAxes with serif=30}))
-        ("Dactyl Smooth", "Regular", Font({Axes.DefaultAxes with spline_not_spiro=true; smooth=false}))
+        ("Dactyl Smooth", "Regular", Font({Axes.DefaultAxes with spline_not_spiro=true; smooth=true}))
     ]
 
-    let debug = false
+    // let debug = false
+    let debug = true
     if debug then
-        let _, _, font = fonts.[0]
-        font.charToSvg 'O' 0 0 |> ignore
+        let font = Font({Axes.DefaultAxes with spline_not_spiro=true; outline=false})
+        // let font = fonts.[0]
+        font.charToSvg 'f' 0 0 |> ignore
 
     // SVG output, side by side
     let rowHeights = List.scan (+) 0 [
@@ -48,7 +50,6 @@ let main argv =
             let _, _, font = fonts.[i] in (200 + font.charHeight * 2)]
     let text = ["THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789"
                 """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./"""]
-    // let text = ["Q"]
     [for i in 0..fonts.Length-1 do
         let name, _, font = fonts.[i]
         printfn "\n%s\n" name
@@ -106,7 +107,7 @@ let main argv =
             for r in 1..10 do
             for c in 1..10 do
                 let font = Font({Axes.DefaultAxes with 
-                                            x_height = (11-r)*60; roundedness = c*30; thickness = r*6;})
+                                            x_height = float (11-r) * 0.2; roundedness = c*30; thickness = r*6;})
                 yield! font.stringToSvg [str] 0 0
         ] |> writeFile @".\interp.svg"
 

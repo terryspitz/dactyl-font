@@ -532,7 +532,7 @@ let solve_spiro (s: SpiroSegment[]) nseg =
         let v = Array.create n_alloc 0.0
         let perm = Array.create n_alloc 0
 
-        let threshold = 1e-12
+        let threshold = 1e-2
         let mutable norm = 1.0
         let mutable i = 0
         while i < 60 && norm > threshold && check_finiteness s nseg do
@@ -570,6 +570,7 @@ let get_mid x0 y0 x1 y1 scale rot (ks : float[]) (ksub : float[]) =
 
 let run_spiro (src : SpiroControlPoint[]) isClosed =
     let n = src.Length
+    let t0, tN = src.[0].Type, src.[n-1].Type
     if not isClosed then
         src.[0].Type <- SpiroPointType.OpenContour
         src.[n-1].Type <- SpiroPointType.EndOpenContour
@@ -583,6 +584,8 @@ let run_spiro (src : SpiroControlPoint[]) isClosed =
         let cyclic = s.[0].Type <> SpiroPointType.OpenContour && s.[0].Type <> SpiroPointType.Corner
         if not isClosed then
             s.[nseg].tangent1 <- s.[nseg-1].tangent2
+        s.[0].Type <- t0
+        s.[n-1].Type <- tN
         Some s
     else
         None        

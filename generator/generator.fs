@@ -171,7 +171,7 @@ type Font (axes: Axes) =
 
     // Y axis guides, from bottom-up
     let B = 0               // Bottom
-    let X = axes.x_height   // x-height
+    let X = int (axes.x_height * float axes.height) // x-height
     let M = X/2             // Midway down from x-height
     let T = axes.height     // Top = standard glyph caps height
     let H = T/2             // Half total height
@@ -235,37 +235,46 @@ type Font (axes: Axes) =
         | Space -> [SpiroSpace]
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem) 
 
-    let toSplineControlPoint (p : Point, t : SpiroPointType) =
-        let x,y = getXY p
-        let ty = match t with 
-                    | SpiroPointType.Corner 
-                    | SpiroPointType.OpenContour | SpiroPointType.EndOpenContour | SpiroPointType.End
-                    | SpiroPointType.Anchor | SpiroPointType.Handle
-                        -> if axes.smooth then SplinePointType.Smooth else SplinePointType.Corner
-                    | SpiroPointType.Left 
-                        -> SplinePointType.CurveToLine
-                    | SpiroPointType.Right 
-                        -> SplinePointType.LineToCurve
-                    | SpiroPointType.G2 | SpiroPointType.G4
-                        -> SplinePointType.Smooth
-                    | _ -> invalidArg "ty" (sprintf "Unexpected SpiroPointType %A" t) 
+    let toSplineControlPoint (pts : list<Point * SpiroPointType>) =
+        [|for i in 0..pts.Length-1 do
+            let p, t = pts.[i]
+            let x,y = getXY p
+            if t = SpiroPointType.Anchor then
+                let p2, _ = pts.[i+1]
+                let x2,y2 = getXY (p2 - p)
+                let rth = atan2 (float y2) (float x2)
+                yield SplineControlPoint(   {x=float x;y=float y},
+                                            (if axes.smooth then SplinePointType.Smooth else SplinePointType.Corner),
+                                            None, Some rth), t
+            else if t <> SpiroPointType.Handle then
+                let ty = match t with 
+                            | SpiroPointType.Corner 
+                            | SpiroPointType.OpenContour | SpiroPointType.EndOpenContour | SpiroPointType.End
+                                -> if axes.smooth then SplinePointType.Smooth else SplinePointType.Corner
+                            | SpiroPointType.Left 
+                                -> if axes.smooth then SplinePointType.Smooth else SplinePointType.CurveToLine
+                            | SpiroPointType.Right 
+                                -> if axes.smooth then SplinePointType.Smooth else SplinePointType.LineToCurve
+                            | SpiroPointType.G2 | SpiroPointType.G4
+                                -> SplinePointType.Smooth
+                            | _ -> invalidArg "ty" (sprintf "Unexpected SpiroPointType %A" t) 
 
-        // let pt = new ControlPoint(new Vec2(knot.x, knot.y), knot.ty, knot.lth, knot.rth);
-        SplineControlPoint({x=float x;y=float y}, ty)
-    
+                yield SplineControlPoint({x=float x;y=float y}, ty), t
+        |]
+
     let rec elementToSpline elem =
-        let toSegs pts isClosed =
-            let ctrlPts = List.map toSplineControlPoint pts |> Array.ofList
-            let spline = Spline(ctrlPts, isClosed)
+        let toSegs (pts : list<Point * SpiroPointType>) isClosed =
+            let ctrlPts = toSplineControlPoint pts
+            let spline = Spline(Array.map fst ctrlPts, isClosed)
             spline.solve(axes.max_spline_iter)
             // printfn "spline"
             // for pt in spline.ctrlPts do
             //     printfn "%f %f %f %f" pt.pt.x pt.pt.y pt.lTh pt.rTh
-            assert (spline.ctrlPts.Length = pts.Length)
-            [for i in 0..pts.Length-1 do
-                let ty = snd pts.[i]
+            // assert (spline.ctrlPts.Length = pts.Length)  // other than Handles
+            [for i in 0..ctrlPts.Length-1 do
+                let ty = snd ctrlPts.[i]
                 let pt = spline.ctrlPts.[i]
-                let pt1 = if i<pts.Length-1 then spline.ctrlPts.[i+1] else spline.ctrlPts.[0]
+                let pt1 = if i<ctrlPts.Length-1 then spline.ctrlPts.[i+1] else spline.ctrlPts.[0]
                 {
                     SpiroSegment.X = pt.pt.x; Y = pt.pt.y; Type = ty
                     bend_th = 0.
@@ -311,8 +320,8 @@ type Font (axes: Axes) =
 
     let rec elementToSplineSvg elem =
         let toSvg pts isClosed =
-            let ctrlPts = List.map toSplineControlPoint pts |> Array.ofList
-            let spline = Spline(ctrlPts, isClosed)
+            let ctrlPts = toSplineControlPoint pts
+            let spline = Spline(Array.map fst ctrlPts, isClosed)
             spline.solve(axes.max_spline_iter)
             [spline.render().renderSvg()]
         match elem with
@@ -468,6 +477,7 @@ type Font (axes: Axes) =
                                    (XC, G2); (ML, G2); (BC, G2); (YX(B + max 0 (offset-thickness),R), End)])
         | Glyph('F') -> EList([PolyLine([TR; TL; BL]); Line(HL, HRo)])
         | Glyph('f') -> EList([OpenCurve([(TC, Start); (XL, CurveToLine); (BL, End)]); Line(XL, XC)])
+        // | Glyph('f') -> EList([OpenCurve([(TC, Anchor); (TL, Handle); (XL, CurveToLine); (BL, End)]); Line(XL, XC)])
         | Glyph('G') -> OpenCurve([(ToR, G2); (TC, G2); (HL, G2); (BC, G2); (YX(H-flooredOffset,R), CurveToLine); (HR, Corner); (HC, End)])
         | Glyph('g') -> EList([OpenCurve([(XR, Corner); (BR, LineToCurve); (DC, G2); (DoL, End)]);
                                adgqLoop;])
@@ -696,7 +706,7 @@ type Font (axes: Axes) =
         let offsetPointCap X Y theta = addPolarContrast X Y theta (fthickness * sqrt 2.0)
         let offsetMidSegments segments reverse =
             this.offsetSegments segments 1 (segments.Length-2) reverse false fthickness
-        let cap X Y theta isJoint =
+        let cap X Y theta isJoint ty =
             let thetaAligned = this.align theta
             //make serif on endcap
             if serif > 0.0 && not isJoint then
@@ -707,7 +717,7 @@ type Font (axes: Axes) =
                  (addPolarContrast X Y (thetaAligned + PI * 0.5 - serifAng) serifDist, Corner);
                  (addPolarContrast X Y (thetaAligned - PI * 0.5 + serifAng) serifDist, Corner);
                  (addPolarContrast X Y (thetaAligned - PI * 0.5 - serifAng) serifDist, Corner);
-                 (addPolarContrast X Y (thetaAligned - PI * 0.75) (fthickness * sqrt 2.0), Corner)]
+                 (addPolarContrast X Y (thetaAligned - PI * 0.75) (fthickness * sqrt 2.0), ty)]
             //make flared endcap
             elif this.axes.flare <> 0.0 && not isJoint then
                 let preflareDist, preflareAng = toPolar fthickness -(fthickness*0.80)
@@ -717,18 +727,20 @@ type Font (axes: Axes) =
                  (addPolarContrast X Y (thetaAligned + PI * 0.5 - flareAng) flareDist, Corner);
                  (addPolarContrast X Y (thetaAligned - PI * 0.5 + flareAng) flareDist, Corner);
                  (addPolarContrast X Y (theta - preflareAng) preflareDist, CurveToLine);
-                 (addPolarContrast X Y (theta - PI * 0.75) (fthickness * sqrt 2.0), Corner)]
+                 (addPolarContrast X Y (theta - PI * 0.75) (fthickness * sqrt 2.0), ty)]
             elif this.axes.end_bulb <> 0.0 || isJoint then
                 [(offsetPointCap X Y (thetaAligned + PI * 0.25), Corner);
                  (addPolarContrast X Y thetaAligned (fthickness * (1.0+this.axes.end_bulb)), G2);
-                 (offsetPointCap X Y (thetaAligned - PI * 0.25), Corner)]
+                 (offsetPointCap X Y (thetaAligned - PI * 0.25), ty)]
             else
                 [(offsetPointCap X Y (thetaAligned + PI * 0.25), Corner);
-                 (offsetPointCap X Y (thetaAligned - PI * 0.25), Corner)]
+                 (offsetPointCap X Y (thetaAligned - PI * 0.25), ty)]
         let startCap (seg : SpiroSegment) =
-            cap seg.X seg.Y (seg.tangent1 + PI) (this.isJoint ch seg)
+            let ty = if seg.Type = SpiroPointType.Anchor then SpiroPointType.Anchor else SpiroPointType.Corner
+            cap seg.X seg.Y (seg.tangent1 + PI) (this.isJoint ch seg) ty
         let endCap (seg : SpiroSegment) (lastSeg : SpiroSegment) = 
-            cap seg.X seg.Y (lastSeg.tangent2) (this.isJoint ch seg)
+            let ty = if seg.Type = SpiroPointType.Anchor then SpiroPointType.Anchor else SpiroPointType.Corner
+            cap seg.X seg.Y (lastSeg.tangent2) (this.isJoint ch seg) ty
         let spiroToOutline spiro =
             match spiro with
             | SpiroOpenCurve(segments) ->
