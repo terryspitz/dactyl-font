@@ -3,6 +3,7 @@ module FontForge
 open System.IO
 open System.Text.RegularExpressions
 
+open GeneratorTypes
 open Generator
 
 
