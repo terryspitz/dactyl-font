@@ -37,6 +37,7 @@ module Generator
 
 
 open System
+open System.Collections
 
 open GeneratorTypes
 open SpiroPointType
@@ -45,6 +46,7 @@ open SpiroControlPoint
 open PathBezierContext
 open Axes
 open Curves
+open System.Text.RegularExpressions
 
 
 // Attach extension method to segment class
@@ -86,12 +88,12 @@ let svgText x y text =
 
 let toSvgDocument left bottom width height svg =
     [
-        "<svg xmlns='http://www.w3.org/2000/svg'";
-        sprintf "viewBox='%d %d %d %d'>" left bottom width height;
-        "<g id='layer1'>";
+        "<svg xmlns='http://www.w3.org/2000/svg'"
+        sprintf "viewBox='%d %d %d %d'>" left bottom width height
+        "<g id='layer1'>"
     ] @ svg @ [
-        "</g>";
-        "</svg>";
+        "</g>"
+        "</svg>"
     ]
 
 ///normalise angle to between PI/2 and -PI/2
@@ -315,6 +317,189 @@ type Font (axes: Axes) =
     //RightUpright: GJadgq
     //Other: QUefhtu25@#$€£_&-+{}%
 
+    member this.getGlyphDef e = 
+        /// Defines glyphs using following symbols:
+        /// y coordinates: (b)ottom, (t)op, (h)alf height, (x)-height, (d)escender
+        /// (o) adds a 'roundness' offset
+        /// x coordinates: (l)eft, (r)ight, (c)enter, (w)ide (em-width)
+        /// note multiple y or x coordinates means average across them, so "bt"="h" and "bbt" means one-third up
+        /// lines/curves: (-) straight line, (~) curve, note: lines join curves smoothly, (.) for a corner
+        /// ( ) terminates a curve, a preceeding (- or ~) means closed curve (rejoins first point)
+        /// Solo points become dots
+        let y_re = "[txhbd]+"
+        let offset_re = "o"
+        let x_re = "[lrcw]+"
+        let line_re = "[-~.]"
+        let separator_re = " "
+        let optional_re x = x + "?"
+        let point_re = y_re + optional_re offset_re + x_re
+        let curve_re = "(" + point_re + line_re + ")*" + point_re + optional_re line_re
+        let glyph_re = "(" + curve_re + separator_re + ")*" + curve_re
+
+        let def = 
+            match e with
+            | Glyph('.') -> "bl"
+            | Glyph(',') -> "blc-bbdl"
+            | Glyph(''') -> "tl-thl"
+            | Glyph('’') -> "tl-thl"
+            | Glyph('A') -> "bl-tc-br bhlc-bhrc"
+            | Glyph('a') -> "xr-br xor~xc~xbl~bc~bor"
+            | Glyph('B') -> "hl~bhr~bl.bl-tl.tl~thr~hl"
+            | Glyph('b') -> "tl-bl bol~bc~xbr~xc~xol"
+            | Glyph('C') -> "tor~tc~hl~bc~bor"
+            | Glyph('c') -> "xor~xc~xbl~bc~bor"
+            | Glyph('D') -> "tl-bl.bl~hr~tl."
+            | Glyph('d') -> "tr-br xor~xc~xbl~bc~bor"
+            | Glyph('E') -> "tr-tl-bl-br hl-hr"
+            | Glyph('e') -> "xbl-xbr.xbr~xc~xbl~bc~xbbbr"
+            | Glyph('F') -> "bl-tl-tr hl-hrc"
+            | Glyph('f') -> "bl-xl~tc xl-xc"
+            | Glyph('G') -> "tor~tc~hl~bc~hr.hr-hc"
+            | Glyph('g') -> "xr-br~dc~dbl xor~xc~xbl~bc~bor"
+            | Glyph('H') -> "tl-bl hl-hr tr-br"
+            | Glyph('h') -> "tl-bl xol~xc~xbr-br"
+            | Glyph('I') -> "tl-tr tc-bc bl-br"
+            | Glyph('i') -> "xl-bl xtl"
+            | Glyph('J') -> "tl-tr.tr-hr~bc~bol"
+            | Glyph('j') -> "xc-bc~dl xtc"
+            | Glyph('K') -> "tl-bl tr-hl-br"
+            | Glyph('k') -> "tl-bl xcr-xbl-bcr"
+            | Glyph('L') -> "tl-bl-br"
+            | Glyph('l') -> "tl-xbl~bc"
+            | Glyph('M') -> "bl-tl-blw-tw-bw"
+            | Glyph('m') -> "xl-bl xol~xllw~xblw-blw xxblw~xlwwww~xbw-bw"
+            | Glyph('N') -> "bl-tl-br-tr"
+            | Glyph('n') -> "xl-bl xol~xllw~xblw-blw"
+            | Glyph('O') -> "hl~tc~hr~bc~"
+            | Glyph('o') -> "xbl~xc~xbr~bc~"
+            | Glyph('P') -> "bl-tl.tl~thr~hl"
+            | Glyph('p') -> "xl-dl bol~bc~xbr~xc~xol"
+            | Glyph('Q') -> "hl~tc~hr~bc~ br-hbc"
+            | Glyph('q') -> "xr-dr xor~xc~xbl~bc~bor"
+            | Glyph('R') -> "bl-tl.tl~thr~hcl-hl hc-br"
+            | Glyph('r') -> "xl-bl xol~xc~xor"
+            | Glyph('S') -> "thr~tc~ttbl~hc~tbbr~bc~bhl"
+            | Glyph('s') -> "xor~xc~xxbl~xbc~xbbr~bc~bol"
+            | Glyph('T') -> "tl-tr tc-bc"
+            | Glyph('t') -> "tl-xbl~bc xl-xc"
+            | Glyph('U') -> "tl-hl~bc~hr-tr"
+            | Glyph('u') -> "xl-xbl~bc~xbr-xr xr-br"
+            | Glyph('V') -> "tl-bc-tr"
+            | Glyph('v') -> "xl-bc-xr"
+            | Glyph('W') -> "tl-blllw-tlw-blwww-tw"
+            | Glyph('w') -> "xl-blllw-xlw-blwww-xw"
+            | Glyph('X') -> "tl-br tr-bl"
+            | Glyph('x') -> "xl-br xr-bl"
+            | Glyph('Y') -> "tl-hc-tr hc-bc"
+            | Glyph('y') -> "xl-xbl~bc~xbr-xr xr-br~dc~dbl"
+            | Glyph('Z') -> "tl-tr-bl-br"
+            | Glyph('z') -> "xl-xr-bl-br"
+            //default
+            | Glyph(c) -> printfn "Glyph %c not defined" c
+                          "xl"
+        
+        assert Regex.IsMatch(def, glyph_re)
+        
+        // parse
+        let parse_point def_raw =
+            let mutable def = def_raw
+            // y_coord
+            let match_ = Regex.Match(def, "^" + y_re)
+            // printfn "ycoord %A" match_
+            let ys = match_.Value
+            let y_coords = [
+                for y in ys do
+                    match y with
+                    | 't' -> T
+                    | 'x' -> X
+                    | 'h' -> H
+                    | 'b' -> B
+                    | 'd' -> D
+                    ]
+            let mutable y_coord = List.averageBy float y_coords |> int
+            def <- def.[match_.Length..]
+            // printfn "post-ycoord %A" def_left
+            // offset
+            if def.StartsWith(offset_re) then
+                def <- def.[1..]
+                y_coord <- if y_coord > H then y_coord-offset else y_coord+offset
+            // printfn "post-offset %A" def_left
+            // x_coord-------------------------------------
+            let match_ = Regex.Match(def, "^" + x_re)
+            // printfn "xcoord match %A" match_
+            let xs = match_.Value
+            let x_coords = [
+                for x in xs do
+                    match x with
+                    | 'l' -> L
+                    | 'c' -> C
+                    | 'r' -> R
+                    | 'w' -> R*3/2]
+            let x_coord = List.averageBy float x_coords |> int
+            def <- def.[match_.Length..]
+            // printfn "%A" def_left
+            YX(y_coord, x_coord), def
+
+        let parse_curve(raw_def) =
+            let mutable pts, lines = [], []
+            let mutable def : string = raw_def
+            let mutable last_line = ""
+            while def.Length > 0 do
+                let pt, new_def = parse_point(def)
+                def <- new_def
+                if last_line = "." then
+                    assert (pt = pts.[pts.Length-1])
+                else
+                    pts <- pts @ [pt]
+                // line_re
+                let match_ = Regex.Match(def, "^" + line_re)
+                if match_.Success then
+                    // printfn "line match %A" match_
+                    if match_.Value = "-" then
+                        if last_line = "~" then
+                            lines <- lines @ [CurveToLine]
+                        else
+                            lines <- lines @ [Corner]
+                    elif match_.Value = "~" then
+                        if last_line = "-" then
+                            lines <- lines @ [LineToCurve]
+                        elif last_line = "." then
+                            lines <- lines @ [Corner]
+                        else
+                            lines <- lines @ [G2]
+                    elif match_.Value = "." then
+                        // lines <- lines @ [Corner]
+                        // don't add this line, or next point
+                        ()
+                    else
+                        invalidArg "match_" (sprintf "Unrecognised line separator %A" match_.Value)
+                    last_line <- match_.Value
+                    def <- def.[match_.Length..]
+                else
+                    assert (def.Length = 0)
+                // printfn "post-line %A" def
+            
+
+            // printfn "post-parse curve %A %A %A" pts lines def
+            if pts.Length = 1 then
+                Dot(pts.[0])
+            elif pts.Length = lines.Length then
+                ClosedCurve(List.zip pts (SpiroPointType.G2 :: lines.[..lines.Length-2]))
+            else
+                if last_line = "~" then
+                    lines <- lines @ [G2]
+                else
+                    lines <- lines @ [Corner]
+                OpenCurve(List.zip pts lines)
+
+        printfn "%A: %A" e def
+        if e = Glyph ' ' then
+            Space
+        else
+            let curves = EList([for c in def.Split(separator_re) do parse_curve(c)])
+            printfn "%A" curves
+            curves
+
     member this.getGlyph e =
         let adgqLoop = OpenCurve([(XoR, Corner); (XC, G2); (ML, G2); (BC, G2); (BoR, Corner)])
 
@@ -500,7 +685,8 @@ type Font (axes: Axes) =
         | Dot(p) -> Dot(YX(reducePoint(p)))
         | EList(elems) -> EList(List.map this.reduce elems)
         | Space -> Space
-        | e -> this.getGlyph(e) |> this.reduce
+        // | e -> this.getGlyph(e) |> this.reduce
+        | e -> if axes.text_def then this.getGlyphDef(e) else this.getGlyph(e) |> this.reduce
 
     member this.elemWidth e =
         let maxX pts = List.fold max 0 (List.map (fst >> getXY >> fst) pts)

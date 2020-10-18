@@ -40,22 +40,26 @@ let main argv =
     // let debug = false
     let debug = true
     if debug then
-        let font = Font({Axes.DefaultAxes with spline_not_spiro=true; outline=false})
-        // let font = fonts.[0]
-        font.charToSvg 'f' 0 0 |> ignore
+        // let font = Font({Axes.DefaultAxes with spline_not_spiro=true; outline=false})
+        let _, _, font = fonts.[0]
+        printfn "%A" (font.charToSvg 'B' 0 0)
 
     // SVG output, side by side
     let rowHeights = List.scan (+) 0 [
         for i in 0..fonts.Length-1 do
             let _, _, font = fonts.[i] in (200 + font.charHeight * 2)]
-    let text = ["THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789"
-                """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./"""]
+    // let text = ["THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789"
+    //             """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./"""]
+    let text = ["abcdefghijklmnopqrstuvwxyz 0123456789"
+                """ABCDEFGHIJKLMNOPQRSTUVWXYZ !"#£$%&'()*+,-./"""]
     [for i in 0..fonts.Length-1 do
         let name, _, font = fonts.[i]
         printfn "\n%s\n" name
+        yield sprintf "<g id='%s%d'>" name i
         let y = rowHeights.[i]
         yield svgText 0 (y+200) name
         yield! font.stringToSvgLines text 0 (y+400)
+        yield "</g>"
     ] |> toSvgDocument 0 0 (Axes.DefaultAxes.width * 70) (List.max rowHeights) |> writeFile @".\allGlyphs.svg"
 
 

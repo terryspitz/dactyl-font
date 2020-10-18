@@ -8,6 +8,7 @@ type Controls =
 
 // Variable which define the font characteristics (named after Variable Font terminology)
 type Axes = {
+    text_def : bool             //use new string based glyph definitions, vs. older code ones
     width : int                 //width of normal glyph
     height : int                //capital height
     x_height : float            //height of lower case as a fraction of capitals
@@ -35,7 +36,8 @@ type Axes = {
     constraints : bool          //check joints to turn off serifs
     smooth : bool               //no corners
 } with
-    static member DefaultAxes = { 
+    static member DefaultAxes = {
+        text_def = true
         width = 300
         height = 600
         x_height = 0.6
@@ -62,6 +64,7 @@ type Axes = {
         smooth = false
     }
     static member controls = [
+        "text_def", Checkbox
         "width", Range(100, 1000)
         "height", Range(400, 1000)
         "x_height", FracRange(0., 2.)
