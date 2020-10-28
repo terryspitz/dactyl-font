@@ -41,10 +41,9 @@ let SpiroCPsToSegments spiros isClosed =
 /// <summary>
 /// Convert spiro segment list into bezier curves, using the output of SpiroCPsToSegments.
 /// </summary>
-let SpirosToBezier (spiros : SpiroSegment.SpiroSegment[] option) isClosed bc =
-    match spiros with
-    | Some segs -> 
-        let nSeg = if isClosed then segs.Length - 1 else segs.Length
-        SpiroImpl.spiro_to_bpath segs nSeg bc
-        true
-    | None -> false
+let SpirosToBezier (segs : SpiroSegment.SpiroSegment[]) isClosed bc =
+    let nSeg = if isClosed then segs.Length - 1 else segs.Length
+    if not isClosed then
+        segs.[0].Type <- SpiroPointType.OpenContour
+        segs.[segs.Length-1].Type <- SpiroPointType.EndOpenContour
+    SpiroImpl.spiro_to_bpath segs nSeg bc

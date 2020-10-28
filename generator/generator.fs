@@ -99,6 +99,8 @@ let toSvgDocument left bottom width height svg =
 ///normalise angle to between PI/2 and -PI/2
 let norm th = if th>PI then th-PI*2.0 else if th<(-PI) then th+PI*2.0 else th
 
+let black = "#000000"
+let red = "#e00000"
 
 //class
 type Font (axes: Axes) =
@@ -166,11 +168,11 @@ type Font (axes: Axes) =
         | OpenCurve(pts) ->
             match Spiro.SpiroCPsToSegments (List.map makeSCP pts |> Array.ofList) false with
             | Some segs -> [SpiroOpenCurve(Array.toList segs)]
-            | None -> [SpiroSpace]
+            | None -> [SpiroDot(BC)]
         | ClosedCurve(pts) ->
             match Spiro.SpiroCPsToSegments (List.map makeSCP pts |> Array.ofList) true with
             | Some segs -> [SpiroClosedCurve(Array.toList segs)]
-            | None -> [SpiroSpace]
+            | None -> [SpiroDot(BC)]
         | Dot(p) -> [SpiroDot(p)]
         | EList(elems) -> List.collect elementToSpiros elems
         | Space -> [SpiroSpace]
@@ -239,7 +241,7 @@ type Font (axes: Axes) =
         | Space -> [SpiroSpace]
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem) 
 
-    let elementToSegments elem =
+    let elementToSpiroSegments elem =
         let e = 
             if axes.spline_not_spiro then
                 elementToSpline elem
@@ -275,7 +277,7 @@ type Font (axes: Axes) =
 
     //apply a transformation fn: Spiros -> Elements
     let applyToSegments fn elem = 
-        let elems = elementToSegments elem |> List.collect fn
+        let elems = elementToSpiroSegments elem |> List.collect fn
         if elems.Length > 1 then EList(elems) else elems.[0]
 
     //cache fn results to avoid recalcs
@@ -318,14 +320,18 @@ type Font (axes: Axes) =
     //Other: QUefhtu25@#$€£_&-+{}%
 
     member this.getGlyphDef e = 
+        /// A minimal language for defining glyph outlines (AMLFDGO)
         /// Defines glyphs using following symbols:
         /// y coordinates: (b)ottom, (t)op, (h)alf height, (x)-height, (d)escender
-        /// (o) adds a 'roundness' offset
+        /// (o) adds/subtracts a 'roundness' offset to y
         /// x coordinates: (l)eft, (r)ight, (c)enter, (w)ide (em-width)
         /// note multiple y or x coordinates means average across them, so "bt"="h" and "bbt" means one-third up
-        /// lines/curves: (-) straight line, (~) curve, note: lines join curves smoothly, (.) for a corner
-        /// ( ) terminates a curve, a preceeding (- or ~) means closed curve (rejoins first point)
+        /// lines/curves: (-) straight line, (~) curve, note: lines join curves smoothly 
+        /// (.) for a corner (which requires a repeated point on both sides, sorry!)
+        /// ( ) terminates a curve, a preceeding (- or ~) means closed curve (last point rejoins first point)
         /// Solo points become dots
+
+        /// Regex checker for the language
         let y_re = "[txhbd]+"
         let offset_re = "o"
         let x_re = "[lrcw]+"
@@ -334,72 +340,113 @@ type Font (axes: Axes) =
         let optional_re x = x + "?"
         let point_re = y_re + optional_re offset_re + x_re
         let curve_re = "(" + point_re + line_re + ")*" + point_re + optional_re line_re
-        let glyph_re = "(" + curve_re + separator_re + ")*" + curve_re
+        let glyph_re = "^ ?$|^(" + curve_re + separator_re + ")*" + curve_re + "$"
 
         let def = 
             match e with
-            | Glyph('.') -> "bl"
-            | Glyph(',') -> "blc-bbdl"
-            | Glyph(''') -> "tl-thl"
-            | Glyph('’') -> "tl-thl"
-            | Glyph('A') -> "bl-tc-br bhlc-bhrc"
-            | Glyph('a') -> "xr-br xor~xc~xbl~bc~bor"
-            | Glyph('B') -> "hl~bhr~bl.bl-tl.tl~thr~hl"
-            | Glyph('b') -> "tl-bl bol~bc~xbr~xc~xol"
-            | Glyph('C') -> "tor~tc~hl~bc~bor"
-            | Glyph('c') -> "xor~xc~xbl~bc~bor"
-            | Glyph('D') -> "tl-bl.bl~hr~tl."
-            | Glyph('d') -> "tr-br xor~xc~xbl~bc~bor"
-            | Glyph('E') -> "tr-tl-bl-br hl-hr"
-            | Glyph('e') -> "xbl-xbr.xbr~xc~xbl~bc~xbbbr"
-            | Glyph('F') -> "bl-tl-tr hl-hrc"
-            | Glyph('f') -> "bl-xl~tc xl-xc"
-            | Glyph('G') -> "tor~tc~hl~bc~hr.hr-hc"
-            | Glyph('g') -> "xr-br~dc~dbl xor~xc~xbl~bc~bor"
-            | Glyph('H') -> "tl-bl hl-hr tr-br"
-            | Glyph('h') -> "tl-bl xol~xc~xbr-br"
-            | Glyph('I') -> "tl-tr tc-bc bl-br"
-            | Glyph('i') -> "xl-bl xtl"
-            | Glyph('J') -> "tl-tr.tr-hr~bc~bol"
-            | Glyph('j') -> "xc-bc~dl xtc"
-            | Glyph('K') -> "tl-bl tr-hl-br"
-            | Glyph('k') -> "tl-bl xcr-xbl-bcr"
-            | Glyph('L') -> "tl-bl-br"
-            | Glyph('l') -> "tl-xbl~bc"
-            | Glyph('M') -> "bl-tl-blw-tw-bw"
-            | Glyph('m') -> "xl-bl xol~xllw~xblw-blw xxblw~xlwwww~xbw-bw"
-            | Glyph('N') -> "bl-tl-br-tr"
-            | Glyph('n') -> "xl-bl xol~xllw~xblw-blw"
-            | Glyph('O') -> "hl~tc~hr~bc~"
-            | Glyph('o') -> "xbl~xc~xbr~bc~"
-            | Glyph('P') -> "bl-tl.tl~thr~hl"
-            | Glyph('p') -> "xl-dl bol~bc~xbr~xc~xol"
-            | Glyph('Q') -> "hl~tc~hr~bc~ br-hbc"
-            | Glyph('q') -> "xr-dr xor~xc~xbl~bc~bor"
-            | Glyph('R') -> "bl-tl.tl~thr~hcl-hl hc-br"
-            | Glyph('r') -> "xl-bl xol~xc~xor"
-            | Glyph('S') -> "thr~tc~ttbl~hc~tbbr~bc~bhl"
-            | Glyph('s') -> "xor~xc~xxbl~xbc~xbbr~bc~bol"
-            | Glyph('T') -> "tl-tr tc-bc"
-            | Glyph('t') -> "tl-xbl~bc xl-xc"
-            | Glyph('U') -> "tl-hl~bc~hr-tr"
-            | Glyph('u') -> "xl-xbl~bc~xbr-xr xr-br"
-            | Glyph('V') -> "tl-bc-tr"
-            | Glyph('v') -> "xl-bc-xr"
-            | Glyph('W') -> "tl-blllw-tlw-blwww-tw"
-            | Glyph('w') -> "xl-blllw-xlw-blwww-xw"
-            | Glyph('X') -> "tl-br tr-bl"
-            | Glyph('x') -> "xl-br xr-bl"
-            | Glyph('Y') -> "tl-hc-tr hc-bc"
-            | Glyph('y') -> "xl-xbl~bc~xbr-xr xr-br~dc~dbl"
-            | Glyph('Z') -> "tl-tr-bl-br"
-            | Glyph('z') -> "xl-xr-bl-br"
-            //default
-            | Glyph(c) -> printfn "Glyph %c not defined" c
-                          "xl"
-        
-        assert Regex.IsMatch(def, glyph_re)
-        
+                | Glyph(' ') -> " "
+                | Glyph('!') -> "tc-hbc bc"
+                | Glyph('"') -> "tllr-tthllr tlrr-tthlrr"
+                | Glyph('#') -> ""
+                | Glyph('£') -> ""
+                | Glyph('$') -> ""
+                | Glyph('%') -> ""
+                | Glyph('&') -> ""
+                | Glyph(''') -> "tl-tthl"
+                | Glyph('’') -> "tl-tthl"
+                | Glyph('(') -> ""
+                | Glyph(')') -> ""
+                | Glyph('*') -> ""
+                | Glyph('+') -> ""
+                | Glyph('-') -> ""
+                | Glyph('.') -> "bl"
+                | Glyph(',') -> "blc-bbdl"
+                | Glyph('/') -> ""
+                | Glyph(':') -> ""
+                | Glyph(';') -> ""
+                | Glyph('<') -> ""
+                | Glyph('=') -> ""
+                | Glyph('>') -> ""
+                | Glyph('?') -> ""
+                | Glyph('@') -> ""
+                | Glyph('[') -> ""
+                | Glyph('\\') -> ""
+                | Glyph(']') -> ""
+                | Glyph('^') -> ""
+                | Glyph('_') -> ""
+                | Glyph('`') -> ""
+                | Glyph('{') -> ""
+                | Glyph('|') -> ""
+                | Glyph('}') -> ""
+                | Glyph('~') -> ""
+
+                | Glyph('0') -> "hl~tc~hr~bc~ tr-bl"
+                | Glyph('1') -> "tl-bl"
+                | Glyph('2') -> "tol~tc~tthr~hbc-bl.bl-br"
+                | Glyph('3') -> "tol~tc~thr~hc-hllr hllr-hc~bhr~bc~bol"
+                | Glyph('4') -> "brrrl-trrrl-bhl-bhr"
+                | Glyph('5') -> "tr-tl-hl hl~ttbc~bbtr~bc~bol"
+                | Glyph('6') -> "tor~tc~hl~bc~bbtr~ttbc~hl"
+                | Glyph('7') -> "tl-tr-bcl"
+                | Glyph('8') -> "hc~thl~tc~thr~ hc~bhl~bc~bhr~"
+                | Glyph('9') -> "bol~bc~hr~tc~ttbl~bbtc~ttbr."
+                            
+                | Glyph('A') -> "bl-tc-br bhlc-bhrc"
+                | Glyph('a') -> "xr-br xor~xc~xbl~bc~bor"
+                | Glyph('B') -> "hl-hlc~bhr~bl.bl-tl.tl~thr~hlc-hl"
+                | Glyph('b') -> "tl-bl bol~bc~xbr~xc~xol"
+                | Glyph('C') -> "tor~tc~hl~bc~bor"
+                | Glyph('c') -> "xor~xc~xbl~bc~bor"
+                | Glyph('D') -> "tl-bl.bl~hr~tl."
+                | Glyph('d') -> "tr-br xor~xc~xbl~bc~bor"
+                | Glyph('E') -> "tr-tl-bl-br hl-hr"
+                | Glyph('e') -> "xbl-xbr.xbr~xc~xbl~bc~xbbbr"
+                | Glyph('F') -> "bl-tl-tr hl-hrc"
+                | Glyph('f') -> "bl-xl~tc xl-xc"
+                | Glyph('G') -> "tor~tc~hl~bc~hr.hr-hc"
+                | Glyph('g') -> "xr-br~dc~dbl xor~xc~xbl~bc~bor"
+                | Glyph('H') -> "tl-bl hl-hr tr-br"
+                | Glyph('h') -> "tl-bl xol~xc~xbr-br"
+                | Glyph('I') -> "tl-tr tc-bc bl-br"
+                | Glyph('i') -> "xl-bl xtl"
+                | Glyph('J') -> "tl-tr.tr-hr~bc~bol"
+                | Glyph('j') -> "xc-bc~dl xtc"
+                | Glyph('K') -> "tl-bl tr-hl-br"
+                | Glyph('k') -> "tl-bl xcr-xbl-bcr"
+                | Glyph('L') -> "tl-bl-br"
+                | Glyph('l') -> "tl-xbl~bc"
+                | Glyph('M') -> "bl-tl-blw-tw-bw"
+                | Glyph('m') -> "xl-bl xol~xllw~xblw-blw xxblw~xlwwww~xbw-bw"
+                | Glyph('N') -> "bl-tl-br-tr"
+                | Glyph('n') -> "xl-bl xol~xllw~xblw-blw"
+                | Glyph('O') -> "hl~tc~hr~bc~"
+                | Glyph('o') -> "xbl~xc~xbr~bc~"
+                | Glyph('P') -> "bl-tl.tl~thr~hl"
+                | Glyph('p') -> "xl-dl bol~bc~xbr~xc~xol"
+                | Glyph('Q') -> "hl~tc~hr~bc~ br-hbc"
+                | Glyph('q') -> "xr-dr xor~xc~xbl~bc~bor"
+                | Glyph('R') -> "bl-tl.tl~thr~hcl-hl hc-br"
+                | Glyph('r') -> "xl-bl xol~xc~xor"
+                | Glyph('S') -> "thr~tc~ttbl~hc~tbbr~bc~bhl"
+                | Glyph('s') -> "xor~xc~xxbl~xbc~xbbr~bc~bol"
+                | Glyph('T') -> "tl-tr tc-bc"
+                | Glyph('t') -> "tl-xbl~bc xl-xc"
+                | Glyph('U') -> "tl-hl~bc~hr-tr"
+                | Glyph('u') -> "xl-xbl~bc~xbr-xr xr-br"
+                | Glyph('V') -> "tl-bc-tr"
+                | Glyph('v') -> "xl-bc-xr"
+                | Glyph('W') -> "tl-blllw-tlw-blwww-tw"
+                | Glyph('w') -> "xl-blllw-xlw-blwww-xw"
+                | Glyph('X') -> "tl-br tr-bl"
+                | Glyph('x') -> "xl-br xr-bl"
+                | Glyph('Y') -> "tl-hc-tr hc-bc"
+                | Glyph('y') -> "xl-xbl~bc~xbr-xr xr-br~dc~dbl"
+                | Glyph('Z') -> "tl-tr-bl-br"
+                | Glyph('z') -> "xl-xr-bl-br"
+                //default
+                | Glyph(c) -> printfn "Glyph %c not defined" c
+                              "xl"
+            
         // parse
         let parse_point def_raw =
             let mutable def = def_raw
@@ -492,8 +539,11 @@ type Font (axes: Axes) =
                     lines <- lines @ [Corner]
                 OpenCurve(List.zip pts lines)
 
+        assert Regex.IsMatch(def, glyph_re)
         printfn "%A: %A" e def
-        if e = Glyph ' ' then
+        if def = "" then
+            Dot(HC)
+        elif def = " " then
             Space
         else
             let curves = EList([for c in def.Split(separator_re) do parse_curve(c)])
@@ -686,7 +736,10 @@ type Font (axes: Axes) =
         | EList(elems) -> EList(List.map this.reduce elems)
         | Space -> Space
         // | e -> this.getGlyph(e) |> this.reduce
-        | e -> if axes.text_def then this.getGlyphDef(e) else this.getGlyph(e) |> this.reduce
+        | e -> if axes.new_definitions then
+                    memoize this.getGlyphDef (e)
+                else 
+                    this.getGlyph(e) |> this.reduce
 
     member this.elemWidth e =
         let maxX pts = List.fold max 0 (List.map (fst >> getXY >> fst) pts)
@@ -904,7 +957,7 @@ type Font (axes: Axes) =
     member this.getStroked = 
         applyToSegments (this.spiroToLines 4) >>
             let dummyChar = ' '
-            Font({this.axes with stroked = false; scratches = false; thickness = 2}).getSansOutlines dummyChar
+            Font({Axes.DefaultAxes with thickness = 2}).getSansOutlines dummyChar
 
     member this.getScratches e = 
         let spiroToScratchOutlines spiro =
@@ -994,7 +1047,7 @@ type Font (axes: Axes) =
                     ])
             | SpiroDot(p) -> Dot(p)
             | SpiroSpace -> Space
-        EList(elementToSegments e |> List.map splitSegment)
+        EList(elementToSpiroSegments e |> List.map splitSegment)
 
     member this.italicise e = 
         if this.axes.italic>0.0 && not this.axes.spline_not_spiro then
@@ -1020,16 +1073,22 @@ type Font (axes: Axes) =
             let x, y = getXY point
             let angle = norm angle
             let offset = 20
-            if x = x1 && angle > PI/2. then
+            if type_ <> G2 then
+                [(point, type_)]
+            // if x = x1 && angle > PI/2. then
+            elif x = x1 && angle > 0. then
                 //constain to vertical up
                 [(point, Anchor); (point + YX(offset,0), Handle)]
-            elif x = x1 && angle < -PI/2. then
+            // elif x = x1 && angle < -PI/2. then
+            elif x = x1 && angle < 0. then
                 //constain to vertical down
                 [(point, Anchor); (point - YX(offset,0), Handle)]
-            elif x = x2 && 0. < angle && angle < PI/2. then
+            // elif x = x2 && 0. < angle && angle < PI/2. then
+            elif x = x2 && 0. < angle then
                 //constain to vertical up
                 [(point, Anchor); (point + YX(offset,0), Handle)]
-            elif x = x2 && -PI/2. < angle && angle < 0. then
+            // elif x = x2 && -PI/2. < angle && angle < 0. then
+            elif x = x2 && angle < 0. then
                 //constain to vertical down
                 [(point, Anchor); (point - YX(offset,0), Handle)]
             // if segment.Y = y1 then
@@ -1069,11 +1128,11 @@ type Font (axes: Axes) =
         match spiro with
         | SpiroOpenCurve(segs) ->
             let bc = PathBezierContext()
-            Spiro.SpirosToBezier (Some (Array.ofList segs)) false bc |> ignore
+            Spiro.SpirosToBezier (Array.ofList segs) false bc |> ignore
             [bc.ToString]
         | SpiroClosedCurve(segs) ->
             let bc = PathBezierContext()
-            Spiro.SpirosToBezier (Some (Array.ofList segs)) true bc |> ignore
+            Spiro.SpirosToBezier (Array.ofList segs) true bc |> ignore
             [bc.ToString]
         | SpiroDot(p) ->
             let x, y = getXY p
@@ -1085,12 +1144,18 @@ type Font (axes: Axes) =
         if axes.spline_not_spiro then
             elementToSplineSvg elem
         else
-            elementToSegments elem |> List.collect this.spiroToSvg
+            elementToSpiroSegments elem |> List.collect this.spiroToSvg
 
-    member this.getSvgPath element offsetX offsetY strokeWidth =
+    member this.elementToSvgPath element offsetX offsetY strokeWidth fillColour=
         let fillrule = "nonzero"
-        let fillStyle = if this.axes.outline && this.axes.filled then "#000000" else "none"
+        let fillStyle = if this.axes.outline && this.axes.filled then fillColour else "none"
+        let guid = Guid.NewGuid()
         [
+            sprintf "<clipPath id='%A'>" guid
+            let margin = thickness * 2
+            sprintf "<rect x='%d' y='%d' width='%d' height='%d'/>" 
+                -margin (D-margin) (this.width element + margin) (this.charHeight + margin)
+            "</clipPath>"
             "<path "
             "d='"
         ] @
@@ -1098,7 +1163,9 @@ type Font (axes: Axes) =
         [
             "'"
             sprintf "transform='translate(%d,%d) scale(1,-1)'" offsetX offsetY
-            sprintf "style='fill:%s;fill-rule:%s;stroke:#000000;stroke-width:%d'/>" fillStyle fillrule strokeWidth
+            sprintf "style='fill:%s;fill-rule:%s;stroke:%s;stroke-width:%d'" fillStyle fillrule fillColour strokeWidth
+            sprintf "clip-path='url(#%A)'" guid
+            "/>"
         ]
 
     ///circles highlighting the knots (defined points on the spiro curves)
@@ -1156,14 +1223,23 @@ type Font (axes: Axes) =
     member this.charToSvg ch offsetX offsetY =
         // printfn "%c" ch
         let spine = this.charToElem ch
-        let outline = spine |> this.getOutline ch
+        let outlineSvg = 
+            try
+                let outline = spine |> this.getOutline ch
+                this.elementToSvgPath outline offsetX offsetY 5 black
+                @ if this.axes.show_knots && this.axes.outline then
+                    outline |> this.getSvgKnots offsetX offsetY true
+                  else []
+            with
+            | _ ->
+                try
+                    this.elementToSvgPath spine offsetX offsetY 5 red
+                with
+                | _ -> this.elementToSvgPath (Dot(HC)) offsetX offsetY 5 red
         [sprintf "<!-- %c -->" ch]
-        @ this.getSvgPath outline offsetX offsetY 5
+        @ outlineSvg
         @ if this.axes.show_knots then
             (spine |> this.italicise |> this.getSvgKnots offsetX offsetY false)
-            @ if this.axes.outline then
-                outline |> this.getSvgKnots offsetX offsetY true
-              else []
           else
             []
 
@@ -1196,15 +1272,22 @@ type Font (axes: Axes) =
     member this.stringToSvgLines (lines : string list) offsetX offsetY =
         fst (this.stringToSvgLineInternal lines offsetX offsetY)
 
-    member this.stringToSvg (lines : string list) offsetX offsetY =
+    member this.stringToSvg (lines : string list) offsetX offsetY autoscale =
         let margin = 50
         let svg, lineWidths = this.stringToSvgLineInternal lines offsetX offsetY
+        let w, h =
+            if autoscale then 
+                (List.max lineWidths + margin),
+                (this.charHeight * lineWidths.Length + margin)
+            else
+                6000, 6000
+
         toSvgDocument 
             -margin
             -margin
-            (List.max lineWidths + margin)
-            (this.charHeight * lineWidths.Length + margin)
+            w
+            h
             svg
 
-    member this.ElementToSegments = elementToSegments
+    member this.ElementToSpiroSegments = elementToSpiroSegments
     member this.GetXY = getXY

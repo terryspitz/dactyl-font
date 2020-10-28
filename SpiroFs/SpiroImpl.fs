@@ -336,7 +336,8 @@ let banbks11 (m : BandMatrix[]) (perm : int[]) (v : float[]) n =
         let mutable x = v.[i]
         for k in 1..l-1 do
             x <- x - m.[i].a.[k] * v.[k + i]
-        assert (m.[i].a.[0] <> 0.0)
+        if m.[i].a.[0] = 0.0 then
+            invalidOp "assertion failed in Spiro.banbks11"
         v.[i] <- x / m.[i].a.[0]
         if l < 11 then
             l <- l+1

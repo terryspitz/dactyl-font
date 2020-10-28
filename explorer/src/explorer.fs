@@ -23,7 +23,7 @@ let fieldDefaultsMap = Map.ofList fieldDefaults
 
 let titleFont = Font({Axes.DefaultAxes with thickness=3})
 let titleElem = document.getElementById "title"
-titleElem.innerHTML <-  titleFont.stringToSvg ["Dactyl Live"] 0 0 |> String.concat "\n"
+titleElem.innerHTML <-  titleFont.stringToSvg ["Dactyl Live"] 0 0 true |> String.concat "\n"
 
 ///Read UI into array of current values
 let currentFieldValues () = 
@@ -80,7 +80,8 @@ let tweensSvg (text : string) =
     toSvgDocument 
         -margin
         -margin
-        (List.max lineWidths * 2 + margin)
+        // scales width to fit
+        (List.max lineWidths * 2 + margin)  
         (yOffset + margin)
         (List.collect id svg)
 
@@ -97,7 +98,7 @@ let generate _ =
         printfn "%A" font.axes
         let lines = text.Split('\r','\n') |> List.ofArray
         let start = DateTime.UtcNow.Ticks
-        let svg = font.stringToSvg lines 0 0
+        let svg = font.stringToSvg lines 0 0 false
         printfn "%d ms" ((DateTime.UtcNow.Ticks-start)/10000L)
         output.innerHTML <- String.concat "\n" svg
 

@@ -40,9 +40,10 @@ let main argv =
     // let debug = false
     let debug = true
     if debug then
-        // let font = Font({Axes.DefaultAxes with spline_not_spiro=true; outline=false})
-        let _, _, font = fonts.[0]
-        printfn "%A" (font.charToSvg 'B' 0 0)
+        // let font = Font({Axes.DefaultAxes with spline_not_spiro=false; constraints=false; outline=false})
+        let font = Font({Axes.DefaultAxes with stroked=true; flare=1.0})
+        // let _, _, font = fonts.[0]
+        printfn "%A" (font.charToSvg '9' 0 0)
 
     // SVG output, side by side
     let rowHeights = List.scan (+) 0 [
@@ -87,7 +88,7 @@ let main argv =
                 | [] -> [[w]]
             let lines = name :: (List.fold wrap [] lowercase |> List.map (String.concat " ") |> List.rev)
             printfn "\n%s\n" name
-            font.stringToSvg lines 0 0 |> writeFile (sprintf @".\svg\%s_lower.svg" name)
+            font.stringToSvg lines 0 0 true |> writeFile (sprintf @".\svg\%s_lower.svg" name)
     
     // FontForge output
     let writeFonts = false
@@ -112,7 +113,7 @@ let main argv =
             for c in 1..10 do
                 let font = Font({Axes.DefaultAxes with 
                                             x_height = float (11-r) * 0.2; roundedness = c*30; thickness = r*6;})
-                yield! font.stringToSvg [str] 0 0
+                yield! font.stringToSvg [str] 0 0 true
         ] |> writeFile @".\interp.svg"
 
     0 // return code

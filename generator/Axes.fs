@@ -8,7 +8,7 @@ type Controls =
 
 // Variable which define the font characteristics (named after Variable Font terminology)
 type Axes = {
-    text_def : bool             //use new string based glyph definitions, vs. older code ones
+    new_definitions : bool     //use new string based glyph definitions, vs. older code ones
     width : int                 //width of normal glyph
     height : int                //capital height
     x_height : float            //height of lower case as a fraction of capitals
@@ -33,11 +33,11 @@ type Axes = {
     max_spline_iter : int       //max number of iterations to solve spline curves
     show_knots : bool           //show small circles for the points used to define lines/curves
     joints : bool               //check joints to turn off serifs
-    constraints : bool          //check joints to turn off serifs
+    constraints : bool          //constrain tangents to within borders
     smooth : bool               //no corners
 } with
     static member DefaultAxes = {
-        text_def = true
+        new_definitions = true
         width = 300
         height = 600
         x_height = 0.6
@@ -64,9 +64,9 @@ type Axes = {
         smooth = false
     }
     static member controls = [
-        "text_def", Checkbox
+        "new_definitions", Checkbox
         "width", Range(100, 1000)
-        "height", Range(400, 1000)
+        "height", Range(100, 1000)
         "x_height", FracRange(0., 2.)
         "thickness", Range(1, 200)
         "contrast", FracRange(-0.5, 0.5)

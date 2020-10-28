@@ -34,7 +34,7 @@ let charToFontForge (font: Font) (ch : char) =
                 ]
             | Space -> []
             | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
-        (font.ElementToSegments elem |> List.collect bezierString)
+        (font.ElementToSpiroSegments elem |> List.collect bezierString)
         @ ["Spiro"] 
         @ toSpiroString elem 
         @ ["0 0 z"; "EndSpiro"]
