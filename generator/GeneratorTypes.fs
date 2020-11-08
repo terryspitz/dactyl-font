@@ -40,10 +40,11 @@ type SCP = SpiroControlPoint
 
 type Element = 
     | Glyph of c : char
-    | Line of p1: Point * p2: Point
+    | Line of p1 : Point * p2 : Point
     | PolyLine of list<Point>
     | OpenCurve of list<Point * SpiroPointType>
     | ClosedCurve of list<Point * SpiroPointType>
+    | TangentCurve of knots : list<Point * SpiroPointType * float option> * isClosed : bool
     | Dot of Point
     | EList of list<Element>
     | Space

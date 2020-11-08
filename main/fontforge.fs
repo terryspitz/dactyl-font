@@ -11,7 +11,7 @@ let charToFontForge (font: Font) (ch : char) =
     // reverse engineered from saved font
     let thickness = font.axes.thickness
     //let scpToString (scp : SCP) = sprintf "%f %f %c" scp.X scp.Y (char scp.Type)
-    let ptToString (p, t) =  let x,y = font.GetXY p in sprintf "%d %d %c" x y (SpiroPointType.ToChar t)
+    let ptToString (p, t) =  let x,y = font.GlyphDefs._getXY p in sprintf "%d %d %c" x y (SpiroPointType.ToChar t)
     let elemToFF elem =
         //rearrange SVG bezier curve format to fontforge format
         let matchEval (amatch : Match) = 
@@ -26,7 +26,7 @@ let charToFontForge (font: Font) (ch : char) =
             | OpenCurve(pts) | ClosedCurve(pts) -> List.map ptToString pts
             | EList(elems) -> List.collect toSpiroString elems
             | Dot(p) -> 
-                let x,y = font.GetXY p 
+                let x,y = font.GlyphDefs._getXY p 
                 [
                     sprintf "%d %d o " (x-thickness) (y)
                     sprintf "%d %d o " (x) (y+thickness)
@@ -39,10 +39,10 @@ let charToFontForge (font: Font) (ch : char) =
         @ toSpiroString elem 
         @ ["0 0 z"; "EndSpiro"]
 
-    let spineSpiros = Font({font.axes with thickness = 2; outline = true}).charToOutline ch 
+    let spineSpiros = Font({font.axes with thickness = 2; outline = true}).CharToOutline ch 
                         |> font.translateByThickness
                         |> elemToFF
-    let outlineSpiros = font.charToOutline ch
+    let outlineSpiros = font.CharToOutline ch
                         |> elemToFF
     [
         sprintf "StartChar: %c\n" ch

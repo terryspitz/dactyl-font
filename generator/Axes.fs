@@ -32,6 +32,7 @@ type Axes = {
     spline_not_spiro : bool     //use original Spiro (false) or new spline-research splines (true)
     max_spline_iter : int       //max number of iterations to solve spline curves
     show_knots : bool           //show small circles for the points used to define lines/curves
+    show_tangents : bool        //show lines for the tangents at each knot
     joints : bool               //check joints to turn off serifs
     constraints : bool          //constrain tangents to within borders
     smooth : bool               //no corners
@@ -56,9 +57,10 @@ type Axes = {
         outline = true
         stroked = false
         scratches = false
-        spline_not_spiro = false
+        spline_not_spiro = true
         max_spline_iter = 10
         show_knots = false
+        show_tangents = false
         joints = true
         constraints = false
         smooth = false
@@ -86,6 +88,7 @@ type Axes = {
         "spline_not_spiro", Checkbox
         // "max_spline_iter", Range(0, 15)
         "show_knots", Checkbox
+        "show_tangents", Checkbox
         "joints", Checkbox
         "constraints", Checkbox
         "smooth", Checkbox

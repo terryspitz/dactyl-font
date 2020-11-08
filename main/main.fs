@@ -22,6 +22,13 @@ let writeFile filename text =
 [<EntryPoint>]
 let main argv =
 
+    let debugSingleChar = true
+    if debugSingleChar then
+        let font = Font(Axes.DefaultAxes)
+        // let font = Font({Axes.DefaultAxes with spline_not_spiro=false; constraints=true})
+        // let _, _, font = fonts.[0]
+        printfn "%A" (font.charToSvg 'o' 0 0)
+
     let fonts = [
         // ("Dactyl Knots", "Extra Light", Font({Axes.DefaultAxes with show_knots = true}))
         // ("Dactyl Spiro", "Extra Light", Font({Axes.DefaultAxes with spline_not_spiro = false}))
@@ -36,14 +43,6 @@ let main argv =
         ("Dactyl Roman", "Regular", Font({Axes.DefaultAxes with serif=30}))
         ("Dactyl Smooth", "Regular", Font({Axes.DefaultAxes with spline_not_spiro=true; smooth=true}))
     ]
-
-    // let debug = false
-    let debug = true
-    if debug then
-        // let font = Font({Axes.DefaultAxes with spline_not_spiro=false; constraints=false; outline=false})
-        let font = Font({Axes.DefaultAxes with stroked=true; flare=1.0})
-        // let _, _, font = fonts.[0]
-        printfn "%A" (font.charToSvg '9' 0 0)
 
     // SVG output, side by side
     let rowHeights = List.scan (+) 0 [
@@ -61,7 +60,8 @@ let main argv =
         yield svgText 0 (y+200) name
         yield! font.stringToSvgLines text 0 (y+400)
         yield "</g>"
-    ] |> toSvgDocument 0 0 (Axes.DefaultAxes.width * 70) (List.max rowHeights) |> writeFile @".\allGlyphs.svg"
+    ] |> toHtmlDocument 0 0 (Axes.DefaultAxes.width * 70) (List.max rowHeights)
+      |> writeFile @".\allGlyphs.html"
 
 
     // Proofs output using https://www.typography.com/blog/text-for-proofing-fonts

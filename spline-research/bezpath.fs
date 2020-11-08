@@ -40,7 +40,7 @@ type BezPath() =
     /// Get output Path data string format.
     /// </summary>
     /// <returns>The Path data string format.</returns>
-    member this.renderSvg() =
+    member this.tostring() =
         _sb.ToString()
 
     member this.moveto(x, y) =

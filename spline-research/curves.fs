@@ -569,7 +569,8 @@ type Spline (ctrlPts, isClosed) =
         let start = this.startIx()
         let length = this.ctrlPts.Length - if this.isClosed then 0 else 1
 
-        //terryspitz: implement LineToCurve and CurveToLine as Corners with fixed theta from Line
+        //terryspitz: implement LineToCurve and CurveToLine as Corners with fixed tangent theta
+        //determined from the Line
         for i in 0..length do
             let ptI = this.pt(i, start)
             if ptI.ty = SplinePointType.LineToCurve || ptI.ty = SplinePointType.CurveToLine then
@@ -690,9 +691,9 @@ type Spline (ctrlPts, isClosed) =
                         let lK = myTan(pt.lAk) / this.chordLen(i)
                         Some (2. / (1. / rK + 1. / lK))
 
-    member this.render() =
+    member this.renderSvg tangent =
         let path = BezPath()
-        if this.ctrlPts.Length = 0 then path else
+        if this.ctrlPts.Length = 0 then "" else
         let pt0 = this.ctrlPts.[0] in path.moveto(pt0.pt.x, pt0.pt.y)
         let length = this.ctrlPts.Length - if this.isClosed then 0 else 1
         for i in 0..length-1 do
@@ -722,7 +723,13 @@ type Spline (ctrlPts, isClosed) =
                 path.curveto(c.[j], c.[j + 1], c.[j + 2], c.[j + 3], c.[j + 4], c.[j + 5])
         if this.isClosed then
             path.closepath()
-        path
-
-    member this.renderSvg() =
-        this.render().renderSvg()
+        if tangent then
+            for i in 1..length-1 do
+                path.mark i
+                let ptI = this.pt(i, 0)
+                let offset = 100.
+                // path.moveto(ptI.pt.x, ptI.pt.y)
+                // path.lineto(ptI.pt.x + offset*cos(-ptI1.lTh), ptI.pt.y + offset*sin(-ptI1.lTh))
+                path.moveto(ptI.pt.x, ptI.pt.y)
+                path.lineto(ptI.pt.x + offset*cos(ptI.lTh), ptI.pt.y + offset*sin(ptI.lTh))
+        path.tostring()

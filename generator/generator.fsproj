@@ -14,7 +14,9 @@
     <None Include="../README.md" />
     <None Include="font.props" />
     <Compile Include="Axes.fs" />
-    <Compile Include="generator_types.fs" />
-    <Compile Include="generator.fs" />
+    <Compile Include="GeneratorTypes.fs" />
+    <Compile Include="GlyphDefs.fs" />
+    <Compile Include="GlyphStringDefs.fs" />
+    <Compile Include="Generator.fs" />
   </ItemGroup>
 </Project>
