@@ -629,9 +629,9 @@ let rec spiro_seg_to_bpath (ks : float[]) x0 y0 x1 y1 (bc : IBezierContext) dept
 
 let spiro_to_bpath (s: SpiroSegment[]) n (bc : IBezierContext) =
     let nsegs = 
-        if (s.[n - 1].Type = SpiroPointType.EndOpenContour || s.[n - 1].Type = SpiroPointType.Handle)
-            && s.[n - 2].Type = SpiroPointType.Anchor then n - 2 
-        elif s.[n - 1].Type = SpiroPointType.EndOpenContour then n - 1
+        if s.[n - 1].Type = SpiroPointType.EndOpenContour then
+            if s.[n - 2].Type = SpiroPointType.Anchor then n - 2 else n - 1
+        elif s.[n - 1].Type = SpiroPointType.Handle then n - 1
         else n
         // if s.[n - 1].Type = SpiroPointType.EndOpenContour then n - 1 else n
     let mutable i = 0

@@ -24,10 +24,9 @@ let main argv =
 
     let debugSingleChar = true
     if debugSingleChar then
-        let font = Font(Axes.DefaultAxes)
-        // let font = Font({Axes.DefaultAxes with spline_not_spiro=false; constraints=true})
-        // let _, _, font = fonts.[0]
-        printfn "%A" (font.charToSvg 'o' 0 0)
+        // let font = Font(Axes.DefaultAxes)
+        let font = Font({Axes.DefaultAxes with spline_not_spiro=false; constraints=true})
+        printfn "%A" (font.charToSvg 'c' 0 0)
 
     let fonts = [
         // ("Dactyl Knots", "Extra Light", Font({Axes.DefaultAxes with show_knots = true}))

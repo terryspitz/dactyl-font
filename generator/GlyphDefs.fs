@@ -6,12 +6,9 @@ open Axes
 
 let rec movePoints fn e = 
     match e with
-    | OpenCurve(pts) ->
-        OpenCurve([for p, t in pts do (fn p, t)])
-    | ClosedCurve(pts) ->
-        ClosedCurve([for p, t in pts do (fn p, t)])
-    | TangentCurve(pts, isClosed) ->
-        TangentCurve([for p, ty, tang in pts do (fn p, ty, tang)], isClosed)
+    | OpenCurve(pts) -> OpenCurve([for p, t in pts do (fn p, t)])
+    | ClosedCurve(pts) -> ClosedCurve([for p, t in pts do (fn p, t)])
+    | TangentCurve(pts, isClosed) -> TangentCurve([for p, ty, tang in pts do (fn p, ty, tang)], isClosed)
     | Dot(p) -> Dot(fn p)
     | EList(elems) -> EList(List.map (movePoints fn) elems)
     | Space -> Space
@@ -265,6 +262,8 @@ type GlyphDefs (axes: Axes) =
                               |> this.reduce
         | OpenCurve(pts) -> OpenCurve([for p, t in pts do YX(reducePoint p), t])
         | ClosedCurve(pts) -> ClosedCurve([for p, t in pts do YX(reducePoint p), t])
+        | TangentCurve(pts, isClosed) ->
+            TangentCurve([for p, t, tang in pts do YX(reducePoint p), t, tang], isClosed)
         | Dot(p) -> Dot(YX(reducePoint(p)))
         | EList(elems) -> EList(List.map this.reduce elems)
         | Space -> Space

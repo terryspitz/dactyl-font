@@ -9,6 +9,8 @@ type Controls =
 // Variable which define the font characteristics (named after Variable Font terminology)
 type Axes = {
     new_definitions : bool     //use new string based glyph definitions, vs. older code ones
+    spline_not_spiro : bool     //use original Spiro (false) or new spline-research splines (true)
+    constraints : bool          //constrain tangents to within borders
     width : int                 //width of normal glyph
     height : int                //capital height
     x_height : float            //height of lower case as a fraction of capitals
@@ -29,13 +31,12 @@ type Axes = {
     outline : bool              //use thickness to expand stroke width
     stroked : bool              //each stroke is 4 parallel lines
     scratches : bool            //horror/paint strokes font
-    spline_not_spiro : bool     //use original Spiro (false) or new spline-research splines (true)
     max_spline_iter : int       //max number of iterations to solve spline curves
     show_knots : bool           //show small circles for the points used to define lines/curves
     show_tangents : bool        //show lines for the tangents at each knot
     joints : bool               //check joints to turn off serifs
-    constraints : bool          //constrain tangents to within borders
     smooth : bool               //no corners
+    clip_rect: bool             //clip each glyph to it's bounding rect (helps with degenerate curves)
 } with
     static member DefaultAxes = {
         new_definitions = true
@@ -64,9 +65,12 @@ type Axes = {
         joints = true
         constraints = false
         smooth = false
+        clip_rect = true
     }
     static member controls = [
         "new_definitions", Checkbox
+        "spline_not_spiro", Checkbox
+        "constraints", Checkbox
         "width", Range(100, 1000)
         "height", Range(100, 1000)
         "x_height", FracRange(0., 2.)
@@ -85,11 +89,10 @@ type Axes = {
         "outline", Checkbox
         "stroked", Checkbox
         "scratches", Checkbox
-        "spline_not_spiro", Checkbox
         // "max_spline_iter", Range(0, 15)
         "show_knots", Checkbox
         "show_tangents", Checkbox
         "joints", Checkbox
-        "constraints", Checkbox
         "smooth", Checkbox
+        "clip_rect", Checkbox
     ]

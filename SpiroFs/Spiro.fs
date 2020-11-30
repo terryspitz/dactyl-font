@@ -33,17 +33,18 @@ open SpiroPointType
 /// </summary>
 /// <param name="spiros">An array of input spiros.</param>
 /// <param name="isClosed">Whether this describes a closed (True) or open (False) contour.</param>
-/// <returns>SpiroSegment array or null on failure.</returns>
+/// <returns>SpiroSegment array or null on failure. Note closed curves include spiros.Length + 1 points.</returns>
 let SpiroCPsToSegments spiros isClosed =
     SpiroImpl.run_spiro spiros isClosed
 
 
 /// <summary>
-/// Convert spiro segment list into bezier curves, using the output of SpiroCPsToSegments.
+/// Convert spiro segment list into bezier curves, using the output of SpiroCPsToSegments.  For closed curves
+/// the final repeated first point should have been removed.
 /// </summary>
 let SpirosToBezier (segs : SpiroSegment.SpiroSegment[]) isClosed bc =
-    let nSeg = if isClosed then segs.Length - 1 else segs.Length
+    let loopedSegs = if isClosed then Array.ofList (List.ofArray segs @ [segs.[0]]) else segs
     if not isClosed then
         segs.[0].Type <- SpiroPointType.OpenContour
         segs.[segs.Length-1].Type <- SpiroPointType.EndOpenContour
-    SpiroImpl.spiro_to_bpath segs nSeg bc
+    SpiroImpl.spiro_to_bpath loopedSegs segs.Length bc
