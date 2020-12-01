@@ -4,9 +4,19 @@ Dactyl is a functional font generator written in F#, in service of ticking 'crea
 
 You can explore Dactyl live in your browser using the [Dactyl Live explorer](https://terryspitz.github.io/dactyl-font/explorer/public/index.html){:target="_blank" rel="noopener"}.  Note the Reset and Random icons next to the title.  The settings deliberately extend beyond 'normal' to show how the fonts behave (and often misbehave) under extremes.
 
-See some of Dactyl's checkered past in this animation:
+Here is some of Dactyl's checkered development history:
 
-![font development](png/font.gif)
+<!-- Fotorama from CDNJS, 19 KB -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+<link  href="https://cdnjs.cloudflare.com/ajax/libs/fotorama/4.6.4/fotorama.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fotorama/4.6.4/fotorama.js"></script>
+<div class="fotorama" data-autoplay="true" data-autoplay="500">
+  <img src="png/font (1).png">
+  <img src="png/font (2).png">
+  <img src="png/font%20(3).png">
+  <img src="png/font%20(4).png">
+</div>
+
 
 A few predefined Dactyl fonts are available to download in the [ttf](https://github.com/terryspitz/dactyl-font/tree/SpiroFs/ttf){:target="_blank" rel="noopener"} subdirectory.  Note: these fonts are still a work in progress and do not have good spacing or kerning, or even good shapes under some settings.  In future I plan to make fonts downloadable afte customising in the live browser.  Here are some samples:
 
