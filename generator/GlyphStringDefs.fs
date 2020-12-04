@@ -78,11 +78,11 @@ let glyphMap = Map.ofList [
         
         'A', "bl-tc-br bhlc-bhrc"
         'a', "xr-br xor~xc~xbl~bc~bor"
-        'B', "hl-hlc~bhr~bl.bl-tl.tl~thr~hlc-hl"
+        'B', "hl-hlc~bhr~bl.bl-tl.tl~thr~hlc-"
         'b', "tl-bl bol~bc~xbr~xc~xol"
         'C', "tor~tc~hl~bc~bor"
         'c', "xor~xc~xbl~bc~bor"
-        'D', "tl-bl.bl~hr~tl."
+        'D', "tl-bl.bl~hr~"
         'd', "tr-br xor~xc~xbl~bc~bor"
         'E', "tr-tl-bl-br hl-hr"
         'e', "xbl-xbr.xbr~xc~xbl~bc~xbbbr"
@@ -212,8 +212,12 @@ let parse_curve (font : GlyphDefs) raw_def =
     // printfn "post-parse curve %A %A %A" pts lines def
     if pts.Length = 1 then
         Dot(pts.[0])
-    elif pts.Length = lines.Length then
-        ClosedCurve(List.zip pts (SpiroPointType.G2 :: lines.[..lines.Length-2]))
+    elif pts.Length = lines.Length || last_line = "." then
+        if last_line = "." then 
+            lines <- lines @ [Corner]
+            printfn "last_line = '.'"
+        ClosedCurve(List.zip pts lines)
+        // ClosedCurve(List.zip pts (SpiroPointType.G2 :: lines.[..lines.Length-2]))
     else
         if last_line = "~" then
             lines <- lines @ [G2]
