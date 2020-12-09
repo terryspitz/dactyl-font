@@ -1,4 +1,4 @@
-module SpiroTest
+module CurvesTest
 
 open NUnit.Framework
 

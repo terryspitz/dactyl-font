@@ -11,11 +11,7 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "SpiroFs", "SpiroFs\SpiroFs.
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "main", "main\main.fsproj", "{B1C924AC-5CD1-4770-A2C2-396D33AAC3A6}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "SpiroFsTest", "SpiroFs\SpiroFsTest\SpiroFsTest.fsproj", "{E16B1CF4-DE2D-46A8-B62A-74D3E47BFF03}"
-EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "spline-research", "spline-research\spline-research.fsproj", "{45342C0E-B361-4806-B523-0D3EB17689F1}"
-EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "spline-research-test", "spline-research\Test\spline-research-test.fsproj", "{BAC8B3DB-B9FA-45BF-A82A-0629B6945837}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -39,18 +35,10 @@ Global
 		{B1C924AC-5CD1-4770-A2C2-396D33AAC3A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B1C924AC-5CD1-4770-A2C2-396D33AAC3A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B1C924AC-5CD1-4770-A2C2-396D33AAC3A6}.Release|Any CPU.Build.0 = Release|Any CPU
-		{E16B1CF4-DE2D-46A8-B62A-74D3E47BFF03}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{E16B1CF4-DE2D-46A8-B62A-74D3E47BFF03}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{E16B1CF4-DE2D-46A8-B62A-74D3E47BFF03}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{E16B1CF4-DE2D-46A8-B62A-74D3E47BFF03}.Release|Any CPU.Build.0 = Release|Any CPU
 		{45342C0E-B361-4806-B523-0D3EB17689F1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{45342C0E-B361-4806-B523-0D3EB17689F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{45342C0E-B361-4806-B523-0D3EB17689F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{45342C0E-B361-4806-B523-0D3EB17689F1}.Release|Any CPU.Build.0 = Release|Any CPU
-		{BAC8B3DB-B9FA-45BF-A82A-0629B6945837}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{BAC8B3DB-B9FA-45BF-A82A-0629B6945837}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{BAC8B3DB-B9FA-45BF-A82A-0629B6945837}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{BAC8B3DB-B9FA-45BF-A82A-0629B6945837}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 	EndGlobalSection

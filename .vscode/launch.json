@@ -28,12 +28,23 @@
             "console": "internalConsole"
         },
         {
+            "name": "Launch generator tests",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build Debug",
+            "program": "dotnet",
+            "args": ["test", "./generator/generator.fsproj"],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        },
+        {
             "name": "Launch spiro tests",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build Debug",
             "program": "dotnet",
-            "args": ["test", "./SpiroFs/SpiroFsTest/SpiroFsTest.fsproj"],
+            "args": ["test", "./SpiroFs/SpiroFs.fsproj"],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
             "console": "internalConsole"
@@ -44,7 +55,7 @@
             "request": "launch",
             "preLaunchTask": "build Debug",
             "program": "dotnet",
-            "args": ["test", "./spline-research/Test/spline-research-test.fsproj"],
+            "args": ["test", "./spline-research/spline-research.fsproj"],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
             "console": "internalConsole"
