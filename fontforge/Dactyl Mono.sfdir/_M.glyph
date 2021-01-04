@@ -1,0 +1,75 @@
+StartChar: M
+Encoding: 77 77 0
+Width: 373
+InSpiro: 1
+        Flags: H
+        LayerCount: 2
+        Back
+        SplineSet
+34 30 m 0
+30 30 l 0
+30 634 l 0
+34 634 l 0
+152 42 l 0
+269 634 l 0
+274 634 l 0
+274 30 l 0
+269 30 l 0
+269 611 l 0
+154 30 l 0
+149 30 l 0
+34 611 l 0
+34 30 l 0
+Z
+Spiro
+34 30 v
+30 30 v
+30 634 v
+34 634 v
+152 42 v
+269 634 v
+274 634 v
+274 30 v
+269 30 v
+269 611 v
+154 30 v
+149 30 v
+34 611 v
+0 0 z
+EndSpiro
+EndSplineSet
+        Fore
+        SplineSet
+61 0 m 0
+-1 0 l 0
+-1 660 l 0
+61 660 l 0
+150 182 l 0
+238 660 l 0
+301 660 l 0
+301 0 l 0
+238 0 l 0
+239 327 l 0
+181 0 l 0
+118 0 l 0
+60 327 l 0
+61 0 l 0
+Z
+Spiro
+61 0 v
+-1 0 v
+-1 660 v
+61 660 v
+150 182 v
+238 660 v
+301 660 v
+301 0 v
+238 0 v
+239 327 v
+181 0 v
+118 0 v
+60 327 v
+0 0 z
+EndSpiro
+EndSplineSet
+        EndChar

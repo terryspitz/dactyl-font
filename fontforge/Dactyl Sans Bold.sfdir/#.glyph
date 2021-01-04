@@ -1,0 +1,109 @@
+StartChar: #
+Encoding: 35 35 29
+Width: 526
+InSpiro: 1
+Flags: H
+LayerCount: 2
+Back
+SplineSet
+60 460 m 0
+ 60 464 l 0
+ 364 464 l 0
+ 364 460 l 0
+ 60 460 l 0
+  Spiro
+    60 460 v
+    60 464 v
+    364 464 v
+    364 460 v
+    0 0 z
+  EndSpiro
+60 260 m 0
+ 60 264 l 0
+ 364 264 l 0
+ 364 260 l 0
+ 60 260 l 0
+  Spiro
+    60 260 v
+    60 264 v
+    364 264 v
+    364 260 v
+    0 0 z
+  EndSpiro
+284 664 m 0
+ 289 664 l 0
+ 289 60 l 0
+ 284 60 l 0
+ 284 664 l 0
+  Spiro
+    284 664 v
+    289 664 v
+    289 60 v
+    284 60 v
+    0 0 z
+  EndSpiro
+134 664 m 0
+ 139 664 l 0
+ 139 60 l 0
+ 134 60 l 0
+ 134 664 l 0
+  Spiro
+    134 664 v
+    139 664 v
+    139 60 v
+    134 60 v
+    0 0 z
+  EndSpiro
+EndSplineSet
+Fore
+SplineSet
+-2 400 m 0
+ -2 520 l 0
+ 422 520 l 0
+ 422 400 l 0
+ -2 400 l 0
+  Spiro
+    -2 400 v
+    -2 520 v
+    422 520 v
+    422 400 v
+    0 0 z
+  EndSpiro
+-2 200 m 0
+ -2 320 l 0
+ 422 320 l 0
+ 422 200 l 0
+ -2 200 l 0
+  Spiro
+    -2 200 v
+    -2 320 v
+    422 320 v
+    422 200 v
+    0 0 z
+  EndSpiro
+222 720 m 0
+ 347 720 l 0
+ 347 0 l 0
+ 222 0 l 0
+ 222 720 l 0
+  Spiro
+    222 720 v
+    347 720 v
+    347 0 v
+    222 0 v
+    0 0 z
+  EndSpiro
+72 720 m 0
+ 197 720 l 0
+ 197 0 l 0
+ 72 0 l 0
+ 72 720 l 0
+  Spiro
+    72 720 v
+    197 720 v
+    197 0 v
+    72 0 v
+    0 0 z
+  EndSpiro
+EndSplineSet
+EndChar
