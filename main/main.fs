@@ -22,11 +22,15 @@ let writeFile filename text =
 [<EntryPoint>]
 let main argv =
 
+    let runUnitTest = false
+    if runUnitTest then
+        DactylSplineTest.TestClass().CheckTwoPointCurves()
+
     let debugSingleChar = true
     if debugSingleChar then
         // let font = Font(Axes.DefaultAxes)
-        let font = Font({Axes.DefaultAxes with spline_not_spiro=false; constraints=true})
-        printfn "%A" (font.charToSvg 'c' 0 0)
+        let font = Font({Axes.DefaultAxes with spline_not_spiro=true; constraints=true; outline=false})
+        printfn "%A" (font.charToSvg 'D' 0 0)
 
     let fonts = [
         // ("Dactyl Knots", "Extra Light", Font({Axes.DefaultAxes with show_knots = true}))
@@ -90,7 +94,7 @@ let main argv =
             font.stringToSvg lines 0 0 true |> writeFile (sprintf @".\svg\%s_lower.svg" name)
     
     // FontForge output
-    let writeFonts = false
+    let writeFonts = true
     if writeFonts then
         for i in 0..fonts.Length-1 do
             let name, weight, font = fonts.[i]

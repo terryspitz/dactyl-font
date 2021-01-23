@@ -8,15 +8,15 @@ InSpiro: 1
         SplineSet
 269 636 m 0
 274 636 l 0
-22 28 l 0
-17 28 l 0
+34 28 l 0
+30 28 l 0
 269 636 l 0
 Z
 Spiro
 269 636 v
 274 636 v
-22 28 v
-17 28 v
+34 28 v
+30 28 v
 0 0 z
 EndSpiro
 EndSplineSet
@@ -24,15 +24,15 @@ EndSplineSet
         SplineSet
 238 690 m 0
 301 690 l 0
-91 -30 l 0
-28 -30 l 0
+61 -30 l 0
+-1 -30 l 0
 238 690 l 0
 Z
 Spiro
 238 690 v
 301 690 v
-91 -30 v
-28 -30 v
+61 -30 v
+-1 -30 v
 0 0 z
 EndSpiro
 EndSplineSet

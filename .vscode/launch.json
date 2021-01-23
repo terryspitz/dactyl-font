@@ -25,7 +25,7 @@
             "args": [],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
-            "console": "internalConsole"
+            "console": "internalConsole",
         },
         {
             "name": "Launch generator tests",
@@ -33,10 +33,20 @@
             "request": "launch",
             "preLaunchTask": "build Debug",
             "program": "dotnet",
-            "args": ["test", "./generator/generator.fsproj"],
+            "args": ["test", "--logger", "console;verbosity=detailed", "./generator/generator.fsproj"],
             "cwd": "${workspaceFolder}",
-            "stopAtEntry": false,
-            "console": "internalConsole"
+            "stopAtEntry": true,
+            "console": "internalConsole",
+            "env": {
+                "VSTEST_HOST_DEBUG": "1"
+            }
+        },
+        {
+            "name": "Debug generator test",
+            "type": "coreclr",
+            "request": "attach",
+            // "preLaunchTask": "run generator tests",
+            "processName": "testhost.exe"
         },
         {
             "name": "Launch spiro tests",

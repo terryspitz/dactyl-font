@@ -163,16 +163,17 @@ type Font (axes: Axes) =
             else
                 let offsetHandlePt pt theta =
                     let x,y = getXY pt in YX(int(float y + 50. * sin(theta)), int(float x + 50. * cos(theta)))
-                let scps = [|for i in 0..pts.Length-1 do
-                    let pt, ty, tang = pts.[i] in
-                    if i = 0 || i = pts.Length-1 then makeSCP (pt, ty)
-                    else
-                        match tang with
-                        | Some theta -> 
-                            yield! [makeSCP (pt, Anchor)
-                                    makeSCP(offsetHandlePt pt theta, Handle)]
-                        | None -> makeSCP (pt, ty)
-                |]
+                let scps = 
+                    [|for i in 0..pts.Length-1 do
+                        let pt, ty, tang = pts.[i] in
+                        if i = 0 || i = pts.Length-1 then makeSCP (pt, ty)
+                        else
+                            match tang with
+                            | Some theta -> 
+                                yield! [makeSCP (pt, Anchor)
+                                        makeSCP(offsetHandlePt pt theta, Handle)]
+                            | None -> makeSCP (pt, ty)
+                    |]
                 match Spiro.SpiroCPsToSegments scps isClosed with
                 | Some segs ->
                     if isClosed then
@@ -697,7 +698,7 @@ type Font (axes: Axes) =
         let spiroConstrain spiro =
             match spiro with
             | SpiroOpenCurve(segments) ->
-                [TangentCurve(List.map constrainSegment (segments.[0..segments.Length-1]), false)]
+                [TangentCurve(List.map constrainSegment segments, false)]
                             //   @ [
                             //     let angle = PI - segments.[segments.Length-2].tangent2 in
                             //      let lastSeg = segments.[segments.Length-1] in            

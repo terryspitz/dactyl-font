@@ -6,6 +6,7 @@ open GlyphDefs
 open SpiroPointType
 
 /// This file defines a minimal language for defining glyph outlines (AMLFDGO)
+/// Turns out it's like a limited version of METAFONT from the 1970s, this was invented independently.
 
 /// Defines glyphs using following symbols:
 /// y coordinates: (b)ottom, (t)op, (h)alf height, (x)-height, (d)escender
@@ -75,7 +76,7 @@ let glyphMap = Map.ofList [
         '7', "tl-tr-bcl"
         '8', "hc~thl~tc~thr~ hc~bhl~bc~bhr~"
         '9', "bol~bc~hr~ttbr~tc~ttbl~bbtc~ttbr"
-        
+    
         'A', "bl-tc-br bhlc-bhrc"
         'a', "xr-br xor~xc~xbl~bc~bor"
         'B', "hl-hlc~bhr~bl.bl-tl.tl~thr~hlc-"
@@ -85,17 +86,17 @@ let glyphMap = Map.ofList [
         'D', "tl-bl.bl~hr~"
         'd', "tr-br xor~xc~xbl~bc~bor"
         'E', "tr-tl-bl-br hl-hr"
-        'e', "xbl-xbr.xbr~xc~xbl~bc~xbbbr"
+        'e', "xbl-xbr.xbr~xc~xbl~bc~br"
         'F', "bl-tl-tr hl-hrc"
         'f', "bl-xl~tc xl-xc"
         'G', "tor~tc~hl~bc~bhr-hr.hr-hc"
-        'g', "xr-br~dc~dbl xor~xc~xbl~bc~bor"
+        'g', "xr-br~dc~dol xor~xc~xbl~bc~bor"
         'H', "tl-bl hl-hr tr-br"
         'h', "tl-bl xol~xc~xbr-br"
         'I', "tl-tr tc-bc bl-br"
-        'i', "xl-bl xtl"
+        'i', "xl-bl tl"
         'J', "tl-tr.tr-hr~bc~bol"
-        'j', "xr-br~dc~dbl xtr"
+        'j', "xr-br~dc~dol tr"
         'K', "tl-bl tr-hl-br"
         'k', "tl-bl xcr-xbl-bcr"
         'L', "tl-bl-br"
@@ -103,7 +104,7 @@ let glyphMap = Map.ofList [
         'M', "bl-tl-blw-tw-bw"
         'm', "xl-bl xol~xllw~xblw-blw xxblw~xlwwww~xbw-bw"
         'N', "bl-tl-br-tr"
-        'n', "xl-bl xol~xllw~xblw-blw"
+        'n', "xl-bl xol~xc~xbr-br"
         'O', "hl~tc~hr~bc~"
         'o', "xbl~xc~xbr~bc~"
         'P', "bl-tl.tl~thr~hl"
@@ -125,7 +126,7 @@ let glyphMap = Map.ofList [
         'X', "tl-br tr-bl"
         'x', "xl-br xr-bl"
         'Y', "tl-hc-tr hc-bc"
-        'y', "xl-xbl~bc~xbr-xr xr-br~dc~dbl"
+        'y', "xl-xbl~bc~xbr-xr xr-br~dc~dol"
         'Z', "tl-tr-bl-br"
         'z', "xl-xr-bl-br"
 ]

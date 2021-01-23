@@ -50,7 +50,7 @@
             "problemMatcher": "$msCompile"
         },
         {
-            "label": "run tests",
+            "label": "run spiro tests",
             "command": "dotnet",
             "type": "shell",
             "args": [
@@ -64,6 +64,23 @@
                 // "reveal": "silent"
             },
             "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "run generator tests",
+            "command": "dotnet",
+            "type": "shell",
+            "args": [
+                "test",
+                "./generator/generator.fsproj",
+                "/property:GenerateFullPaths=true",
+                "/consoleloggerparameters:NoSummary",
+            ],
+            "group": "build",
+            "presentation": {
+                // "reveal": "silent"
+            },
+            "problemMatcher": "$msCompile",
+            "options": {"env": {"VSTEST_HOST_DEBUG": "1"} }
         },
         {
             "type": "npm",

@@ -11,7 +11,6 @@
 module Curves
 
 
-//open System
 open BezPath
 
 let PI = System.Math.PI
@@ -24,14 +23,16 @@ type Vec2 = {
     x : float
     y : float
 } with
+    static member (-) (lhs, rhs) =
+        {x=lhs.x-rhs.x; y=lhs.y-rhs.y}
     member this.norm() =
         sqrt (this.x * this.x + this.y * this.y)
-
     member this.dot(other) =
         this.x * other.x + this.y * other.y
-
     member this.cross(other) =
         this.x * other.y - this.y * other.x
+    member this.atan2() =
+        atan2 this.y this.x
 
 
 type SplinePointType =
@@ -46,11 +47,13 @@ type SplinePointType =
 type SplineControlPoint(pt, ty, lth : float option, rth : float option) = 
     new(pt, ty) = SplineControlPoint(pt, ty, None, None)
 
+    // input data
     member val pt : Vec2 = pt with get
     member val ty : SplinePointType = ty with get, set
     member val lth : float option = lth with get, set
     member val rth : float option = lth with get, set
 
+    // fitted data
     member val kBlend : float option = lth with get, set
     //not the best naming convention, using one capital letter difference
     member val lTh : float = nan with get, set
@@ -241,6 +244,7 @@ type Ak = {
     //     let dak1dth1 = scale * (k1plus.ak1 - k1minus.ak1)
     //     {dak0dth0: dak0dth0, dak1dth0: dak1dth0, dak0dth1: dak0dth1, dak1dth1: dak1dth1}
 
+
 type MyCurve() = //extends TwoParamCurve =
     member this.render(th0, th1) =
         let c = myCubic th0 th1
@@ -367,7 +371,7 @@ type MyCurve() = //extends TwoParamCurve =
 // normalize theta to -pi..pi
 let mod2pi(th) =
     let twopi = 2. * PI
-    let frac = th * (1. / twopi)
+    let frac = th / twopi
     twopi * (frac - round frac)
 
 
@@ -691,7 +695,7 @@ type Spline (ctrlPts, isClosed) =
                         let lK = myTan(pt.lAk) / this.chordLen(i)
                         Some (2. / (1. / rK + 1. / lK))
 
-    member this.renderSvg tangent =
+    member this.renderSvg show_tangents =
         let path = BezPath()
         if this.ctrlPts.Length = 0 then "" else
         let pt0 = this.ctrlPts.[0] in path.moveto(pt0.pt.x, pt0.pt.y)
@@ -723,7 +727,9 @@ type Spline (ctrlPts, isClosed) =
                 path.curveto(c.[j], c.[j + 1], c.[j + 2], c.[j + 3], c.[j + 4], c.[j + 5])
         if this.isClosed then
             path.closepath()
-        if tangent then
+
+        //terryspitz: also render tangents in SVG
+        if show_tangents then
             for i in 1..length-1 do
                 path.mark i
                 let ptI = this.pt(i, 0)
