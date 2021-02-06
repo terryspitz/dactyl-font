@@ -1,4 +1,4 @@
-module GlyphDefs
+module GlyphFsDefs
 
 open GeneratorTypes
 open Axes
@@ -18,7 +18,7 @@ let applyIf b f = if b then f else id
 
 
 ///Class defining important Font x, y points, and a set of Glyph definitions in code
-type GlyphDefs (axes: Axes) =
+type GlyphFsDefs (axes: Axes) =
 
     // X axis guides, from left
     let L = 0               // Left
@@ -227,7 +227,8 @@ type GlyphDefs (axes: Axes) =
                                    (Mid(HR,BR), G2); (BC, G2); (BoL, End)])
         | Glyph('s') -> let X14, X2, X34, cOffsetX, cOffsetY = X/4, X/2, X*3/4, 100, 25
                         OpenCurve([(YX(X-max 0 (offset-thickness),R), G2); (YX(X, C-offset/2), G2); (YX(X34,L), G2)
-                                   (YX(X2,C), Anchor); (YX(X2-cOffsetY,C+cOffsetX), Handle)
+                                   (YX(X2,C), G2); (YX(X2-cOffsetY,C+cOffsetX), G2)
+                                    //try with Anchor/handle:    (YX(X2,C), Anchor); (YX(X2-cOffsetY,C+cOffsetX), Handle)
                                    (YX(X14,R), G2); (YX(B,C+offset/2), G2); (YX(B+max 0 (offset-thickness),L), End)
                                 ])
         | Glyph('T') -> EList([Line(TL, TR); Line(TC, BC)])
@@ -268,7 +269,7 @@ type GlyphDefs (axes: Axes) =
         | EList(elems) -> EList(List.map this.reduce elems)
         | Space -> Space
         | Glyph(ch) -> this.getGlyph e |> this.reduce
-        | _ -> invalidArg "e" (sprintf "Unreduced element %A" e)
+        // | _ -> invalidArg "e" (sprintf "Unreduced element %A" e)
 
     member this.reflect w e =
         let el = this.reduce e

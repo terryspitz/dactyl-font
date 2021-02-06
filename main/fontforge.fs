@@ -7,43 +7,45 @@ open GeneratorTypes
 open Generator
 
 
+let spiroCircle x y r = [
+    sprintf "%d %d o " (x-r) (y)
+    sprintf "%d %d o " (x) (y+r)
+    sprintf "%d %d o " (x+r) (y)
+]
+
+
 let charToFontForge (font: Font) (ch : char) =
     // reverse engineered from saved font
     let thickness = font.axes.thickness
     //let scpToString (scp : SCP) = sprintf "%f %f %c" scp.X scp.Y (char scp.Type)
-    let ptToString (p, t) =  let x,y = font.GlyphDefs._getXY p in sprintf "%d %d %c" x y (SpiroPointType.ToChar t)
-    let elemToFF elem =
+    let elemToFF addSpiro elem =
         //rearrange SVG bezier curve format to fontforge format
         let matchEval (amatch : Match) = 
             sprintf "%s %s 0" (amatch.Groups.[2].Value.Replace(","," ")) (amatch.Groups.[1].Value.ToLower())
         let reorder s = Regex.Replace(s, "(.) (.*)", matchEval)
         let split (s : string) = s.Split([|'\r'; '\n'|], System.StringSplitOptions.RemoveEmptyEntries) |> List.ofArray
-        let bezierString spiro = font.spiroToSvg spiro
-                                    |> List.collect split
-                                    |> List.map reorder
-        let rec toSpiroString elem =
-            match elem with
-            | OpenCurve(pts) | ClosedCurve(pts) -> List.map ptToString pts
-            | EList(elems) -> List.collect toSpiroString elems
-            | Dot(p) -> 
-                let x,y = font.GlyphDefs._getXY p 
-                [
-                    sprintf "%d %d o " (x-thickness) (y)
-                    sprintf "%d %d o " (x) (y+thickness)
-                    sprintf "%d %d o " (x+thickness) (y)
-                ]
-            | Space -> []
-            | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
-        (font.ElementToSpiroSegments elem |> List.collect bezierString)
-        @ ["Spiro"] 
-        @ toSpiroString elem 
-        @ ["0 0 z"; "EndSpiro"]
+        let bezierString (svg : string) = split svg |> List.map reorder
 
+        (font.elementToSvg elem |> List.collect bezierString)
+
+        @ if addSpiro then
+            let rec toSpiroString elem =
+                let ptToString (p, t) =  let x,y = font.GlyphFsDefs._getXY p in sprintf "%d %d %c" x y (SpiroPointType.ToChar t)
+                match elem with
+                | OpenCurve(pts) | ClosedCurve(pts) -> List.map ptToString pts
+                | EList(elems) -> List.collect toSpiroString elems
+                | Dot(p) -> let x,y = font.GlyphFsDefs._getXY p in spiroCircle x y thickness
+                | Space -> []
+                | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
+            "Spiro" :: toSpiroString elem @ ["0 0 z"; "EndSpiro"]
+            else []
+
+    let isSpiro = not font.axes.spline_not_spiro
     let spineSpiros = Font({font.axes with thickness = 2; outline = true}).CharToOutline ch 
                         |> font.translateByThickness
-                        |> elemToFF
+                        |> elemToFF isSpiro
     let outlineSpiros = font.CharToOutline ch
-                        |> elemToFF
+                        |> elemToFF isSpiro
     [
         sprintf "StartChar: %c\n" ch
         sprintf "Encoding: %d %d 0\n" (int ch) (int ch)

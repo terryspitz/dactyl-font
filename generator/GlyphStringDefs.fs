@@ -2,30 +2,35 @@ module GlyphStringDefs
 
 open System.Text.RegularExpressions
 open GeneratorTypes
-open GlyphDefs
+open GlyphFsDefs
 open SpiroPointType
 
+let PI = System.Math.PI
+
 /// This file defines a minimal language for defining glyph outlines (AMLFDGO)
-/// Turns out it's like a limited version of METAFONT from the 1970s, this was invented independently.
+/// Turns out it's like a limited version of METAFONT from the 1970s.
+/// This was invented independently.
 
 /// Defines glyphs using following symbols:
 /// y coordinates: (b)ottom, (t)op, (h)alf height, (x)-height, (d)escender
 /// (o) adds/subtracts a 'roundness' offset to y
 /// x coordinates: (l)eft, (r)ight, (c)enter, (w)ide (em-width)
 /// note multiple y or x coordinates means average across them, so "bt"="h" and "bbt" means one-third up
+/// optional tangent direction (N)orth (S)outh (E)ast (W)est
 /// lines/curves: (-) straight line, (~) curve, note: lines join curves smoothly 
 /// (.) for a corner (which requires a repeated point on both sides, sorry!)
 /// ( ) terminates a curve, a preceeding (- or ~) means closed curve (last point rejoins first point)
 /// Solo points become dots
 
-/// Regex checker for the language
+/// Regex for the language
 let y_re = "[txhbd]+"
 let offset_re = "o"
 let x_re = "[lrcw]+"
+let direction_re = "[NSEW]"
 let line_re = "[-~.]"
 let separator_re = " "
 let optional_re x = x + "?"
-let point_re = y_re + optional_re offset_re + x_re
+let point_re = y_re + optional_re offset_re + x_re + optional_re direction_re
 let curve_re = "(" + point_re + line_re + ")*" + point_re + optional_re line_re
 let glyph_re = "^ ?$|^(" + curve_re + separator_re + ")*" + curve_re + "$"
 
@@ -79,14 +84,14 @@ let glyphMap = Map.ofList [
     
         'A', "bl-tc-br bhlc-bhrc"
         'a', "xr-br xor~xc~xbl~bc~bor"
-        'B', "hl-hlc~bhr~bl.bl-tl.tl~thr~hlc-"
+        'B', "hl-hlc~bhr~bl.bl-tl.tl~thr~hlc-hl"
         'b', "tl-bl bol~bc~xbr~xc~xol"
         'C', "tor~tc~hl~bc~bor"
         'c', "xor~xc~xbl~bc~bor"
         'D', "tl-bl.bl~hr~"
         'd', "tr-br xor~xc~xbl~bc~bor"
         'E', "tr-tl-bl-br hl-hr"
-        'e', "xbl-xbr.xbr~xc~xbl~bc~br"
+        'e', "xbl-xbrN.xbrN~xc~xbl~bc~br"
         'F', "bl-tl-tr hl-hrc"
         'f', "bl-xl~tc xl-xc"
         'G', "tor~tc~hl~bc~bhr-hr.hr-hc"
@@ -97,8 +102,8 @@ let glyphMap = Map.ofList [
         'i', "xl-bl tl"
         'J', "tl-tr.tr-hr~bc~bol"
         'j', "xr-br~dc~dol tr"
-        'K', "tl-bl tr-hl-br"
-        'k', "tl-bl xcr-xbl-bcr"
+        'K', "tl-bl tr-hl hl-br"
+        'k', "tl-bl xcr-xbl xbl-bcr"
         'L', "tl-bl-br"
         'l', "tl-xbl~bc"
         'M', "bl-tl-blw-tw-bw"
@@ -132,7 +137,7 @@ let glyphMap = Map.ofList [
 ]
 
 // parse
-let parse_point (font : GlyphDefs) def_raw =
+let parse_point (glyph : GlyphFsDefs) def_raw =
     let mutable def = def_raw
     // y_coord
     let match_ = Regex.Match(def, "^" + y_re)
@@ -141,19 +146,20 @@ let parse_point (font : GlyphDefs) def_raw =
     let y_coords = [
         for y in ys do
             match y with
-            | 't' -> font._T
-            | 'x' -> font._X
-            | 'h' -> font._H
-            | 'b' -> font._B
-            | 'd' -> font._D
-            ]
+            | 't' -> glyph._T
+            | 'x' -> glyph._X
+            | 'h' -> glyph._H
+            | 'b' -> glyph._B
+            | 'd' -> glyph._D
+            | _ -> invalidArg "y" (sprintf "Invalid Y coord %A (should be in %A)" y y_re) 
+    ]
     let mutable y_coord = List.averageBy float y_coords |> int
     def <- def.[match_.Length..]
     // printfn "post-ycoord %A" def_left
     // offset
     if def.StartsWith(offset_re) then
         def <- def.[1..]
-        y_coord <- if y_coord > font._H then y_coord-font._offset else y_coord+font._offset
+        y_coord <- if y_coord > glyph._H then y_coord-glyph._offset else y_coord+glyph._offset
     // printfn "post-offset %A" def_left
     // x_coord-------------------------------------
     let match_ = Regex.Match(def, "^" + x_re)
@@ -162,26 +168,44 @@ let parse_point (font : GlyphDefs) def_raw =
     let x_coords = [
         for x in xs do
             match x with
-            | 'l' -> font._L
-            | 'c' -> font._C
-            | 'r' -> font._R
-            | 'w' -> font._R*3/2]
+            | 'l' -> glyph._L
+            | 'c' -> glyph._C
+            | 'r' -> glyph._R
+            | 'w' -> glyph._R*3/2
+            | _ -> invalidArg "x" (sprintf "Invalid X coord %A  (should be in %A)" x x_re)
+    ]
     let x_coord = List.averageBy float x_coords |> int
     def <- def.[match_.Length..]
     // printfn "%A" def_left
-    YX(y_coord, x_coord), def
 
-let parse_curve (font : GlyphDefs) raw_def =
-    let mutable pts, lines = [], []
+    let match_ = Regex.Match(def, "^" + direction_re)
+    let tangent = 
+        if match_.Success then
+            def <- def.[match_.Length..]
+            Some (
+                match match_.Value with
+                    | "N" -> PI * 0.5
+                    | "S" -> PI * -0.5
+                    | "E" -> 0.
+                    | "W" -> PI 
+                    | _ -> invalidArg "d" (sprintf "Invalid direction %A  (should be in %A)" match_.Value direction_re)
+            )
+        else None
+
+    YX(y_coord, x_coord), tangent, def
+
+let parse_curve (glyph : GlyphFsDefs) raw_def =
+    let mutable pts, lines, tangents = [], [], []
     let mutable def : string = raw_def
     let mutable last_line = ""
     while def.Length > 0 do
-        let pt, new_def = parse_point font def
+        let pt, tangent, new_def = parse_point glyph def
         def <- new_def
         if last_line = "." then
             assert (pt = pts.[pts.Length-1])
         else
             pts <- pts @ [pt]
+            tangents <- tangents @ [tangent]
         // line_re
         let match_ = Regex.Match(def, "^" + line_re)
         if match_.Success then
@@ -216,26 +240,26 @@ let parse_curve (font : GlyphDefs) raw_def =
     elif pts.Length = lines.Length || last_line = "." then
         if last_line = "." then 
             lines <- lines @ [Corner]
-            printfn "last_line = '.'"
-        ClosedCurve(List.zip pts lines)
+            // printfn "last_line = '.'"
+        TangentCurve(List.zip3 pts lines tangents, true)
         // ClosedCurve(List.zip pts (SpiroPointType.G2 :: lines.[..lines.Length-2]))
     else
         if last_line = "~" then
             lines <- lines @ [G2]
         else
             lines <- lines @ [Corner]
-        OpenCurve(List.zip pts lines)
+        TangentCurve(List.zip3 pts lines tangents, false)
 
-let stringDefsToElem (glyphDefs : GlyphDefs) e = 
+let stringDefsToElem (glyph : GlyphFsDefs) e = 
     let def = glyphMap.[e]
     assert Regex.IsMatch(def, glyph_re)
-    printfn "%A: %A" e def
+    // printfn "%A: %A" e def
     if def = "" then
         Dot(HC)
     elif def = " " then
         Space
     else
-        let curves = EList([for c in def.Split(separator_re) do parse_curve glyphDefs c])
-        printfn "%A" curves
+        let curves = EList([for c in def.Split(separator_re) do parse_curve glyph c])
+        // printfn "%A" curves
         curves
 
