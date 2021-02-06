@@ -51,7 +51,7 @@ type SplineControlPoint(pt, ty, lth : float option, rth : float option) =
     member val pt : Vec2 = pt with get
     member val ty : SplinePointType = ty with get, set
     member val lth : float option = lth with get, set
-    member val rth : float option = lth with get, set
+    member val rth : float option = rth with get, set
 
     // fitted data
     member val kBlend : float option = lth with get, set
@@ -143,10 +143,10 @@ type Polynomial (c : float []) =
         s
 
     member this.deriv() =
-        let c : float [] = Array.zeroCreate (this.c.Length - 1)
-        for i in 0..this.c.Length-1 do
-            c.[i] <- float (i + 1) * this.c.[i + 1]
-        Polynomial c
+        let d : float [] = Array.zeroCreate (this.c.Length - 1)
+        for i in 0..this.c.Length-2 do
+            d.[i] <- float (i + 1) * this.c.[i + 1]
+        Polynomial d
 
 
 let hermite5(x0, x1, v0, v1, a0, a1) =
@@ -688,7 +688,7 @@ type Spline (ctrlPts, isClosed) =
                 //    continue
                 //}
                 pt.kBlend <-
-                    if sign (pt.rAk) <> sign (pt.lAk) then
+                    if isnan (pt.rAk) || isnan (pt.lAk) || sign (pt.rAk) <> sign (pt.lAk) then
                         Some 0.
                     else
                         let rK = myTan(pt.rAk) / this.chordLen(i - 1)

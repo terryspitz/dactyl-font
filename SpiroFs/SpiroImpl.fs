@@ -648,10 +648,10 @@ let spiro_to_bpath (s: SpiroSegment[]) n (bc : IBezierContext) =
                 i <- i+1
         let x1 = s.[i + 1].X
         let y1 = s.[i + 1].Y
-        bc.MarkKnot(i, get_knot_th s i, x0, y0, s.[i].Type)
+        // bc.MarkKnot(i, get_knot_th s i, x0, y0, s.[i].Type)
         spiro_seg_to_bpath s.[i].ks x0 y0 x1 y1 bc 0
         i <- i+1
         j <- j+1
 
-    if nsegs = n - 1 then
-        bc.MarkKnot(nsegs, get_knot_th s (n - 1), s.[n - 1].X, s.[n - 1].Y, s.[n - 1].Type)
+    // if nsegs = n - 1 then
+    //     bc.MarkKnot(nsegs, get_knot_th s (n - 1), s.[n - 1].X, s.[n - 1].Y, s.[n - 1].Type)
