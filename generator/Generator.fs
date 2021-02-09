@@ -139,6 +139,8 @@ let toHtmlDocument left bottom width height svg =
 
 let black = "#000000"
 let red = "#e00000"
+let green = "#00e000"
+let blue = "#0000e0"
 
 
 //class
@@ -756,21 +758,22 @@ type Font (axes: Axes) =
         else
             elementToSpiroSegments elem |> List.collect this.spiroToSvg
 
-    member this.elementToSvgPath element offsetX offsetY strokeWidth fillColour=
+    member this.elementToSvgPath element offsetX offsetY strokeWidth fillColour =
         let fillrule = "nonzero"
         let fillStyle = if this.axes.outline && this.axes.filled then fillColour else "none"
-        let guid = Guid.NewGuid()
+        let svg = this.elementToSvg element
+        let guid = svg.GetHashCode()
         [
             if axes.clip_rect then
                 sprintf "<clipPath id='%A'>" guid
                 let margin = thickness * 2
                 sprintf "<rect x='%d' y='%d' width='%d' height='%d'/>" 
-                    -margin (_GlyphFsDefs._D-margin) (this.width element + margin) (this.charHeight + margin)
+                    -margin (_GlyphFsDefs._D - margin) (this.width element + margin) (this.charHeight + margin)
                 "</clipPath>"
             "<path "
             "d='"
         ] @
-        this.elementToSvg element @
+        svg @
         [
             "'"
             sprintf "transform='translate(%d,%d) scale(1,-1)'" offsetX offsetY
@@ -829,7 +832,7 @@ type Font (axes: Axes) =
     member this.translateByThickness = this.translateBy thickness thickness
 
     member this.charToElem ch =
-        Glyph(ch) 
+        Glyph(ch)
             |> this.reduce 
             |> applyIf axes.constraints this.constrainTangents
             |> this.monospace 

@@ -4,6 +4,15 @@ open GeneratorTypes
 open Axes
 
 
+let allChars = "abcdefghijklm
+nopqrstuvwxyz
+0123456789
+ABCDEFGHIJKLM
+NOPQRSTUVWXYZ
+!\"#£$%&'()*+,-./:;
+<=>?@[\\]^_`{|}~"
+
+
 let rec movePoints fn e = 
     match e with
     | OpenCurve(pts) -> OpenCurve([for p, t in pts do (fn p, t)])

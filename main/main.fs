@@ -29,8 +29,8 @@ let main argv =
     let debugSingleChar = true
     if debugSingleChar then
         // let font = Font(Axes.DefaultAxes)
-        let font = Font({Axes.DefaultAxes with spline_not_spiro=true; constraints=true; outline=false})
-        printfn "%A" (font.charToSvg 'D' 0 0)
+        let font = Font({Axes.DefaultAxes with spline_not_spiro=true})
+        printfn "%A" (font.charToSvg 'e' 0 0)
 
     let fonts = [
         // ("Dactyl Knots", "Extra Light", Font({Axes.DefaultAxes with show_knots = true}))
@@ -39,7 +39,7 @@ let main argv =
         ("Dactyl Sans", "Regular", Font({Axes.DefaultAxes with thickness = 30}))
         ("Dactyl Sans Italic", "Italic", Font({Axes.DefaultAxes with italic = 0.15}))
         ("Dactyl Sans Bold", "Bold", Font({Axes.DefaultAxes with thickness = 60}))
-        ("Dactyl Round", "Round", Font({Axes.DefaultAxes with roundedness = 300}))
+        ("Dactyl Round", "Round", Font({Axes.DefaultAxes with end_bulb = 0.5; axis_align_caps = false; thickness=90}))
         ("Dactyl Mono", "Regular", Font({Axes.DefaultAxes with monospace = 1.0}))
         ("Dactyl Stroked", "Regular", Font({Axes.DefaultAxes with stroked = true; thickness = 60;}))
         ("Dactyl Scratch", "Regular", Font({Axes.DefaultAxes with scratches = true; thickness = 60;}))
@@ -47,24 +47,26 @@ let main argv =
         ("Dactyl Smooth", "Regular", Font({Axes.DefaultAxes with spline_not_spiro=true; smooth=true}))
     ]
 
-    // SVG output, side by side
-    let rowHeights = List.scan (+) 0 [
-        for i in 0..fonts.Length-1 do
-            let _, _, font = fonts.[i] in (200 + font.charHeight * 2)]
-    // let text = ["THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789"
-    //             """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./"""]
-    let text = ["abcdefghijklmnopqrstuvwxyz 0123456789"
-                """ABCDEFGHIJKLMNOPQRSTUVWXYZ !"#£$%&'()*+,-./"""]
-    [for i in 0..fonts.Length-1 do
-        let name, _, font = fonts.[i]
-        printfn "\n%s\n" name
-        yield sprintf "<g id='%s%d'>" name i
-        let y = rowHeights.[i]
-        yield svgText 0 (y+200) name
-        yield! font.stringToSvgLines text 0 (y+400)
-        yield "</g>"
-    ] |> toHtmlDocument 0 0 (Axes.DefaultAxes.width * 70) (List.max rowHeights)
-      |> writeFile @".\allGlyphs.html"
+    let allGlyphs = true
+    if allGlyphs then
+        // SVG output, side by side
+        let rowHeights = List.scan (+) 0 [
+            for i in 0..fonts.Length-1 do
+                let _, _, font = fonts.[i] in (200 + font.charHeight * 2)]
+        // let text = ["THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789"
+        //             """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./"""]
+        let text = ["abcdefghijklmnopqrstuvwxyz 0123456789"
+                    """ABCDEFGHIJKLMNOPQRSTUVWXYZ !"#£$%&'()*+,-./"""]
+        [for i in 0..fonts.Length-1 do
+            let name, _, font = fonts.[i]
+            printfn "\n%s\n" name
+            yield sprintf "<g id='%s%d'>" name i
+            let y = rowHeights.[i]
+            yield svgText 0 (y+200) name
+            yield! font.stringToSvgLines text 0 (y+400)
+            yield "</g>"
+        ] |> toHtmlDocument 0 0 (Axes.DefaultAxes.width * 70) (List.max rowHeights)
+          |> writeFile @".\allGlyphs.html"
 
 
     // Proofs output using https://www.typography.com/blog/text-for-proofing-fonts

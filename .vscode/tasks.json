@@ -84,11 +84,10 @@
         },
         {
             "type": "npm",
-            "script": "start",
+            "script": "serve",
             "path": "explorer/",
             "problemMatcher": [],
-            "label": "npm: start - explorer",
-            "detail": "webpack-dev-server",
+            "label": "webpack serve explorer",
             "group": "build",
         },
         {
@@ -96,9 +95,25 @@
             "script": "build",
             "path": "explorer/",
             "problemMatcher": [],
-            "label": "npm: build - explorer bundle",
-            "detail": "webpack-dev-server",
+            "label": "webpack build - explorer bundle",
             "group": "build",
-        }
+        },
+        {
+            "type": "npm",
+            "script": "build-dev",
+            "path": "explorer/",
+            "problemMatcher": [],
+            "label": "webpack build dev - explorer bundle",
+            "group": "build",
+        },
+        {
+            "type": "npm",
+            "script": "install",
+            "path": "explorer/",
+            "problemMatcher": [],
+            "label": "npm install - explorer",
+            // "detail": "",
+            "group": "build",
+        },
     ]
 }
