@@ -198,14 +198,14 @@ let generate_splines _ =
         try
             EList([for c in text.Split(separator_re) do parse_curve (GlyphFsDefs(axes)) c]) |> font_spline.translateByThickness
         with | _ -> Dot (YX(axes.thickness, axes.thickness))
-    let offsetX, offsetY = 0, 1000
+    let offsetX, offsetY = 0, font_spline.charHeight
     let svg = font_spline.elementToSvgPath spline offsetX offsetY 30 green
                 @ if axes.show_knots then (spline |> font_spline.getSvgKnots offsetX offsetY false) else []
                 @ font_spiro.elementToSvgPath spiro offsetX offsetY 10 blue
                 @ if axes.show_knots then (spiro |> font_spiro.getSvgKnots offsetX offsetY false) else []
     // let outline = this.getOutline spine
     let svg = 
-        toSvgDocument -50 -50 1000 1000 svg
+        toSvgDocument -50 font_spline.yBaselineOffset 1000 font_spline.charHeight svg
     output.innerHTML <- String.concat "\n" svg
 
 
