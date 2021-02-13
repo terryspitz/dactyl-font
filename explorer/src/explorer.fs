@@ -191,22 +191,37 @@ let generate_splines _ =
     let font_spline = Font {new_axes with spline_not_spiro=true}
     let font_spiro = Font {new_axes with spline_not_spiro=false}
     let spline = 
-        try
-            EList([for c in text.Split(separator_re) do parse_curve (GlyphFsDefs(axes)) c]) |> font_spline.translateByThickness
+        try EList([for c in text.Split(separator_re) do parse_curve (GlyphFsDefs(axes)) c]) |> font_spline.translateByThickness
         with | _ -> Dot (YX(axes.thickness, axes.thickness))
     let spiro = 
-        try
-            EList([for c in text.Split(separator_re) do parse_curve (GlyphFsDefs(axes)) c]) |> font_spline.translateByThickness
+        try EList([for c in text.Split(separator_re) do parse_curve (GlyphFsDefs(axes)) c]) |> font_spline.translateByThickness
         with | _ -> Dot (YX(axes.thickness, axes.thickness))
     let offsetX, offsetY = 0, font_spline.charHeight
-    let svg = font_spline.elementToSvgPath spline offsetX offsetY 30 green
-                @ if axes.show_knots then (spline |> font_spline.getSvgKnots offsetX offsetY false) else []
-                @ font_spiro.elementToSvgPath spiro offsetX offsetY 10 blue
-                @ if axes.show_knots then (spiro |> font_spiro.getSvgKnots offsetX offsetY false) else []
-    // let outline = this.getOutline spine
-    let svg = 
-        toSvgDocument -50 font_spline.yBaselineOffset 1000 font_spline.charHeight svg
+    let svg =
+        if not axes.outline then
+            font_spline.elementToSvgPath spline offsetX offsetY 30 green
+            @ if axes.show_knots then (spline |> font_spline.getSvgKnots offsetX offsetY false) else []
+            @ font_spiro.elementToSvgPath spiro offsetX offsetY 10 blue
+            @ if axes.show_knots then (spiro |> font_spiro.getSvgKnots offsetX offsetY false) else []
+        else
+            let outlineSpline = try font_spline.getOutline spline with | _ -> spline
+            let outlineSplineSvg =
+                try font_spline.elementToSvgPath outlineSpline offsetX offsetY 30 green
+                with | _ -> []
+            let outlineSpiro = try font_spiro.getOutline spiro with | _ -> spiro
+            let outlineSpiroSvg =
+                try font_spiro.elementToSvgPath outlineSpiro offsetX offsetY 10 blue
+                with | _ -> []
+
+            font_spline.elementToSvgPath spline offsetX offsetY 3 green
+            @ font_spiro.elementToSvgPath spiro offsetX offsetY 3 blue
+            @ outlineSplineSvg
+            @ outlineSpiroSvg
+            @ if axes.show_knots then (outlineSpline |> font_spline.getSvgKnots offsetX offsetY false) else []
+            @ if axes.show_knots then (outlineSpiro |> font_spiro.getSvgKnots offsetX offsetY false) else []
+    let svg = toSvgDocument -50 font_spline.yBaselineOffset 2000 font_spline.charHeight svg
     output.innerHTML <- String.concat "\n" svg
+    // ((document.getElementsByTagName "svg").[0] :?> HTMLElement).setAttribute("style", "height:50%")
 
 
 let run_splines () = 
@@ -214,8 +229,7 @@ let run_splines () =
     let titleFont2 = Font({Axes.DefaultAxes with thickness=3; spline_not_spiro=false})
     let svg = titleFont.stringToSvgLines ["Splines"] 0 0 
                 @ titleFont2.stringToSvgLines ["Splines"] 0 0
-    let svg = 
-        toSvgDocument -50 -50 2000 1000 svg
+    let svg = toSvgDocument -50 -50 2000 1000 svg
     (document.getElementById "title").innerHTML <- String.concat "\n" svg
     let select = document.getElementById "char" :?> HTMLSelectElement
     for c in allChars.Replace("\r\n","") do
@@ -224,7 +238,7 @@ let run_splines () =
         option.innerText <- string c
         select.add option
     let getStringDef _ =
-        textbox.innerHTML <- glyphMap.[select.value.[0]]
+        textbox.value <- glyphMap.[select.value.[0]]
         generate_splines ()
     select.oninput <- getStringDef
     textbox.oninput <- generate_splines

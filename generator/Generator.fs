@@ -120,7 +120,7 @@ let toSvgDocument left bottom width height svg =
     [
         "<svg xmlns='http://www.w3.org/2000/svg'"
         sprintf "viewBox='%d %d %d %d'>" left bottom width height
-        "<g id='layer1'>"
+        "<g id='1'>"
     ] @ svg @ [
         "</g>"
         "</svg>"
@@ -187,7 +187,8 @@ type Font (axes: Axes) =
                     [SpiroOpenCurve(List.map makeSeg pts)]
             else
                 let offsetHandlePt pt theta =
-                    let x,y = getXY pt in YX(int(float y + 100. * sin(theta)), int(float x + 100. * cos(theta)))
+                    let fthickness = if axes.outline then (float thickness * 1.1) + 1. else 1. //minimum increment
+                    let x,y = getXY pt in YX(int(float y + fthickness * sin(theta)), int(float x + fthickness * cos(theta)))
                 let scps = 
                     [|for i in 0..pts.Length-1 do
                         let pt, ty, tang = pts.[i]
@@ -195,8 +196,10 @@ type Font (axes: Axes) =
                         else
                             match tang with
                             | Some theta -> 
-                                yield! [makeSCP (pt, Anchor)
-                                        makeSCP(offsetHandlePt pt theta, Handle)]
+                                // yield! [makeSCP (pt, Anchor)
+                                //         makeSCP(offsetHandlePt pt theta, Handle)]
+                                yield! [makeSCP (pt, Corner)
+                                        makeSCP(offsetHandlePt pt theta, LineToCurve)]
                             | None -> makeSCP (pt, ty)
                     |]
                 match Spiro.SpiroCPsToSegments scps isClosed with
