@@ -93,6 +93,7 @@ type GlyphFsDefs (axes: Axes) =
         let adgqLoop = OpenCurve([(XoR, Corner); (XC, G2); (ML, G2); (BC, G2); (BoR, Corner)])
 
         match e with
+        | Glyph('□') -> EList([PolyLine([TL;TR;BR;BL;TL]); Line(XL, XR); ])
         | Glyph('!') -> EList([Line(TL, ML); Dot(BL)])
         | Glyph('"') -> EList([Line(TL, YX(T-flooredOffset,L)); Line(TC, YX(T-flooredOffset,C))])
         | Glyph('#') -> let Y3 = T/3
@@ -286,6 +287,15 @@ type GlyphFsDefs (axes: Axes) =
             let x,y = getXY p
             YX(y, w-x)
         movePoints reflectP el
+
+    member this.guidesSvg =
+        [   "<path d='"
+            sprintf "M %d %d L %d %d" L B R B
+            sprintf "M %d %d L %d %d" L T R T
+            sprintf "M %d %d L %d %d" L B L T
+            sprintf "M %d %d L %d %d" R B R T
+            "' style='fill:none;stroke:#e0e0e0;stroke-width:2;'></path>"
+        ]
 
     member this._axes = {axes with thickness = thickness;}
     member this._T = T

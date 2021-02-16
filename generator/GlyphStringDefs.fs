@@ -36,29 +36,30 @@ let glyph_re = "^ ?$|^(" + curve_re + separator_re + ")*" + curve_re + "$"
 
 let glyphMap = Map.ofList [
         ' ', " "
+        '□', "tl-tr-br-bl- xl-xr bl-dl-dr-br"
         '!', "tc-hbc bc"
         '"', "tllr-tthllr tlrr-tthlrr"
-        '#', ""
-        '£', ""
-        '$', ""
-        '%', ""
-        '&', ""
+        '#', "ttbl-ttbr tbbl-tbbr tllr-bllr tlrr-blrr"
+        '£', "tor~tc~txl~xllc~bl.bl-br xl-xcr"
+        '$', "tthor~tthc~tthol~hc~hbbor~hbbc~hbbol tc-bc"
+        '%', "tthllc bbhrrc tr-bl"
+        '&', "hrS~bc~hbl~thcr~tlcc~thl-br"
         ''', "tl-tthl"
         '’', "tl-tthl"
-        '(', ""
-        ')', ""
-        '*', ""
-        '+', ""
-        '-', ""
+        '(', "tlc~hl~blc"
+        ')', "tl~hlc~bl"
+        '*', "xl-xr-xbllc-txc-xbrrc-"
+        '+', "hl-hr htc-hbc"
+        '-', "hl-hr"
         '.', "bl"
         ',', "blc-bbdl"
-        '/', ""
-        ':', ""
-        ';', ""
-        '<', ""
-        '=', ""
-        '>', ""
-        '?', ""
+        '/', "bl-tr"
+        ':', "xl bl"
+        ';', "xcl bocl-bl"
+        '<', "xr-xbl-br"
+        '=', "xl-xr xbl-xbr"
+        '>', "xl-xbr-bl"
+        '?', "tol~tc~tor~hc-bbhc bc"
         '@', ""
         '[', ""
         '\\', ""
@@ -77,10 +78,10 @@ let glyphMap = Map.ofList [
         '3', "tol~tc~thr~hc-hllr hllr-hc~bhr~bc~bol"
         '4', "brrrl-trrrl-bhl-bhr"
         '5', "tr-tl-hl hl~ttbc~bbtr~bc~bol"
-        '6', "tor~tc~hl~bbtl~bc~bbtr~ttbc~bbtl"
+        '6', "tor~tc~hl~bbtl~bc~bbtr~ttbc~bbtlN"
         '7', "tl-tr-bcl"
         '8', "hc~thl~tc~thr~ hc~bhl~bc~bhr~"
-        '9', "bol~bc~hr~ttbr~tc~ttbl~bbtc~ttbr"
+        '9', "bol~bc~hr~ttbr~tc~ttbl~bbtc~ttbrS"
     
         'A', "bl-tc-br bhlc-bhrc"
         'a', "xr-br xor~xc~xbl~bc~bor"
@@ -112,11 +113,11 @@ let glyphMap = Map.ofList [
         'n', "xl-bl xol~xc~xbr-br"
         'O', "hl~tc~hr~bc~"
         'o', "xbl~xc~xbr~bc~"
-        'P', "bl-tl.tl~thr~hl"
+        'P', "bl-tlE.tl~thr~hlE"
         'p', "xl-dl bol~bc~xbr~xc~xol"
         'Q', "hl~tc~hr~bc~ br-hbc"
         'q', "xr-dr xor~xc~xbl~bc~bor"
-        'R', "bl-tl.tl~thr~hcl-hl hc-br"
+        'R', "bl-tlE.tlE~thr~hcl-hl hc-br"
         'r', "xl-bl xol~xc~xor"
         'S', "thr~tc~ttbl~hc~tbbr~bc~bhl"
         's', "xor~xc~xxbl~xbc~xbbr~bc~bol"
@@ -237,13 +238,12 @@ let parse_curve (glyph : GlyphFsDefs) raw_def =
     // printfn "post-parse curve %A %A %A" pts lines def
     if pts.Length = 1 then
         Dot(pts.[0])
-    elif pts.Length = lines.Length || last_line = "." then
+    elif pts.Length = lines.Length || last_line = "." then    // Closed curve
         if last_line = "." then 
             lines <- lines @ [Corner]
             // printfn "last_line = '.'"
         TangentCurve(List.zip3 pts lines tangents, true)
-        // ClosedCurve(List.zip pts (SpiroPointType.G2 :: lines.[..lines.Length-2]))
-    else
+    else // Open curve
         if last_line = "~" then
             lines <- lines @ [G2]
         else

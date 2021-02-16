@@ -704,27 +704,31 @@ type Spline (ctrlPts, isClosed) =
             path.mark i
             let ptI = this.pt(i, 0)
             let ptI1 = this.pt(i + 1, 0)
-            let dx = ptI1.pt.x - ptI.pt.x
-            let dy = ptI1.pt.y - ptI.pt.y
-            let chth = atan2 dy dx
-            let chord = hypot(dy, dx)
-            let th0 = mod2pi(ptI.rTh - chth)
-            let th1 = mod2pi(chth - ptI1.lTh)
-            // Apply curvature blending
-            let k0 = Option.map (fun k->k*chord) ptI.kBlend
-            let k1 = Option.map (fun k->k*chord) ptI1.kBlend
-            let render = this.curve.render4(th0, th1, k0, k1)
-            let c =
-                [|
-                    for j in 0..render.Length-1 do
-                        let pt = render.[j]
-                        yield ptI.pt.x + dx * pt.x - dy * pt.y
-                        yield ptI.pt.y + dy * pt.x + dx * pt.y
-                    yield ptI1.pt.x
-                    yield ptI1.pt.y
-                |]
-            for j in 0..6..c.Length-1 do
-                path.curveto(c.[j], c.[j + 1], c.[j + 2], c.[j + 3], c.[j + 4], c.[j + 5])
+            if ptI.ty = SplinePointType.Corner && ptI1.ty = SplinePointType.Corner
+                && ptI.rth.IsNone && ptI1.lth.IsNone then
+                path.lineto(ptI1.pt.x, ptI1.pt.y)
+            else
+                let dx = ptI1.pt.x - ptI.pt.x
+                let dy = ptI1.pt.y - ptI.pt.y
+                let chth = atan2 dy dx
+                let chord = hypot(dy, dx)
+                let th0 = mod2pi(ptI.rTh - chth)
+                let th1 = mod2pi(chth - ptI1.lTh)
+                // Apply curvature blending
+                let k0 = Option.map (fun k->k*chord) ptI.kBlend
+                let k1 = Option.map (fun k->k*chord) ptI1.kBlend
+                let render = this.curve.render4(th0, th1, k0, k1)
+                let c =
+                    [|
+                        for j in 0..render.Length-1 do
+                            let pt = render.[j]
+                            yield ptI.pt.x + dx * pt.x - dy * pt.y
+                            yield ptI.pt.y + dy * pt.x + dx * pt.y
+                        yield ptI1.pt.x
+                        yield ptI1.pt.y
+                    |]
+                for j in 0..6..c.Length-1 do
+                    path.curveto(c.[j], c.[j + 1], c.[j + 2], c.[j + 3], c.[j + 4], c.[j + 5])
         if this.isClosed then
             path.closepath()
 

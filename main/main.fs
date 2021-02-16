@@ -22,7 +22,7 @@ let writeFile filename text =
 [<EntryPoint>]
 let main argv =
 
-    let runUnitTest = false
+    let runUnitTest = true
     if runUnitTest then
         DactylSplineTest.TestClass().CheckTwoPointCurves()
 
@@ -30,7 +30,7 @@ let main argv =
     if debugSingleChar then
         // let font = Font(Axes.DefaultAxes)
         let font = Font({Axes.DefaultAxes with spline_not_spiro=true})
-        printfn "%A" (font.charToSvg 'e' 0 0)
+        printfn "%A" (font.charToSvg 'e' 0 0 black)
 
     let fonts = [
         // ("Dactyl Knots", "Extra Light", Font({Axes.DefaultAxes with show_knots = true}))
@@ -63,7 +63,7 @@ let main argv =
             yield sprintf "<g id='%s%d'>" name i
             let y = rowHeights.[i]
             yield svgText 0 (y+200) name
-            yield! font.stringToSvgLines text 0 (y+400)
+            yield! font.stringToSvgLines text 0 (y+400) black
             yield "</g>"
         ] |> toHtmlDocument 0 0 (Axes.DefaultAxes.width * 70) (List.max rowHeights)
           |> writeFile @".\allGlyphs.html"
@@ -93,7 +93,7 @@ let main argv =
                 | [] -> [[w]]
             let lines = name :: (List.fold wrap [] lowercase |> List.map (String.concat " ") |> List.rev)
             printfn "\n%s\n" name
-            font.stringToSvg lines 0 0 true |> writeFile (sprintf @".\svg\%s_lower.svg" name)
+            font.stringToSvg lines 0 0 true black |> writeFile (sprintf @".\svg\%s_lower.svg" name)
     
     // FontForge output
     let writeFonts = true
@@ -118,7 +118,7 @@ let main argv =
             for c in 1..10 do
                 let font = Font({Axes.DefaultAxes with 
                                             x_height = float (11-r) * 0.2; roundedness = c*30; thickness = r*6;})
-                yield! font.stringToSvg [str] 0 0 true
+                yield! font.stringToSvg [str] 0 0 true black
         ] |> writeFile @".\interp.svg"
 
     0 // return code

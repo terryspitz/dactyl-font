@@ -140,7 +140,10 @@ let toHtmlDocument left bottom width height svg =
 let black = "#000000"
 let red = "#e00000"
 let green = "#00e000"
+let lightGreen = "#aaffaa"
 let blue = "#0000e0"
+let lightBlue = "#aaaaff"
+let pink = "#ffaaaa"
 
 
 //class
@@ -187,20 +190,22 @@ type Font (axes: Axes) =
                     [SpiroOpenCurve(List.map makeSeg pts)]
             else
                 let offsetHandlePt pt theta =
-                    let fthickness = if axes.outline then (float thickness * 1.1) + 1. else 1. //minimum increment
+                    let fthickness = if axes.outline then (float thickness + 10.)  else 1. //minimum increment
                     let x,y = getXY pt in YX(int(float y + fthickness * sin(theta)), int(float x + fthickness * cos(theta)))
                 let scps = 
                     [|for i in 0..pts.Length-1 do
                         let pt, ty, tang = pts.[i]
-                        if i = 0 || i = pts.Length-1 then makeSCP (pt, ty)
-                        else
-                            match tang with
-                            | Some theta -> 
+                        match tang with
+                        | Some theta -> 
+                            if i = pts.Length-1 then
+                                yield! [makeSCP(offsetHandlePt pt theta, CurveToLine)
+                                        makeSCP (pt, Corner)]
+                            else
                                 // yield! [makeSCP (pt, Anchor)
                                 //         makeSCP(offsetHandlePt pt theta, Handle)]
-                                yield! [makeSCP (pt, Corner)
+                                yield! [makeSCP (pt, if ty = G2 then CurveToLine else Corner)
                                         makeSCP(offsetHandlePt pt theta, LineToCurve)]
-                            | None -> makeSCP (pt, ty)
+                        | None -> makeSCP (pt, ty)
                     |]
                 match Spiro.SpiroCPsToSegments scps isClosed with
                 | Some segs ->
@@ -786,12 +791,12 @@ type Font (axes: Axes) =
         ]
 
     ///circles highlighting the knots (defined points on the spiro curves)
-    member this.getSvgKnots offsetX offsetY outline elem =
+    member this.getSvgKnots offsetX offsetY size colour elem =
         let l,r,b,t = bounds elem
         let rec toSvgPoints elem2 =
             let svgKnot (p, ty) = 
                 let x,y = getXY p
-                let radius = if ty=Handle then 1 elif outline then 10 else 20
+                let radius = if ty = Handle then 1 else size
                 if this.isJoint elem x y then
                     svgDiamond x y radius
                 elif x = l then
@@ -825,7 +830,7 @@ type Font (axes: Axes) =
         [
             "'"
             sprintf "transform='translate(%d,%d) scale(1,-1)'" offsetX offsetY
-            sprintf "style='fill:none;stroke:%s;stroke-width:10'/>" (if outline then "#aaaaff" else "#ffaaaa")
+            sprintf "style='fill:none;stroke:%s;stroke-width:10'/>" colour
         ]
 
     member this.translateBy dx dy = 
@@ -841,15 +846,17 @@ type Font (axes: Axes) =
             |> this.monospace 
             |> this.translateByThickness
 
-    member this.charToSvg ch offsetX offsetY =
+    member this.charToSvg ch offsetX offsetY colour =
         // printfn "%c" ch
         (sprintf "<!-- %c -->" ch) ::
         let spine = this.charToElem ch
+        let knotColour = if this.axes.outline then lightBlue else pink
+        let knotSize = if this.axes.outline then 10 else 20
         try
             let outline = this.getOutline spine
-            this.elementToSvgPath outline offsetX offsetY 5 black
+            this.elementToSvgPath outline offsetX offsetY 5 colour
             @ if this.axes.show_knots && this.axes.outline then
-                outline |> this.getSvgKnots offsetX offsetY true
+                outline |> this.getSvgKnots offsetX offsetY knotSize knotColour
               else []
         with
         | _ ->
@@ -858,7 +865,7 @@ type Font (axes: Axes) =
             with
             | _ -> this.elementToSvgPath (Dot(HC)) offsetX offsetY 5 red
         @ if this.axes.show_knots then
-            (spine |> this.italicise |> this.getSvgKnots offsetX offsetY false)
+            spine |> this.italicise |> this.getSvgKnots offsetX offsetY knotSize knotColour
           else
             []
 
@@ -874,7 +881,7 @@ type Font (axes: Axes) =
 
     member this.stringWidth str = List.sum (this.charWidths str)
 
-    member this.stringToSvgLineInternal (lines : string list) offsetX offsetY =
+    member this.stringToSvgLineInternal (lines : string list) offsetX offsetY colour =
         let svg, lineWidths = 
             List.unzip
                 [for i in 0..lines.Length-1 do
@@ -883,17 +890,17 @@ type Font (axes: Axes) =
                     let offsetXs = List.scan (+) offsetX widths
                     let lineOffset = offsetY + this.charHeight * (i+1) - this.yBaselineOffset + thickness
                     let svg = [for c in 0 .. str.Length - 1 do
-                                yield! this.charToSvg str.[c] (offsetXs.[c]) lineOffset]
+                                yield! this.charToSvg str.[c] (offsetXs.[c]) lineOffset colour]
                     (svg, List.sum widths)
                 ]
         (List.collect id svg, lineWidths)
 
-    member this.stringToSvgLines (lines : string list) offsetX offsetY =
-        fst (this.stringToSvgLineInternal lines offsetX offsetY)
+    member this.stringToSvgLines (lines : string list) offsetX offsetY colour =
+        fst (this.stringToSvgLineInternal lines offsetX offsetY colour)
 
-    member this.stringToSvg (lines : string list) offsetX offsetY autoscale =
+    member this.stringToSvg (lines : string list) offsetX offsetY autoscale colour =
         let margin = 50
-        let svg, lineWidths = this.stringToSvgLineInternal lines offsetX offsetY
+        let svg, lineWidths = this.stringToSvgLineInternal lines offsetX offsetY colour
         let w, h =
             if autoscale then 
                 (List.max lineWidths + margin),

@@ -11,6 +11,8 @@ open GlyphStringDefs
 open GlyphFsDefs
 
 
+let grey = "#e0e0e0"
+
 let textbox = document.getElementById("text") :?> HTMLInputElement
 let inputs = document.getElementById("inputs")
 let output = document.getElementById("output")
@@ -76,7 +78,7 @@ let tweensSvg (text : string) =
                 yOffset <- yOffset + height + 100
                 let lineOffset = yOffset - fonts.[0].yBaselineOffset + 100
                 let svg = title
-                          :: [for i in 0..fonts.Length-1 do yield! fonts.[i].charToSvg ch (offsetXs.[i]) lineOffset]
+                          :: [for i in 0..fonts.Length-1 do yield! fonts.[i].charToSvg ch (offsetXs.[i]) lineOffset black]
                 (svg, List.sum widths, fonts.[0].charHeight + 100)
             ]
     let margin = 50
@@ -101,7 +103,7 @@ let generate _ =
         printfn "%A" font.axes
         let lines = text.Split('\r','\n') |> List.ofArray
         let start = DateTime.UtcNow.Ticks
-        let svg = font.stringToSvg lines 0 0 false
+        let svg = font.stringToSvg lines 0 0 false black
         printfn "%d ms" ((DateTime.UtcNow.Ticks-start)/10000L)
         output.innerHTML <- String.concat "\n" svg
 
@@ -174,7 +176,7 @@ let randomise reset generate _ =
 let run_explorer () = 
     let titleFont = Font({Axes.DefaultAxes with thickness=3})
     let titleElem = document.getElementById "title"
-    titleElem.innerHTML <-  titleFont.stringToSvg ["Dactyl Live"] 0 0 true |> String.concat "\n"
+    titleElem.innerHTML <-  titleFont.stringToSvg ["Dactyl Live"] 0 0 true black |> String.concat "\n"
     textbox.innerHTML <- allChars
     textbox.oninput <- generate
     (document.getElementById "reset").onclick <- randomise true generate
@@ -187,48 +189,56 @@ let generate_splines _ =
     let text = textbox.value
     let values = currentFieldValues () |> List.map snd |> Array.ofList
     let axes = Reflection.FSharpValue.MakeRecord(typeof<Axes>, values) :?> Axes
-    let new_axes = {axes with clip_rect=false; filled=false; show_knots=true}
-    let font_spline = Font {new_axes with spline_not_spiro=true}
-    let font_spiro = Font {new_axes with spline_not_spiro=false}
+    let newAxes = {axes with clip_rect=false; filled=false; show_knots=true}
+    let fontSpline = Font {newAxes with spline_not_spiro=true}
+    let fontSpiro = Font {newAxes with spline_not_spiro=false}
+    let fontGuides = Font {newAxes with spline_not_spiro=false; show_knots=false}
     let spline = 
-        try EList([for c in text.Split(separator_re) do parse_curve (GlyphFsDefs(axes)) c]) |> font_spline.translateByThickness
+        try EList([for c in text.Split(separator_re) do parse_curve (GlyphFsDefs(axes)) c]) |> fontSpline.translateByThickness
         with | _ -> Dot (YX(axes.thickness, axes.thickness))
     let spiro = 
-        try EList([for c in text.Split(separator_re) do parse_curve (GlyphFsDefs(axes)) c]) |> font_spline.translateByThickness
+        try EList([for c in text.Split(separator_re) do parse_curve (GlyphFsDefs(axes)) c]) |> fontSpline.translateByThickness
         with | _ -> Dot (YX(axes.thickness, axes.thickness))
-    let offsetX, offsetY = 0, font_spline.charHeight
+    let offsetX, offsetY = 0, fontSpline.charHeight+axes.thickness
     let svg =
         if not axes.outline then
-            font_spline.elementToSvgPath spline offsetX offsetY 30 green
-            @ if axes.show_knots then (spline |> font_spline.getSvgKnots offsetX offsetY false) else []
-            @ font_spiro.elementToSvgPath spiro offsetX offsetY 10 blue
-            @ if axes.show_knots then (spiro |> font_spiro.getSvgKnots offsetX offsetY false) else []
+            fontGuides.charToSvg '□' offsetX offsetY grey
+            @ fontSpline.elementToSvgPath spline offsetX offsetY 30 green
+            @ fontSpiro.elementToSvgPath spiro offsetX offsetY 10 blue
+            @ if axes.show_knots then
+                (spline |> fontSpline.getSvgKnots offsetX offsetY 5 lightGreen)
+                @ (spiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue) else []
         else
-            let outlineSpline = try font_spline.getOutline spline with | _ -> spline
+            let outlineSpline = try fontSpline.getOutline spline with | _ -> spline
             let outlineSplineSvg =
-                try font_spline.elementToSvgPath outlineSpline offsetX offsetY 30 green
+                try fontSpline.elementToSvgPath outlineSpline offsetX offsetY 30 green
                 with | _ -> []
-            let outlineSpiro = try font_spiro.getOutline spiro with | _ -> spiro
+            let outlineSpiro = try fontSpiro.getOutline spiro with | _ -> spiro
             let outlineSpiroSvg =
-                try font_spiro.elementToSvgPath outlineSpiro offsetX offsetY 10 blue
+                try fontSpiro.elementToSvgPath outlineSpiro offsetX offsetY 10 blue
                 with | _ -> []
 
-            font_spline.elementToSvgPath spline offsetX offsetY 3 green
-            @ font_spiro.elementToSvgPath spiro offsetX offsetY 3 blue
+            // font_spline.GlyphFsDefs.guidesSvg
+            fontGuides.charToSvg '□' offsetX offsetY grey
+            @ fontSpline.elementToSvgPath spline offsetX offsetY 3 green
+            @ fontSpiro.elementToSvgPath spiro offsetX offsetY 3 blue
             @ outlineSplineSvg
             @ outlineSpiroSvg
-            @ if axes.show_knots then (outlineSpline |> font_spline.getSvgKnots offsetX offsetY false) else []
-            @ if axes.show_knots then (outlineSpiro |> font_spiro.getSvgKnots offsetX offsetY false) else []
-    let svg = toSvgDocument -50 font_spline.yBaselineOffset 2000 font_spline.charHeight svg
+            @ if axes.show_knots then
+                (spline |> fontSpline.getSvgKnots offsetX offsetY 3 lightGreen)
+                @ (spiro |> fontSpiro.getSvgKnots offsetX offsetY 3 lightBlue)
+                @ (outlineSpline |> fontSpline.getSvgKnots offsetX offsetY 5 lightGreen)
+                @ (outlineSpiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue) else []
+    let svg = toSvgDocument -50 fontSpline.yBaselineOffset 2000 fontSpline.charHeight svg
     output.innerHTML <- String.concat "\n" svg
     // ((document.getElementsByTagName "svg").[0] :?> HTMLElement).setAttribute("style", "height:50%")
 
 
 let run_splines () = 
-    let titleFont = Font({Axes.DefaultAxes with thickness=3; spline_not_spiro=true})
-    let titleFont2 = Font({Axes.DefaultAxes with thickness=3; spline_not_spiro=false})
-    let svg = titleFont.stringToSvgLines ["Splines"] 0 0 
-                @ titleFont2.stringToSvgLines ["Splines"] 0 0
+    let titleFontSpline = Font({Axes.DefaultAxes with thickness=3; spline_not_spiro=true})
+    let titleFontSpiro = Font({Axes.DefaultAxes with thickness=3; spline_not_spiro=false})
+    let svg = titleFontSpiro.stringToSvgLines ["Spiro"] 40 40 blue
+                @ titleFontSpline.stringToSvgLines ["Splines"] 0 0 green
     let svg = toSvgDocument -50 -50 2000 1000 svg
     (document.getElementById "title").innerHTML <- String.concat "\n" svg
     let select = document.getElementById "char" :?> HTMLSelectElement
