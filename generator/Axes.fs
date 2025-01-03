@@ -45,7 +45,7 @@ type Axes = {
         x_height = 0.6
         thickness = 30
         contrast = 0.05
-        roundedness = 100
+        roundedness = 60
         tracking = 40
         leading = 50
         monospace = 0.0
@@ -58,7 +58,7 @@ type Axes = {
         outline = true
         stroked = false
         scratches = false
-        spline_not_spiro = true
+        spline_not_spiro = false
         max_spline_iter = 10
         show_knots = false
         show_tangents = false
@@ -70,10 +70,9 @@ type Axes = {
     static member controls = [
         "new_definitions", Checkbox
         "spline_not_spiro", Checkbox
-        "constraints", Checkbox
         "width", Range(100, 1000)
         "height", Range(100, 1000)
-        "x_height", FracRange(0., 2.)
+        "x_height", FracRange(0., 1.5)
         "thickness", Range(1, 200)
         "contrast", FracRange(-0.5, 0.5)
         "roundedness", Range(0, 300)
@@ -85,6 +84,7 @@ type Axes = {
         "end_bulb", FracRange(-1.0, 3.0)
         "flare", FracRange(-1.0, 1.0)
         "axis_align_caps", Checkbox
+        "constraints", Checkbox
         "filled", Checkbox
         "outline", Checkbox
         "stroked", Checkbox

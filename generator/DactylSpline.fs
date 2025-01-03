@@ -4,6 +4,60 @@
 /// with configurable spiro/euler spiral curvature, smoothness and other constraints.
 /// Fit sampled points to Euler spiral (like spiro spline) where curvature k is linear in curve length
 
+// Gemini Pro 1.0 says:
+
+// Overall Structure:
+
+// The code defines two types: ControlPoint and BezierPoint.
+
+// ControlPoint represents a control point on the spline, with properties for:
+// ty: Spline point type (Smooth, Corner, LineToCurve, CurveToLine)
+// x, y (optional; specifies coordinates or lets the fitting algorithm determine them)
+// th (optional; tangent theta in direction of next point)
+
+// BezierPoint represents a point on a bezier curve segment, with properties for:
+// x, y: coordinates
+// lth, rth: tangent angles towards previous and next point
+// ld, rd: distances to control points for bezier segment
+// fit_*: flags indicating whether the corresponding value was fitted or specified directly
+
+// The Solver type encapsulates a collection of control points and performs calculations to fit cubic bezier curves to them. It has methods for:
+// initialise(): sets up initial values for bezier points based on control points
+// computeErr(): computes an error based on curvature and distance along the bezier curves
+// iter(iter): performs an iteration of a fitting algorithm
+
+// The Spline type uses the Solver to create a spline from control points. It has methods for:
+// solve(maxIter): performs the fitting process with a maximum number of iterations
+// to_string(): converts the spline to a string representation (using BezPath from a separate library)
+// renderSvg(show_tangents): generates an SVG path representing the spline and optionally the tangents (not implemented in this code)
+
+// Key Concepts and Assumptions:
+
+// The code assumes that the control points define a curve with desired smoothness and curvature properties.
+// The fitting algorithm aims to minimize an error function that measures the difference between the fitted curve and the desired curvature/distance characteristics.
+// The specific details of the fitting algorithm are not visible within the provided code section due to the [*] sections.
+
+// Gemini Advanced 1.0 says
+
+/// This code defines a system for creating and fitting splines based on a collection 
+/// of control points. Splines are represented using cubic Bézier curves. The code 
+/// provides functionality to iteratively fit the Bézier curves to achieve desired
+/// smoothness and curvature properties, with an emphasis on approximating Euler spirals.
+///
+/// Key Concepts:
+/// * Control Points: User-defined points that guide the general shape of the spline.
+///   Control points have properties for position, tangents, and continuity type.
+/// * Bézier Points: Internal representation of points along a Bézier curve segment,
+///   including tangent angles and distances to corresponding control points.
+/// * Solver: Handles the spline fitting process by initializing Bézier points and
+///   iteratively minimizing an error function that measures deviations from a 
+///   desired curvature profile.
+/// * Spline: The final spline object built from fitted Bézier curve segments. 
+///   Provides methods for solving (fitting) and converting the spline to different 
+///   representations (e.g., SVG path).
+
+
+
 module DactylSpline
 
 //reuse spline-research Vec2, SplinePointType, SplineControlPoint, CubicBez
@@ -11,18 +65,19 @@ open Curves
 open BezPath 
 
 type ControlPoint = {
-    mutable ty : SplinePointType
-    x : float option    // x coord or None to fit x
+    mutable ty : SplinePointType  //Continuity at this point: Smooth, Corner, LineToCurve or CurveToLine
+    x : float option    // x coord or None to fit x to 'smoothest' curve
     y : float option    // same for y
-    mutable th : float option   // tangent theta in direction of next point
+    mutable th : float option   // optional tangent theta in direction of next point
 }
 
 type ControlPointOut(ty, x, y, lth, rth) = 
     member val ty : SplinePointType = ty with get, set
     member val x : float = x with get
     member val y : float = y with get
-    member val lth : float = lth with get, set
-    member val rth : float = lth with get, set
+    member val th : float = lth with get, set  // angle of tangent towards next point
+    // member val lth : float = lth with get, set  // angle of curve to previous point
+    // member val rth : float = lth with get, set  // angle of curve to next point
 
 // Internal class for a knot on bezier curve including tangents and distances to control points 
 type BezierPoint() =
@@ -52,16 +107,20 @@ type BezierPoint() =
     member this.lpt() = {x=this.x + this.ld * cos this.lth; y=this.y + this.ld * sin this.lth}
     member this.rpt() = {x=this.x + this.rd * cos this.rth; y=this.y + this.rd * sin this.rth}
 
-type Solver(ctrlPts : ControlPoint array, isClosed : bool) =
+type Solver(ctrlPts : ControlPoint array, isClosed : bool, debug: bool) =
     let _points : BezierPoint array = Array.zeroCreate ctrlPts.Length
     member this.ctrlPts = ctrlPts
     member this.isClosed = isClosed
     member val startTh : float option = None with get, set
     member val endTh : float option = None with get, set
     member this.points() = _points
+    member this.debug = debug
 
     member this.initialise() =
         //initialise points
+        printfn "solver init"
+        printfn"%A" this.ctrlPts
+
         for i in 0..ctrlPts.Length - 1 do
             _points.[i] <- BezierPoint()
             let point = _points.[i]
@@ -71,6 +130,7 @@ type Solver(ctrlPts : ControlPoint array, isClosed : bool) =
             | None -> point.x <- if i=0 then ctrlPts.[i+1].x.Value
                                     elif i=ctrlPts.Length-1 then ctrlPts.[i-1].x.Value
                                     else (ctrlPts.[i-1].x.Value+ctrlPts.[i+1].x.Value)/2.
+            //TODO: fit_y
             match ctrlPt.y with | Some y -> point.y <- y; point.fit_y <- false | None -> ()
 
         //initialise tangent angle/distance
@@ -102,6 +162,8 @@ type Solver(ctrlPts : ControlPoint array, isClosed : bool) =
             else
                 point.ld <- dpl.norm()/3.
                 point.rd <- dpr.norm()/3.
+        printfn "solver post init"
+        printfn "%A" [|for p in _points do p._arr|]
 
     member this.computeErr() =
         // Create bezier curves representing each segment.
@@ -155,7 +217,7 @@ type Solver(ctrlPts : ControlPoint array, isClosed : bool) =
         assert not (isnan errs)
         errs
             
-    /// Crawl towards a curvature continuous solution.
+    /// Step towards a curvature continuous solution.
     member this.iter(iter) =
         let n = this.ctrlPts.Length
         
@@ -215,7 +277,7 @@ type Spline (ctrlPts, isClosed) =
                 ptI.ty <- SplinePointType.Corner
                 ptI.th <- Some th
 
-
+        // member this.to_string () =
         let path = BezPath()
         let pt0 = this.ctrlPts.[0]
         path.moveto(pt0.x.Value, pt0.y.Value)
@@ -224,7 +286,7 @@ type Spline (ctrlPts, isClosed) =
         while i < length do
             let ptI = this.ctrlPts.[i]
             let ptI1 = this.ctrlPts.[i+1]
-            if ptI1.ty = SplinePointType.Corner then
+            if ptI1.ty = SplinePointType.Corner && ptI.th.IsNone && ptI1.th.IsNone then
                 // line
                 // let dx = ptI1.x - ptI.x
                 // let dy = ptI1.y - ptI.y
@@ -235,7 +297,7 @@ type Spline (ctrlPts, isClosed) =
                 i <- i+1
 
             else
-                // curve
+                // find a curved section, ending in corners
                 let mutable j = i + 1
                 let mutable break_ = false
                 let innerPts =
@@ -251,7 +313,8 @@ type Spline (ctrlPts, isClosed) =
                 //console.log(innerPts)
                 let solver = Solver(
                                 Array.ofList innerPts, 
-                                this.isClosed && innerPts.Length-1 = length)
+                                this.isClosed && innerPts.Length-1 = length,
+                                true)
                 solver.initialise()
                 let CONVERGED_ERR = 1e-3
                 let mutable iter = 0
