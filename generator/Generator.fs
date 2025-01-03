@@ -767,10 +767,21 @@ type Font (axes: Axes) =
             elementToSpiroSegments elem |> List.collect this.spiroToSvg
 
     member this.elementToSvgPath element offsetX offsetY strokeWidth fillColour =
+        let GetDeterministicHashCode (str : string) =
+            // unchecked
+            let mutable hash1 = (5381 <<< 16) + 5381
+            let mutable hash2 = hash1
+
+            for i in 0..2..str.Length-1 do
+                hash1 <- ((hash1 <<< 5) + hash1) ^^^ (int str.[i])
+                if i < str.Length - 1 then
+                    hash2 <- ((hash2 <<< 5) + hash2) ^^^ (int str.[i + 1])
+            hash1 + (hash2 * 1566083941)
+
         let fillrule = "nonzero"
         let fillStyle = if this.axes.outline && this.axes.filled then fillColour else "none"
         let svg = this.elementToSvg element
-        let guid = svg.GetHashCode()
+        let guid = GetDeterministicHashCode(String.concat "\n" svg)
         [
             if axes.clip_rect then
                 sprintf "<clipPath id='%A'>" guid
