@@ -23,25 +23,25 @@ type TestClass() =
             {ty=SplinePointType.Corner; x=Some 1.; y=Some 0.; th=None};
         |], false)
         let svg = solve_and_print_spline spline
-        Assert.AreEqual(expectedLineTo, svg)
+        Assert.That(svg, Is.EqualTo(expectedLineTo))
         let spline = Spline([|
             {ty=SplinePointType.Smooth; x=Some 0.; y=Some 0.; th=None};
             {ty=SplinePointType.Corner; x=Some 1.; y=Some 0.; th=None};
         |], false)
         let svg = solve_and_print_spline spline
-        Assert.AreEqual(expectedLineTo, svg)
+        Assert.That(svg,Is.EqualTo(expectedLineTo))
         let spline = Spline([|
             {ty=SplinePointType.Corner; x=Some 0.; y=Some 0.; th=None};
             {ty=SplinePointType.Smooth; x=Some 1.; y=Some 0.; th=None};
         |], false)
         let svg = solve_and_print_spline spline
-        Assert.AreEqual("M 0,0 C 0,0 0,0 1,0", svg)
+        Assert.That(svg, Is.EqualTo("M 0,0 C 0,0 0,0 1,0"))
         let spline = Spline([|
             {ty=SplinePointType.Smooth; x=Some 0.; y=Some 0.; th=None};
             {ty=SplinePointType.Smooth; x=Some 1.; y=Some 0.; th=None};
         |], false)
         let svg = solve_and_print_spline spline
-        Assert.AreEqual("M 0,0 C 0,0 0,0 1,0", svg)
+        Assert.That(svg, Is.EqualTo("M 0,0 C 0,0 0,0 1,0"))
 
     [<Test>]
     member this.CheckTwoPointCurvesWithAlignedTangents() =
@@ -51,19 +51,19 @@ type TestClass() =
             {ty=SplinePointType.Corner; x=Some 1.; y=Some 0.; th=None};
         |], false)
         let svg = solve_and_print_spline spline
-        Assert.AreEqual(expectedLineWithCurveTo, svg)
+        Assert.That(svg, Is.EqualTo(expectedLineWithCurveTo))
         let spline = Spline([|
             {ty=SplinePointType.Corner; x=Some 0.; y=Some 0.; th=None};
             {ty=SplinePointType.Corner; x=Some 1.; y=Some 0.; th=Some (-PI)};
         |], false)
         let svg = solve_and_print_spline spline
-        Assert.AreEqual(expectedLineWithCurveTo, svg)
+        Assert.That(svg, Is.EqualTo(expectedLineWithCurveTo))
         let spline = Spline([|
             {ty=SplinePointType.Corner; x=Some 0.; y=Some 0.; th=Some 0.};
             {ty=SplinePointType.Corner; x=Some 1.; y=Some 0.; th=Some (-PI)};
         |], false)
         let svg = solve_and_print_spline spline
-        Assert.AreEqual(expectedLineWithCurveTo, svg)
+        Assert.That(svg, Is.EqualTo(expectedLineWithCurveTo))
 
     [<Test>]
     member this.CheckTwoPointCurvesWithOtherTangents() =
@@ -72,16 +72,16 @@ type TestClass() =
             {ty=SplinePointType.Corner; x=Some 1.; y=Some 0.; th=Some (PI/2.)};
         |], false)
         let svg = solve_and_print_spline spline
-        Assert.AreEqual("M 0,0 C 0,1 1,1 1,0", svg)
+        Assert.That(svg, Is.EqualTo("M 0,0 C 0,1 1,1 1,0"))
         // let spline = Spline([|
         //     {ty=SplinePointType.Corner; x=Some 0.; y=Some 0.; th=None};
         //     {ty=SplinePointType.Corner; x=Some 1.; y=Some 0.; th=Some (-PI)};
         // |], false)
         // let svg = solve_and_print_spline spline
-        // Assert.AreEqual("M 0,0 L 1,0", svg)
+        // Assert.That(svg, Is.EqualTo("M 0,0 L 1,0"))
         // let spline = Spline([|
         //     {ty=SplinePointType.Corner; x=Some 0.; y=Some 0.; th=Some 0.};
         //     {ty=SplinePointType.Corner; x=Some 1.; y=Some 0.; th=Some (-PI)};
         // |], false)
         // let svg = solve_and_print_spline spline
-        // Assert.AreEqual("M 0,0 L 1,0", svg)
+        // Assert.That(svg, Is.EqualTo("M 0,0 L 1,0"))

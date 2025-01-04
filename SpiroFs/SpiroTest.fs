@@ -20,7 +20,7 @@ type TestClass() =
             {X=467.;Y=231.;Type=FromChar '}'}
         |]
         match Spiro.SpiroCPsToSegments scps false with
-        | Some segs -> Assert.True(scps.Length = segs.Length)
+        | Some segs -> Assert.That(segs.Length, Is.EqualTo(scps.Length))
         | _ -> invalidOp "SpiroCPsToSegments failed"
 
         // rs_check_vals verify_rs1[] = {
@@ -61,15 +61,15 @@ type TestClass() =
             match Spiro.SpiroCPsToSegments scps false with
             | Some segs -> segs
             | _ -> invalidOp "SpiroCPsToSegments failed"
-        Assert.True(scps.Length = ret.Length)
+        Assert.That(ret.Length, Is.EqualTo(scps.Length))
 
         //check round trip
         let scps2 = [|for seg in ret do {X=seg.X; Y=seg.Y; Type=seg.Type}|]
-        Assert.AreEqual(scps, scps2)
+        Assert.That(scps2, Is.EquivalentTo(scps))
         let ret2 = 
             match Spiro.SpiroCPsToSegments scps false with
             | Some segs -> segs
             | _ -> invalidOp "SpiroCPsToSegments failed"
-        Assert.AreEqual(ret, ret2)
+        Assert.That(ret2, Is.EquivalentTo(ret))
         ()
 

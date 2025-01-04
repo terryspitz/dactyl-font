@@ -163,7 +163,7 @@ type Solver(ctrlPts : ControlPoint array, isClosed : bool, debug: bool) =
                 point.ld <- dpl.norm()/3.
                 point.rd <- dpr.norm()/3.
         printfn "solver post init"
-        printfn "%A" [|for p in _points do p._arr|]
+        printfn "%A" [|for p in _points do p.arr|]
 
     member this.computeErr() =
         // Create bezier curves representing each segment.

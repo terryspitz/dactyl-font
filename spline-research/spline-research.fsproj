@@ -4,13 +4,13 @@
     <RootNamespace>spline_research</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="bezpath.fs"/>
-    <Compile Include="curves.fs"/>
-    <Compile Include="curves_test.fs"/>
+    <Compile Include="bezpath.fs" />
+    <Compile Include="curves.fs" />
+    <Compile Include="curves_test.fs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="NUnit" Version="3.12.0"/>
+    <PackageReference Include="NUnit" Version="4.3.2" />
     <!-- <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.8.3"/> -->
-    <PackageReference Include="NUnit3TestAdapter" Version="3.16.1"/>
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
   </ItemGroup>
 </Project>
