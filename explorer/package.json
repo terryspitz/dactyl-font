@@ -17,6 +17,6 @@
     "sass": "^1.32.6",
     "webpack": "^5.21.1",
     "webpack-cli": "^4.5.0",
-    "webpack-dev-server": "^3.11.2"
+    "webpack-dev-server": "^5.2.0"
   }
 }
