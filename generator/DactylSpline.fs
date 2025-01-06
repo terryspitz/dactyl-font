@@ -119,7 +119,7 @@ type Solver(ctrlPts : ControlPoint array, isClosed : bool, debug: bool) =
     member this.initialise() =
         //initialise points
         printfn "solver init"
-        printfn"%A" this.ctrlPts
+        printfn "%A" this.ctrlPts
 
         for i in 0..ctrlPts.Length - 1 do
             _points.[i] <- BezierPoint()
@@ -220,6 +220,8 @@ type Solver(ctrlPts : ControlPoint array, isClosed : bool, debug: bool) =
     /// Step towards a curvature continuous solution.
     member this.iter(iter) =
         let n = this.ctrlPts.Length
+        printfn "solver pre iter"
+        printfn "%A" [|for p in _points do p.arr|]
         
         //terryspitz: correction to match start/end tangents on closed curves
         if this.isClosed && this.startTh.IsNone && this.endTh.IsNone then
@@ -232,7 +234,7 @@ type Solver(ctrlPts : ControlPoint array, isClosed : bool, debug: bool) =
         let mutable absErr = 0.
         let mutable newArr = [|for i in 0.._points.Length-1 do Array.create 6 nan|]
         let err = this.computeErr()
-        let epsilon = 1e-3
+        let epsilon = 1e-5
         for i in 0.._points.Length-1 do
             for j in 0..5 do
                 if _points.[i].fit.[j] then
@@ -241,14 +243,16 @@ type Solver(ctrlPts : ControlPoint array, isClosed : bool, debug: bool) =
                     let errp = this.computeErr()
                     _points.[i].arr.[j] <- value
                     let derr = (errp - err) / epsilon
-                    newArr.[i].[j] <- _points.[i].arr.[j] + err / derr  //newtons method, towards zero
+                    newArr.[i].[j] <- _points.[i].arr.[j] - err / derr  //newtons method, towards zero
         for i in 0.._points.Length-1 do
             for j in 0..5 do
                 if _points.[i].fit.[j] then
                     _points.[i].arr.[j] <- newArr.[i].[j]
 
+        printfn "solver post iter"
+        printfn "%A" [|for p in _points do p.arr|]
 
-        // printfn "abs err %f at iter %d" absErr iter
+        printfn "abs err %f at iter %d" err iter
         err
 
 

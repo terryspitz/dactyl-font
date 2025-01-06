@@ -23,10 +23,13 @@ open System.Text
 /// <param name="value"></param>
 /// <returns></returns>
 let Format (value : float) =
-    // value.ToString("F1", ToStringCulture)
-    // value.ToString("F1")
-    // sprintf "%d" (int value)
-    (int value).ToString()
+    if abs value < 1e-3 then
+        "0"
+    else
+        // value.ToString("F1", ToStringCulture)
+        value.ToString("F1")
+        // sprintf "%d" (int value)
+        // (int value).ToString()
 
 /// <summary>
 /// Bezier context implementation that handles the creation of Path data representation of bézier splines.
