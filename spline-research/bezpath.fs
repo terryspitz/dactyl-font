@@ -27,7 +27,7 @@ let Format (value : float) =
         "0"
     else
         // value.ToString("F1", ToStringCulture)
-        value.ToString("F1")
+        value.ToString("F3")
         // sprintf "%d" (int value)
         // (int value).ToString()
 

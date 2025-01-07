@@ -1,8 +1,8 @@
-/// A spline defined by a collection of cubic bezier curves passing through defined points with 
-/// optionally defined tangents.
-///  that can be fitted to a set of control points
-/// with configurable spiro/euler spiral curvature, smoothness and other constraints.
-/// Fit sampled points to Euler spiral (like spiro spline) where curvature k is linear in curve length
+// A spline defined by a collection of cubic bezier curves passing through defined points with 
+// optionally defined tangents.
+//  that can be fitted to a set of control points
+// with configurable spiro/euler spiral curvature, smoothness and other constraints.
+// Fit sampled points to Euler spiral (like spiro spline) where curvature k is linear in curve length
 
 // Gemini Pro 1.0 says:
 
@@ -69,6 +69,8 @@ type ControlPoint = {
     x : float option    // x coord or None to fit x to 'smoothest' curve
     y : float option    // same for y
     mutable th : float option   // optional tangent theta in direction of next point
+    // member this.tostring() =
+    //     sprintf "CP ty:%A x:%A y:%A th:%A" this.ty this.x this.y this.th
 }
 
 type ControlPointOut(ty, x, y, lth, rth) = 
@@ -106,6 +108,9 @@ type BezierPoint() =
     member this.fit = _fit
     member this.lpt() = {x=this.x + this.ld * cos this.lth; y=this.y + this.ld * sin this.lth}
     member this.rpt() = {x=this.x + this.rd * cos this.rth; y=this.y + this.rd * sin this.rth}
+    member this.tostring() =
+        sprintf "BP x:%f y:%f lth:%f ld:%f rth:%f rd:%f" this.x this.y this.lth this.ld this.rth this.rd
+
 
 type Solver(ctrlPts : ControlPoint array, isClosed : bool, debug: bool) =
     let _points : BezierPoint array = Array.zeroCreate ctrlPts.Length
@@ -118,8 +123,9 @@ type Solver(ctrlPts : ControlPoint array, isClosed : bool, debug: bool) =
 
     member this.initialise() =
         //initialise points
-        printfn "solver init"
-        printfn "%A" this.ctrlPts
+        if this.debug then
+            printfn "solver init"
+            printfn "%A" this.ctrlPts
 
         for i in 0..ctrlPts.Length - 1 do
             _points.[i] <- BezierPoint()
@@ -162,8 +168,10 @@ type Solver(ctrlPts : ControlPoint array, isClosed : bool, debug: bool) =
             else
                 point.ld <- dpl.norm()/3.
                 point.rd <- dpr.norm()/3.
-        printfn "solver post init"
-        printfn "%A" [|for p in _points do p.arr|]
+
+        if this.debug then
+            printfn "solver post init"
+            printfn "%A" [|for p in _points do p.tostring()|]
 
     member this.computeErr() =
         // Create bezier curves representing each segment.
@@ -220,8 +228,6 @@ type Solver(ctrlPts : ControlPoint array, isClosed : bool, debug: bool) =
     /// Step towards a curvature continuous solution.
     member this.iter(iter) =
         let n = this.ctrlPts.Length
-        printfn "solver pre iter"
-        printfn "%A" [|for p in _points do p.arr|]
         
         //terryspitz: correction to match start/end tangents on closed curves
         if this.isClosed && this.startTh.IsNone && this.endTh.IsNone then
@@ -249,10 +255,9 @@ type Solver(ctrlPts : ControlPoint array, isClosed : bool, debug: bool) =
                 if _points.[i].fit.[j] then
                     _points.[i].arr.[j] <- newArr.[i].[j]
 
-        printfn "solver post iter"
-        printfn "%A" [|for p in _points do p.arr|]
-
-        printfn "abs err %f at iter %d" err iter
+        if this.debug then
+            printfn "%A" [|for p in _points do p.tostring()|]
+            printfn "abs err %f at iter %d" err iter
         err
 
 
@@ -261,7 +266,7 @@ type Spline (ctrlPts, isClosed) =
     member this.ctrlPts : ControlPoint array = ctrlPts
     member this.isClosed = isClosed
 
-    member this.solve(maxIter) =
+    member this.solve(maxIter, debug) =
         let length = this.ctrlPts.Length - if this.isClosed then 0 else 1
 
         //terryspitz: implement LineToCurve and CurveToLine as Corners with fixed tangent theta
@@ -318,7 +323,7 @@ type Spline (ctrlPts, isClosed) =
                 let solver = Solver(
                                 Array.ofList innerPts, 
                                 this.isClosed && innerPts.Length-1 = length,
-                                true)
+                                debug)
                 solver.initialise()
                 let CONVERGED_ERR = 1e-3
                 let mutable iter = 0
@@ -389,3 +394,22 @@ type Spline (ctrlPts, isClosed) =
     //             path.moveto(ptI.pt.x, ptI.pt.y)
     //             path.lineto(ptI.pt.x + offset*cos(ptI.lTh), ptI.pt.y + offset*sin(ptI.lTh))
     //     path.tostring()
+
+let splineStaticPage = 
+    let curves = 10
+    [for i in 0..curves do
+        printfn "spline %d" i
+        let spline = Spline([|
+            {ty=SplinePointType.Corner; x=Some 0.; y=Some 0.; th=Some (PI * float(i)/float(curves))};
+            {ty=SplinePointType.Corner; x=Some 1.; y=Some 0.; th=None};
+        |], false)
+        yield sprintf "<g id='%d'>" i
+        yield sprintf "<text x='%d' y='%d' font-size='0.2'>%d</text>" -1 i i
+        let debug: bool = (i=5)
+        yield sprintf "<path d='%s'" (spline.solve(20, debug))
+        yield sprintf "transform='translate(0,%d)'" i
+        yield "style='fill:none;stroke:#000000;stroke-width:0.1'/>"
+        yield "</g>"
+    ]
+
+

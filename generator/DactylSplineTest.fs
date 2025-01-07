@@ -10,7 +10,7 @@ let max_iter = 5
 type TestClass() = 
 
     let solve_and_print_spline (spline : Spline) =
-        let svg = (spline.solve max_iter).Replace("\r\n", " ").Trim()
+        let svg = spline.solve(max_iter, false).Replace("\r\n", " ").Trim()
         // printfn "%A" (spline.to_string())
         printfn "%A" svg
         svg

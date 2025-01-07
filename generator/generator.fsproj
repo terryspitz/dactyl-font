@@ -10,6 +10,9 @@
       <Name>spline-research.fsproj</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)' == 'Release'">
+    <Compile Remove="**\*Test.fs" />
+  </ItemGroup>
   <ItemGroup>
     <None Include="../README.md" />
     <None Include="font.props" />
@@ -21,9 +24,9 @@
     <Compile Include="GlyphStringDefs.fs" />
     <Compile Include="Generator.fs" />
   </ItemGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(Configuration)' != 'Release'">
     <PackageReference Include="NUnit" Version="4.3.2" />
-    <!-- <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.8.3"/> -->
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.8.3"/>
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
   </ItemGroup>
 </Project>

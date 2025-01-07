@@ -9,6 +9,7 @@ open System.IO
 open Axes
 open Generator
 open FontForge
+open DactylSpline
 
 open Curves
 
@@ -22,7 +23,7 @@ let writeFile filename text =
 [<EntryPoint>]
 let main argv =
 
-    let runUnitTest = true
+    let runUnitTest = false
     if runUnitTest then
         printfn "Test:CheckLines"
         DactylSplineTest.TestClass().CheckLines()
@@ -32,7 +33,13 @@ let main argv =
         DactylSplineTest.TestClass().CheckTwoPointCurvesWithOtherTangents()
 
     else
-        let debugSingleChar = true
+        let dactylSpline = true
+        if dactylSpline then
+            DactylSpline.splineStaticPage 
+            |> toHtmlDocument 0 0 1 10
+            |> writeFile @".\dactylSpline.html"
+
+        let debugSingleChar = false
         if debugSingleChar then
             // let font = Font(Axes.DefaultAxes)
             let font = Font({Axes.DefaultAxes with spline_not_spiro=true})
@@ -53,7 +60,7 @@ let main argv =
             ("Dactyl Smooth", "Regular", Font({Axes.DefaultAxes with spline_not_spiro=true; smooth=true}))
         ]
 
-        let allGlyphs = true
+        let allGlyphs = false
         if allGlyphs then
             // SVG output, side by side
             let rowHeights = List.scan (+) 0 [
@@ -102,7 +109,7 @@ let main argv =
                 font.stringToSvg lines 0 0 true black |> writeFile (sprintf @".\svg\%s_lower.svg" name)
         
         // FontForge output
-        let writeFonts = true
+        let writeFonts = false
         if writeFonts then
             for i in 0..fonts.Length-1 do
                 let name, weight, font = fonts.[i]
