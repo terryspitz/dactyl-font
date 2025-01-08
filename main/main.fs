@@ -36,8 +36,8 @@ let main argv =
         let dactylSpline = true
         if dactylSpline then
             DactylSpline.splineStaticPage 
-            |> toHtmlDocument 0 0 1 10
-            |> writeFile @".\dactylSpline.html"
+            |> toHtmlDocument 0 0 1 12
+            |> writeFile @"output\dactylSpline.html"
 
         let debugSingleChar = false
         if debugSingleChar then
@@ -79,7 +79,7 @@ let main argv =
                 yield! font.stringToSvgLines text 0 (y+400) black
                 yield "</g>"
             ] |> toHtmlDocument 0 0 (Axes.DefaultAxes.width * 70) (List.max rowHeights)
-              |> writeFile @".\allGlyphs.html"
+              |> writeFile @"output\allGlyphs.html"
 
 
         // Proofs output using https://www.typography.com/blog/text-for-proofing-fonts
@@ -113,7 +113,7 @@ let main argv =
         if writeFonts then
             for i in 0..fonts.Length-1 do
                 let name, weight, font = fonts.[i]
-                let dir = sprintf @".\fontforge\%s.sfdir" name
+                let dir = sprintf @"output\fontforge\%s.sfdir" name
                 printfn "Writing font to %s" dir
                 if not (Directory.Exists dir) then
                     Directory.CreateDirectory dir |> printfn "%A"
@@ -132,6 +132,6 @@ let main argv =
                     let font = Font({Axes.DefaultAxes with 
                                                 x_height = float (11-r) * 0.2; roundedness = c*30; thickness = r*6;})
                     yield! font.stringToSvg [str] 0 0 true black
-            ] |> writeFile @".\interp.svg"
+            ] |> writeFile @"output\interp.svg"
 
     0 // return code
