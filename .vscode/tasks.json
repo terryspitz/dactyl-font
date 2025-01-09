@@ -83,27 +83,10 @@
             "options": {"env": {"VSTEST_HOST_DEBUG": "1"} }
         },
         {
-            "type": "npm",
-            "script": "serve",
-            "path": "explorer/",
+            "type": "shell",
+            "command": "dotnet fable watch explorer/src --verbose --run npx vite",
             "problemMatcher": [],
-            "label": "webpack serve explorer",
-            "group": "build",
-        },
-        {
-            "type": "npm",
-            "script": "build",
-            "path": "explorer/",
-            "problemMatcher": [],
-            "label": "webpack build - explorer bundle",
-            "group": "build",
-        },
-        {
-            "type": "npm",
-            "script": "build-dev",
-            "path": "explorer/",
-            "problemMatcher": [],
-            "label": "webpack build dev - explorer bundle",
+            "label": "fable watch with vite",
             "group": "build",
         },
         {

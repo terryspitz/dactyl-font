@@ -39,6 +39,6 @@ type MyArray3D(d1, d2, d3) =
 
 let test = 
     let testarr = MyArray2D(2,2)
-    testarr.[(2,0)] <- 1.0
-    let test2 = testarr.[2,0]
+    testarr.[(1,0)] <- 1.0
+    let test2 = testarr.[1,0]
     testarr.[1,0]
