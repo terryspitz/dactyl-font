@@ -17,7 +17,7 @@ type TestClass() =
 
     [<Test>]
     member this.CheckLines() =
-        let expectedLineTo = "M 0,0 L 1.0,0"
+        let expectedLineTo = "M 0,0 L 1.000,0"
         let spline = Spline([|
             {ty=SplinePointType.Corner; x=Some 0.; y=Some 0.; th=None};
             {ty=SplinePointType.Corner; x=Some 1.; y=Some 0.; th=None};
@@ -37,18 +37,18 @@ type TestClass() =
             {ty=SplinePointType.Smooth; x=Some 1.; y=Some 0.; th=None};
         |], false)
         let svg = solve_and_print_spline spline
-        Assert.That(svg, Is.EqualTo("M 0,0 C 0.3,0 0.7,0 1.0,0"))
+        Assert.That(svg, Is.EqualTo("M 0,0 C 0.333,0 0.667,0 1.000,0"))
 
         let spline = Spline([|
             {ty=SplinePointType.Smooth; x=Some 0.; y=Some 0.; th=None};
             {ty=SplinePointType.Smooth; x=Some 1.; y=Some 0.; th=None};
         |], false)
         let svg = solve_and_print_spline spline
-        Assert.That(svg, Is.EqualTo("M 0,0 C 0.3,0 0.7,0 1.0,0"))
+        Assert.That(svg, Is.EqualTo("M 0,0 C 0.333,0 0.667,0 1.000,0"))
 
     [<Test>]
     member this.CheckTwoPointCurvesWithAlignedTangents() =
-        let expectedLineWithCurveTo = "M 0,0 C 0.3,0 0.7,0 1.0,0"
+        let expectedLineWithCurveTo = "M 0,0 C 0.333,0 0.667,0 1.000,0"
         let spline = Spline([|
             {ty=SplinePointType.Corner; x=Some 0.; y=Some 0.; th=Some 0.};
             {ty=SplinePointType.Corner; x=Some 1.; y=Some 0.; th=None};
@@ -77,14 +77,14 @@ type TestClass() =
             {ty=SplinePointType.Corner; x=Some 1.; y=Some 1.; th=Some (-PI)};
         |], false)
         let svg = solve_and_print_spline spline
-        Assert.That(svg, Is.EqualTo("M 0,0 C 0,0.5 0.5,1.0 1.0,1.0"))
+        Assert.That(svg, Is.EqualTo("M 0,0 C 0,0.520 0.482,1.000 1.000,1.000"))
 
         let spline = Spline([|
             {ty=SplinePointType.Corner; x=Some 0.; y=Some 0.; th=Some (PI/2.)};
             {ty=SplinePointType.Corner; x=Some 1.; y=Some 0.; th=Some (PI/2.)};
         |], false)
         let svg = solve_and_print_spline spline
-        Assert.That(svg, Is.EqualTo("M 0,0 C 0,0.6 1.0,0.8 1.0,0"))
+        Assert.That(svg, Is.EqualTo("M 0,0 C 0,0.646 1.000,0.799 1.000,0"))
 
         // let spline = Spline([|
         //     {ty=SplinePointType.Corner; x=Some 0.; y=Some 0.; th=None};
