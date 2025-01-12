@@ -198,7 +198,7 @@ A few predefined Dactyl fonts are available to download in the [ttf](https://git
 Dactyl fonts use and are inspired by Ralph Levien's [Spiro curves](https://www.levien.com/spiro/).  I used Wiesław Šoltés's [C# port](https://github.com/wieslawsoltes/SpiroNet)
 which I've ported to F# to run under the fantastic [Fable](https://fable.io/) to transpile to javascript, meaning I can write the whole thing in beautiful F#.
 
-Raph superceded his spiro curves in 2018 with https://github.com/raphlinus/spline-research, which are available with the 'spline_not_spiro' checkbox.  These offer direct control of tangents specifically to help font design (this feature was also later added to Spiro curves as Anchor/Handles). See https://www.youtube.com/watch?v=eqNngVkMBzE
+Raph superceded his spiro curves in 2018 with https://github.com/raphlinus/spline-research, which are available with the 'spline2' checkbox.  These offer direct control of tangents specifically to help font design (this feature was also later added to Spiro curves as Anchor/Handles). See https://www.youtube.com/watch?v=eqNngVkMBzE
 
 ## Variable fonts
 

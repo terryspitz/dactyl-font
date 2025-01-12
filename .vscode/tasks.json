@@ -80,21 +80,21 @@
                 // "reveal": "silent"
             },
             "problemMatcher": "$msCompile",
-            "options": {"env": {"VSTEST_HOST_DEBUG": "1"} }
+            // "options": {"env": {"VSTEST_HOST_DEBUG": "1"} }
         },
         {
-            "type": "shell",
-            "command": "dotnet fable watch explorer/src --verbose --run npx vite",
-            "problemMatcher": [],
             "label": "fable watch with vite",
+            "type": "shell",
+            "command": "dotnet fable watch explorer/src --outDir explorer/fable --verbose --run npx vite",
+            "problemMatcher": [],
             "group": "build",
         },
         {
+            "label": "npm install - explorer",
             "type": "npm",
             "script": "install",
             "path": "explorer/",
             "problemMatcher": [],
-            "label": "npm install - explorer",
             // "detail": "",
             "group": "build",
         },

@@ -42,12 +42,12 @@ let main argv =
         let debugSingleChar = false
         if debugSingleChar then
             // let font = Font(Axes.DefaultAxes)
-            let font = Font({Axes.DefaultAxes with spline_not_spiro=true})
+            let font = Font({Axes.DefaultAxes with spline2=true})
             printfn "%A" (font.charToSvg 'e' 0 0 black)
 
         let fonts = [
             // ("Dactyl Knots", "Extra Light", Font({Axes.DefaultAxes with show_knots = true}))
-            // ("Dactyl Spiro", "Extra Light", Font({Axes.DefaultAxes with spline_not_spiro = false}))
+            // ("Dactyl Spiro", "Extra Light", Font({Axes.DefaultAxes with spline2 = false}))
             ("Dactyl Sans Extra Light", "Extra Light", Font({Axes.DefaultAxes with thickness = 3}))
             ("Dactyl Sans", "Regular", Font({Axes.DefaultAxes with thickness = 30}))
             ("Dactyl Sans Italic", "Italic", Font({Axes.DefaultAxes with italic = 0.15}))
@@ -57,7 +57,7 @@ let main argv =
             ("Dactyl Stroked", "Regular", Font({Axes.DefaultAxes with stroked = true; thickness = 60;}))
             ("Dactyl Scratch", "Regular", Font({Axes.DefaultAxes with scratches = true; thickness = 60;}))
             ("Dactyl Roman", "Regular", Font({Axes.DefaultAxes with serif=30}))
-            ("Dactyl Smooth", "Regular", Font({Axes.DefaultAxes with spline_not_spiro=true; smooth=true}))
+            ("Dactyl Smooth", "Regular", Font({Axes.DefaultAxes with spline2=true; smooth=true}))
         ]
 
         let allGlyphs = false

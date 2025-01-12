@@ -190,9 +190,9 @@ let generate_splines _ =
     let values = currentFieldValues () |> List.map snd |> Array.ofList
     let axes = Reflection.FSharpValue.MakeRecord(typeof<Axes>, values) :?> Axes
     let newAxes = {axes with clip_rect=false; filled=false; show_knots=true}
-    let fontSpline = Font {newAxes with spline_not_spiro=true}
-    let fontSpiro = Font {newAxes with spline_not_spiro=false}
-    let fontGuides = Font {newAxes with spline_not_spiro=false; show_knots=false}
+    let fontSpline = Font {newAxes with spline2=true}
+    let fontSpiro = Font {newAxes with spline2=false}
+    let fontGuides = Font {newAxes with spline2=false; show_knots=false}
     let spline = 
         try EList([for c in text.Split(separator_re) do parse_curve (GlyphFsDefs(axes)) c]) |> fontSpline.translateByThickness
         with | _ -> Dot (YX(axes.thickness, axes.thickness))
@@ -235,8 +235,8 @@ let generate_splines _ =
 
 
 let run_splines () = 
-    let titleFontSpline = Font({Axes.DefaultAxes with thickness=3; spline_not_spiro=true})
-    let titleFontSpiro = Font({Axes.DefaultAxes with thickness=3; spline_not_spiro=false})
+    let titleFontSpline = Font({Axes.DefaultAxes with thickness=3; spline2=true})
+    let titleFontSpiro = Font({Axes.DefaultAxes with thickness=3; spline2=false})
     let svg = titleFontSpiro.stringToSvgLines ["Spiro"] 40 40 blue
                 @ titleFontSpline.stringToSvgLines ["Splines"] 0 0 green
     let svg = toSvgDocument -50 -50 2000 1000 svg
@@ -256,7 +256,7 @@ let run_splines () =
     // (document.getElementById "randomise").onclick <- randomise false
     let spline_controls = [
         // "new_definitions", Checkbox
-        // "spline_not_spiro", Checkbox
+        // "spline2", Checkbox
         "show_knots", Checkbox
         "width", Range(100, 1000)
         "height", Range(100, 1000)

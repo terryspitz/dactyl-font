@@ -259,7 +259,8 @@ let stringDefsToElem (glyph : GlyphFsDefs) e =
     elif def = " " then
         Space
     else
-        let curves = EList([for c in def.Split(separator_re) do parse_curve glyph c])
+        let curves = EList([
+            for def in def.Split(separator_re) do parse_curve glyph def])
         // printfn "%A" curves
         curves
 

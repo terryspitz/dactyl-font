@@ -220,7 +220,7 @@ type Font (axes: Axes) =
         | Space -> [SpiroSpace]
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem) 
 
-    let toSplineControlPoints (pts : list<Point * SpiroPointType * float option>) =
+    let toSpline2ControlPoints (pts : list<Point * SpiroPointType * float option>) =
         [|for i in 0..pts.Length-1 do
             let p, spiroType, tangent = pts.[i]
             let x,y = getXY p
@@ -228,7 +228,7 @@ type Font (axes: Axes) =
                 let p1, _, _ = pts.[i+1]
                 let x2,y2 = getXY (p1 - p)
                 let rth = atan2 (float y2) (float x2)
-                yield SplineControlPoint(   {x=float x;y=float y},
+                yield Spline2ControlPoint(   {x=float x;y=float y},
                                             (if axes.smooth then SplinePointType.Smooth else SplinePointType.Corner),
                                             None, Some rth)
             else if spiroType <> SpiroPointType.Handle then
@@ -244,17 +244,17 @@ type Font (axes: Axes) =
                                 -> SplinePointType.Smooth
                             | _ -> invalidArg "ty" (sprintf "Unexpected SpiroPointType %A" spiroType) 
                 // yield SplineControlPoint({x=float x;y=float y}, ty)
-                yield SplineControlPoint(
+                yield Spline2ControlPoint(
                     {x=float x; y=float y}, ty, 
                     (if ty = SplinePointType.Smooth then tangent else None), 
                     tangent)
         |]
 
-    let rec elementToSpline elem =
+    let rec elementToSpline2 elem =
         let toSegs2 (pts : list<Point * SpiroPointType * float option>) isClosed =
-            let ctrlPts = toSplineControlPoints pts
+            let ctrlPts = toSpline2ControlPoints pts
             let _, types, _ = (List.unzip3 pts)
-            let spline = Spline(ctrlPts, isClosed)
+            let spline = Spline2(ctrlPts, isClosed)
             spline.solve(axes.max_spline_iter)
             // printfn "spline"
             // for pt in spline.ctrlPts do
@@ -288,14 +288,14 @@ type Font (axes: Axes) =
             else
                 [SpiroOpenCurve(segs)]
         | Dot(p) -> [SpiroDot(p)]
-        | EList(elems) -> List.collect elementToSpline elems
+        | EList(elems) -> List.collect elementToSpline2 elems
         | Space -> [SpiroSpace]
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem) 
 
     let elementToSpiroSegments elem =
         let spiroElems = 
-            if axes.spline_not_spiro then
-                elementToSpline elem
+            if axes.spline2 then
+                elementToSpline2 elem
             else
                 elementToSpiros elem
         let debug = false
@@ -314,19 +314,35 @@ type Font (axes: Axes) =
                 | _ -> ()
         spiroElems
 
-    let rec elementToSplineSvg elem =
+    let rec elementToSpline2Svg elem =
         let ctrlPtsToSvg ctrlPts isClosed =
-            let spline = Spline(ctrlPts, isClosed)
+            let spline = Spline2(ctrlPts, isClosed)
             spline.solve(axes.max_spline_iter)
             [spline.renderSvg(axes.show_tangents) ]
         let ptsToSvg pts isClosed =
-            ctrlPtsToSvg (pts |> List.map (fun (pt, ty) -> (pt, ty, None)) |> toSplineControlPoints) isClosed
+            ctrlPtsToSvg (pts |> List.map (fun (pt, ty) -> (pt, ty, None)) |> toSpline2ControlPoints) isClosed
         match elem with
         | OpenCurve(pts) -> ptsToSvg pts false
         | ClosedCurve(pts) -> ptsToSvg pts true
-        | TangentCurve(pts, isClosed) -> ctrlPtsToSvg (toSplineControlPoints pts) isClosed
+        | TangentCurve(pts, isClosed) -> ctrlPtsToSvg (toSpline2ControlPoints pts) isClosed
         | Dot(p) -> let x, y = getXY p in svgCircle x y thickness
-        | EList(elems) -> List.collect elementToSplineSvg elems
+        | EList(elems) -> List.collect elementToSpline2Svg elems
+        | Space -> []
+        | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem) 
+
+    let rec elementToDactylSvg elem =
+        let ctrlPtsToSvg ctrlPts isClosed =
+            let spline = Spline2(ctrlPts, isClosed)
+            spline.solve(axes.max_spline_iter)
+            [spline.renderSvg(axes.show_tangents) ]
+        let ptsToSvg pts isClosed =
+            ctrlPtsToSvg (pts |> List.map (fun (pt, ty) -> (pt, ty, None)) |> toSpline2ControlPoints) isClosed
+        match elem with
+        | OpenCurve(pts) -> ptsToSvg pts false
+        | ClosedCurve(pts) -> ptsToSvg pts true
+        | TangentCurve(pts, isClosed) -> ctrlPtsToSvg (toSpline2ControlPoints pts) isClosed
+        | Dot(p) -> let x, y = getXY p in svgCircle x y thickness
+        | EList(elems) -> List.collect elementToSpline2Svg elems
         | Space -> []
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem) 
 
@@ -338,13 +354,13 @@ type Font (axes: Axes) =
     //cache fn results to avoid recalcs
     //inside Font class, so it gets rebuilt for each new instance with different axes
     let memoize fn =
-      let cache = new System.Collections.Generic.Dictionary<_,_>()
-      (fun x ->
-        match cache.TryGetValue x with
-        | true, v -> v
-        | false, _ -> let v = fn x
-                      cache.Add(x,v)
-                      v)
+        let cache = new System.Collections.Generic.Dictionary<_,_>()
+        (fun x ->
+            match cache.TryGetValue x with
+            | true, v -> v
+            | false, _ -> let v = fn x
+                          cache.Add(x,v)
+                          v)
 
     let rec bounds elem =
         let dummy = -999
@@ -378,7 +394,7 @@ type Font (axes: Axes) =
 
     member this.axes = axes
 
-    member this.reduce e = 
+    member this.reduce (e: Element) = 
         match e with
         | Glyph(ch) ->
             if axes.new_definitions then
@@ -687,7 +703,7 @@ type Font (axes: Axes) =
 
     member this.italicise = 
         applyIf (this.axes.italic>0.0) (
-            (applyIf (not this.axes.spline_not_spiro) this.subdivide)
+            (applyIf (not this.axes.spline2) this.subdivide)
             >> (movePoints this.italicisePt))
 
     member this.getOutline =
@@ -761,8 +777,10 @@ type Font (axes: Axes) =
 
     ///Convert element to bezier SVG curves
     member this.elementToSvg elem = 
-        if axes.spline_not_spiro then
-            elementToSplineSvg elem
+        if axes.dactyl_spline then
+            elementToDactylSvg elem
+        else if axes.spline2 then
+            elementToSpline2Svg elem
         else
             elementToSpiroSegments elem |> List.collect this.spiroToSvg
 

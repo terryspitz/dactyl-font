@@ -40,7 +40,7 @@ let charToFontForge (font: Font) (ch : char) =
             "Spiro" :: toSpiroString elem @ ["0 0 z"; "EndSpiro"]
             else []
 
-    let isSpiro = not font.axes.spline_not_spiro
+    let isSpiro = not font.axes.spline2
     let spineSpiros = Font({font.axes with thickness = 2; outline = true}).CharToOutline ch 
                         |> font.translateByThickness
                         |> elemToFF isSpiro

@@ -44,8 +44,8 @@ type SplinePointType =
 
 
 /// ControlPoint is a lot like `Knot` but has no UI, is used for spline solving.
-type SplineControlPoint(pt, ty, lth : float option, rth : float option) = 
-    new(pt, ty) = SplineControlPoint(pt, ty, None, None)
+type Spline2ControlPoint(pt, ty, lth : float option, rth : float option) = 
+    new(pt, ty) = Spline2ControlPoint(pt, ty, None, None)
 
     // input data
     member val pt : Vec2 = pt with get
@@ -550,8 +550,8 @@ type TwoParamSpline(curve : MyCurve, ctrlPts : Vec2 array, isClosed : bool) =
     //     ]
 
 /// Spline handles more general cases, including corners.
-type Spline (ctrlPts, isClosed) =
-    member this.ctrlPts : SplineControlPoint array = ctrlPts
+type Spline2 (ctrlPts, isClosed) =
+    member this.ctrlPts : Spline2ControlPoint array = ctrlPts
     member this.isClosed = isClosed
     member this.curve = MyCurve()
 
@@ -564,7 +564,7 @@ type Spline (ctrlPts, isClosed) =
             0
         else 
             match Array.tryFindIndex 
-                (fun (pt : SplineControlPoint) -> pt.ty = SplinePointType.Corner || pt.lth.IsSome)
+                (fun (pt : Spline2ControlPoint) -> pt.ty = SplinePointType.Corner || pt.lth.IsSome)
                 this.ctrlPts with
             | Some i -> i
             | None -> 0 // Path is all-smooth and closed.

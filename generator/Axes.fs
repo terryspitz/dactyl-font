@@ -8,8 +8,9 @@ type Controls =
 
 // Variable which define the font characteristics (named after Variable Font terminology)
 type Axes = {
-    new_definitions : bool     //use new string based glyph definitions, vs. older code ones
-    spline_not_spiro : bool     //use original Spiro (false) or new spline-research splines (true)
+    new_definitions : bool      //use new string based glyph definitions, vs. older code ones
+    dactyl_spline : bool        //use new dactyl splines with new glyph definitions
+    spline2 : bool              //use Raph Levian's new spline-research splines, vs. his original spiro splines
     constraints : bool          //constrain tangents to within borders
     width : int                 //width of normal glyph
     height : int                //capital height
@@ -40,6 +41,8 @@ type Axes = {
 } with
     static member DefaultAxes = {
         new_definitions = true
+        dactyl_spline = true
+        spline2 = false
         width = 300
         height = 600
         x_height = 0.6
@@ -58,7 +61,6 @@ type Axes = {
         outline = true
         stroked = false
         scratches = false
-        spline_not_spiro = false
         max_spline_iter = 10
         show_knots = false
         show_tangents = false
@@ -69,7 +71,8 @@ type Axes = {
     }
     static member controls = [
         "new_definitions", Checkbox
-        "spline_not_spiro", Checkbox
+        "dactyl_spline", Checkbox
+        "spline2", Checkbox
         "width", Range(100, 1000)
         "height", Range(100, 1000)
         "x_height", FracRange(0., 1.5)
