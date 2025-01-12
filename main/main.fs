@@ -35,7 +35,7 @@ let main argv =
     else
         let dactylSpline = true
         if dactylSpline then
-            DactylSpline.splineStaticPage 
+            DactylSpline.splineStaticPage() 
             |> toHtmlDocument 0 0 1 12
             |> writeFile @"output\dactylSpline.html"
 

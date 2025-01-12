@@ -60,6 +60,7 @@ open SpiroControlPoint
 open PathBezierContext
 open Axes
 open Curves
+open DactylSpline
 
 
 // Attach extension method to segment class
@@ -330,19 +331,38 @@ type Font (axes: Axes) =
         | Space -> []
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem) 
 
-    let rec elementToDactylSvg elem =
+    let toDSplineControlPoints (pts : list<Point * SpiroPointType * float option>) =
+        [|for i in 0..pts.Length-1 do
+            let p, spiroType, tangent = pts.[i]
+            let x,y = getXY p
+            assert (spiroType <> SpiroPointType.Anchor && spiroType <> SpiroPointType.Handle)
+            let ty = match spiroType with 
+                        | SpiroPointType.Corner 
+                        | SpiroPointType.OpenContour | SpiroPointType.EndOpenContour | SpiroPointType.End
+                            -> if axes.smooth then SplinePointType.Smooth else SplinePointType.Corner
+                        | SpiroPointType.Left 
+                            -> if axes.smooth then SplinePointType.Smooth else SplinePointType.CurveToLine
+                        | SpiroPointType.Right 
+                            -> if axes.smooth then SplinePointType.Smooth else SplinePointType.LineToCurve
+                        | SpiroPointType.G2 | SpiroPointType.G4
+                            -> SplinePointType.Smooth
+                        | _ -> invalidArg "ty" (sprintf "Unexpected SpiroPointType %A" spiroType) 
+            yield {ty=ty; x=Some (float x); y=Some (float y); th=tangent}
+        |]
+
+    let rec elementToDactylSvg (elem: Element) =
         let ctrlPtsToSvg ctrlPts isClosed =
-            let spline = Spline2(ctrlPts, isClosed)
-            spline.solve(axes.max_spline_iter)
-            [spline.renderSvg(axes.show_tangents) ]
-        let ptsToSvg pts isClosed =
-            ctrlPtsToSvg (pts |> List.map (fun (pt, ty) -> (pt, ty, None)) |> toSpline2ControlPoints) isClosed
+            let spline = DSpline(ctrlPts, isClosed)
+            [spline.solve(axes.max_spline_iter, true)]
+
+        let ptsToSvg (pts: (Point * SpiroPointType) list) isClosed =
+            ctrlPtsToSvg (pts |> List.map (fun (pt, ty) -> (pt, ty, None)) |> toDSplineControlPoints) isClosed
         match elem with
         | OpenCurve(pts) -> ptsToSvg pts false
         | ClosedCurve(pts) -> ptsToSvg pts true
-        | TangentCurve(pts, isClosed) -> ctrlPtsToSvg (toSpline2ControlPoints pts) isClosed
+        | TangentCurve(pts, isClosed) -> ctrlPtsToSvg (toDSplineControlPoints pts) isClosed
         | Dot(p) -> let x, y = getXY p in svgCircle x y thickness
-        | EList(elems) -> List.collect elementToSpline2Svg elems
+        | EList(elems) -> List.collect elementToDactylSvg elems
         | Space -> []
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem) 
 
@@ -600,7 +620,7 @@ type Font (axes: Axes) =
                              @ endCap segments.[segments.Length-1] segments.[segments.Length-2]
                              @ (offsetMidSegments segments true |> List.rev)
                              // reversed segments can't properly calculate last chord theta
-                             //  @ (offsetMidSegments (this.reverseSegments segments) false)                             
+                             //  @ (offsetMidSegments (this.reverseSegments segments) false)
                 [ClosedCurve(points)]
             | SpiroClosedCurve(segments) ->
                 [ClosedCurve(this.offsetSegments segments 0 (segments.Length-1) false true fthickness)
