@@ -85,7 +85,7 @@
         {
             "label": "fable watch with vite",
             "type": "shell",
-            "command": "dotnet fable watch explorer/src --outDir explorer/fable --verbose --run npx vite",
+            "command": "dotnet fable watch explorer/src --outDir explorer/public/fable --verbose --run npx vite",
             "problemMatcher": [],
             "group": "build",
         },

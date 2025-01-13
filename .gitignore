@@ -346,5 +346,4 @@ healthchecksdb
 ttf/DactylSansBold.sfd/
 
 # Generated Fable files
-*.fs.js
-explorer/fable/
+explorer/public/fable/
