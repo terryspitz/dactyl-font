@@ -1,12 +1,13 @@
-NOTE: Best viewed at https://terryspitz.github.io/dactyl-font/
+NOTE: Best viewed at https://terryspitz.github.io/dactyl-font/README.html
 
-Play with the [Dactyl Live explorer](https://terryspitz.github.io/dactyl-font/explorer/public/index.html)
+
+Play with the [Dactyl Live explorer](https://terryspitz.github.io/dactyl-font)
 
 # Dactyl: What & Why
 
 Dactyl is a functional font generator written in F#, in service of ticking 'create a font' off my bucket list, in style!  Dactyl is parameterised with a large (and growing) number of inputs including axes common in variable fonts such as stroke thickness and x-height and more unusual ones like roundness and end-bulbs.  Dactyl is an exercise in understanding how fonts can be built in code using both ['words and rules'](https://en.wikipedia.org/wiki/Words_and_Rules) - a minimal set of general shape logic along with a minimal set of shape data per glyph.  This work will hopefully help me improve my AI font generator [DeeperFont](https://github.com/terryspitz/ipython_notebooks/tree/master/deeper) though at the moment the technologies are quite different and combining them will be an interesting future challenge.
 
-You can explore Dactyl live in your browser using the [Dactyl Live explorer](https://terryspitz.github.io/dactyl-font/explorer/public/index.html){:target="_blank" rel="noopener"}.  Note the Reset and Random icons next to the title.  The settings deliberately extend beyond 'normal' to show how the fonts behave (and often misbehave) under extremes. There is also [Spline explorer](https://terryspitz.github.io/dactyl-font/explorer/public/splines.html) for exploring glyph string definitions.
+You can explore Dactyl live in your browser using the [Dactyl Live explorer](https://terryspitz.github.io/dactyl-font).  Note the Reset and Random icons next to the title.  The settings deliberately extend beyond 'normal' to show how the fonts behave (and often misbehave) under extremes. There is also [Spline explorer](https://terryspitz.github.io/dactyl-font/explorer/public/splines.html) for exploring glyph string definitions.
 
 Here is some of Dactyl's checkered development history:
 

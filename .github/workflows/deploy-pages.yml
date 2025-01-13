@@ -25,6 +25,11 @@ jobs:
         run: dotnet fable explorer/src --outDir explorer/public/fable
       - name: Setup Pages
         uses: actions/configure-pages@v5
+      - name: Convert Markdown to HTML
+        uses: natescherer/markdown-to-html-with-github-style-action@v1
+        with:
+          path: README.md
+          outputpath: explorer/public
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
         with:
