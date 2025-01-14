@@ -140,9 +140,9 @@ let toHtmlDocument left bottom width height svg =
 
 let black = "#000000"
 let red = "#e00000"
-let green = "#00e000"
+let green = "#00e000d0"
 let lightGreen = "#aaffaa"
-let blue = "#0000e0"
+let blue = "#0000e0d0"
 let lightBlue = "#aaaaff"
 let pink = "#ffaaaa"
 
