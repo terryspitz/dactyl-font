@@ -30,6 +30,10 @@ jobs:
         with:
           path: README.md
           outputpath: explorer/public
+      - name: copy static files
+        run: |
+          cp output/allGlyphs.html explorer/public
+          cp -r png/ explorer/public
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
         with:
