@@ -14,8 +14,9 @@ type TestClass() =
         let svg = svg.Replace("\r\n", " ").Trim()
         let svg = svg.Replace("\n", " ").Trim()
         // printfn "%A" (spline.to_string())
-        printfn "%A" svg
-        svg
+        let output = "OUTPUT: " + svg
+        printfn "%A" output
+        output
 
     [<Test>]
     member this.CheckLines() =

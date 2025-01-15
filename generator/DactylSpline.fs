@@ -224,6 +224,7 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
             prev_end <- m * cumm_dists.[STEPS] + c
         // assert not (isnan errs)
         errs
+
             
     /// Step towards a curvature continuous solution.
     member this.iter(iter) =
@@ -261,6 +262,7 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
             printfn "%A" [|for p in _points do p.tostring()|]
             printfn "abs err %f at iter %d" err iter
         err
+
 
 
 /// Spline handles more general cases, including corners.
