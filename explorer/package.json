@@ -20,6 +20,6 @@
     "webpack-dev-server": "^5.2.0"
   },
   "devDependencies": {
-    "vite": "^6.0.7"
+    "vite": "^6.0.9"
   }
 }
