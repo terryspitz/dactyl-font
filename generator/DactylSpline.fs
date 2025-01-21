@@ -61,8 +61,12 @@
 module DactylSpline
 
 //reuse spline-research Vec2, SplinePointType, SplineControlPoint, CubicBez
-open Curves 
-open BezPath 
+open Curves
+open BezPath
+open MathNet.Numerics
+open MathNet.Numerics.LinearAlgebra
+
+// let vector = DenseVector.ofArray [| 1.0; 2.0; 3.0 |]
 
 type DControlPoint = {
     mutable ty : SplinePointType    //Continuity at this point: Smooth, Corner, LineToCurve or CurveToLine
@@ -132,7 +136,8 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
             let point = _points.[i]
             let ctrlPt = ctrlPts.[i]
             match ctrlPt.x with 
-            | Some x -> point.x <- x; point.fit_x <- false 
+            | Some x -> point.x <- x; point.fit_x <- false
+            // possibly: define fit_x/y separately from none, then use x/y for initialisation
             | None -> point.x <- if i=0 then ctrlPts.[i+1].x.Value
                                     elif i=ctrlPts.Length-1 then ctrlPts.[i-1].x.Value
                                     else (ctrlPts.[i-1].x.Value+ctrlPts.[i+1].x.Value)/2.
@@ -157,6 +162,7 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
                     else mod2pi (dpl.atan2() + PI + mod2pi (dpr.atan2() - (dpl.atan2() + PI))/2.)  //careful average of angles
                 point.lth <- mod2pi (th_est + PI)
                 point.rth <- th_est
+
             if i=0 then
                 point.rd <- dpr.norm()/3.
                 point.fit_lth <- false
@@ -174,9 +180,9 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
             printfn "%A" [|for p in _points do p.tostring()|]
 
     member this.computeErr() =
-        // Create bezier curves representing each segment.
         // Sample the curvature and distance (arc length) along each bezier.
-        // Fit these to a line: since Euler spiral (like spiro spline) has curvature k linear in curve length
+        // Euler spiral (like spiro spline) wants curvature k linear in curve length l
+        // So treat l as an x-coord and k as a y-coord and fit a line to the data, then measure residuals from that line and minimise
         // Add error for curvature discontinuity between segments (tangents are consistent by construction)
         let mutable prev_end = nan
         let mutable errs = 0.
@@ -226,6 +232,7 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
         errs
             
     /// Step towards a curvature continuous solution.
+    /// Newton's method to minimise error: adjust each parameter by a small amount and see if error decreases
     member this.iter(iter) =
         let n = this.ctrlPts.Length
         
@@ -261,7 +268,6 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
             printfn "%A" [|for p in _points do p.tostring()|]
             printfn "abs err %f at iter %d" err iter
         err
-
 
 /// Spline handles more general cases, including corners.
 type DSpline (ctrlPts, isClosed) =
@@ -307,7 +313,7 @@ type DSpline (ctrlPts, isClosed) =
                 path.lineto(ptI1.x.Value, ptI1.y.Value)
                 i <- i+1
 
-            else
+            else //if ptI1.ty = SplinePointType.Smooth || ptI1.ty = SplinePointType.LineToCurve || ptI1.ty = SplinePointType.CurveToLine then
                 // find a curved section, ending in corners
                 let mutable j = i + 1
                 let mutable break_ = false
@@ -328,15 +334,57 @@ type DSpline (ctrlPts, isClosed) =
                                 debug)
                 solver.initialise()
                 let CONVERGED_ERR = 1e-3
+#if OLD_SOLVER
                 let mutable iter = 0
                 while solver.iter iter > CONVERGED_ERR && iter < maxIter do
                     iter <- iter + 1
+#else
+                let minimiser = Optimization.LevenbergMarquardtMinimizer(
+                    // CONVERGED_ERR,
+                    // CONVERGED_ERR,
+                    // CONVERGED_ERR,
+                    maximumIterations=maxIter)
+                let mapping = ResizeArray()
+                let lowerBound: ResizeArray<float> = ResizeArray()
+                let upperBound: ResizeArray<float> = ResizeArray()
+                let initial: ResizeArray<float> = ResizeArray()
+                for i in 0..solver.points().Length-1 do
+                    for j in 0..5 do
+                        if solver.points().[i].fit.[j] then
+                            mapping.Add((i, j))
+                            lowerBound.Add(0.0)
+                            if j = 2 || j = 4 then
+                                upperBound.Add(2.0 * PI)
+                            else
+                                upperBound.Add(1e10)
+                            initial.Add(solver.points().[i].arr.[j])
 
+                /// Adjust params to minimise least squares error for x and y, which we'll just set to 0, 0
+                let objectiveFunction (param: Vector<float>) (x: Vector<float>) =
+                        assert (param.Count = mapping.Count)
+                        for i in 0..param.Count-1 do
+                            let (index1, index2) = mapping.[i]
+                            solver.points().[index1].arr.[index2] <- param[i]
+                        DenseVector.ofArray [|solver.computeErr()|]
+                let objModel = Optimization.ObjectiveFunction.NonlinearModel(
+                    objectiveFunction,
+                    DenseVector.ofArray [|0.|],
+                    DenseVector.ofArray [|0.|])
+                let best = minimiser.FindMinimum(
+                    objModel,
+                    DenseVector.ofArray (initial.ToArray()),
+                    DenseVector.ofArray (lowerBound.ToArray()),
+                    DenseVector.ofArray (upperBound.ToArray()))
+                for i in 0..best.MinimizingPoint.Count-1 do
+                    let (index1, index2) = mapping.[i]
+                    solver.points().[index1].arr.[index2] <- best.MinimizingPoint[i]
+#endif
                 let c = solver.points()
                 for k in 0..c.Length-2 do
                     let p1 = c.[k]
                     let p2 = c.[k+1]
                     path.curveto(p1.rpt().x, p1.rpt().y, p2.lpt().x, p2.lpt().y, p2.x, p2.y)
+
                 i <- j - 1
         
         path.tostring()

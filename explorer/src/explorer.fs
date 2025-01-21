@@ -200,9 +200,11 @@ let generate_splines _ =
         try EList([for c in text.Split(separator_re) do parse_curve (GlyphFsDefs(axes)) c]) |> fontSpline.translateByThickness
         with | _ -> Dot (YX(axes.thickness, axes.thickness))
     let offsetX, offsetY = 0, fontSpline.charHeight+axes.thickness
+    let guidesSvg = fontGuides.charToSvg '□' offsetX offsetY grey
+                                  @ [svgText 0 0 "Guides"]
     let svg =
         if not axes.outline then
-            fontGuides.charToSvg '□' offsetX offsetY grey
+            guidesSvg
             @ fontSpline.elementToSvgPath spline offsetX offsetY 30 green
             @ fontSpiro.elementToSvgPath spiro offsetX offsetY 10 blue
             @ if axes.show_knots then
@@ -219,7 +221,7 @@ let generate_splines _ =
                 with | _ -> []
 
             // font_spline.GlyphFsDefs.guidesSvg
-            fontGuides.charToSvg '□' offsetX offsetY grey
+            guidesSvg
             @ fontSpline.elementToSvgPath spline offsetX offsetY 3 green
             @ fontSpiro.elementToSvgPath spiro offsetX offsetY 3 blue
             @ outlineSplineSvg
@@ -234,7 +236,7 @@ let generate_splines _ =
     // ((document.getElementsByTagName "svg").[0] :?> HTMLElement).setAttribute("style", "height:50%")
 
 
-let run_splines () = 
+let compare_splines () = 
     let titleFontSpline = Font({Axes.DefaultAxes with thickness=3; spline2=true})
     let titleFontSpiro = Font({Axes.DefaultAxes with thickness=3; spline2=false})
     let svg = titleFontSpiro.stringToSvgLines ["Spiro"] 40 40 blue
@@ -291,6 +293,6 @@ let run_splines () =
 
 
 if window.location.href.Contains("splines.html") then
-    run_splines ()
+    compare_splines ()
 else
     run_explorer ()

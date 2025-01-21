@@ -4,7 +4,9 @@ NOTE: This README is best viewed at https://terryspitz.github.io/dactyl-font/REA
 
 Play with the [Dactyl Live explorer](https://terryspitz.github.io/dactyl-font)
 
-or explore glyph string definitions and how they convert to the two different splines at [Spline explorer](https://terryspitz.github.io/dactyl-font/splines.html)
+or explore individual glyph string definitions and how they convert to the different spline choices at [Spline explorer](https://terryspitz.github.io/dactyl-font/splines.html).
+
+View some sample Dactyl fonts [here](allGlyphs.html)
 
 # Dactyl: What & Why
 

@@ -11,22 +11,24 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' == 'Release'">
-    <Compile Remove="**\*Test.fs" />
+    <Compile Remove="**\*Test.fs"/>
   </ItemGroup>
   <ItemGroup>
-    <None Include="../README.md" />
-    <None Include="font.props" />
-    <Compile Include="Axes.fs" />
-    <Compile Include="DactylSpline.fs" />
-    <Compile Include="DactylSplineTest.fs" />
-    <Compile Include="GeneratorTypes.fs" />
-    <Compile Include="GlyphFsDefs.fs" />
-    <Compile Include="GlyphStringDefs.fs" />
-    <Compile Include="Generator.fs" />
+    <None Include="../README.md"/>
+    <None Include="font.props"/>
+    <Compile Include="Axes.fs"/>
+    <Compile Include="DactylSpline.fs"/>
+    <Compile Include="DactylSplineTest.fs"/>
+    <Compile Include="GeneratorTypes.fs"/>
+    <Compile Include="GlyphFsDefs.fs"/>
+    <Compile Include="GlyphStringDefs.fs"/>
+    <Compile Include="Generator.fs"/>
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' != 'Release'">
-    <PackageReference Include="NUnit" Version="4.3.2" />
+    <PackageReference Include="NUnit" Version="4.3.2"/>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.8.3"/>
-    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0"/>
+    <PackageReference Include="MathNet.Numerics" Version="5.0.0"/>
+    <PackageReference Include="MathNet.Numerics.FSharp" Version="5.0.0"/>
   </ItemGroup>
 </Project>
