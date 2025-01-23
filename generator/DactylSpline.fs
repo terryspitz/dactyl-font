@@ -4,39 +4,6 @@
 // with configurable spiro/euler spiral curvature, smoothness and other constraints.
 // Fit sampled points to Euler spiral (like spiro spline) where curvature k is linear in curve length
 
-// Gemini Pro 1.0 says:
-
-// Overall Structure:
-
-// The code defines two types: ControlPoint and BezierPoint.
-
-// ControlPoint represents a control point on the spline, with properties for:
-// ty: Spline point type (Smooth, Corner, LineToCurve, CurveToLine)
-// x, y (optional; specifies coordinates or lets the fitting algorithm determine them)
-// th (optional; tangent theta in direction of next point)
-
-// BezierPoint represents a point on a bezier curve segment, with properties for:
-// x, y: coordinates
-// lth, rth: tangent angles towards previous and next point
-// ld, rd: distances to control points for bezier segment
-// fit_*: flags indicating whether the corresponding value was fitted or specified directly
-
-// The Solver type encapsulates a collection of control points and performs calculations to fit cubic bezier curves to them. It has methods for:
-// initialise(): sets up initial values for bezier points based on control points
-// computeErr(): computes an error based on curvature and distance along the bezier curves
-// iter(iter): performs an iteration of a fitting algorithm
-
-// The Spline type uses the Solver to create a spline from control points. It has methods for:
-// solve(maxIter): performs the fitting process with a maximum number of iterations
-// to_string(): converts the spline to a string representation (using BezPath from a separate library)
-// renderSvg(show_tangents): generates an SVG path representing the spline and optionally the tangents (not implemented in this code)
-
-// Key Concepts and Assumptions:
-
-// The code assumes that the control points define a curve with desired smoothness and curvature properties.
-// The fitting algorithm aims to minimize an error function that measures the difference between the fitted curve and the desired curvature/distance characteristics.
-// The specific details of the fitting algorithm are not visible within the provided code section due to the [*] sections.
-
 // Gemini Advanced 1.0 says
 
 /// This code defines a system for creating and fitting splines based on a collection 
@@ -101,13 +68,14 @@ type BezierPoint() =
     member this.ld  with get () = _arr.[3] and set (v) = _arr.[3] <- v
     member this.rth with get () = _arr.[4] and set (v) = _arr.[4] <- v
     member this.rd  with get () = _arr.[5] and set (v) = _arr.[5] <- v
-    member this.vec with get () = {x=this.x; y=this.y}
     member this.fit_x   with get () = _fit.[0] and set (v) = _fit.[0] <- v
     member this.fit_y   with get () = _fit.[1] and set (v) = _fit.[1] <- v
     member this.fit_lth with get () = _fit.[2] and set (v) = _fit.[2] <- v
     member this.fit_ld  with get () = _fit.[3] and set (v) = _fit.[3] <- v
     member this.fit_rth with get () = _fit.[4] and set (v) = _fit.[4] <- v
     member this.fit_rd  with get () = _fit.[5] and set (v) = _fit.[5] <- v
+
+    member this.vec with get () = {x=this.x; y=this.y}
     member this.arr = _arr
     member this.fit = _fit
     member this.lpt() = {x=this.x + this.ld * cos this.lth; y=this.y + this.ld * sin this.lth}
@@ -153,13 +121,14 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
 
             match ctrlPt.th with 
             | Some th ->
-                point.lth <- th; point.fit_lth <- false
+                point.lth <- th + PI; point.fit_lth <- false
                 point.rth <- th; point.fit_rth <- false
             | None ->
                 let th_est =
                     if i=0 then dpr.atan2()
                     elif i=ctrlPts.Length-1 then dpl.atan2()
-                    else mod2pi (dpl.atan2() + PI + mod2pi (dpr.atan2() - (dpl.atan2() + PI))/2.)  //careful average of angles
+                    // else mod2pi (dpl.atan2() + mod2pi (dpr.atan2() - dpl.atan2())/2.)  //average of angles
+                    else (dpl.atan2() + dpr.atan2())/2.  //average of angles
                 point.lth <- mod2pi (th_est + PI)
                 point.rth <- th_est
 
@@ -190,11 +159,11 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
             let point1 = _points.[i]
             let point2 = _points.[i+1]
             let bez = CubicBez(
-                        [|  point1.x; point1.y; 
-                            point1.x+point1.rd*cos(point1.rth); point1.y+point1.rd*sin(point1.rth);
-                            point2.x+point2.ld*cos(point2.lth); point2.y+point2.ld*sin(point2.lth);
-                            point2.x; point2.y
-                        |])
+                [|  point1.x; point1.y; 
+                    point1.rpt().x; point1.rpt().y;
+                    point2.lpt().x; point2.lpt().y;
+                    point2.x; point2.y
+                |])
             let STEPS = 8
             let ks, dists =
                 [|
@@ -202,9 +171,7 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
                         let t0 = (-0.5 + float j) / (float STEPS)
                         let t1 = (float j) / (float STEPS)
                         let t2 = (0.5 + float j) / (float STEPS)
-                        let b0 = bez.eval(t0)
-                        let b2 = bez.eval(t2)
-                        (bez.curvature(t1), {x=b2.x-b0.x; y=b2.y-b0.y}.norm())
+                        (bez.curvature(t1), (bez.eval(t2)-bez.eval(t0)).norm())
                 |] |> Array.unzip
             let n = float (STEPS + 1)
             let cumm_dists, max_dist =
@@ -327,7 +294,6 @@ type DSpline (ctrlPts, isClosed) =
                             if ptJ.ty = SplinePointType.Corner then
                                 break_ <- true
                     ]
-                //console.log(innerPts)
                 let solver = Solver(
                                 Array.ofList innerPts, 
                                 this.isClosed && innerPts.Length-1 = length,
@@ -372,9 +338,10 @@ type DSpline (ctrlPts, isClosed) =
                     DenseVector.ofArray [|0.|])
                 let best = minimiser.FindMinimum(
                     objModel,
-                    DenseVector.ofArray (initial.ToArray()),
-                    DenseVector.ofArray (lowerBound.ToArray()),
-                    DenseVector.ofArray (upperBound.ToArray()))
+                    DenseVector.ofArray (initial.ToArray())
+                    // DenseVector.ofArray (lowerBound.ToArray()),
+                    // DenseVector.ofArray (upperBound.ToArray())
+                    )
                 for i in 0..best.MinimizingPoint.Count-1 do
                     let (index1, index2) = mapping.[i]
                     solver.points().[index1].arr.[index2] <- best.MinimizingPoint[i]
@@ -470,18 +437,20 @@ let splineStaticPage() =
             printfn "spline %d" i
             let th_i = 0.5 * PI
             let spline = DSpline([|
-                {ty=SplinePointType.Corner; x=Some 0.; y=Some 0.; th=Some th_i};
-                {ty=SplinePointType.Corner; x=Some 1.; y=Some 0.; th=None};
+                {ty=SplinePointType.Corner; x=Some 0.; y=Some 0.; th=None};
+                {ty=SplinePointType.Smooth; x=Some 1.; y=Some 1.; th=None};
+                {ty=SplinePointType.Corner; x=Some 2.; y=Some 0.; th=None};
             |], false)
             yield sprintf "<g id='%d'>" i
             // yield sprintf "<text x='%d' y='%d' font-size='0.2'>%d</text>" -3 (i+1) i
-            let debug: bool = false
-            yield sprintf "<path d='%s'" (spline.solve(i, debug))
+            let debug: bool = true
+            yield sprintf "<path d='%s'" (spline.solve(i*2, debug))
             yield sprintf "transform='translate(%d,%d)'" 4 (i+1)
             yield "style='fill:none;stroke:#000000;stroke-width:0.1'/>"
             yield "</g>"
         ]
 
-    rotate_left_theta @ show_iterations
+    rotate_left_theta @ 
+        show_iterations
 
 

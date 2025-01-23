@@ -33,17 +33,17 @@ let main argv =
         DactylSplineTest.TestClass().CheckTwoPointCurvesWithOtherTangents()
 
     else
-        let dactylSpline = true
+        let dactylSpline = false
         if dactylSpline then
             DactylSpline.splineStaticPage() 
             |> toHtmlDocument 0 0 1 12
             |> writeFile @"output\dactylSpline.html"
 
-        let debugSingleChar = false
+        let debugSingleChar = true
         if debugSingleChar then
             // let font = Font(Axes.DefaultAxes)
             let font = Font({Axes.DefaultAxes with spline2=true})
-            printfn "%A" (font.charToSvg 'e' 0 0 black)
+            printfn "%A" (font.charToSvg 'l' 0 0 black)
 
         let fonts = [
             // ("Dactyl Knots", "Extra Light", Font({Axes.DefaultAxes with show_knots = true}))
@@ -60,7 +60,7 @@ let main argv =
             ("Dactyl Smooth", "Regular", Font({Axes.DefaultAxes with spline2=true; smooth=true}))
         ]
 
-        let allGlyphs = false
+        let allGlyphs = true
         if allGlyphs then
             // SVG output, side by side
             let rowHeights = List.scan (+) 0 [

@@ -23,8 +23,8 @@ open System.Text
 /// <param name="value"></param>
 /// <returns></returns>
 let Format (value : float) =
-    if abs value < 1e-3 then
-        "0"
+    if abs (value - round(value))  < 1e-3 then
+        (round value).ToString()
     else
         // value.ToString("F1", ToStringCulture)
         value.ToString("F3")

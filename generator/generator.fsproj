@@ -28,6 +28,8 @@
     <PackageReference Include="NUnit" Version="4.3.2"/>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.8.3"/>
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0"/>
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="MathNet.Numerics" Version="5.0.0"/>
     <PackageReference Include="MathNet.Numerics.FSharp" Version="5.0.0"/>
   </ItemGroup>
