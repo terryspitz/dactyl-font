@@ -33,8 +33,6 @@ open BezPath
 open MathNet.Numerics
 open MathNet.Numerics.LinearAlgebra
 
-// let vector = DenseVector.ofArray [| 1.0; 2.0; 3.0 |]
-
 type DControlPoint = {
     mutable ty : SplinePointType    //Continuity at this point: Smooth, Corner, LineToCurve or CurveToLine
     x : float option                // x coord or None to fit x to 'smoothest' curve
@@ -42,7 +40,10 @@ type DControlPoint = {
     mutable th : float option       // optional tangent theta in direction of next point
     // member this.tostring() =
     //     sprintf "CP ty:%A x:%A y:%A th:%A" this.ty this.x this.y this.th
-}
+} with
+    static member (-) (lhs, rhs) =
+        {x=lhs.x.Value-rhs.x.Value; y=lhs.y.Value-rhs.y.Value}
+
 
 type ControlPointOut(ty, x, y, lth, rth) = 
     member val ty : SplinePointType = ty with get, set
@@ -79,7 +80,9 @@ type BezierPoint() =
     member this.arr = _arr
     member this.fit = _fit
     member this.lpt() = {x=this.x + this.ld * cos this.lth; y=this.y + this.ld * sin this.lth}
-    member this.rpt() = {x=this.x + this.rd * cos this.rth; y=this.y + this.rd * sin this.rth}
+    member this.rpt() =
+        let th = if isnan this.lth then this.rth else this.lth
+        {x=this.x + this.rd * cos this.rth; y=this.y + this.rd * sin this.rth}
     member this.tostring() =
         sprintf "BP x:%f y:%f lth:%f ld:%f rth:%f rd:%f" this.x this.y this.lth this.ld this.rth this.rd
 
@@ -244,44 +247,41 @@ type DSpline (ctrlPts, isClosed) =
     member this.solve(maxIter, debug) =
         let length = this.ctrlPts.Length - if this.isClosed then 0 else 1
 
-        //terryspitz: implement LineToCurve and CurveToLine as Corners with fixed tangent theta
-        //determined from the Line
+        // Implement LineToCurve and CurveToLine as Corners with fixed tangent theta
+        // determined from the Line
         for i in 0..length do
             let ptI = this.ctrlPts.[i % this.ctrlPts.Length]
             if ptI.ty = SplinePointType.LineToCurve || ptI.ty = SplinePointType.CurveToLine then
                 assert (ptI.th.IsNone)
-                let ptI1 = if ptI.ty = SplinePointType.LineToCurve then 
-                                this.ctrlPts.[i-1]
-                            else
-                                this.ctrlPts.[(i+1) % this.ctrlPts.Length]
-                assert (ptI1.ty <> SplinePointType.Smooth)
-                let dx = ptI.x.Value - ptI1.x.Value
-                let dy = ptI.y.Value - ptI1.y.Value
-                let th = atan2 dy dx
+                let dp = 
+                    if ptI.ty = SplinePointType.LineToCurve then 
+                        ptI - (this.ctrlPts.[i-1])
+                    else
+                        this.ctrlPts.[(i+1) % this.ctrlPts.Length] - ptI
                 ptI.ty <- SplinePointType.Corner
-                ptI.th <- Some th
+                ptI.th <- Some (atan2 dp.y dp.x)
 
-        // member this.to_string () =
+        // First point
         let path = BezPath()
         let pt0 = this.ctrlPts.[0]
         path.moveto(pt0.x.Value, pt0.y.Value)
 
+        // Process all segments between points
         let mutable i = 0
         while i < length do
             let ptI = this.ctrlPts.[i]
             let ptI1 = this.ctrlPts.[(i+1) % this.ctrlPts.Length]
-            if ptI1.ty = SplinePointType.Corner && ptI.th.IsNone && ptI1.th.IsNone then
-                // line
-                // let dx = ptI1.x - ptI.x
-                // let dy = ptI1.y - ptI.y
-                // let th = atan2 dy dx
-                // ptI.rTh <- th
-                // ptI1.lTh <- th
+            // Curve if either point is Smooth or Curve to/from Line , or if either has a tangent
+            // Straight line if both points are corners and have no tangents
+            if ptI.ty = SplinePointType.Corner 
+                && ptI1.ty = SplinePointType.Corner 
+                && ptI.th.IsNone && ptI1.th.IsNone then
                 path.lineto(ptI1.x.Value, ptI1.y.Value)
                 i <- i+1
 
-            else //if ptI1.ty = SplinePointType.Smooth || ptI1.ty = SplinePointType.LineToCurve || ptI1.ty = SplinePointType.CurveToLine then
-                // find a curved section, ending in corners
+            else
+                // Find a curved section with Smooth points
+                // i.e. stop if Corner or Curve to/from Line
                 let mutable j = i + 1
                 let mutable break_ = false
                 let innerPts =
@@ -291,7 +291,7 @@ type DSpline (ctrlPts, isClosed) =
                             let ptJ = this.ctrlPts.[j % this.ctrlPts.Length]
                             yield (ptJ)
                             j <- j + 1
-                            if ptJ.ty = SplinePointType.Corner then
+                            if ptJ.ty <> SplinePointType.Smooth then
                                 break_ <- true
                     ]
                 let solver = Solver(
@@ -353,7 +353,10 @@ type DSpline (ctrlPts, isClosed) =
                     path.curveto(p1.rpt().x, p1.rpt().y, p2.lpt().x, p2.lpt().y, p2.x, p2.y)
 
                 i <- j - 1
-        
+
+        if this.isClosed then
+            path.closepath()
+
         path.tostring()
 
 
@@ -412,45 +415,5 @@ type DSpline (ctrlPts, isClosed) =
     //             path.lineto(ptI.pt.x + offset*cos(ptI.lTh), ptI.pt.y + offset*sin(ptI.lTh))
     //     path.tostring()
 
-let splineStaticPage() = 
-    let curves = 10
-
-    // left point theta rotates 0-180
-    let rotate_left_theta = 
-        [for i in 0..curves do
-            printfn "spline %d" i
-            let spline = DSpline([|
-                {ty=SplinePointType.Corner; x=Some 0.; y=Some 0.; th=Some (PI * float(i)/float(curves))};
-                {ty=SplinePointType.Corner; x=Some 1.; y=Some 0.; th=None};
-            |], false)
-            yield sprintf "<g id='%d'>" i
-            yield sprintf "<text x='%d' y='%d' font-size='0.2'>%d</text>" -1 (i+1) i
-            let debug: bool = (i=5)
-            yield sprintf "<path d='%s'" (spline.solve(20, debug))
-            yield sprintf "transform='translate(2,%d)'" (i+1)
-            yield "style='fill:none;stroke:#000000;stroke-width:0.1'/>"
-            yield "</g>"
-        ]
-
-    let show_iterations =
-        [for i in 0..curves do
-            printfn "spline %d" i
-            let th_i = 0.5 * PI
-            let spline = DSpline([|
-                {ty=SplinePointType.Corner; x=Some 0.; y=Some 0.; th=None};
-                {ty=SplinePointType.Smooth; x=Some 1.; y=Some 1.; th=None};
-                {ty=SplinePointType.Corner; x=Some 2.; y=Some 0.; th=None};
-            |], false)
-            yield sprintf "<g id='%d'>" i
-            // yield sprintf "<text x='%d' y='%d' font-size='0.2'>%d</text>" -3 (i+1) i
-            let debug: bool = true
-            yield sprintf "<path d='%s'" (spline.solve(i*2, debug))
-            yield sprintf "transform='translate(%d,%d)'" 4 (i+1)
-            yield "style='fill:none;stroke:#000000;stroke-width:0.1'/>"
-            yield "</g>"
-        ]
-
-    rotate_left_theta @ 
-        show_iterations
 
 

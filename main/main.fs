@@ -33,16 +33,16 @@ let main argv =
         DactylSplineTest.TestClass().CheckTwoPointCurvesWithOtherTangents()
 
     else
-        let dactylSpline = false
+        let dactylSpline = true
         if dactylSpline then
-            DactylSpline.splineStaticPage() 
+            SplineUtils.splineStaticPage() 
             |> toHtmlDocument 0 0 1 12
             |> writeFile @"output\dactylSpline.html"
 
         let debugSingleChar = true
         if debugSingleChar then
             // let font = Font(Axes.DefaultAxes)
-            let font = Font({Axes.DefaultAxes with spline2=true})
+            let font = Font({Axes.DefaultAxes with dactyl_spline=true})
             printfn "%A" (font.charToSvg 'l' 0 0 black)
 
         let fonts = [

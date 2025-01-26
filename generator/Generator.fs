@@ -277,7 +277,8 @@ type Font (axes: Axes) =
                 }
             ]
         let toSegs (pts : list<Point * SpiroPointType>) isClosed =
-            (pts |> List.map (fun (pt, ty) -> (pt, ty, None)) |> toSegs2) isClosed
+            (pts |> List.map (fun (pt, ty) -> (pt, ty, None))
+                |> toSegs2) isClosed
 
         match elem with
         | OpenCurve(pts) -> [SpiroOpenCurve(toSegs pts false)]
@@ -315,17 +316,21 @@ type Font (axes: Axes) =
                 | _ -> ()
         spiroElems
 
+    let spline2ctrlPtsToSvg ctrlPts isClosed =
+        let spline = Spline2(ctrlPts, isClosed)
+        spline.solve(axes.max_spline_iter)
+        [spline.renderSvg(axes.show_tangents) ]
+
+    let spline2ptsToSvg pts isClosed =
+        spline2ctrlPtsToSvg (pts |> List.map (fun (pt, ty) -> (pt, ty, None)) 
+            |> toSpline2ControlPoints) isClosed
+
     let rec elementToSpline2Svg elem =
-        let ctrlPtsToSvg ctrlPts isClosed =
-            let spline = Spline2(ctrlPts, isClosed)
-            spline.solve(axes.max_spline_iter)
-            [spline.renderSvg(axes.show_tangents) ]
-        let ptsToSvg pts isClosed =
-            ctrlPtsToSvg (pts |> List.map (fun (pt, ty) -> (pt, ty, None)) |> toSpline2ControlPoints) isClosed
         match elem with
-        | OpenCurve(pts) -> ptsToSvg pts false
-        | ClosedCurve(pts) -> ptsToSvg pts true
-        | TangentCurve(pts, isClosed) -> ctrlPtsToSvg (toSpline2ControlPoints pts) isClosed
+        | OpenCurve(pts) -> spline2ptsToSvg pts false
+        | ClosedCurve(pts) -> spline2ptsToSvg pts true
+        | TangentCurve(pts, isClosed) -> 
+            spline2ctrlPtsToSvg (toSpline2ControlPoints pts) isClosed
         | Dot(p) -> let x, y = getXY p in svgCircle x y thickness
         | EList(elems) -> List.collect elementToSpline2Svg elems
         | Space -> []
@@ -966,3 +971,4 @@ type Font (axes: Axes) =
     member this.ElementToSpiroSegments = elementToSpiroSegments
     member this.CharToOutline ch = this.charToElem ch |> this.getOutline
     member this.GlyphFsDefs = _GlyphFsDefs
+    member this.Spline2ptsToSvg = spline2ptsToSvg

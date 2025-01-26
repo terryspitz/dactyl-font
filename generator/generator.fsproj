@@ -23,6 +23,7 @@
     <Compile Include="GlyphFsDefs.fs"/>
     <Compile Include="GlyphStringDefs.fs"/>
     <Compile Include="Generator.fs"/>
+    <Compile Include="SplineUtils.fs"/>
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' != 'Release'">
     <PackageReference Include="NUnit" Version="4.3.2"/>
