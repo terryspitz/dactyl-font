@@ -30,8 +30,11 @@ module DactylSpline
 //reuse spline-research Vec2, SplinePointType, SplineControlPoint, CubicBez
 open Curves
 open BezPath
+#if FABLE_COMPILER
+#else
 open MathNet.Numerics
 open MathNet.Numerics.LinearAlgebra
+#endif
 
 type DControlPoint = {
     mutable ty : SplinePointType    //Continuity at this point: Smooth, Corner, LineToCurve or CurveToLine
@@ -300,7 +303,7 @@ type DSpline (ctrlPts, isClosed) =
                                 debug)
                 solver.initialise()
                 let CONVERGED_ERR = 1e-3
-#if OLD_SOLVER
+#if FABLE_COMPILER
                 let mutable iter = 0
                 while solver.iter iter > CONVERGED_ERR && iter < maxIter do
                     iter <- iter + 1
