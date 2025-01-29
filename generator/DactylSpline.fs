@@ -48,46 +48,42 @@ type DControlPoint = {
         {x=lhs.x.Value-rhs.x.Value; y=lhs.y.Value-rhs.y.Value}
 
 
-type ControlPointOut(ty, x, y, lth, rth) = 
-    member val ty : SplinePointType = ty with get, set
-    member val x : float = x with get
-    member val y : float = y with get
-    member val th : float = lth with get, set  // angle of tangent towards next point
-    // member val lth : float = lth with get, set  // angle of curve to previous point
-    // member val rth : float = lth with get, set  // angle of curve to next point
+// type ControlPointOut(ty, x, y, lth, rth) = 
+//     member val ty : SplinePointType = ty with get, set
+//     member val x : float = x with get
+//     member val y : float = y with get
+//     member val th : float = lth with get, set  // angle of tangent towards next point
+//     // member val lth : float = lth with get, set  // angle of curve to previous point
+//     // member val rth : float = lth with get, set  // angle of curve to next point
 
+let BEZIER_ARGS = 5
 // Internal class for a knot on bezier curve including tangents and distances to control points 
 type BezierPoint() =
     //     x : float
     //     y : float
-    //     lth : float  // tangent toward previous (left) point
+    //     th : float   // tangent towards next (right) point
     //     ld : float   // distance to left bezier control point
-    //     rth : float  // tangent towards next (right) point
     //     rd : float   // distance to right bezier control point
-    let _arr = Array.create 6 nan
-    let _fit = Array.create 6 true
+    let _arr = Array.create BEZIER_ARGS nan
+    let _fit = Array.create BEZIER_ARGS true
     member this.x   with get () = _arr.[0] and set (v) = _arr.[0] <- v
     member this.y   with get () = _arr.[1] and set (v) = _arr.[1] <- v
-    member this.lth with get () = _arr.[2] and set (v) = _arr.[2] <- v
+    member this.th with get () = _arr.[2] and set (v) = _arr.[2] <- v
     member this.ld  with get () = _arr.[3] and set (v) = _arr.[3] <- v
-    member this.rth with get () = _arr.[4] and set (v) = _arr.[4] <- v
-    member this.rd  with get () = _arr.[5] and set (v) = _arr.[5] <- v
+    member this.rd  with get () = _arr.[4] and set (v) = _arr.[4] <- v
     member this.fit_x   with get () = _fit.[0] and set (v) = _fit.[0] <- v
     member this.fit_y   with get () = _fit.[1] and set (v) = _fit.[1] <- v
-    member this.fit_lth with get () = _fit.[2] and set (v) = _fit.[2] <- v
+    member this.fit_th with get () = _fit.[2] and set (v) = _fit.[2] <- v
     member this.fit_ld  with get () = _fit.[3] and set (v) = _fit.[3] <- v
-    member this.fit_rth with get () = _fit.[4] and set (v) = _fit.[4] <- v
-    member this.fit_rd  with get () = _fit.[5] and set (v) = _fit.[5] <- v
+    member this.fit_rd  with get () = _fit.[4] and set (v) = _fit.[4] <- v
 
     member this.vec with get () = {x=this.x; y=this.y}
     member this.arr = _arr
     member this.fit = _fit
-    member this.lpt() = {x=this.x + this.ld * cos this.lth; y=this.y + this.ld * sin this.lth}
-    member this.rpt() =
-        let th = if isnan this.lth then this.rth else this.lth
-        {x=this.x + this.rd * cos this.rth; y=this.y + this.rd * sin this.rth}
+    member this.lpt() = {x=this.x - this.ld * cos this.th; y=this.y - this.ld * sin this.th}
+    member this.rpt() = {x=this.x + this.rd * cos this.th; y=this.y + this.rd * sin this.th}
     member this.tostring() =
-        sprintf "BP x:%f y:%f lth:%f ld:%f rth:%f rd:%f" this.x this.y this.lth this.ld this.rth this.rd
+        sprintf "BP x:%f y:%f th:%f ld:%f rd:%f" this.x this.y this.th this.ld this.rd
 
 
 type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
@@ -122,29 +118,32 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
         for i in 0..ctrlPts.Length - 1 do
             let point = _points.[i]
             let ctrlPt = ctrlPts.[i]
-            let dpl = point.vec - _points.[max (i-1) 0].vec
+            let dpl = point.vec - _points.[max (i-1) 0].vec //pointing from previous point to this
             let dpr = _points.[min (i+1) (_points.Length-1)].vec - point.vec
 
             match ctrlPt.th with 
             | Some th ->
-                point.lth <- th + PI; point.fit_lth <- false
-                point.rth <- th; point.fit_rth <- false
+                point.th <- th; point.fit_th <- false
             | None ->
-                let th_est =
-                    if i=0 then dpr.atan2()
-                    elif i=ctrlPts.Length-1 then dpl.atan2()
-                    // else mod2pi (dpl.atan2() + mod2pi (dpr.atan2() - dpl.atan2())/2.)  //average of angles
-                    else (dpl.atan2() + dpr.atan2())/2.  //average of angles
-                point.lth <- mod2pi (th_est + PI)
-                point.rth <- th_est
+                let lth = dpl.atan2() 
+                let rth = dpr.atan2()
+                point.th <-
+                    if i=0 then rth
+                    elif i=ctrlPts.Length-1 then lth
+                    else   //average of angles
+                        if abs (rth - lth) > PI then
+                        // if angle is more than 180 degrees, take the shorter path
+                            (lth + rth)/2. + PI
+                        else
+                            (lth + rth)/2.
 
             if i=0 then
                 point.rd <- dpr.norm()/3.
-                point.fit_lth <- false
+                // point.fit_lth <- false
                 point.fit_ld <- false
             elif i=ctrlPts.Length-1 then
                 point.ld <- dpl.norm()/3.
-                point.fit_rth <- false
+                // point.fit_rth <- false
                 point.fit_rd <- false
             else
                 point.ld <- dpl.norm()/3.
@@ -156,9 +155,12 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
 
     member this.computeErr() =
         // Sample the curvature and distance (arc length) along each bezier.
-        // Euler spiral (like spiro spline) wants curvature k linear in curve length l
+        // Euler spiral (like spiro spline) wants its curvature k to be linear in curve length l
         // So treat l as an x-coord and k as a y-coord and fit a line to the data, then measure residuals from that line and minimise
         // Add error for curvature discontinuity between segments (tangents are consistent by construction)
+        // Also if there are free variables, curvature should be as constant as possible ,
+        // so minimise the gradient of the fitted curvature line
+        // Also [optionally?] minimise line length
         let mutable prev_end = nan
         let mutable errs = 0.
         for i in 0.._points.Length - 2 do
@@ -195,7 +197,7 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
                 m, c, residuals
 
             let m, c, residuals = linear_regression cumm_dists ks
-            errs <- errs + residuals
+            errs <- errs + residuals + abs m + max_dist
             // add error term for mismatch between end of previous bezier and start of this
             if i>0 then
                 let err = c - prev_end
@@ -211,18 +213,18 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
         
         //terryspitz: correction to match start/end tangents on closed curves
         if this.isClosed && this.startTh.IsNone && this.endTh.IsNone then
-            let avgth = (_points.[0].lth + _points.[n - 1].rth) / 2.
-            _points.[0].lth <- avgth
-            _points.[n - 1].rth <- avgth
+            let avgth = (_points.[0].th + _points.[n - 1].th) / 2.
+            _points.[0].th <- avgth
+            _points.[n - 1].th <- avgth
 
         // if points.Length < 3 then 0. else
 
         let mutable absErr = 0.
-        let mutable newArr = [|for i in 0.._points.Length-1 do Array.create 6 nan|]
+        let mutable newArr = [|for i in 0.._points.Length-1 do Array.create BEZIER_ARGS nan|]
         let err = this.computeErr()
         let epsilon = 1e-5
         for i in 0.._points.Length-1 do
-            for j in 0..5 do
+            for j in 0..BEZIER_ARGS-1 do
                 if _points.[i].fit.[j] then
                     let value = _points.[i].arr.[j]
                     _points.[i].arr.[j] <- value + epsilon
@@ -231,7 +233,7 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
                     let derr = (errp - err) / epsilon
                     newArr.[i].[j] <- _points.[i].arr.[j] - err / derr  //newtons method, towards zero
         for i in 0.._points.Length-1 do
-            for j in 0..5 do
+            for j in 0..BEZIER_ARGS-1 do
                 if _points.[i].fit.[j] then
                     _points.[i].arr.[j] <- newArr.[i].[j]
             if _points.[i].ld < 0.1 then _points.[i].ld <- 0.1
@@ -318,7 +320,7 @@ type DSpline (ctrlPts, isClosed) =
                 let upperBound: ResizeArray<float> = ResizeArray()
                 let initial: ResizeArray<float> = ResizeArray()
                 for i in 0..solver.points().Length-1 do
-                    for j in 0..5 do
+                    for j in 0..BEZIER_ARGS-1 do
                         if solver.points().[i].fit.[j] then
                             mapping.Add((i, j))
                             lowerBound.Add(0.0)
@@ -349,10 +351,10 @@ type DSpline (ctrlPts, isClosed) =
                     let (index1, index2) = mapping.[i]
                     solver.points().[index1].arr.[index2] <- best.MinimizingPoint[i]
 #endif
-                let c = solver.points()
-                for k in 0..c.Length-2 do
-                    let p1 = c.[k]
-                    let p2 = c.[k+1]
+                let bezPts = solver.points()
+                for k in 0..bezPts.Length-2 do
+                    let p1 = bezPts.[k]
+                    let p2 = bezPts.[k+1]
                     path.curveto(p1.rpt().x, p1.rpt().y, p2.lpt().x, p2.lpt().y, p2.x, p2.y)
 
                 i <- j - 1
@@ -417,6 +419,3 @@ type DSpline (ctrlPts, isClosed) =
     //             path.moveto(ptI.pt.x, ptI.pt.y)
     //             path.lineto(ptI.pt.x + offset*cos(ptI.lTh), ptI.pt.y + offset*sin(ptI.lTh))
     //     path.tostring()
-
-
-

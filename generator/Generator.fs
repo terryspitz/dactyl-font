@@ -903,11 +903,12 @@ type Font (axes: Axes) =
     member this.charToSvg ch offsetX offsetY colour =
         // printfn "%c" ch
         (sprintf "<!-- %c -->" ch) ::
-        let spine = this.charToElem ch
+        let backbone = this.charToElem ch
         let knotColour = if this.axes.outline then lightBlue else pink
         let knotSize = if this.axes.outline then 10 else 20
         try
-            let outline = this.getOutline spine
+            // render outline glyph
+            let outline = this.getOutline backbone
             this.elementToSvgPath outline offsetX offsetY 5 colour
             @ if this.axes.show_knots && this.axes.outline then
                 outline |> this.getSvgKnots offsetX offsetY knotSize knotColour
@@ -915,11 +916,13 @@ type Font (axes: Axes) =
         with
         | _ ->
             try
-                this.elementToSvgPath spine offsetX offsetY 5 red
+                // outline failed, so render just backbone (spine) of glyph
+                this.elementToSvgPath backbone offsetX offsetY 5 red
             with
+            // backbone failed, so render a red dot
             | _ -> this.elementToSvgPath (Dot(HC)) offsetX offsetY 5 red
         @ if this.axes.show_knots then
-            spine |> this.italicise |> this.getSvgKnots offsetX offsetY knotSize knotColour
+            backbone |> this.italicise |> this.getSvgKnots offsetX offsetY knotSize knotColour
           else
             []
 
