@@ -14,7 +14,7 @@ type TestClass() =
         let svg = spline.solve(max_iter, false)
         let svg = (String.Join(" ", svg))
         printfn "%A" svg
-        svg
+        svg.Trim()
 
     [<Test>]
     member this.CheckLines() =
