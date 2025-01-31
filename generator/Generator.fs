@@ -145,6 +145,7 @@ let lightGreen = "#aaffaa"
 let blue = "#0000e0d0"
 let lightBlue = "#aaaaff"
 let pink = "#ffaaaa"
+let orange = "#ffaa00d0"
 
 
 //class

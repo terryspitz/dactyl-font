@@ -190,57 +190,69 @@ let generate_splines _ =
     let values = currentFieldValues () |> List.map snd |> Array.ofList
     let axes = Reflection.FSharpValue.MakeRecord(typeof<Axes>, values) :?> Axes
     let newAxes = {axes with clip_rect=false; filled=false; show_knots=true}
-    let fontSpline = Font {newAxes with spline2=true}
-    let fontSpiro = Font {newAxes with spline2=false}
+    let fontSpiro = Font {newAxes with spline2=false; dactyl_spline=false}
+    let fontSpline2 = Font {newAxes with spline2=true; dactyl_spline=false}
+    let fontDSpline = Font {newAxes with spline2=false; dactyl_spline=true}
     let fontGuides = Font {newAxes with spline2=false; show_knots=false}
     let spline = 
-        try EList([for c in text.Split(separator_re) do parse_curve (GlyphFsDefs(axes)) c]) |> fontSpline.translateByThickness
+        try EList([for c in text.Split(separator_re) do
+                    parse_curve (GlyphFsDefs(axes)) c]) |> fontSpline2.translateByThickness
         with | _ -> Dot (YX(axes.thickness, axes.thickness))
     let spiro = 
-        try EList([for c in text.Split(separator_re) do parse_curve (GlyphFsDefs(axes)) c]) |> fontSpline.translateByThickness
+        try EList([for c in text.Split(separator_re) do
+                    parse_curve (GlyphFsDefs(axes)) c]) |> fontSpline2.translateByThickness
         with | _ -> Dot (YX(axes.thickness, axes.thickness))
-    let offsetX, offsetY = 0, fontSpline.charHeight+axes.thickness
+    let offsetX, offsetY = 0, fontSpline2.charHeight+axes.thickness
     let guidesSvg = fontGuides.charToSvg '□' offsetX offsetY grey
                                   @ [svgText 0 0 "Guides"]
     let svg =
         if not axes.outline then
             guidesSvg
-            @ fontSpline.elementToSvgPath spline offsetX offsetY 30 green
             @ fontSpiro.elementToSvgPath spiro offsetX offsetY 10 blue
+            @ fontSpline2.elementToSvgPath spline offsetX offsetY 10 green
+            @ fontDSpline.elementToSvgPath spline offsetX offsetY 10 orange
             @ if axes.show_knots then
-                (spline |> fontSpline.getSvgKnots offsetX offsetY 5 lightGreen)
+                (spline |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen)
                 @ (spiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue) else []
         else
-            let outlineSpline = try fontSpline.getOutline spline with | _ -> spline
-            let outlineSplineSvg =
-                try fontSpline.elementToSvgPath outlineSpline offsetX offsetY 30 green
-                with | _ -> []
             let outlineSpiro = try fontSpiro.getOutline spiro with | _ -> spiro
             let outlineSpiroSvg =
                 try fontSpiro.elementToSvgPath outlineSpiro offsetX offsetY 10 blue
                 with | _ -> []
+            let outlineSpline2 = try fontSpline2.getOutline spline with | _ -> spline
+            let outlineSpline2Svg =
+                try fontSpline2.elementToSvgPath outlineSpline2 offsetX offsetY 10 green
+                with | _ -> []
+            let outlineDSpline = try fontDSpline.getOutline spline with | _ -> spline
+            let outlineDSplineSvg =
+                try fontDSpline.elementToSvgPath outlineDSpline offsetX offsetY 10 orange
+                with | _ -> []
 
             // font_spline.GlyphFsDefs.guidesSvg
             guidesSvg
-            @ fontSpline.elementToSvgPath spline offsetX offsetY 3 green
             @ fontSpiro.elementToSvgPath spiro offsetX offsetY 3 blue
-            @ outlineSplineSvg
+            @ fontSpline2.elementToSvgPath spline offsetX offsetY 3 green
+            @ fontDSpline.elementToSvgPath spline offsetX offsetY 3 orange
             @ outlineSpiroSvg
+            @ outlineSpline2Svg
+            @ outlineDSplineSvg
             @ if axes.show_knots then
-                (spline |> fontSpline.getSvgKnots offsetX offsetY 3 lightGreen)
+                (spline |> fontSpline2.getSvgKnots offsetX offsetY 3 lightGreen)
                 @ (spiro |> fontSpiro.getSvgKnots offsetX offsetY 3 lightBlue)
-                @ (outlineSpline |> fontSpline.getSvgKnots offsetX offsetY 5 lightGreen)
+                @ (outlineSpline2 |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen)
                 @ (outlineSpiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue) else []
-    let svg = toSvgDocument -50 fontSpline.yBaselineOffset 2000 fontSpline.charHeight svg
+    let svg = toSvgDocument -50 fontSpline2.yBaselineOffset 2000 fontSpline2.charHeight svg
     output.innerHTML <- String.concat "\n" svg
     // ((document.getElementsByTagName "svg").[0] :?> HTMLElement).setAttribute("style", "height:50%")
 
 
 let compare_splines () = 
-    let titleFontSpline = Font({Axes.DefaultAxes with thickness=3; spline2=true})
-    let titleFontSpiro = Font({Axes.DefaultAxes with thickness=3; spline2=false})
+    let titleFontSpiro = Font({Axes.DefaultAxes with thickness=3; spline2=false; dactyl_spline=false})
+    let titleFontSpline2 = Font({Axes.DefaultAxes with thickness=3; spline2=true; dactyl_spline=false})
+    let titleFontDSpline = Font({Axes.DefaultAxes with thickness=3; spline2=false; dactyl_spline=true})
     let svg = titleFontSpiro.stringToSvgLines ["Spiro"] 40 40 blue
-                @ titleFontSpline.stringToSvgLines ["Splines"] 0 0 green
+                @ titleFontSpline2.stringToSvgLines ["Splines"] 0 0 green
+                @ titleFontDSpline.stringToSvgLines ["DSpline"] 0 0 orange
     let svg = toSvgDocument -50 -50 2000 1000 svg
     (document.getElementById "title").innerHTML <- String.concat "\n" svg
     let select = document.getElementById "char" :?> HTMLSelectElement
@@ -269,7 +281,7 @@ let compare_splines () =
         "tracking", Range(0, 200)
         "leading", Range(-100, 200)
         "monospace", FracRange(0.0, 1.0)
-        // "italic", FracRange(0.0, 1.0)
+        "italic", FracRange(0.0, 1.0)
         "serif", Range(0, 70)
         "end_bulb", FracRange(-1.0, 3.0)
         "flare", FracRange(-1.0, 1.0)
