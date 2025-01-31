@@ -1,3 +1,7 @@
 [submodule "proofs"]
 	path = proofs
 	url = https://github.com/hoeflerco/proofs.git
+[submodule "fmin"]
+	path = fmin
+	url = https://github.com/benfred/fmin
+	branch = master

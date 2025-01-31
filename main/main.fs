@@ -33,7 +33,7 @@ let main argv =
         DactylSplineTest.TestClass().CheckTwoPointCurvesWithOtherTangents()
 
     else
-        let dactylSpline = true
+        let dactylSpline = false
         if dactylSpline then
             SplineUtils.splineStaticPage() 
             |> toHtmlDocument 0 0 1 12
@@ -43,13 +43,14 @@ let main argv =
         if debugSingleChar then
             // let font = Font(Axes.DefaultAxes)
             let font = Font({Axes.DefaultAxes with dactyl_spline=true})
-            printfn "%A" (font.charToSvg 'l' 0 0 black)
+            for svg in font.charToSvg 'f' 0 0 black do
+                printfn "%s" svg
 
         let fonts = [
             // ("Dactyl Knots", "Extra Light", Font({Axes.DefaultAxes with show_knots = true}))
             // ("Dactyl Spiro", "Extra Light", Font({Axes.DefaultAxes with spline2 = false}))
             ("Dactyl Sans Extra Light", "Extra Light", Font({Axes.DefaultAxes with thickness = 3}))
-            ("Dactyl Sans", "Regular", Font({Axes.DefaultAxes with thickness = 30}))
+            ("Dactyl Sans", "Regular", Font({Axes.DefaultAxes with thickness = 30; show_knots=true}))
             ("Dactyl Sans Italic", "Italic", Font({Axes.DefaultAxes with italic = 0.15}))
             ("Dactyl Sans Bold", "Bold", Font({Axes.DefaultAxes with thickness = 60}))
             ("Dactyl Round", "Round", Font({Axes.DefaultAxes with end_bulb = 0.5; axis_align_caps = false; thickness=90}))
@@ -106,7 +107,7 @@ let main argv =
                     | [] -> [[w]]
                 let lines = name :: (List.fold wrap [] lowercase |> List.map (String.concat " ") |> List.rev)
                 printfn "\n%s\n" name
-                font.stringToSvg lines 0 0 true black |> writeFile (sprintf @".\svg\%s_lower.svg" name)
+                font.stringToSvg lines 0 0 true black |> writeFile (sprintf @".\output\proofs\%s_lower.svg" name)
         
         // FontForge output
         let writeFonts = false

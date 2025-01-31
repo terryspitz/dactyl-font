@@ -46,6 +46,9 @@ type BezPath() =
     member this.tostring() =
         _sb.ToString()
 
+    member this.tostringlist() =
+        _sb.ToString().Split("\r\n") |> List.ofArray
+
     member this.moveto(x, y) =
         _sb.AppendLine(sprintf "M %s,%s" (Format x) (Format y)) |> ignore
 

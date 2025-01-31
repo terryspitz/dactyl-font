@@ -31,9 +31,17 @@ module DactylSpline
 open Curves
 open BezPath
 #if FABLE_COMPILER
+open Fable.Core
+open Fable.Core.JsInterop
 #else
 open MathNet.Numerics
 open MathNet.Numerics.LinearAlgebra
+#endif
+
+#if FABLE_COMPILER
+[<Import("nelderMead", from="../fmin/src/nelderMead.js")>]
+// nelderMead(f, initial, params)
+let nelderMead (objective: float array -> float) (initial: float array) (param): float array = jsNative
 #endif
 
 type DControlPoint = {
@@ -203,46 +211,8 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
                 let err = c - prev_end
                 errs <- errs + err*err
             prev_end <- m * cumm_dists.[STEPS] + c
-        // assert not (isnan errs)
+        assert not (isnan errs)
         errs
-            
-    /// Step towards a curvature continuous solution.
-    /// Newton's method to minimise error: adjust each parameter by a small amount and see if error decreases
-    member this.iter(iter) =
-        let n = this.ctrlPts.Length
-        
-        //terryspitz: correction to match start/end tangents on closed curves
-        if this.isClosed && this.startTh.IsNone && this.endTh.IsNone then
-            let avgth = (_points.[0].th + _points.[n - 1].th) / 2.
-            _points.[0].th <- avgth
-            _points.[n - 1].th <- avgth
-
-        // if points.Length < 3 then 0. else
-
-        let mutable absErr = 0.
-        let mutable newArr = [|for i in 0.._points.Length-1 do Array.create BEZIER_ARGS nan|]
-        let err = this.computeErr()
-        let epsilon = 1e-5
-        for i in 0.._points.Length-1 do
-            for j in 0..BEZIER_ARGS-1 do
-                if _points.[i].fit.[j] then
-                    let value = _points.[i].arr.[j]
-                    _points.[i].arr.[j] <- value + epsilon
-                    let errp = this.computeErr()
-                    _points.[i].arr.[j] <- value
-                    let derr = (errp - err) / epsilon
-                    newArr.[i].[j] <- _points.[i].arr.[j] - err / derr  //newtons method, towards zero
-        for i in 0.._points.Length-1 do
-            for j in 0..BEZIER_ARGS-1 do
-                if _points.[i].fit.[j] then
-                    _points.[i].arr.[j] <- newArr.[i].[j]
-            if _points.[i].ld < 0.1 then _points.[i].ld <- 0.1
-            if _points.[i].rd < 0.1 then _points.[i].rd <- 0.1
-
-        if this.debug then
-            printfn "%A" [|for p in _points do p.tostring()|]
-            printfn "abs err %f at iter %d" err iter
-        err
 
 /// Spline handles more general cases, including corners.
 type DSpline (ctrlPts, isClosed) =
@@ -292,7 +262,7 @@ type DSpline (ctrlPts, isClosed) =
                 let innerPts =
                     ptI ::
                     [
-                        while j < length + 1 && not break_ do
+                        while j <= length && not break_ do
                             let ptJ = this.ctrlPts.[j % this.ctrlPts.Length]
                             yield (ptJ)
                             j <- j + 1
@@ -304,32 +274,32 @@ type DSpline (ctrlPts, isClosed) =
                                 this.isClosed && innerPts.Length-1 = length,
                                 debug)
                 solver.initialise()
-                let CONVERGED_ERR = 1e-3
-#if FABLE_COMPILER
-                let mutable iter = 0
-                while solver.iter iter > CONVERGED_ERR && iter < maxIter do
-                    iter <- iter + 1
-#else
-                let minimiser = Optimization.LevenbergMarquardtMinimizer(
-                    // CONVERGED_ERR,
-                    // CONVERGED_ERR,
-                    // CONVERGED_ERR,
-                    maximumIterations=maxIter)
+
                 let mapping = ResizeArray()
-                let lowerBound: ResizeArray<float> = ResizeArray()
-                let upperBound: ResizeArray<float> = ResizeArray()
                 let initial: ResizeArray<float> = ResizeArray()
                 for i in 0..solver.points().Length-1 do
                     for j in 0..BEZIER_ARGS-1 do
                         if solver.points().[i].fit.[j] then
                             mapping.Add((i, j))
-                            lowerBound.Add(0.0)
-                            if j = 2 || j = 4 then
-                                upperBound.Add(2.0 * PI)
-                            else
-                                upperBound.Add(1e10)
                             initial.Add(solver.points().[i].arr.[j])
 
+#if FABLE_COMPILER
+                let objectiveFunction (x: float[]) =
+                    for i in 0..x.Length-1 do
+                        let (index1, index2) = mapping.[i]
+                        solver.points().[index1].arr.[index2] <- x[i]
+                    solver.computeErr()
+                let param = createObj [
+                    "maxIterations" ==> maxIter
+                ]
+                let best = nelderMead objectiveFunction (Array.ofSeq initial) param
+                for i in 0..best.Length-1 do
+                    let (index1, index2) = mapping.[i]
+                    solver.points().[index1].arr.[index2] <- best[i]
+
+#else
+                let minimiser = Optimization.LevenbergMarquardtMinimizer(
+                    maximumIterations=maxIter)
                 /// Adjust params to minimise least squares error for x and y, which we'll just set to 0, 0
                 let objectiveFunction (param: Vector<float>) (x: Vector<float>) =
                         assert (param.Count = mapping.Count)
@@ -362,7 +332,7 @@ type DSpline (ctrlPts, isClosed) =
         if this.isClosed then
             path.closepath()
 
-        path.tostring()
+        path.tostringlist()
 
 
         //terryspitz: fix start and end

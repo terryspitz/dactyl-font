@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
+    <OtherFlags>
+      --define:FABLE_COMPILER_XX
+    </OtherFlags>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\SpiroFs\SpiroFs.fsproj">
@@ -11,27 +14,28 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' == 'Release'">
-    <Compile Remove="**\*Test.fs"/>
+    <Compile Remove="**\*Test.fs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="../README.md"/>
-    <None Include="font.props"/>
-    <Compile Include="Axes.fs"/>
-    <Compile Include="DactylSpline.fs"/>
-    <Compile Include="DactylSplineTest.fs"/>
-    <Compile Include="GeneratorTypes.fs"/>
-    <Compile Include="GlyphFsDefs.fs"/>
-    <Compile Include="GlyphStringDefs.fs"/>
-    <Compile Include="Generator.fs"/>
-    <Compile Include="SplineUtils.fs"/>
+    <None Include="../README.md" />
+    <None Include="font.props" />
+    <Compile Include="Axes.fs" />
+    <Compile Include="DactylSpline.fs" />
+    <Compile Include="DactylSplineTest.fs" />
+    <Compile Include="GeneratorTypes.fs" />
+    <Compile Include="GlyphFsDefs.fs" />
+    <Compile Include="GlyphStringDefs.fs" />
+    <Compile Include="Generator.fs" />
+    <Compile Include="SplineUtils.fs" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' != 'Release'">
-    <PackageReference Include="NUnit" Version="4.3.2"/>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.8.3"/>
-    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0"/>
+    <PackageReference Include="Fable.Core" Version="4.3.0" />
+    <PackageReference Include="NUnit" Version="4.3.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.8.3" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="MathNet.Numerics" Version="5.0.0"/>
-    <PackageReference Include="MathNet.Numerics.FSharp" Version="5.0.0"/>
+    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+    <PackageReference Include="MathNet.Numerics.FSharp" Version="5.0.0" />
   </ItemGroup>
 </Project>

@@ -1,5 +1,6 @@
 module DactylSplineTest
 
+open System
 open NUnit.Framework
 open Curves
 open DactylSpline
@@ -11,9 +12,7 @@ type TestClass() =
 
     let solve_and_print_spline (spline : DSpline) =
         let svg = spline.solve(max_iter, false)
-        let svg = svg.Replace("\r\n", " ").Trim()
-        let svg = svg.Replace("\n", " ").Trim()
-        // printfn "%A" (spline.to_string())
+        let svg = (String.Join(" ", svg))
         printfn "%A" svg
         svg
 
