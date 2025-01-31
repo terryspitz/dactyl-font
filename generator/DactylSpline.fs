@@ -94,6 +94,14 @@ type BezierPoint() =
         sprintf "BP x:%f y:%f th:%f ld:%f rd:%f" this.x this.y this.th this.ld this.rd
 
 
+let averageAngles rth lth =
+    if abs (rth - lth) > PI then
+    // if angle is more than 180 degrees, take the shorter path
+        (lth + rth)/2. + PI
+    else
+        (lth + rth)/2.
+
+
 type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
     let _points : BezierPoint array = Array.zeroCreate ctrlPts.Length
     member this.ctrlPts = ctrlPts
@@ -107,7 +115,7 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
         //initialise points
         if this.debug then
             printfn "solver init"
-            printfn "%A" this.ctrlPts
+            printfn "%A" ctrlPts
 
         for i in 0..ctrlPts.Length - 1 do
             _points.[i] <- BezierPoint()
@@ -133,29 +141,19 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
             | Some th ->
                 point.th <- th; point.fit_th <- false
             | None ->
-                let lth = dpl.atan2() 
+                let lth = dpl.atan2()
                 let rth = dpr.atan2()
                 point.th <-
                     if i=0 then rth
                     elif i=ctrlPts.Length-1 then lth
-                    else   //average of angles
-                        if abs (rth - lth) > PI then
-                        // if angle is more than 180 degrees, take the shorter path
-                            (lth + rth)/2. + PI
-                        else
-                            (lth + rth)/2.
+                    else averageAngles rth lth
 
+            point.ld <- dpl.norm()/3.
+            point.rd <- dpr.norm()/3.
             if i=0 then
-                point.rd <- dpr.norm()/3.
-                // point.fit_lth <- false
                 point.fit_ld <- false
             elif i=ctrlPts.Length-1 then
-                point.ld <- dpl.norm()/3.
-                // point.fit_rth <- false
                 point.fit_rd <- false
-            else
-                point.ld <- dpl.norm()/3.
-                point.rd <- dpr.norm()/3.
 
         if this.debug then
             printfn "solver post init"
@@ -220,37 +218,38 @@ type DSpline (ctrlPts, isClosed) =
     member this.isClosed = isClosed
 
     member this.solve(maxIter, debug) =
-        let length = this.ctrlPts.Length - if this.isClosed then 0 else 1
+        let length = ctrlPts.Length - if this.isClosed then 0 else 1
 
         // Implement LineToCurve and CurveToLine as Corners with fixed tangent theta
         // determined from the Line
         for i in 0..length do
-            let ptI = this.ctrlPts.[i % this.ctrlPts.Length]
+            let ptI = ctrlPts.[i % ctrlPts.Length]
             if ptI.ty = SplinePointType.LineToCurve || ptI.ty = SplinePointType.CurveToLine then
                 assert (ptI.th.IsNone)
                 let dp = 
                     if ptI.ty = SplinePointType.LineToCurve then 
-                        ptI - (this.ctrlPts.[i-1])
+                        ptI - (ctrlPts.[i-1])
                     else
-                        this.ctrlPts.[(i+1) % this.ctrlPts.Length] - ptI
-                ptI.ty <- SplinePointType.Corner
+                        ctrlPts.[(i+1) % ctrlPts.Length] - ptI
                 ptI.th <- Some (atan2 dp.y dp.x)
 
         // First point
         let path = BezPath()
-        let pt0 = this.ctrlPts.[0]
+        let pt0 = ctrlPts.[0]
         path.moveto(pt0.x.Value, pt0.y.Value)
 
         // Process all segments between points
         let mutable i = 0
         while i < length do
-            let ptI = this.ctrlPts.[i]
-            let ptI1 = this.ctrlPts.[(i+1) % this.ctrlPts.Length]
+            let ptI = ctrlPts.[i]
+            let ptI1 = ctrlPts.[(i+1) % ctrlPts.Length]
             // Curve if either point is Smooth or Curve to/from Line , or if either has a tangent
             // Straight line if both points are corners and have no tangents
-            if ptI.ty = SplinePointType.Corner 
-                && ptI1.ty = SplinePointType.Corner 
-                && ptI.th.IsNone && ptI1.th.IsNone then
+            if (ptI.ty = SplinePointType.Corner
+                    && ptI1.ty = SplinePointType.Corner
+                    && ptI.th.IsNone && ptI1.th.IsNone)
+                || ptI.ty = SplinePointType.CurveToLine
+                || ptI1.ty = SplinePointType.LineToCurve then
                 path.lineto(ptI1.x.Value, ptI1.y.Value)
                 i <- i+1
 
@@ -263,7 +262,7 @@ type DSpline (ctrlPts, isClosed) =
                     ptI ::
                     [
                         while j <= length && not break_ do
-                            let ptJ = this.ctrlPts.[j % this.ctrlPts.Length]
+                            let ptJ = ctrlPts.[j % ctrlPts.Length]
                             yield (ptJ)
                             j <- j + 1
                             if ptJ.ty <> SplinePointType.Smooth then
@@ -335,21 +334,11 @@ type DSpline (ctrlPts, isClosed) =
         path.tostringlist()
 
 
-        //terryspitz: fix start and end
-        // if not this.isClosed then
-        //     let firstPt = this.ctrlPts.[0]
-        //     //firstPt.lTh <- firstPt.rTh
-        //     let lastPt = this.ctrlPts.[this.ctrlPts.Length-1]
-        //     assert (isnan lastPt.rTh)
-        //     //lastPt.rTh <- lastPt.lTh
-
-
-
     // member this.renderSvg show_tangents =
     //     let path = BezPath()
-    //     if this.ctrlPts.Length = 0 then "" else
-    //     let pt0 = this.ctrlPts.[0] in path.moveto(pt0.pt.x, pt0.pt.y)
-    //     let length = this.ctrlPts.Length - if this.isClosed then 0 else 1
+    //     if ctrlPts.Length = 0 then "" else
+    //     let pt0 = ctrlPts.[0] in path.moveto(pt0.pt.x, pt0.pt.y)
+    //     let length = ctrlPts.Length - if this.isClosed then 0 else 1
     //     for i in 0..length-1 do
     //         path.mark i
     //         let ptI = this.pt(i, 0)
