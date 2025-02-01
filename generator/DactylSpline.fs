@@ -39,7 +39,7 @@ open MathNet.Numerics.LinearAlgebra
 #endif
 
 #if FABLE_COMPILER
-[<Import("nelderMead", from="../fmin/src/nelderMead.js")>]
+[<Import("nelderMead", from="../explorer/public/fmin/src/nelderMead.js")>]
 // nelderMead(f, initial, params)
 let nelderMead (objective: float array -> float) (initial: float array) (param): float array = jsNative
 #endif
