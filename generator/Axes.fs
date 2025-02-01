@@ -42,7 +42,7 @@ type Axes = {
 } with
     static member DefaultAxes = {
         new_definitions = true
-        dactyl_spline = false
+        dactyl_spline = true
         spline2 = false
         width = 300
         height = 600
