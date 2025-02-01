@@ -21,6 +21,7 @@
 // fix serifs: curve joints, check Y{}, spacing
 // Caustics overlay
 // Optional debug mode to show coordinates/curves
+// debug 'sharp bend' duplicate points in 'e'
 
 //Features :
 // Backscratch font (made of 4 parallel lines)
@@ -359,7 +360,7 @@ type Font (axes: Axes) =
     let rec elementToDactylSvg (elem: Element) =
         let ctrlPtsToSvg ctrlPts isClosed =
             let spline = DSpline(ctrlPts, isClosed)
-            spline.solve(axes.max_spline_iter, debug = false)
+            spline.solve(axes.max_spline_iter, debug = axes.debug)
 
         let ptsToSvg (pts: (Point * SpiroPointType) list) isClosed =
             ctrlPtsToSvg (pts |> List.map (fun (pt, ty) -> (pt, ty, None)) |> toDSplineControlPoints) isClosed
@@ -424,7 +425,7 @@ type Font (axes: Axes) =
         match e with
         | Glyph(ch) ->
             if axes.new_definitions then
-                memoize stringDefsToElem _GlyphFsDefs ch
+                memoize stringDefsToElem _GlyphFsDefs ch axes.debug
             else 
                 _GlyphFsDefs.getGlyph e |> this.reduce
         | EList(elems) -> EList(List.map this.reduce elems)
@@ -530,6 +531,7 @@ type Font (axes: Axes) =
         | SpiroPointType.Corner ->
             let th1, th2, bend = norm(lastSeg.tangent2 + angle), norm(seg.tangent1 + angle), norm(seg.tangent1 - lastSeg.tangent2)
             if (not reverse && bend < -PI/8.0) || (reverse && bend > PI/8.0) then
+                // TODO: check why triggers on right angle in 'e'
                 //two points on sharp outer bend
                 [(segAddPolar seg (this.maybeAlign th1 - angle/2.) (dist * sqrt 2.0), newType);
                  (segAddPolar seg (this.maybeAlign th2 + angle/2.) (dist * sqrt 2.0), newType)]

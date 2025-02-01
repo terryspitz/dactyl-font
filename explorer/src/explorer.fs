@@ -108,16 +108,17 @@ let generate _ =
         output.innerHTML <- String.concat "\n" svg
 
 ///Initialise controls
-let init generate controls = 
-    let label = document.createElement "label" :?> HTMLLabelElement
-    label.htmlFor <- "tweens"
-    label.innerText <- "show tweens  "
-    inputs.appendChild label |> ignore
-    let tweens = document.createElement "input" :?> HTMLInputElement
-    tweens.id <- "tweens"
-    tweens.oninput <- generate
-    tweens.``type`` <- "checkbox"
-    inputs.appendChild tweens |> ignore
+let init generate controls add_tweens = 
+    if add_tweens then
+        let label = document.createElement "label" :?> HTMLLabelElement
+        label.htmlFor <- "tweens"
+        label.innerText <- "show tweens  "
+        inputs.appendChild label |> ignore
+        let tweens = document.createElement "input" :?> HTMLInputElement
+        tweens.id <- "tweens"
+        tweens.oninput <- generate
+        tweens.``type`` <- "checkbox"
+        inputs.appendChild tweens |> ignore
 
     for f, c in controls do
         let label = document.createElement "label" :?> HTMLLabelElement
@@ -181,7 +182,7 @@ let run_explorer () =
     textbox.oninput <- generate
     (document.getElementById "reset").onclick <- randomise true generate
     (document.getElementById "randomise").onclick <- randomise false generate
-    init generate Axes.controls
+    init generate Axes.controls true
     generate ()
 
 
@@ -196,11 +197,11 @@ let generate_splines _ =
     let fontGuides = Font {newAxes with spline2=false; show_knots=false}
     let spline = 
         try EList([for c in text.Split(separator_re) do
-                    parse_curve (GlyphFsDefs(axes)) c]) |> fontSpline2.translateByThickness
+                    parse_curve (GlyphFsDefs(axes)) c axes.debug]) |> fontSpline2.translateByThickness
         with | _ -> Dot (YX(axes.thickness, axes.thickness))
     let spiro = 
         try EList([for c in text.Split(separator_re) do
-                    parse_curve (GlyphFsDefs(axes)) c]) |> fontSpline2.translateByThickness
+                    parse_curve (GlyphFsDefs(axes)) c  axes.debug]) |> fontSpline2.translateByThickness
         with | _ -> Dot (YX(axes.thickness, axes.thickness))
     let offsetX, offsetY = 0, fontSpline2.charHeight+axes.thickness
     let guidesSvg = fontGuides.charToSvg '□' offsetX offsetY grey
@@ -250,8 +251,8 @@ let compare_splines () =
     let titleFontSpiro = Font({Axes.DefaultAxes with thickness=3; spline2=false; dactyl_spline=false})
     let titleFontSpline2 = Font({Axes.DefaultAxes with thickness=3; spline2=true; dactyl_spline=false})
     let titleFontDSpline = Font({Axes.DefaultAxes with thickness=3; spline2=false; dactyl_spline=true})
-    let svg = titleFontSpiro.stringToSvgLines ["Spiro"] 40 40 blue
-                @ titleFontSpline2.stringToSvgLines ["Splines"] 0 0 green
+    let svg = titleFontSpiro.stringToSvgLines ["Spiro"] 80 80 blue
+                @ titleFontSpline2.stringToSvgLines ["Splines"] 40 40 green
                 @ titleFontDSpline.stringToSvgLines ["DSpline"] 0 0 orange
     let svg = toSvgDocument -50 -50 2000 1000 svg
     (document.getElementById "title").innerHTML <- String.concat "\n" svg
@@ -291,13 +292,14 @@ let compare_splines () =
         "outline", Checkbox
         // "stroked", Checkbox
         // "scratches", Checkbox
-        // "max_spline_iter", Range(0, 15)
+        "max_spline_iter", Range(0, 20)
         "show_tangents", Checkbox
         // "joints", Checkbox
         // "smooth", Checkbox
+        "debug", Checkbox
     ]
 
-    init generate_splines spline_controls
+    init generate_splines spline_controls false
     select.focus ()
     select.selectedIndex <- 4  //'e'
     getStringDef ()

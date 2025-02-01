@@ -195,7 +195,7 @@ let parse_point (glyph : GlyphFsDefs) def_raw =
 
     YX(y_coord, x_coord), tangent, def
 
-let parse_curve (glyph : GlyphFsDefs) raw_def =
+let parse_curve (glyph : GlyphFsDefs) raw_def debug =
     let mutable pts, lines, tangents = [], [], []
     let mutable def : string = raw_def
     let mutable last_line = ""
@@ -203,7 +203,8 @@ let parse_curve (glyph : GlyphFsDefs) raw_def =
         let pt, tangent, new_def = parse_point glyph def
         def <- new_def
         if last_line = "." then
-            assert (pt = pts.[pts.Length-1])
+            if pt <> pts.[pts.Length-1] then
+                invalidArg "string" "'.' must separate points at the same location"
         else
             pts <- pts @ [pt]
             tangents <- tangents @ [tangent]
@@ -235,13 +236,13 @@ let parse_curve (glyph : GlyphFsDefs) raw_def =
             assert (def.Length = 0)
         // printfn "post-line %A" def
 
-    // printfn "post-parse curve %A %A %A" pts lines def
+    if debug then
+        printfn "post-parse curve %A %A %A" pts lines def
     if pts.Length = 1 then
         Dot(pts.[0])
     elif pts.Length = lines.Length || last_line = "." then    // Closed curve
         if last_line = "." then 
             lines <- lines @ [Corner]
-            // printfn "last_line = '.'"
         TangentCurve(List.zip3 pts lines tangents, true)
     else // Open curve
         if last_line = "~" then
@@ -250,17 +251,18 @@ let parse_curve (glyph : GlyphFsDefs) raw_def =
             lines <- lines @ [Corner]
         TangentCurve(List.zip3 pts lines tangents, false)
 
-let stringDefsToElem (glyph : GlyphFsDefs) e = 
+let stringDefsToElem (glyph : GlyphFsDefs) e debug = 
     let def = glyphMap.[e]
     assert Regex.IsMatch(def, glyph_re)
-    // printfn "%A: %A" e def
+    if debug then
+        printfn "%A: %A" e def
     if def = "" then
         Dot(HC)
     elif def = " " then
         Space
     else
         let curves = EList([
-            for def in def.Split(separator_re) do parse_curve glyph def])
+            for def in def.Split(separator_re) do parse_curve glyph def debug])
         // printfn "%A" curves
         curves
 

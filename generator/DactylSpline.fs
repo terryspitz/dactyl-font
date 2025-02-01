@@ -91,7 +91,13 @@ type BezierPoint() =
     member this.lpt() = {x=this.x - this.ld * cos this.th; y=this.y - this.ld * sin this.th}
     member this.rpt() = {x=this.x + this.rd * cos this.th; y=this.y + this.rd * sin this.th}
     member this.tostring() =
-        sprintf "BP x:%f y:%f th:%f ld:%f rd:%f" this.x this.y this.th this.ld this.rd
+        let fit_str f = if f then "~" else ""
+        sprintf "BP x:%s%f y:%s%f th:%s%f ld:%s%f rd:%s%f" 
+            (fit_str this.fit_x) this.x
+            (fit_str this.fit_y) this.y
+            (fit_str this.fit_th) this.th
+            (fit_str this.fit_ld) this.ld
+            (fit_str this.fit_rd) this.rd
 
 
 let averageAngles rth lth =
@@ -103,7 +109,7 @@ let averageAngles rth lth =
 
 
 type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
-    let _points : BezierPoint array = Array.zeroCreate ctrlPts.Length
+    let _points : BezierPoint array = Array.init ctrlPts.Length (fun _ -> BezierPoint())
     member this.ctrlPts = ctrlPts
     member this.isClosed = isClosed
     member val startTh : float option = None with get, set
@@ -117,8 +123,8 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
             printfn "solver init"
             printfn "%A" ctrlPts
 
+        // Initialisation of points
         for i in 0..ctrlPts.Length - 1 do
-            _points.[i] <- BezierPoint()
             let point = _points.[i]
             let ctrlPt = ctrlPts.[i]
             match ctrlPt.x with 
@@ -126,11 +132,11 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
             // possibly: define fit_x/y separately from none, then use x/y for initialisation
             | None -> point.x <- if i=0 then ctrlPts.[i+1].x.Value
                                     elif i=ctrlPts.Length-1 then ctrlPts.[i-1].x.Value
-                                    else (ctrlPts.[i-1].x.Value+ctrlPts.[i+1].x.Value)/2.
+                                    else (ctrlPts.[i-1].x.Value + ctrlPts.[i+1].x.Value)/2.
             //TODO: fit_y
             match ctrlPt.y with | Some y -> point.y <- y; point.fit_y <- false | None -> ()
 
-        //initialise tangent angle/distance
+        // Initialise tangent angle/distance
         for i in 0..ctrlPts.Length - 1 do
             let point = _points.[i]
             let ctrlPt = ctrlPts.[i]
@@ -157,7 +163,8 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
 
         if this.debug then
             printfn "solver post init"
-            printfn "%A" [|for p in _points do p.tostring()|]
+            for p in _points do
+                printfn "%s" (p.tostring())
 
     member this.computeErr() =
         // Sample the curvature and distance (arc length) along each bezier.
@@ -212,7 +219,7 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
         assert not (isnan errs)
         errs
 
-/// Spline handles more general cases, including corners.
+/// DSpline handles general sequence of lines & curves, including corners.
 type DSpline (ctrlPts, isClosed) =
     member this.ctrlPts : DControlPoint array = ctrlPts
     member this.isClosed = isClosed
@@ -226,12 +233,14 @@ type DSpline (ctrlPts, isClosed) =
             let ptI = ctrlPts.[i % ctrlPts.Length]
             if ptI.ty = SplinePointType.LineToCurve || ptI.ty = SplinePointType.CurveToLine then
                 assert (ptI.th.IsNone)
-                let dp = 
+                let ptJ, dp = 
                     if ptI.ty = SplinePointType.LineToCurve then 
-                        ptI - (ctrlPts.[i-1])
+                        (ctrlPts.[i-1]), ptI - (ctrlPts.[i-1])
                     else
-                        ctrlPts.[(i+1) % ctrlPts.Length] - ptI
-                ptI.th <- Some (atan2 dp.y dp.x)
+                        ctrlPts.[(i+1) % ctrlPts.Length], ctrlPts.[(i+1) % ctrlPts.Length] - ptI
+                let th = atan2 dp.y dp.x
+                ptI.th <- Some th
+                ptJ.th <- Some th
 
         // First point
         let path = BezPath()
@@ -243,13 +252,19 @@ type DSpline (ctrlPts, isClosed) =
         while i < length do
             let ptI = ctrlPts.[i]
             let ptI1 = ctrlPts.[(i+1) % ctrlPts.Length]
+
+            // Skip if points are coincident
+            if (ptI.x.IsSome && ptI.y.IsSome && ptI1.x.IsSome && ptI1.y.IsSome
+                        && ptI.x.Value=ptI1.x.Value && ptI.y.Value=ptI1.y.Value) then
+                i <- i+1
             // Curve if either point is Smooth or Curve to/from Line , or if either has a tangent
             // Straight line if both points are corners and have no tangents
-            if (ptI.ty = SplinePointType.Corner
+            else if (ptI.ty = SplinePointType.Corner
                     && ptI1.ty = SplinePointType.Corner
                     && ptI.th.IsNone && ptI1.th.IsNone)
-                || ptI.ty = SplinePointType.CurveToLine
-                || ptI1.ty = SplinePointType.LineToCurve then
+                // || ptI.ty = SplinePointType.CurveToLine
+                // || ptI1.ty = SplinePointType.LineToCurve
+                then
                 path.lineto(ptI1.x.Value, ptI1.y.Value)
                 i <- i+1
 
@@ -265,7 +280,7 @@ type DSpline (ctrlPts, isClosed) =
                             let ptJ = ctrlPts.[j % ctrlPts.Length]
                             yield (ptJ)
                             j <- j + 1
-                            if ptJ.ty <> SplinePointType.Smooth then
+                            if ptJ.ty = SplinePointType.Corner then
                                 break_ <- true
                     ]
                 let solver = Solver(
@@ -325,6 +340,10 @@ type DSpline (ctrlPts, isClosed) =
                     let p1 = bezPts.[k]
                     let p2 = bezPts.[k+1]
                     path.curveto(p1.rpt().x, p1.rpt().y, p2.lpt().x, p2.lpt().y, p2.x, p2.y)
+                if debug then
+                    printfn "DSpline solved"
+                    for p in solver.points() do
+                        printfn "%s" (p.tostring())
 
                 i <- j - 1
 

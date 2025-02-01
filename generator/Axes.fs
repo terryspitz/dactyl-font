@@ -38,6 +38,7 @@ type Axes = {
     joints : bool               //check joints to turn off serifs
     smooth : bool               //no corners
     clip_rect: bool             //clip each glyph to it's bounding rect (helps with degenerate curves)
+    debug: bool                 //show debug info in console
 } with
     static member DefaultAxes = {
         new_definitions = true
@@ -64,10 +65,11 @@ type Axes = {
         max_spline_iter = 10
         show_knots = false
         show_tangents = false
-        joints = true
+        joints = false
         constraints = false
         smooth = false
         clip_rect = true
+        debug = false
     }
     static member controls = [
         "new_definitions", Checkbox
@@ -92,10 +94,11 @@ type Axes = {
         "outline", Checkbox
         "stroked", Checkbox
         "scratches", Checkbox
-        // "max_spline_iter", Range(0, 15)
+        "max_spline_iter", Range(0, 20)
         "show_knots", Checkbox
         "show_tangents", Checkbox
         "joints", Checkbox
         "smooth", Checkbox
         "clip_rect", Checkbox
+        "debug", Checkbox
     ]
