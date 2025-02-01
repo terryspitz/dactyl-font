@@ -36,7 +36,6 @@ jobs:
         run: |
           cp output/allGlyphs.html explorer/public
           cp -r png/ explorer/public
-          cp -r fmin/ explorer/public
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
         with:
