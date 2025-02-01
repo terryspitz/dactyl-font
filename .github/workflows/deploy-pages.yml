@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
       - name: Setup .NET Core
         uses: actions/setup-dotnet@v4
         with:
@@ -34,6 +36,7 @@ jobs:
         run: |
           cp output/allGlyphs.html explorer/public
           cp -r png/ explorer/public
+          cp -r fmin/ explorer/public
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
         with:
