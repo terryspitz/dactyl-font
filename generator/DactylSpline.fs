@@ -92,7 +92,7 @@ type BezierPoint() =
     member this.rpt() = {x=this.x + this.rd * cos this.th; y=this.y + this.rd * sin this.th}
     member this.tostring() =
         let fit_str f = if f then "~" else ""
-        sprintf "BP x:%s%f y:%s%f th:%s%f ld:%s%f rd:%s%f" 
+        sprintf "BezPt x:%s%f y:%s%f th:%s%f ld:%s%f rd:%s%f" 
             (fit_str this.fit_x) this.x
             (fit_str this.fit_y) this.y
             (fit_str this.fit_th) this.th
@@ -140,8 +140,8 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
         for i in 0..ctrlPts.Length - 1 do
             let point = _points.[i]
             let ctrlPt = ctrlPts.[i]
-            let dpl = point.vec - _points.[max (i-1) 0].vec //pointing from previous point to this
-            let dpr = _points.[min (i+1) (_points.Length-1)].vec - point.vec
+            let mutable dpl = point.vec - _points.[max (i-1) 0].vec  //pointing from previous point to this
+            let mutable dpr = _points.[min (i+1) (_points.Length-1)].vec - point.vec
 
             match ctrlPt.th with 
             | Some th ->
@@ -149,10 +149,23 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
             | None ->
                 let lth = dpl.atan2()
                 let rth = dpr.atan2()
-                point.th <-
-                    if i=0 then rth
-                    elif i=ctrlPts.Length-1 then lth
+                let new_th = 
+                    if i=0 then
+                        if isClosed then
+                            dpl <- _points.[_points.Length-1].vec - _points.[_points.Length-2].vec
+                            let lth = dpl.atan2()
+                            averageAngles rth lth
+                        else
+                            rth
+                    elif i=ctrlPts.Length-1 then 
+                        if isClosed then
+                            dpr <- _points.[1].vec - _points.[0].vec
+                            let rth = dpr.atan2()
+                            averageAngles rth lth
+                        else
+                            lth
                     else averageAngles rth lth
+                point.th <- new_th
 
             point.ld <- dpl.norm()/3.
             point.rd <- dpr.norm()/3.
@@ -174,6 +187,7 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
         // Also if there are free variables, curvature should be as constant as possible ,
         // so minimise the gradient of the fitted curvature line
         // Also [optionally?] minimise line length
+        let mutable first_start = nan
         let mutable prev_end = nan
         let mutable errs = 0.
         for i in 0.._points.Length - 2 do
@@ -206,17 +220,29 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
                 let m = (Array.sumBy (fun (x,y)->(y-mean_y)*(x-mean_x)) (Array.zip xs ys))
                         / (Array.sumBy (fun x->(x-mean_x)*(x-mean_x)) xs)
                 let c = (mean_y - m * mean_x)
-                let residuals = (Array.zip ys xs |> Array.sumBy (fun (k,d)->let err = k-(m*d+c) in err*err))
+                let residuals = (Array.zip ys xs
+                    |> Array.sumBy (fun (k,d)->let err = k-(m*d+c) in err*err))
                 m, c, residuals
 
             let m, c, residuals = linear_regression cumm_dists ks
-            errs <- errs + residuals + abs m + max_dist
+            // errs <- errs + residuals + 100.0 * abs m //+ max_dist
+            errs <- errs + 100.0 * abs m //+ max_dist
+            if this.debug then
+                printfn "pt=%d m=%f c=%f res=%f max_dist=%f errs=%f" i m c residuals max_dist errs
             // add error term for mismatch between end of previous bezier and start of this
-            if i>0 then
+            if i=0 then
+                first_start <- c
+            else
                 let err = c - prev_end
                 errs <- errs + err*err
             prev_end <- m * cumm_dists.[STEPS] + c
+
+        if isClosed then
+            let err = prev_end - first_start
+            errs <- errs + err * err
         assert not (isnan errs)
+        if this.debug then
+            printfn "errs=%f" errs
         errs
 
 /// DSpline handles general sequence of lines & curves, including corners.
@@ -224,23 +250,23 @@ type DSpline (ctrlPts, isClosed) =
     member this.ctrlPts : DControlPoint array = ctrlPts
     member this.isClosed = isClosed
 
-    member this.solve(maxIter, debug) =
+    member this.solveAndRender(maxIter, debug) =
         let length = ctrlPts.Length - if this.isClosed then 0 else 1
 
         // Implement LineToCurve and CurveToLine as Corners with fixed tangent theta
         // determined from the Line
-        for i in 0..length do
-            let ptI = ctrlPts.[i % ctrlPts.Length]
-            if ptI.ty = SplinePointType.LineToCurve || ptI.ty = SplinePointType.CurveToLine then
-                assert (ptI.th.IsNone)
-                let ptJ, dp = 
-                    if ptI.ty = SplinePointType.LineToCurve then 
-                        (ctrlPts.[i-1]), ptI - (ctrlPts.[i-1])
-                    else
-                        ctrlPts.[(i+1) % ctrlPts.Length], ctrlPts.[(i+1) % ctrlPts.Length] - ptI
-                let th = atan2 dp.y dp.x
-                ptI.th <- Some th
-                ptJ.th <- Some th
+        // for i in 0..length do
+        //     let ptI = ctrlPts.[i % ctrlPts.Length]
+        //     if ptI.ty = SplinePointType.LineToCurve || ptI.ty = SplinePointType.CurveToLine then
+        //         assert (ptI.th.IsNone)
+        //         let ptJ, dp = 
+        //             if ptI.ty = SplinePointType.LineToCurve then 
+        //                 (ctrlPts.[i-1]), ptI - (ctrlPts.[i-1])
+        //             else
+        //                 ctrlPts.[(i+1) % ctrlPts.Length], ctrlPts.[(i+1) % ctrlPts.Length] - ptI
+        //         let th = atan2 dp.y dp.x
+        //         ptI.th <- Some th
+        //         ptJ.th <- Some th
 
         // First point
         let path = BezPath()
@@ -289,51 +315,52 @@ type DSpline (ctrlPts, isClosed) =
                                 debug)
                 solver.initialise()
 
-                let mapping = ResizeArray()
-                let initial: ResizeArray<float> = ResizeArray()
-                for i in 0..solver.points().Length-1 do
-                    for j in 0..BEZIER_ARGS-1 do
-                        if solver.points().[i].fit.[j] then
-                            mapping.Add((i, j))
-                            initial.Add(solver.points().[i].arr.[j])
-
+                if maxIter > 0 then
+                    let mapping = ResizeArray()
+                    let initial: ResizeArray<float> = ResizeArray()
+                    for i in 0..solver.points().Length-1 do
+                        for j in 0..BEZIER_ARGS-1 do
+                            if solver.points().[i].fit.[j] then
+                                mapping.Add((i, j))
+                                initial.Add(solver.points().[i].arr.[j])
 #if FABLE_COMPILER
-                let objectiveFunction (x: float[]) =
-                    for i in 0..x.Length-1 do
-                        let (index1, index2) = mapping.[i]
-                        solver.points().[index1].arr.[index2] <- x[i]
-                    solver.computeErr()
-                let param = createObj [
-                    "maxIterations" ==> maxIter
-                ]
-                let best = nelderMead objectiveFunction (Array.ofSeq initial) param
-                for i in 0..best.Length-1 do
-                    let (index1, index2) = mapping.[i]
-                    solver.points().[index1].arr.[index2] <- best[i]
-
-#else
-                let minimiser = Optimization.LevenbergMarquardtMinimizer(
-                    maximumIterations=maxIter)
-                /// Adjust params to minimise least squares error for x and y, which we'll just set to 0, 0
-                let objectiveFunction (param: Vector<float>) (x: Vector<float>) =
-                        assert (param.Count = mapping.Count)
-                        for i in 0..param.Count-1 do
+                    let objectiveFunction (x: float[]) =
+                        for i in 0..x.Length-1 do
                             let (index1, index2) = mapping.[i]
-                            solver.points().[index1].arr.[index2] <- param[i]
-                        DenseVector.ofArray [|solver.computeErr()|]
-                let objModel = Optimization.ObjectiveFunction.NonlinearModel(
-                    objectiveFunction,
-                    DenseVector.ofArray [|0.|],
-                    DenseVector.ofArray [|0.|])
-                let best = minimiser.FindMinimum(
-                    objModel,
-                    DenseVector.ofArray (initial.ToArray())
-                    // DenseVector.ofArray (lowerBound.ToArray()),
-                    // DenseVector.ofArray (upperBound.ToArray())
-                    )
-                for i in 0..best.MinimizingPoint.Count-1 do
-                    let (index1, index2) = mapping.[i]
-                    solver.points().[index1].arr.[index2] <- best.MinimizingPoint[i]
+                            solver.points().[index1].arr.[index2] <- x[i]
+                        if isClosed then
+                            solver.points().[solver.points().Length-1].th <- solver.points().[0].th
+                        solver.computeErr()
+                    let param = createObj [
+                        "maxIterations" ==> maxIter
+                    ]
+                    let best = nelderMead objectiveFunction (Array.ofSeq initial) param
+                    for i in 0..best.Length-1 do
+                        let (index1, index2) = mapping.[i]
+                        solver.points().[index1].arr.[index2] <- best[i]
+#else
+                    let minimiser = Optimization.LevenbergMarquardtMinimizer(
+                        maximumIterations=maxIter)
+                    /// Adjust params to minimise least squares error for x and y, which we'll just set to 0, 0
+                    let objectiveFunction (param: Vector<float>) (x: Vector<float>) =
+                            assert (param.Count = mapping.Count)
+                            for i in 0..param.Count-1 do
+                                let (index1, index2) = mapping.[i]
+                                solver.points().[index1].arr.[index2] <- param[i]
+                            DenseVector.ofArray [|solver.computeErr()|]
+                    let objModel = Optimization.ObjectiveFunction.NonlinearModel(
+                        objectiveFunction,
+                        DenseVector.ofArray [|0.|],
+                        DenseVector.ofArray [|0.|])
+                    let best = minimiser.FindMinimum(
+                        objModel,
+                        DenseVector.ofArray (initial.ToArray())
+                        // DenseVector.ofArray (lowerBound.ToArray()),
+                        // DenseVector.ofArray (upperBound.ToArray())
+                        )
+                    for i in 0..best.MinimizingPoint.Count-1 do
+                        let (index1, index2) = mapping.[i]
+                        solver.points().[index1].arr.[index2] <- best.MinimizingPoint[i]
 #endif
                 let bezPts = solver.points()
                 for k in 0..bezPts.Length-2 do

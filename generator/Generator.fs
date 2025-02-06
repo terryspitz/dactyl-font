@@ -360,7 +360,7 @@ type Font (axes: Axes) =
     let rec elementToDactylSvg (elem: Element) =
         let ctrlPtsToSvg ctrlPts isClosed =
             let spline = DSpline(ctrlPts, isClosed)
-            spline.solve(axes.max_spline_iter, debug = axes.debug)
+            spline.solveAndRender(axes.max_spline_iter, debug = axes.debug)
 
         let ptsToSvg (pts: (Point * SpiroPointType) list) isClosed =
             ctrlPtsToSvg (pts |> List.map (fun (pt, ty) -> (pt, ty, None)) |> toDSplineControlPoints) isClosed
@@ -904,7 +904,7 @@ type Font (axes: Axes) =
             |> this.translateByThickness
 
     member this.charToSvg ch offsetX offsetY colour =
-        // printfn "%c" ch
+        if axes.debug then printfn "%c" ch
         (sprintf "<!-- %c -->" ch) ::
         let backbone = this.charToElem ch
         let knotColour = if this.axes.outline then lightBlue else pink

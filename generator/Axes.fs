@@ -94,7 +94,7 @@ type Axes = {
         "outline", Checkbox
         "stroked", Checkbox
         "scratches", Checkbox
-        "max_spline_iter", Range(0, 20)
+        "max_spline_iter", Range(0, 40)
         "show_knots", Checkbox
         "show_tangents", Checkbox
         "joints", Checkbox

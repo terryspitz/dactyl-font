@@ -35,7 +35,7 @@ let splineStaticPage() =
                     sprintf "<g id='%d'>" i
                     sprintf "<text x='%d' y='%d' font-size='0.2'>%d</text>" -1 (i+1) i
                     sprintf "<path d='"
-                ] @ (spline.solve(20, debug)) @ [
+                ] @ (spline.solveAndRender(20, debug)) @ [
                     sprintf "' transform='translate(%d,%d) scale(0.9, 0.9)'" x (i+1)
                     "style='fill:none;stroke:#000000;stroke-width:0.1'/>"
                     "</g>"
@@ -81,7 +81,7 @@ let splineStaticPage() =
                     sprintf "<g id='%d'>" i
                     let debug: bool = (i=0)
                     sprintf "<path d='"
-                ] @ (spline.solve(i*3, false)) @ [
+                ] @ (spline.solveAndRender(i*3, false)) @ [
                     sprintf "' transform='translate(%d,%d) scale(0.9, 0.9)'" x (i+1)
                     "style='fill:none;stroke:#000000;stroke-width:0.05'/>"
                     "</g>"

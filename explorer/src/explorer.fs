@@ -194,7 +194,7 @@ let generate_splines _ =
     let fontSpiro = Font {newAxes with spline2=false; dactyl_spline=false}
     let fontSpline2 = Font {newAxes with spline2=true; dactyl_spline=false}
     let fontDSpline = Font {newAxes with spline2=false; dactyl_spline=true}
-    let fontGuides = Font {newAxes with spline2=false; show_knots=false}
+    let fontGuides = Font {newAxes with spline2=false; show_knots=false; debug=false}
     let spline = 
         try EList([for c in text.Split(separator_re) do
                     parse_curve (GlyphFsDefs(axes)) c axes.debug]) |> fontSpline2.translateByThickness
@@ -205,7 +205,7 @@ let generate_splines _ =
         with | _ -> Dot (YX(axes.thickness, axes.thickness))
     let offsetX, offsetY = 0, fontSpline2.charHeight+axes.thickness
     let guidesSvg = fontGuides.charToSvg '□' offsetX offsetY grey
-                                  @ [svgText 0 0 "Guides"]
+                                    @ [svgText 0 0 "Guides"]
     let svg =
         if not axes.outline then
             guidesSvg
@@ -242,8 +242,8 @@ let generate_splines _ =
                 @ (spiro |> fontSpiro.getSvgKnots offsetX offsetY 3 lightBlue)
                 @ (outlineSpline2 |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen)
                 @ (outlineSpiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue) else []
-    let svg = toSvgDocument -50 fontSpline2.yBaselineOffset 2000 fontSpline2.charHeight svg
-    output.innerHTML <- String.concat "\n" svg
+    let svgDoc = toSvgDocument -50 fontSpline2.yBaselineOffset 1000 fontSpline2.charHeight svg
+    output.innerHTML <- String.concat "\n" svgDoc
     // ((document.getElementsByTagName "svg").[0] :?> HTMLElement).setAttribute("style", "height:50%")
 
 
@@ -251,11 +251,11 @@ let compare_splines () =
     let titleFontSpiro = Font({Axes.DefaultAxes with thickness=3; spline2=false; dactyl_spline=false})
     let titleFontSpline2 = Font({Axes.DefaultAxes with thickness=3; spline2=true; dactyl_spline=false})
     let titleFontDSpline = Font({Axes.DefaultAxes with thickness=3; spline2=false; dactyl_spline=true})
-    let svg = titleFontSpiro.stringToSvgLines ["Spiro"] 80 80 blue
-                @ titleFontSpline2.stringToSvgLines ["Splines"] 40 40 green
-                @ titleFontDSpline.stringToSvgLines ["DSpline"] 0 0 orange
-    let svg = toSvgDocument -50 -50 2000 1000 svg
-    (document.getElementById "title").innerHTML <- String.concat "\n" svg
+    let titleSvg = titleFontSpiro.stringToSvgLines ["Spiro"] 80 80 blue
+                    @ titleFontSpline2.stringToSvgLines ["Splines"] 40 40 green
+                    @ titleFontDSpline.stringToSvgLines ["DSpline"] 0 0 orange
+    let titleSvgDoc = toSvgDocument -50 -50 2000 1000 titleSvg
+    (document.getElementById "title").innerHTML <- String.concat "\n" titleSvgDoc
     let select = document.getElementById "char" :?> HTMLSelectElement
     for c in allChars.Replace("\r\n","") do
         let option = document.createElement "option" :?> HTMLOptionElement
@@ -292,7 +292,7 @@ let compare_splines () =
         "outline", Checkbox
         // "stroked", Checkbox
         // "scratches", Checkbox
-        "max_spline_iter", Range(0, 20)
+        "max_spline_iter", Range(0, 40)
         "show_tangents", Checkbox
         // "joints", Checkbox
         // "smooth", Checkbox
@@ -301,7 +301,8 @@ let compare_splines () =
 
     init generate_splines spline_controls false
     select.focus ()
-    select.selectedIndex <- 4  //'e'
+    select.selectedIndex <- 2  //'c'
+    // select.selectedIndex <- 4  //'e'
     getStringDef ()
     // generate_splines ()
 

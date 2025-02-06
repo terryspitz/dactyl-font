@@ -4,5 +4,5 @@
 	branch = master
 [submodule "explorer/public/fmin"]
 	path = explorer/public/fmin
-	url = https://github.com/benfred/fmin
+	url = https://github.com/terryspitz/fmin
 	branch = master

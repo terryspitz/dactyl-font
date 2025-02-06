@@ -33,6 +33,9 @@ let main argv =
         DactylSplineTest.TestClass().CheckTwoPointCurvesWithOtherTangents()
 
     else
+        if not (Directory.Exists @"output") then
+            Directory.CreateDirectory @"output" |> printfn "%A"
+
         let dactylSpline = false
         if dactylSpline then
             SplineUtils.splineStaticPage() 
@@ -42,8 +45,8 @@ let main argv =
         let debugSingleChar = true
         if debugSingleChar then
             // let font = Font(Axes.DefaultAxes)
-            let font = Font({Axes.DefaultAxes with dactyl_spline=true})
-            for svg in font.charToSvg 'f' 0 0 black do
+            let font = Font({Axes.DefaultAxes with dactyl_spline=true; debug=true})
+            for svg in font.charToSvg 'o' 0 0 black do
                 printfn "%s" svg
 
         let fonts = [
@@ -107,7 +110,7 @@ let main argv =
                     | [] -> [[w]]
                 let lines = name :: (List.fold wrap [] lowercase |> List.map (String.concat " ") |> List.rev)
                 printfn "\n%s\n" name
-                font.stringToSvg lines 0 0 true black |> writeFile (sprintf @".\output\proofs\%s_lower.svg" name)
+                font.stringToSvg lines 0 0 true black |> writeFile (sprintf @"output\proofs %s lower.svg" name)
         
         // FontForge output
         let writeFonts = false

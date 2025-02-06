@@ -11,7 +11,7 @@ let max_iter = 5
 type TestClass() = 
 
     let solve_and_print_spline (spline : DSpline) =
-        let svg = spline.solve(max_iter, false)
+        let svg = spline.solveAndRender(max_iter, false)
         let svg = (String.Join(" ", svg))
         printfn "%A" svg
         svg.Trim()
