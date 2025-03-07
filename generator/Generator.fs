@@ -50,7 +50,6 @@ module Generator
 
 
 open System
-open System.Collections
 
 open GlyphFsDefs
 open GlyphStringDefs
@@ -977,4 +976,4 @@ type Font (axes: Axes) =
     member this.ElementToSpiroSegments = elementToSpiroSegments
     member this.CharToOutline ch = this.charToElem ch |> this.getOutline
     member this.GlyphFsDefs = _GlyphFsDefs
-    member this.Spline2ptsToSvg = spline2ptsToSvg
+    member this.Spline2PtsToSvg = spline2ptsToSvg

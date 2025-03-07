@@ -36,11 +36,11 @@ let main argv =
         if not (Directory.Exists @"output") then
             Directory.CreateDirectory @"output" |> printfn "%A"
 
-        let dactylSpline = false
-        if dactylSpline then
-            SplineUtils.splineStaticPage() 
-            |> toHtmlDocument 0 0 1 12
-            |> writeFile @"output\dactylSpline.html"
+        let dactylSplineVisualTests = true
+        if dactylSplineVisualTests then
+            VisualTests.splineStaticPage() 
+            |> toHtmlDocument 0 0 10 12
+            |> writeFile @"output\visualTests.html"
 
         let debugSingleChar = true
         if debugSingleChar then

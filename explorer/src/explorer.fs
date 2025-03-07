@@ -10,7 +10,6 @@ open GeneratorTypes
 open GlyphStringDefs
 open GlyphFsDefs
 
-
 let grey = "#e0e0e0"
 
 let textbox = document.getElementById("text") :?> HTMLInputElement
@@ -247,10 +246,10 @@ let generate_splines _ =
     // ((document.getElementsByTagName "svg").[0] :?> HTMLElement).setAttribute("style", "height:50%")
 
 
-let compare_splines () = 
+let run_compare_splines () = 
     let titleFontSpiro = Font({Axes.DefaultAxes with thickness=3; spline2=false; dactyl_spline=false})
-    let titleFontSpline2 = Font({Axes.DefaultAxes with thickness=3; spline2=true; dactyl_spline=false})
-    let titleFontDSpline = Font({Axes.DefaultAxes with thickness=3; spline2=false; dactyl_spline=true})
+    let titleFontSpline2 = Font({titleFontSpiro.axes with spline2=true})
+    let titleFontDSpline = Font({titleFontSpiro.axes with dactyl_spline=true})
     let titleSvg = titleFontSpiro.stringToSvgLines ["Spiro"] 80 80 blue
                     @ titleFontSpline2.stringToSvgLines ["Splines"] 40 40 green
                     @ titleFontDSpline.stringToSvgLines ["DSpline"] 0 0 orange
@@ -292,7 +291,7 @@ let compare_splines () =
         "outline", Checkbox
         // "stroked", Checkbox
         // "scratches", Checkbox
-        "max_spline_iter", Range(0, 40)
+        "max_spline_iter", Range(0, 100)
         "show_tangents", Checkbox
         // "joints", Checkbox
         // "smooth", Checkbox
@@ -307,7 +306,15 @@ let compare_splines () =
     // generate_splines ()
 
 
+let run_visual_tests () =
+    output.innerHTML <- VisualTests.splineStaticPage() 
+        |> toSvgDocument  0 0 10 12 
+        |> String.concat "\n" 
+    output.innerHTML <- output.innerHTML.Replace("svg ", "svg style='height: 95vh;' ")
+
 if window.location.href.Contains("splines.html") then
-    compare_splines ()
+    run_compare_splines ()
+elif window.location.href.Contains("visualTests.html") then
+    run_visual_tests ()
 else
     run_explorer ()

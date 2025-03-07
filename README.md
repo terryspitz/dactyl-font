@@ -10,7 +10,7 @@ View some sample Dactyl fonts [here](allGlyphs.html)
 
 # Dactyl: What & Why
 
-Dactyl is a functional font generator written in F#, in service of ticking 'create a font' off my bucket list, in style!  Dactyl is parameterised with a large (and growing) number of inputs including 'axes' (parameters) common in variable fonts such as stroke thickness and x-height and more unusual ones like roundness and end-bulbs.  Dactyl is an exercise in understanding how fonts can be built in code using both ['words and rules'](https://en.wikipedia.org/wiki/Words_and_Rules) - a minimal set of general shape logic along with a minimal set of shape data per glyph.  This work will hopefully help me improve my AI font generator [DeeperFont](https://github.com/terryspitz/ipython_notebooks/tree/master/deeper) though at the moment the technologies are quite different and combining them will be an interesting future challenge.
+Dactyl is a functional font generator written in F#, in service of ticking 'create a font' off my bucket list!  Dactyl is parameterised with a large (and growing) number of inputs including 'axes' (parameters) common in variable fonts such as stroke thickness and x-height and more unusual ones like roundness and end-bulbs.  Dactyl is an exercise in understanding how fonts can be built in code using both ['words and rules'](https://en.wikipedia.org/wiki/Words_and_Rules) - where the 'rules' are a minimal set of general shape logic in code along with the 'words': a minimal set of hardcoded shape data per glyph (letter).  As well as generating pretty and super-controllable fonts this work will hopefully also help me improve my AI font generator [DeeperFont](https://github.com/terryspitz/ipython_notebooks/tree/master/deeper) though at the moment the technologies are quite different and combining them will be an interesting future challenge.
 
 You can explore Dactyl live in your browser using the [Dactyl Live explorer](https://terryspitz.github.io/dactyl-font).  Note the Reset and Random icons at the top.  The settings deliberately extend beyond 'normal' to show how the fonts behave (and often misbehave) under extremes. There is also [Spline explorer](https://terryspitz.github.io/dactyl-font/splines.html) for exploring glyph string definitions.
 
@@ -206,7 +206,12 @@ A few predefined Dactyl fonts are available to download in the [ttf](https://git
 Dactyl fonts use and are inspired by Ralph Levien's [Spiro curves](https://www.levien.com/spiro/).  I used Wiesław Šoltés's [C# port](https://github.com/wieslawsoltes/SpiroNet)
 which I've ported to F# to run under the fantastic [Fable](https://fable.io/) to transpile to javascript, meaning I can write the whole thing in beautiful F#.
 
-Raph superceded his spiro curves in 2018 with https://github.com/raphlinus/spline-research, which are available with the 'spline2' checkbox.  These offer direct control of tangents specifically to help font design (this feature was also later added to Spiro curves as Anchor/Handles). See https://www.youtube.com/watch?v=eqNngVkMBzE
+Raph superceded his spiro curves in 2018 with https://github.com/raphlinus/spline-research, described in https://raphlinus.github.io/curves/2018/12/21/new-spline.html, which are available with the 'spline2' checkbox.  These offer direct control of tangents specifically to help font design (this feature was also later added to Spiro curves as Anchor/Handles). See https://www.youtube.com/watch?v=eqNngVkMBzE
+
+Later splines which I'd like to investigate are:
+
+- [κ-Curves: Interpolation at Local Maximum Curvature](https://people.engr.tamu.edu/schaefer/research/kcurves.pdf)
+- [Enhancing flexibility and control in κ-curve using fractional Bézier curves](https://www.sciencedirect.com/science/article/pii/S1110016824000589)
 
 ## Variable fonts
 

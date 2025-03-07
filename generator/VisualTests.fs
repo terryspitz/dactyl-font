@@ -1,4 +1,4 @@
-module SplineUtils
+module VisualTests
 
 open Curves
 open Axes
@@ -16,9 +16,13 @@ let splineToSpiroPointType ty =
     | SplinePointType.CurveToLine -> SpiroPointType.Left
     | _ -> SpiroPointType.Corner
 
+let SPLINE2SCALE = 10.
 let spline2PtsToSvg (spline2Font: Font) ctrlPts = 
-    spline2Font.Spline2ptsToSvg 
-        (ctrlPts |> Array.map (fun pt -> (YX(int pt.y.Value, int pt.x.Value), splineToSpiroPointType pt.ty)) |> List.ofArray) false
+    let spline2CtrlPts = 
+        [for pt in ctrlPts do
+            (YX(int (SPLINE2SCALE * pt.y.Value), int (SPLINE2SCALE * pt.x.Value)), splineToSpiroPointType pt.ty)
+        ]
+    spline2Font.Spline2PtsToSvg spline2CtrlPts false
 
 let splineStaticPage() = 
     let curves = 10
@@ -33,7 +37,7 @@ let splineStaticPage() =
                 let spline2Font = Font({Axes.DefaultAxes with spline2=true})
                 [ 
                     sprintf "<g id='%d'>" i
-                    sprintf "<text x='%d' y='%d' font-size='0.2'>%d</text>" -1 (i+1) i
+                    sprintf "<text x='%d' y='%d' font-size='0.2'>%d</text>" -0 (i+1) i
                     sprintf "<path d='"
                 ] @ (spline.solveAndRender(20, debug)) @ [
                     sprintf "' transform='translate(%d,%d) scale(0.9, 0.9)'" x (i+1)
@@ -45,8 +49,8 @@ let splineStaticPage() =
                     spline2PtsToSvg spline2Font spline.ctrlPts
                 @ [
                     sprintf "'"
-                    sprintf "transform='translate(%d,%d) scale(0.9, 0.9)'" x (i+1)
-                    "style='fill:none;stroke:#40000060;stroke-width:0.1'/>"
+                    sprintf "transform='translate(%d,%d) scale(%f, %f)'" x (i+1) (0.9/SPLINE2SCALE) (0.9/SPLINE2SCALE)
+                    "style='fill:none;stroke:#40000060;stroke-width:1'/>"
                     "</g>"
                 ]
             let ctrlPts = [|

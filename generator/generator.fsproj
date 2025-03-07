@@ -26,7 +26,7 @@
     <Compile Include="GlyphFsDefs.fs" />
     <Compile Include="GlyphStringDefs.fs" />
     <Compile Include="Generator.fs" />
-    <Compile Include="SplineUtils.fs" />
+    <Compile Include="VisualTests.fs" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' != 'Release'">
     <PackageReference Include="Fable.Core" Version="4.3.0" />
