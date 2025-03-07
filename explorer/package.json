@@ -21,5 +21,10 @@
   },
   "devDependencies": {
     "vite": "^6.0.9"
+  },
+  "overrides": {
+    "vite": {
+      "esbuild": "0.25.0"
+    }
   }
 }
