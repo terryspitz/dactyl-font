@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { generateSvg, defaultAxes, controlDefinitions, generateSplineDebugSvg, generateTweenSvg, allChars } from './lib/fable/Api' // Adjust path if needed
+import { generateSvg, defaultAxes, controlDefinitions, generateSplineDebugSvg, generateTweenSvg, getGlyphDefs, allChars } from './lib/fable/Api' // Adjust path if needed
 import './App.css'
 
 function App() {
@@ -70,10 +70,28 @@ function App() {
         // For splines, we likely want a shorter default text if it's empty or too long, 
         // but the user might want to debug specific chars.
         const splineText = text.length > 0 ? text : "a"
-        return <div
-          className="svg-container"
-          dangerouslySetInnerHTML={{ __html: generateSplineDebugSvg(splineText, axes) }}
-        />
+        const defs = getGlyphDefs(splineText)
+        return (
+          <div className="splines-container">
+            <div
+              className="svg-container"
+              dangerouslySetInnerHTML={{ __html: generateSplineDebugSvg(splineText, axes) }}
+            />
+            <div className="glyph-defs" style={{
+              whiteSpace: 'pre-wrap',
+              fontFamily: 'monospace',
+              padding: '1rem',
+              backgroundColor: '#1a1a1a',
+              color: '#d4d4d4',
+              marginTop: '1rem',
+              borderTop: '1px solid #333',
+              fontSize: '0.9em'
+            }}>
+              <h3>Glyph Definitions</h3>
+              {defs}
+            </div>
+          </div>
+        )
       } else if (activeTab === 'tweens') {
         // Logic for tweens: iterate over controls, generate variations
         const steps = 9

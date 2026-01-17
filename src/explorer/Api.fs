@@ -254,3 +254,21 @@ let generateSplineDebugSvg (text: string) (inputAxes: Axes) =
 
     toSvgDocument -50 fontSpline2.yBaselineOffset svgWidth fontSpline2.charHeight svgElements
     |> String.concat "\n"
+
+let getGlyphDefs (text: string) =
+    if System.String.IsNullOrEmpty(text) then
+        ""
+    else
+        // Deduplicate chars to avoid spamming same def
+        let chars =
+            text
+            |> Seq.map id
+            |> Seq.distinct
+            |> Seq.toList
+
+        chars
+        |> List.map (fun c ->
+            match GlyphStringDefs.glyphMap.TryFind c with
+            | Some def -> sprintf "'%c': %s" c def
+            | None -> sprintf "'%c': (no definition)" c)
+        |> String.concat "\n"
