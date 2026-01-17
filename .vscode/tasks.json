@@ -4,6 +4,17 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Run Dev (Vibe Coding)",
+            "type": "npm",
+            "script": "dev",
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "Runs pure F# logic + React UI concurrently"
+        },
+        {
             "label": "build Debug",
             "command": "dotnet",
             "type": "shell",
@@ -33,7 +44,7 @@
                 "reveal": "silent"
             },
             "problemMatcher": "$msCompile"
-        },    
+        },
         {
             "label": "run",
             "command": "dotnet",
@@ -71,7 +82,7 @@
             "type": "shell",
             "args": [
                 "test",
-                "./generator/generator.fsproj",
+                "./src/generator/generator.fsproj",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary",
             ],
@@ -81,22 +92,6 @@
             },
             "problemMatcher": "$msCompile",
             // "options": {"env": {"VSTEST_HOST_DEBUG": "1"} }
-        },
-        {
-            "label": "fable watch with vite",
-            "type": "shell",
-            "command": "dotnet fable watch explorer/src --outDir explorer/public/fable --verbose --run npx vite",
-            "problemMatcher": [],
-            "group": "build",
-        },
-        {
-            "label": "npm install - explorer",
-            "type": "npm",
-            "script": "install",
-            "path": "explorer/",
-            "problemMatcher": [],
-            // "detail": "",
-            "group": "build",
-        },
+        }
     ]
 }

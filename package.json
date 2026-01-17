@@ -3,7 +3,7 @@
     "private": true,
     "scripts": {
         "dev": "concurrently \"npm run fable\" \"npm run web\"",
-        "fable": "dotnet fable watch explorer/src/explorer.fsproj --outDir web/src/lib/fable",
+        "fable": "dotnet fable watch src/explorer/explorer.fsproj --outDir web/src/lib/fable",
         "web": "npm run dev --prefix web"
     },
     "devDependencies": {

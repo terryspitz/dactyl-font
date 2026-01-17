@@ -348,3 +348,5 @@ ttf/DactylSansBold.sfd/
 # Generated Fable files
 explorer/public/fable/
 web/src/lib/fable/
+src/explorer/node_modules/
+web/src/lib/fmin

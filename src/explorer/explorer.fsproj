@@ -3,15 +3,14 @@
     <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\SpiroFs\SpiroFs.fsproj">
+    <ProjectReference Include="..\SpiroFs\SpiroFs.fsproj">
       <Name>SpiroFs.fsproj</Name>
     </ProjectReference>
-    <ProjectReference Include="..\..\generator\generator.fsproj">
+    <ProjectReference Include="..\generator\generator.fsproj">
       <Name>generator.fsproj</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <None Include="../public/*.html" />
     <Compile Include="Api.fs" />
     <Compile Include="explorer.fs" />
   </ItemGroup>

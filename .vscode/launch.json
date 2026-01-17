@@ -4,24 +4,23 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-
         {
-            "name": "Launch main Debug",
+            "name": "Launch generateFonts Debug",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build Debug",
-            "program": "${workspaceFolder}/main/bin/Debug/net8.0/main.exe",
+            "program": "${workspaceFolder}/src/generateFonts/bin/Debug/net8.0/generateFonts.exe",
             "args": [],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
             "console": "internalConsole"
         },
         {
-            "name": "Launch main Release",
+            "name": "Launch generateFonts Release",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build Release",
-            "program": "${workspaceFolder}/main/bin/Release/net8.0/main.exe",
+            "program": "${workspaceFolder}/src/generateFonts/bin/Release/net8.0/generateFonts.exe",
             "args": [],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
@@ -33,7 +32,12 @@
             "request": "launch",
             "preLaunchTask": "build Debug",
             "program": "dotnet",
-            "args": ["test", "--logger", "console;verbosity=detailed", "./generator/generator.fsproj"],
+            "args": [
+                "test",
+                "--logger",
+                "console;verbosity=detailed",
+                "./src/generator/generator.fsproj"
+            ],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": true,
             "console": "internalConsole",
@@ -54,7 +58,10 @@
             "request": "launch",
             "preLaunchTask": "build Debug",
             "program": "dotnet",
-            "args": ["test", "./SpiroFs/SpiroFs.fsproj"],
+            "args": [
+                "test",
+                "./src/SpiroFs/SpiroFs.fsproj"
+            ],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
             "console": "internalConsole"
@@ -65,7 +72,10 @@
             "request": "launch",
             "preLaunchTask": "build Debug",
             "program": "dotnet",
-            "args": ["test", "./spline-research/spline-research.fsproj"],
+            "args": [
+                "test",
+                "./src/spline-research/spline-research.fsproj"
+            ],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
             "console": "internalConsole"
