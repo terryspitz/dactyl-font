@@ -1,0 +1,12 @@
+{
+    "name": "dactyl-font-workspace",
+    "private": true,
+    "scripts": {
+        "dev": "concurrently \"npm run fable\" \"npm run web\"",
+        "fable": "dotnet fable watch explorer/src/explorer.fsproj --outDir web/src/lib/fable",
+        "web": "npm run dev --prefix web"
+    },
+    "devDependencies": {
+        "concurrently": "^8.2.2"
+    }
+}

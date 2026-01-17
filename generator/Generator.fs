@@ -815,11 +815,18 @@ type Font (axes: Axes) =
 
     member this.elementToSvgPath element offsetX offsetY strokeWidth fillColour =
         let GetStableHash (str : string) =
-            use sha256 = SHA256.Create()
-            let bytes = Encoding.UTF8.GetBytes(str)
+#if FABLE_COMPILER
+            let mutable hash = 5381
+            for i in 0 .. str.Length - 1 do
+                hash <- ((hash <<< 5) + hash) + int str.[i]
+            sprintf "%x" hash
+#else
+            use sha256 = System.Security.Cryptography.SHA256.Create()
+            let bytes = System.Text.Encoding.UTF8.GetBytes(str)
             let hash = sha256.ComputeHash(bytes)
             // convert first 8 bytes to hex string
-            BitConverter.ToString(hash, 0, 8).Replace("-", "").ToLowerInvariant()
+            System.BitConverter.ToString(hash, 0, 8).Replace("-", "").ToLowerInvariant()
+#endif
 
         let fillrule = "nonzero"
         let fillStyle = if this.axes.outline && this.axes.filled then fillColour else "none"

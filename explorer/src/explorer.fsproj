@@ -12,6 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="../public/*.html" />
+    <Compile Include="Api.fs" />
     <Compile Include="explorer.fs" />
   </ItemGroup>
   <ItemGroup>
