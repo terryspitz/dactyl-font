@@ -50,6 +50,8 @@ module Generator
 
 
 open System
+open System.Security.Cryptography
+open System.Text
 
 open GlyphFsDefs
 open GlyphStringDefs
@@ -812,24 +814,20 @@ type Font (axes: Axes) =
             elementToSpiroSegments elem |> List.collect this.spiroToSvg
 
     member this.elementToSvgPath element offsetX offsetY strokeWidth fillColour =
-        let GetDeterministicHashCode (str : string) =
-            // unchecked
-            let mutable hash1 = (5381 <<< 16) + 5381
-            let mutable hash2 = hash1
-
-            for i in 0..2..str.Length-1 do
-                hash1 <- ((hash1 <<< 5) + hash1) ^^^ (int str.[i])
-                if i < str.Length - 1 then
-                    hash2 <- ((hash2 <<< 5) + hash2) ^^^ (int str.[i + 1])
-            hash1 + (hash2 * 1566083941)
+        let GetStableHash (str : string) =
+            use sha256 = SHA256.Create()
+            let bytes = Encoding.UTF8.GetBytes(str)
+            let hash = sha256.ComputeHash(bytes)
+            // convert first 8 bytes to hex string
+            BitConverter.ToString(hash, 0, 8).Replace("-", "").ToLowerInvariant()
 
         let fillrule = "nonzero"
         let fillStyle = if this.axes.outline && this.axes.filled then fillColour else "none"
         let svg = this.elementToSvg element
-        let guid = GetDeterministicHashCode(String.concat "\n" svg)
+        let guid = GetStableHash(String.concat "\n" svg)
         [
             if axes.clip_rect then
-                sprintf "<clipPath id='%A'>" guid
+                sprintf "<clipPath id='clip_%s'>" guid
                 let margin = thickness * 2
                 sprintf "<rect x='%d' y='%d' width='%d' height='%d'/>" 
                     -margin (_GlyphFsDefs._D - margin) (this.width element + margin) (this.charHeight + margin)
@@ -842,7 +840,7 @@ type Font (axes: Axes) =
             "'"
             sprintf "transform='translate(%d,%d) scale(1,-1)'" offsetX offsetY
             sprintf "style='fill:%s;fill-rule:%s;stroke:%s;stroke-width:%d'" fillStyle fillrule fillColour strokeWidth
-            sprintf "clip-path='url(#%A)'" guid
+            sprintf "clip-path='url(#clip_%s)'" guid
             "/>"
         ]
 
