@@ -74,8 +74,10 @@ let generateTweenSvg (text: string) (axes: Axes) =
     // Actually, based on analysis: Visual Top = thickness + leading.
     // So we start viewBox there.
     let gdf = GlyphFsDefs(axes)
-    let minY = axes.thickness + axes.leading - margin
-    let height = axes.height - gdf._D + axes.thickness * 2 + margin * 2
+    // Add extra padding to minY to prevent top cropping, especially for bold text
+    let minY = axes.thickness + axes.leading - (margin * 2)
+    // Increase height to compensate for the lower start point (more height needed)
+    let height = axes.height - gdf._D + axes.thickness * 2 + (margin * 3)
 
     // Use toSvgDocument logic but with our custom bounds
     // We want to center the glyph vertically-ish, or just crop.

@@ -13,7 +13,7 @@ function App() {
   const [tabZooms, setTabZooms] = useState({
     font: 1.0,
     splines: 1.0,
-    tweens: 0.5
+    tweens: 1.0,
   })
   const zoom = tabZooms[activeTab]
   const setZoom = (newValFunc) => {
@@ -91,8 +91,10 @@ function App() {
                 const val = min + (range * (i / (steps - 1)))
                 // Create a temporary axes object with this value overridden
                 const tempAxes = { ...axes, [ctrl.name]: val }
+                // Apply zoom to individual boxes. use minWidth to override CSS
+                const boxWidth = 150 * zoom
                 variations.push(
-                  <div key={`${ctrl.name}-${i}`} className="tween-item">
+                  <div key={`${ctrl.name}-${i}`} className="tween-item" style={{ minWidth: boxWidth + 'px', width: boxWidth + 'px' }}>
                     <div dangerouslySetInnerHTML={{ __html: generateTweenSvg(char, tempAxes) }} />
                     <div style={{ fontSize: '0.7em' }}>{val.toFixed(2)}</div>
                   </div>
@@ -117,7 +119,7 @@ function App() {
       console.error("Error generating Content:", e)
       return <div style={{ color: 'red' }}>Error: {e.message}</div>
     }
-  }, [text, axes, activeTab])
+  }, [text, axes, activeTab, zoom])
 
   const handleControlChange = (name, value) => {
     setAxes(prev => ({ ...prev, [name]: value }))
@@ -144,6 +146,7 @@ function App() {
   return (
     <div className="container">
       <div className="sidebar">
+        <div className="sidebar-title" dangerouslySetInnerHTML={{ __html: generateTweenSvg("Dactyl", { ...defaultAxes, thickness: 35 }) }} />
         <h2>Controls</h2>
         <div className="controls-list">
           {Object.entries(controlsByCategory).map(([category, controls]) => (
@@ -188,22 +191,23 @@ function App() {
         </div>
       </div>
       <div className="main">
-        <div className="toolbar">
-          <button className="icon-button" onClick={handleReset} title="Reset">
-            <span className="material-symbols-outlined">restart_alt</span>
-          </button>
-          <button className="icon-button" onClick={handleRandom} title="Randomize">
-            <span className="material-symbols-outlined">casino</span>
-          </button>
-          <a className="icon-button" href="https://terryspitz.github.io/dactyl-font/" target="_blank" title="Documentation">
-            <span className="material-symbols-outlined">menu_book</span>
-          </a>
-        </div>
-
-        <div className="tabs">
-          <button className={`tab-button ${activeTab === 'font' ? 'active' : ''}`} onClick={() => setActiveTab('font')}>Font</button>
-          <button className={`tab-button ${activeTab === 'splines' ? 'active' : ''}`} onClick={() => setActiveTab('splines')}>Splines</button>
-          <button className={`tab-button ${activeTab === 'tweens' ? 'active' : ''}`} onClick={() => setActiveTab('tweens')}>Tweens</button>
+        <div className="top-bar">
+          <div className="tabs">
+            <button className={`tab-button ${activeTab === 'font' ? 'active' : ''}`} onClick={() => setActiveTab('font')}>Font</button>
+            <button className={`tab-button ${activeTab === 'splines' ? 'active' : ''}`} onClick={() => setActiveTab('splines')}>Splines</button>
+            <button className={`tab-button ${activeTab === 'tweens' ? 'active' : ''}`} onClick={() => setActiveTab('tweens')}>Tweens</button>
+          </div>
+          <div className="toolbar">
+            <button className="icon-button" onClick={handleReset} title="Reset">
+              <span className="material-symbols-outlined">restart_alt</span>
+            </button>
+            <button className="icon-button" onClick={handleRandom} title="Randomize">
+              <span className="material-symbols-outlined">casino</span>
+            </button>
+            <a className="icon-button" href="https://terryspitz.github.io/dactyl-font/" target="_blank" title="Documentation">
+              <span className="material-symbols-outlined">menu_book</span>
+            </a>
+          </div>
         </div>
 
         <div className="input-area">
@@ -229,14 +233,14 @@ function App() {
             <button onClick={() => setZoom(z => Math.min(z + 0.1, 5.0))} title="Zoom In">
               <span className="material-symbols-outlined">add</span>
             </button>
-            <button onClick={() => setZoom(activeTab === 'tweens' ? 0.5 : 1.0)} title="Reset Zoom">
+            <button onClick={() => setZoom(1.0)} title="Reset Zoom">
               <span className="material-symbols-outlined">restart_alt</span>
             </button>
             <button onClick={() => setZoom(z => Math.max(z - 0.1, 0.1))} title="Zoom Out">
               <span className="material-symbols-outlined">remove</span>
             </button>
           </div>
-          <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
+          <div style={{ transform: activeTab === 'tweens' ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
             {content}
           </div>
         </div>

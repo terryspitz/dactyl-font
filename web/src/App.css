@@ -35,6 +35,18 @@
     color: #e0e0e0;
 }
 
+.sidebar-title {
+    width: 100%;
+    margin-bottom: -10px;
+    /* Pull controls up slightly */
+    filter: invert(1);
+}
+
+.sidebar h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
 .controls-list {
     display: flex;
     flex-direction: column;
@@ -175,13 +187,23 @@
     /* Remove inline spacing */
 }
 
+/* Top Bar */
+.top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
 /* Tabs */
 .tabs {
     display: flex;
-    margin-bottom: 20px;
+    /* margin-bottom: 20px; Removed, handled by top-bar */
     border-bottom: none;
     /* No container outline */
 }
+
+/* ... tab-button styles ... */
 
 .tab-button {
     padding: 10px 20px;
@@ -207,7 +229,7 @@
     justify-content: flex-end;
     /* Align right */
     gap: 10px;
-    margin-bottom: 10px;
+    /* margin-bottom: 10px; Removed */
 }
 
 .icon-button {
