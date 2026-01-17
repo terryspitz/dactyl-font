@@ -24,6 +24,6 @@ jobs:
     - name: Build
       run: dotnet build --configuration Release --no-restore
     - name: Build Fable
-      run: dotnet fable explorer/src --outDir explorer/fable
+      run: dotnet fable src/explorer --outDir web/src/lib/fable
     - name: Test
       run: dotnet test --no-restore --verbosity normal
