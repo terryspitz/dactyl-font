@@ -4,7 +4,7 @@ NOTE: This README is best viewed at https://terryspitz.github.io/dactyl-font/REA
 
 Play with the [Dactyl Live explorer](https://terryspitz.github.io/dactyl-font)
 
-or explore individual glyph string definitions and how they convert to the different spline choices at [Spline explorer](https://terryspitz.github.io/dactyl-font/splines.html).
+or explore individual glyph string definitions and how they convert to the different spline choices by switching to the **Splines** tab in the [Dactyl Live explorer](https://terryspitz.github.io/dactyl-font).
 
 View some sample Dactyl fonts [here](allGlyphs.html)
 
@@ -12,7 +12,7 @@ View some sample Dactyl fonts [here](allGlyphs.html)
 
 Dactyl is a functional font generator written in F#, in service of ticking 'create a font' off my bucket list!  Dactyl is parameterised with a large (and growing) number of inputs including 'axes' (parameters) common in variable fonts such as stroke thickness and x-height and more unusual ones like roundness and end-bulbs.  Dactyl is an exercise in understanding how fonts can be built in code using both ['words and rules'](https://en.wikipedia.org/wiki/Words_and_Rules) - where the 'rules' are a minimal set of general shape logic in code along with the 'words': a minimal set of hardcoded shape data per glyph (letter).  As well as generating pretty and super-controllable fonts this work will hopefully also help me improve my AI font generator [DeeperFont](https://github.com/terryspitz/ipython_notebooks/tree/master/deeper) though at the moment the technologies are quite different and combining them will be an interesting future challenge.
 
-You can explore Dactyl live in your browser using the [Dactyl Live explorer](https://terryspitz.github.io/dactyl-font).  Note the Reset and Random icons at the top.  The settings deliberately extend beyond 'normal' to show how the fonts behave (and often misbehave) under extremes. There is also [Spline explorer](https://terryspitz.github.io/dactyl-font/splines.html) for exploring glyph string definitions.
+You can explore Dactyl live in your browser using the [Dactyl Live explorer](https://terryspitz.github.io/dactyl-font).  Note the Reset and Random icons at the top.  The settings deliberately extend beyond 'normal' to show how the fonts behave (and often misbehave) under extremes. There is also a **Splines** tab for exploring glyph string definitions.
 
 Here is some of Dactyl's checkered development history:
 

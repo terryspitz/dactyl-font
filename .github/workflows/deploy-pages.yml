@@ -24,22 +24,31 @@ jobs:
           dotnet restore
           dotnet tool restore
       - name: Build Fable
-        run: dotnet fable explorer/src --outDir explorer/public/fable
+        run: dotnet fable src/explorer --outDir web/src/lib/fable
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Build Web
+        run: |
+          cd web
+          npm ci
+          npm run build
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Convert Markdown to HTML
         uses: natescherer/markdown-to-html-with-github-style-action@v1.1.0
         with:
           path: README.md
-          outputpath: explorer/public
+          outputpath: web/dist
       - name: copy static files
         run: |
-          cp output/allGlyphs.html explorer/public
-          cp -r png/ explorer/public
+          cp output/allGlyphs.html web/dist
+          cp -r png/ web/dist
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'explorer/public'
+          path: 'web/dist'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
