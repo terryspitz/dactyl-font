@@ -1,26 +1,38 @@
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-  height: 100vh;
-  box-sizing: border-box;
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+    text-align: center;
+    box-sizing: border-box;
+    overflow: hidden;
+    /* Prevent body scroll, handle in sidebar/main */
 }
 
 .container {
     display: flex;
     flex-direction: row;
     height: 100%;
-    gap: 20px;
+    width: 100%;
+    gap: 0;
+    /* Remove gap, handle padding in children if needed */
 }
 
 .sidebar {
-    flex: 0 0 300px;
+    flex: 0 0 auto;
+    /* Fit content */
+    width: auto;
+    min-width: 250px;
+    max-width: 400px;
+    /* reasonable limits */
     border-right: 1px solid #ccc;
-    padding-right: 20px;
+    padding: 20px;
     overflow-y: auto;
     text-align: left;
-    height: 90vh;
+    height: 100%;
+    background: #1a1a1a;
+    /* Dark sidebar */
+    color: #e0e0e0;
 }
 
 .controls-list {
@@ -48,7 +60,8 @@
 
 .value-display {
     font-size: 0.8em;
-    color: #666;
+    color: #aaa;
+    /* Lighter text for dark mode */
     width: 40px;
     text-align: right;
 }
@@ -58,32 +71,292 @@
     display: flex;
     flex-direction: column;
     gap: 20px;
+    padding: 20px;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.input-area {
+    position: relative;
 }
 
 .input-area textarea {
     width: 100%;
+    box-sizing: border-box;
+    /* Fix width overflow */
     font-size: 2em;
     padding: 10px;
     border-radius: 8px;
     border: 1px solid #ccc;
+    background: #1a1a1a;
+    /* Dark input */
+    color: #fff;
+    resize: vertical;
+    /* Allow vertical resize only */
+}
+
+.text-reset-button {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: rgba(0, 0, 0, 0.5);
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    padding: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.text-reset-button:hover {
+    background: rgba(0, 0, 0, 0.8);
 }
 
 .preview {
     flex: 1;
-    border: 1px solid #eee;
+    border: 1px solid #444;
     border-radius: 8px;
     overflow: auto;
-    background: #fff;
+    background: #ffffff;
+    /* White preview for black font */
     padding: 10px;
+    position: relative;
+    /* Anchor for floating controls */
+}
+
+.zoom-controls {
+    position: sticky;
+    float: right;
+    /* Keep it on the right side */
+    top: 10px;
+    right: 10px;
+    display: flex;
+    gap: 5px;
+    background: rgba(0, 0, 0, 0.1);
+    padding: 5px;
+    border-radius: 8px;
+    z-index: 10;
+    /* Ensure above content */
+}
+
+.zoom-controls button {
+    background: #1a1a1a;
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    padding: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.zoom-controls button:hover {
+    background: #333;
 }
 
 .svg-container {
     width: 100%;
-    height: 100%;
+    min-height: 100%;
+    /* Ensure it fills at least the visible area */
+    display: flex;
+    /* Helps center if needed, or just contain */
+    justify-content: center;
+    /* Center horizontally */
 }
 
 .svg-container svg {
     width: 100%;
     height: auto;
-    max-height: 100%;
+    /* max-height removed to allow scrolling */
+    display: block;
+    /* Remove inline spacing */
+}
+
+/* Tabs */
+.tabs {
+    display: flex;
+    margin-bottom: 20px;
+    border-bottom: none;
+    /* No container outline */
+}
+
+.tab-button {
+    padding: 10px 20px;
+    background: none;
+    border: 2px solid transparent;
+    /* Full border, transparent by default */
+    cursor: pointer;
+    font-size: 1rem;
+    border-radius: 4px;
+    /* Slight rounded corners */
+}
+
+.tab-button.active {
+    border-color: #fff;
+    /* Stark white full border */
+    color: #fff;
+    font-weight: bold;
+}
+
+/* Toolbar */
+.toolbar {
+    display: flex;
+    justify-content: flex-end;
+    /* Align right */
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.icon-button {
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ccc;
+}
+
+.icon-button:hover {
+    background-color: #333;
+}
+
+.material-symbols-outlined {
+    font-size: 24px;
+}
+
+/* Tweens Grid */
+/* Tweens Layout */
+.tweens-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 10px;
+    overflow-x: auto;
+    /* Single horizontal scrollbar */
+    width: 100%;
+}
+
+.tween-row h4 {
+    color: #000;
+    position: sticky;
+    left: 0;
+}
+
+.tween-variations {
+    /* Removed scrollbar-width and overflow-x */
+    display: flex;
+    gap: 10px;
+    width: max-content;
+    /* Force width to expand content */
+}
+
+/* Scrollbar styling for Webkit - apply to grid now */
+.tweens-grid::-webkit-scrollbar {
+    height: 8px;
+}
+
+.tweens-grid::-webkit-scrollbar-track {
+    background: #1a1a1a;
+}
+
+.tweens-grid::-webkit-scrollbar-thumb {
+    background-color: #666;
+    border-radius: 4px;
+}
+
+.tween-item {
+    border: 1px solid #444;
+    padding: 5px;
+    border-radius: 4px;
+    text-align: center;
+    background: #2a2a2a;
+    min-width: 150px;
+    /* Ensure generic width */
+}
+
+.tween-item svg {
+    width: 100%;
+    height: auto;
+}
+
+/* Actually, svg inside tween-item is transparent bg with black text? */
+/* Wait, earlier we set .preview bg to white. BUT tweens are not in .preview div? */
+/* They are in .main. .main matches body (#242424). So black text is invisible. */
+/* We need tween-item to have white background OR invert the SVG. */
+/* Let's set tween-item background to white to match the Font preview. */
+
+.tween-item {
+    border: 1px solid #444;
+    padding: 5px;
+    border-radius: 4px;
+    text-align: center;
+    background: #ffffff;
+    min-width: 150px;
+    color: #000;
+    /* Ensure text inside is black */
+}
+
+/* Spline Legend */
+.spline-legend {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 15px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 1000;
+    text-align: left;
+    color: white;
+    font-size: 0.9em;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    display: inline-block;
+}
+
+.swatch.blue {
+    background-color: blue;
+}
+
+.swatch.green {
+    background-color: green;
+}
+
+.swatch.orange {
+    background-color: orange;
+}
+
+.swatch.grey {
+    background-color: #e0e0e0;
+}
+
+.swatch.lightBlue {
+    background-color: lightBlue;
+}
+
+.swatch.lightGreen {
+    background-color: lightGreen;
+}
+
+.swatch.circle {
+    border-radius: 50%;
 }

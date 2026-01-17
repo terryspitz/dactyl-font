@@ -1,0 +1,30 @@
+body {
+    display: grid;
+    grid-template-columns: max-content auto;
+    grid-template-rows: auto 1fr;
+    grid-gap: 5px;
+}
+
+form {
+    grid-column: 1;
+    display: grid;
+    grid-template-columns: max-content max-content;
+    grid-template-rows: max-content max-content repeat(30, 1.5em);
+    grid-gap: 5px;
+}
+
+form label {
+    text-align: right;
+    height: 3.5em;
+}
+
+form label:after {
+    content: ":";
+}
+
+fill-scroll {
+    grid-column: -1;
+    /* height:auto;
+    width:auto; */
+    /* overflow:scroll; */
+}
