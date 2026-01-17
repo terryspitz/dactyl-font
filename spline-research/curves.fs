@@ -7,7 +7,7 @@
 // except according to those terms.
 
 
-/// A library of primitives for curves and splines.
+// A library of primitives for curves and splines.
 module Curves
 
 
@@ -16,9 +16,9 @@ open BezPath
 let PI = System.Math.PI
 let isnan = System.Double.IsNaN
 
-/// <summary>
-/// A simple container for 2-vectors
-/// </summary>
+// <summary>
+// A simple container for 2-vectors
+// </summary>
 type Vec2 = {
     x : float
     y : float
@@ -43,7 +43,7 @@ type SplinePointType =
     | CurveToLine = 3
 
 
-/// ControlPoint is a lot like `Knot` but has no UI, is used for spline solving.
+// ControlPoint is a lot like `Knot` but has no UI, is used for spline solving.
 type Spline2ControlPoint(pt, ty, lth : float option, rth : float option) = 
     new(pt, ty) = Spline2ControlPoint(pt, ty, None, None)
 
@@ -62,7 +62,7 @@ type Spline2ControlPoint(pt, ty, lth : float option, rth : float option) =
     member val rAk : float = nan with get, set
 
 
-/// Constructor argument is array of coordinate values [x0, y0, x1, y1, x2, y2, x3, y3].
+// Constructor argument is array of coordinate values [x0, y0, x1, y1, x2, y2, x3, y3].
 type CubicBez (c : float []) =
     member this.c = c
 
@@ -158,14 +158,12 @@ let hermite5(x0, x1, v0, v1, a0, a1) =
                 15. * x0 - 15. * x1 + 8. * v0 + 7. * v1 + 1.5 * a0 - a1
                 -6. * x0 + 6. * x1 - 3. * v0 - 3. * v1 + -0.5 * a0 + 0.5 * a1|])
 
-/// Solve tridiagonal matrix system. Destroys inputs, leaves output in x.
-///
-/// Solves a[i] * x[i - 1] + b[i] * x[i] + c[i] * x[i + 1] = d[i]
-///
-/// Inputs are array-like objects (typed arrays are good for performance).
-///
-/// Note: this is not necessarily the fastest, see:
-/// https://en.wikibooks.org/wiki/Algorithm_Implementation/Linear_Algebra/Tridiagonal_matrix_algorithm
+// Solve tridiagonal matrix system. Destroys inputs, leaves output in x.
+// Solves a[i] * x[i - 1] + b[i] * x[i] + c[i] * x[i + 1] = d[i]
+// Inputs are array-like objects (typed arrays are good for performance).
+//
+// Note: this is not necessarily the fastest, see:
+// https://en.wikibooks.org/wiki/Algorithm_Implementation/Linear_Algebra/Tridiagonal_matrix_algorithm
 // let tridiag(a, b, c, d, x) =
 //     let n = x.Length
 //     for i in 1..n-1 do
@@ -177,7 +175,7 @@ let hermite5(x0, x1, v0, v1, a0, a1) =
 //         x.[i] <- (d.[i] - c.[i] * x.[i + 1]) / b.[i]
    
 
-/// Create a smooth cubic bezier.
+// Create a smooth cubic bezier.
 let myCubic th0 th1 =
     let myCubicLen th0 th1 =
         let offset = 0.3 * sin (th1 * 2. - 0.4 * sin (th1 * 2.))
@@ -208,29 +206,29 @@ type Ak = {
     ak1 : float
 }
 
-/// Base class for two parameter curve families
+// Base class for two parameter curve families
 // type TwoParamCurve() =
-    /// Render the curve, providing an array of _interior_ cubic bezier
-    /// control points only. Return value is an array of 3n-1 Vec2's.
+    // Render the curve, providing an array of _interior_ cubic bezier
+    // control points only. Return value is an array of 3n-1 Vec2's.
     // render(th0, th1)
 
-    /// Compute curvature.
-    ///
-    /// Result is an object with ak0 and ak1 (arctan of curvature at endpoints).
-    /// Quadrant is significant - a value outside -pi/2 to pi/2 means a reversal
-    /// of direction.
+    // Compute curvature.
+    //
+    // Result is an object with ak0 and ak1 (arctan of curvature at endpoints).
+    // Quadrant is significant - a value outside -pi/2 to pi/2 means a reversal
+    // of direction.
     // computeCurvature(th0, th1)
 
-    /// Get endpoint condition.
-    ///
-    /// Return tangent at endpoint given next-to-endpoint tangent.
+    // Get endpoint condition.
+    //
+    // Return tangent at endpoint given next-to-endpoint tangent.
     // endpointTangent(th)
 
-    /// Compute curvature derivatives.
-    ///
-    /// Result is an object with dak0dth0 and friends.
-    /// Default implementation is approximate through central differencing, but
-    /// curves can override.
+    // Compute curvature derivatives.
+    //
+    // Result is an object with dak0dth0 and friends.
+    // Default implementation is approximate through central differencing, but
+    // curves can override.
     // member this.computeCurvatureDerivs th0 th1 =
     //     let epsilon = 1e-6
     //     let scale = 2.0 / epsilon
@@ -250,7 +248,7 @@ type MyCurve() = //extends TwoParamCurve =
         let c = myCubic th0 th1
         [| {x=c.[2]; y=c.[3]}; {x=c.[4]; y=c.[5]} |]
 
-    /// Render as a 4-parameter curve with optional adjusted endpoint curvatures.
+    // Render as a 4-parameter curve with optional adjusted endpoint curvatures.
     member this.render4Quintic(th0, th1, k0, k1) =
         //let cb = new CubicBez(myCubic(th0, th1))
         let cb : CubicBez = this.convCubic(this.render4Cubic(th0, th1, k0, k1))
@@ -395,7 +393,7 @@ type TwoParamSpline(curve : MyCurve, ctrlPts : Vec2 array, isClosed : bool) =
     member val endTh : float option = None with get, set
     member this.ths = _ths
 
-    /// Determine initial tangent angles, given array of Vec2 control points.
+    // Determine initial tangent angles, given array of Vec2 control points.
     member this.initialThs() =
         for i in 1.._ths.Length - 2 do
             let dx0 = this.ctrlPts.[i].x - this.ctrlPts.[i - 1].x
@@ -421,7 +419,7 @@ type TwoParamSpline(curve : MyCurve, ctrlPts : Vec2 array, isClosed : bool) =
             _ths.[_ths.Length - 1] <- th
         | None -> ()
 
-    /// Get tangent angles relative to endpoints, and chord Length.
+    // Get tangent angles relative to endpoints, and chord Length.
     member this.getThs(i) =
         let dx = this.ctrlPts.[i + 1].x - this.ctrlPts.[i].x
         let dy = this.ctrlPts.[i + 1].y - this.ctrlPts.[i].y
@@ -431,7 +429,7 @@ type TwoParamSpline(curve : MyCurve, ctrlPts : Vec2 array, isClosed : bool) =
         let chord = hypot(dx, dy)
         {th0 = th0; th1 = th1; chord = chord}
 
-    /// Crawl towards a curvature continuous solution.
+    // Crawl towards a curvature continuous solution.
     member this.iterDumb(iter) =
         let computeErr(ths0, ak0, ths1, ak1) =
             // rescale tangents by geometric mean of chordLengths
@@ -487,7 +485,7 @@ type TwoParamSpline(curve : MyCurve, ctrlPts : Vec2 array, isClosed : bool) =
         // printfn "abs err %f at iter %d" absErr iter
         absErr
 
-    /// Perform one step of a Newton solver.
+    // Perform one step of a Newton solver.
     // Not yet implemented
     // iterate() {
     //     let n = this.ctrlPts.Length
@@ -528,7 +526,7 @@ type TwoParamSpline(curve : MyCurve, ctrlPts : Vec2 array, isClosed : bool) =
     //     }
     // }
 
-    /// Return an SVG path string.
+    // Return an SVG path string.
     // member this.renderSvg() =
     //     let c = this.ctrlPts
     //     if c.Length = 0 then [""] else
@@ -549,7 +547,7 @@ type TwoParamSpline(curve : MyCurve, ctrlPts : Vec2 array, isClosed : bool) =
     //             yield sprintf " %s,%s" (Format c.[i + 1].x) (Format c.[i + 1].y) |> ignore
     //     ]
 
-/// Spline handles more general cases, including corners.
+// Spline handles more general cases, including corners.
 type Spline2 (ctrlPts, isClosed) =
     member this.ctrlPts : Spline2ControlPoint array = ctrlPts
     member this.isClosed = isClosed
