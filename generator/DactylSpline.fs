@@ -180,16 +180,15 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
                 printfn "%s" (p.tostring())
 
     member this.computeErr() =
-        // Sample the curvature and distance (arc length) along each bezier.
+        // Sample the curvature and distance (arc length) at STEPS fractions along each bezier.
         // Euler spiral (like spiro spline) wants its curvature k to be linear in curve length l
         // So treat l as an x-coord and k as a y-coord and fit a line to the data, then measure residuals from that line and minimise
-        // Add error for curvature discontinuity between segments (tangents are consistent by construction)
         // Also if there are free variables, curvature should be as constant as possible ,
         // so minimise the gradient of the fitted curvature line
         // Also [optionally?] minimise line length
-        let mutable first_start = nan
-        let mutable prev_end = nan
         let mutable errs = 0.
+        let mutable curveNorm : (float*float) list = []
+        let STEPS = 8
         for i in 0.._points.Length - 2 do
             let point1 = _points.[i]
             let point2 = _points.[i+1]
@@ -199,46 +198,43 @@ type Solver(ctrlPts : DControlPoint array, isClosed : bool, debug: bool) =
                     point2.lpt().x; point2.lpt().y;
                     point2.x; point2.y
                 |])
-            let STEPS = 8
-            let ks, dists =
-                [|
+            curveNorm <- curveNorm @
+                [
                     for j in 0..STEPS do
                         let t0 = (-0.5 + float j) / (float STEPS)
                         let t1 = (float j) / (float STEPS)
                         let t2 = (0.5 + float j) / (float STEPS)
                         (bez.curvature(t1), (bez.eval(t2)-bez.eval(t0)).norm())
-                |] |> Array.unzip
-            let n = float (STEPS + 1)
-            let cumm_dists, max_dist =
-                Array.mapFold (fun sum dist -> let acc = sum+dist in (acc,acc)) 0. dists
-            
-            let linear_regression xs ys =
-                let mean_x = (Array.sum xs) / n
-                let sum_y = Array.sum ys
-                let mean_y = sum_y / n
-                // best fit k_i = m * dist_i + c using https://en.wikipedia.org/wiki/Simple_linear_regression
-                let m = (Array.sumBy (fun (x,y)->(y-mean_y)*(x-mean_x)) (Array.zip xs ys))
-                        / (Array.sumBy (fun x->(x-mean_x)*(x-mean_x)) xs)
-                let c = (mean_y - m * mean_x)
-                let residuals = (Array.zip ys xs
-                    |> Array.sumBy (fun (k,d)->let err = k-(m*d+c) in err*err))
-                m, c, residuals
-
-            let m, c, residuals = linear_regression cumm_dists ks
-            // errs <- errs + residuals + 100.0 * abs m //+ max_dist
-            errs <- errs + 100.0 * abs m //+ max_dist
+                ] 
+        let ks, segmentLengths = curveNorm |> List.toArray |> Array.unzip
+        let n = float (STEPS + 1)
+        let cumm_dists, max_dist =
+            Array.mapFold (fun sum dist -> let acc = sum+dist in (acc,acc)) 0. segmentLengths
+        
+        let linear_regression xs ys =
+            let mean_x = (Array.sum xs) / n
+            let sum_y = Array.sum ys
+            let mean_y = sum_y / n
+            // best fit k_i = m * dist_i + c using https://en.wikipedia.org/wiki/Simple_linear_regression
+            let m = (Array.sumBy (fun (x,y)->(y-mean_y)*(x-mean_x)) (Array.zip xs ys))
+                    / (Array.sumBy (fun x->(x-mean_x)*(x-mean_x)) xs)
+            let c = (mean_y - m * mean_x)
+            let residuals = (Array.zip ys xs
+                |> Array.sumBy (fun (k,d)->let err = k-(m*d+c) in err*err))
             if this.debug then
-                printfn "pt=%d m=%f c=%f res=%f max_dist=%f errs=%f" i m c residuals max_dist errs
-            // add error term for mismatch between end of previous bezier and start of this
-            if i=0 then
-                first_start <- c
-            else
-                let err = c - prev_end
-                errs <- errs + err*err
-            prev_end <- m * cumm_dists.[STEPS] + c
+                printfn "ks %A\nsegmentLengths %A\ndists %A" ks segmentLengths cumm_dists
+                printfn "m=%f c=%f res=%f" m c residuals
+            m, c, residuals
+
+        let m, c, residuals = linear_regression cumm_dists ks
+        errs <- errs + residuals + abs m + max_dist
+        // errs <- errs +  abs m //+ max_dist
+        if this.debug then
+            printfn "m=%f c=%f res=%f max_dist=%f errs=%f" m c residuals max_dist errs
+        // add error term for mismatch between end of previous bezier and start of this
 
         if isClosed then
-            let err = prev_end - first_start
+            let err = ks.[ks.Length-1] - ks.[0]
             errs <- errs + err * err
         assert not (isnan errs)
         if this.debug then
