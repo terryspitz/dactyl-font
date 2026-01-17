@@ -51,13 +51,7 @@ let generateSvg (text: string) (axes: Axes) =
     // You might want to make these configurable later
     font.stringToSvg lines 0 0 false "black" |> String.concat "\n"
 
-let generateTweenSvg (text: string) (inputAxes: Axes) =
-    // Disable clip_rect to prevent internal clipping
-    let axes =
-        { inputAxes with
-            clip_rect = false
-            show_knots = false }
-
+let generateTweenSvg (text: string) (axes: Axes) =
     let font = Font axes
 
     let lines =
@@ -66,58 +60,32 @@ let generateTweenSvg (text: string) (inputAxes: Axes) =
         else
             text.Replace("\r\n", "\n").Split('\n') |> List.ofArray
 
-    // Render chars to get SVG paths and calculate exact bounds
+    // Manually construct SVG to crop tighter
+    // Use smaller margin and height based on cap height + thickness, ignoring leading
     let margin = 10
+    let svg, lineWidths = font.stringToSvgLineInternal lines 0 0 "black"
+    let width = (List.max lineWidths) + margin * 2
 
-    // We need to replicate string rendering but capture bounds
-    let rendered =
-        [ for i in 0 .. lines.Length - 1 do
-              let str = lines.[i]
-              let widths = font.charWidths str
-              let offsetXs = List.scan (+) 0 widths
-              // lineOffset is the SVG Y coordinate of the baseline
-              // But we need to map Font Y coords to SVG Y coords for bounds
-              // SVG Y = lineOffset - Font Y
-              // But bounds are in Font Y.
-              // Let's keep bounds in Font Y relative to (0,0) of the char, then apply shifts.
+    // Calculate vertical bounds to crop leading and alignment space
+    // Visual Top of glyph is roughly at: thickness + leading
+    // Visual Bottom is at: thickness + leading + (T - D) + thickness*2?
+    // Let's use the layout logic: lineOffset places baseline.
+    // Top is roughly 'leading' pixels down from 0 if we ignore ascenders going above T.
+    // Actually, based on analysis: Visual Top = thickness + leading.
+    // So we start viewBox there.
+    let gdf = GlyphFsDefs(axes)
+    let minY = axes.thickness + axes.leading - margin
+    let height = axes.height - gdf._D + axes.thickness * 2 + margin * 2
 
-              // Standard lineOffset in stringToSvgLineInternal:
-              let lineOffset = font.charHeight * (i + 1) - font.yBaselineOffset + axes.thickness
-
-              for c in 0 .. str.Length - 1 do
-                  let ch = str.[c]
-                  let elem = font.charToElem ch
-                  let l, r, b, t = font.bounds elem
-                  // Shift bounds by position
-                  let x = offsetXs.[c]
-                  // Glyph is rendered at (x, lineOffset).
-                  // Y coords in SVG = lineOffset - FontY.
-                  // So Top (t) -> lineOffset - t.
-                  // Bottom (b) -> lineOffset - b.
-                  // SVG Y grows down. So Top < Bottom.
-                  let svgL, svgR = x + l, x + r
-                  let svgTop = lineOffset - t
-                  let svgBot = lineOffset - b
-
-                  // Get SVG path for char
-                  let svgPath = font.elementToSvgPath elem (offsetXs.[c]) lineOffset 5 "black"
-                  yield (svgL, svgR, svgTop, svgBot, svgPath) ]
-
-    if List.isEmpty rendered then
-        ""
-    else
-        let minX = rendered |> List.map (fun (l, _, _, _, _) -> l) |> List.min
-        let maxX = rendered |> List.map (fun (_, r, _, _, _) -> r) |> List.max
-        let minY = rendered |> List.map (fun (_, _, t, _, _) -> t) |> List.min
-        let maxY = rendered |> List.map (fun (_, _, _, b, _) -> b) |> List.max
-
-        let svgContent = rendered |> List.collect (fun (_, _, _, _, svg) -> svg)
-
-        let width = maxX - minX + margin * 2
-        let height = maxY - minY + margin * 2
-
-        toSvgDocument (minX - margin) (minY - margin) width height svgContent
-        |> String.concat "\n"
+    // Use toSvgDocument logic but with our custom bounds
+    // We want to center the glyph vertically-ish, or just crop.
+    // font.yBaselineOffset handles the descent.
+    // We'll use a viewBox starting at -margin, -margin (relative to bottom-left origin of glyphs?)
+    // No, standard toSvgDocument uses -margin for X.
+    // For Y, stringToSvg uses -margin.
+    // But we want to crop the top.
+    // Let's set height to exactly what we need.
+    toSvgDocument -margin minY width height svg |> String.concat "\n"
 
 let generateSplineDebugSvg (text: string) (inputAxes: Axes) =
     let axes =

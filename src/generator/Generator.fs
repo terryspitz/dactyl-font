@@ -1161,4 +1161,3 @@ type Font(axes: Axes) =
     member this.CharToOutline ch = this.charToElem ch |> this.getOutline
     member this.GlyphFsDefs = _GlyphFsDefs
     member this.Spline2PtsToSvg = spline2ptsToSvg
-    member this.bounds = bounds
