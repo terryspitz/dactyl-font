@@ -156,7 +156,20 @@ function App() {
     <div className="container">
       <div className="sidebar">
         <div className="sidebar-title" dangerouslySetInnerHTML={{ __html: generateTweenSvg("Dactyl", { ...defaultAxes, thickness: 35 }) }} />
-        <h2>Controls</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <h2 style={{ margin: 0 }}>Controls</h2>
+          <div className="toolbar" style={{ display: 'flex', gap: '5px' }}>
+            <button className="icon-button" onClick={handleReset} title="Reset">
+              <span className="material-symbols-outlined">restart_alt</span>
+            </button>
+            <button className="icon-button" onClick={handleRandom} title="Randomize">
+              <span className="material-symbols-outlined">casino</span>
+            </button>
+            <a className="icon-button" href="https://terryspitz.github.io/dactyl-font/" target="_blank" title="Documentation">
+              <span className="material-symbols-outlined">menu_book</span>
+            </a>
+          </div>
+        </div>
         <div className="controls-list">
           {Object.entries(controlsByCategory).map(([category, controls]) => (
             <div key={category} className="category-group">
@@ -233,17 +246,7 @@ function App() {
             <button className={`tab-button ${activeTab === 'splines' ? 'active' : ''}`} onClick={() => setActiveTab('splines')}>Splines</button>
             <button className={`tab-button ${activeTab === 'tweens' ? 'active' : ''}`} onClick={() => setActiveTab('tweens')}>Tweens</button>
           </div>
-          <div className="toolbar">
-            <button className="icon-button" onClick={handleReset} title="Reset">
-              <span className="material-symbols-outlined">restart_alt</span>
-            </button>
-            <button className="icon-button" onClick={handleRandom} title="Randomize">
-              <span className="material-symbols-outlined">casino</span>
-            </button>
-            <a className="icon-button" href="https://terryspitz.github.io/dactyl-font/" target="_blank" title="Documentation">
-              <span className="material-symbols-outlined">menu_book</span>
-            </a>
-          </div>
+
         </div>
 
         <div className={`input-area ${activeTab === 'splines' ? 'with-defs' : ''}`}>
