@@ -44,6 +44,7 @@ jobs:
       - name: copy static files
         run: |
           cp output/allGlyphs.html web/dist
+          cp gallery.html web/dist
           cp -r png/ web/dist
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
