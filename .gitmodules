@@ -2,7 +2,7 @@
 	path = proofs
 	url = https://github.com/hoeflerco/proofs.git
 	branch = master
-[submodule "explorer/public/fmin"]
-	path = explorer/public/fmin
+[submodule "web/src/lib/fmin"]
+	path = web/src/lib/fmin
 	url = https://github.com/terryspitz/fmin
 	branch = master
