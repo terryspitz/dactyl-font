@@ -382,8 +382,8 @@ function App() {
 
         {activeTab === 'splines' && (
           <div className="spline-legend">
-            <div className="legend-item"><span className="swatch blue"></span> Spiro</div>
-            <div className="legend-item"><span className="swatch green"></span> Spline2</div>
+            <div className="legend-item"><span className="swatch blue"></span> <a href="https://www.levien.com/spiro/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>Spiro</a></div>
+            <div className="legend-item"><span className="swatch green"></span> <a href="https://raphlinus.github.io/curves/2018/12/21/new-spline.html" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>Spline2</a></div>
             <div className="legend-item"><span className="swatch orange"></span> DactylSpline</div>
             <div className="legend-item"><span className="swatch grey"></span> Guides</div>
             <div className="legend-item">
