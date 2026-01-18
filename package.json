@@ -7,6 +7,6 @@
         "web": "npm run dev --prefix web"
     },
     "devDependencies": {
-        "concurrently": "^9.2.1"
+        "concurrently": "^8.2.2"
     }
 }
