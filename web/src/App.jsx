@@ -2,6 +2,94 @@ import { useState, useMemo } from 'react'
 import { generateSvg, defaultAxes, controlDefinitions, generateSplineDebugSvg, generateTweenSvg, getGlyphDefs, allChars } from './lib/fable/Api' // Adjust path if needed
 import './App.css'
 
+// Parse helper for glyph definitions
+const ABBR_MAP = {
+  t: 'top',
+  x: 'x-height',
+  h: 'half-height',
+  b: 'bottom',
+  d: 'descender',
+  l: 'left',
+  r: 'right',
+  c: 'center',
+  w: 'wide',
+  o: 'roundness offset',
+  N: 'North',
+  S: 'South',
+  E: 'East',
+  W: 'West',
+}
+
+const parseToken = (token) => {
+  const match = token.match(/^([txhbd]+)(o?)([lrcw]+)([NSEW]?)$/)
+  if (!match) return null
+
+  const [, y, offset, x, dir] = match
+  const parts = []
+
+  // Helper to map characters
+  const mapChars = (str) => {
+    const mapped = str.split('').map(c => ABBR_MAP[c])
+    return mapped.length > 1 ? mapped.join('<->') : mapped[0]
+  }
+
+  parts.push(mapChars(y))
+  if (offset) parts.push(ABBR_MAP[offset])
+  parts.push(mapChars(x))
+  if (dir) parts.push(ABBR_MAP[dir])
+
+  return parts.join(', ')
+}
+
+const FormattedDefs = ({ text }) => {
+  if (!text) return null
+  return (
+    <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+      {text.split('\n').map((line, i) => {
+        const colonIndex = line.indexOf(': ')
+        if (colonIndex === -1) return <div key={i}>{line}</div>
+
+        const charPart = line.substring(0, colonIndex + 2)
+        const defPart = line.substring(colonIndex + 2)
+
+        // Split by spaces to separate curves/segments
+        const segments = defPart.split(' ').map((segment, segIdx) => {
+          // Split by separators (-, ~, .), keeping them
+          const tokens = segment.split(/([-~.])/).filter(t => t)
+
+          return (
+            <span key={segIdx}>
+              {segIdx > 0 && ' '}
+              {tokens.map((token, tokIdx) => {
+                const tooltip = parseToken(token)
+                if (tooltip) {
+                  return (
+                    <span
+                      key={tokIdx}
+                      title={tooltip}
+                      style={{ cursor: 'help', textDecoration: 'underline dotted', textDecorationColor: '#888' }}
+                    >
+                      {token}
+                    </span>
+                  )
+                }
+                return <span key={tokIdx}>{token}</span>
+              })}
+            </span>
+          )
+        })
+
+        return (
+          <div key={i}>
+            {charPart}
+            {segments}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function App() {
   const [tabTexts, setTabTexts] = useState({
     font: allChars,
@@ -271,7 +359,7 @@ function App() {
           {activeTab === 'splines' && (
             <div className="glyph-defs-panel">
               <h3>Glyph Definitions</h3>
-              {splineDefs}
+              <FormattedDefs text={splineDefs} />
             </div>
           )}
         </div>
