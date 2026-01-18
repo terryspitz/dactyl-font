@@ -90,10 +90,24 @@
 
 .input-area {
     position: relative;
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+}
+
+.input-wrapper {
+    position: relative;
+    flex: 1;
+}
+
+.input-area.with-defs .input-wrapper {
+    width: 50%;
+    flex: 0 0 50%;
 }
 
 .input-area textarea {
     width: 100%;
+    height: 100%;
     box-sizing: border-box;
     /* Fix width overflow */
     font-size: 2em;
@@ -105,6 +119,33 @@
     color: #fff;
     resize: vertical;
     /* Allow vertical resize only */
+}
+
+.glyph-defs-panel {
+    width: 50%;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 10px;
+    color: #d4d4d4;
+    font-family: monospace;
+    font-size: 0.9em;
+    overflow-y: auto;
+    box-sizing: border-box;
+    white-space: pre-wrap;
+    height: auto;
+    /* textarea height will control row height due to flex stretch? No, textarea height is determined by rows. flex stretch will make panel same height. */
+    max-height: 200px;
+    /* Optional cap */
+}
+
+.glyph-defs-panel h3 {
+    margin-top: 0;
+    margin-bottom: 0.5em;
+    font-size: 1em;
+    color: #fff;
+    border-bottom: 1px solid #444;
+    padding-bottom: 5px;
 }
 
 .text-reset-button {

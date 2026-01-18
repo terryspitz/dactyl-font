@@ -70,26 +70,13 @@ function App() {
         // For splines, we likely want a shorter default text if it's empty or too long, 
         // but the user might want to debug specific chars.
         const splineText = text.length > 0 ? text : "a"
-        const defs = getGlyphDefs(splineText)
+        // Definitions moved to input area
         return (
           <div className="splines-container">
             <div
               className="svg-container"
               dangerouslySetInnerHTML={{ __html: generateSplineDebugSvg(splineText, axes) }}
             />
-            <div className="glyph-defs" style={{
-              whiteSpace: 'pre-wrap',
-              fontFamily: 'monospace',
-              padding: '1rem',
-              backgroundColor: '#1a1a1a',
-              color: '#d4d4d4',
-              marginTop: '1rem',
-              borderTop: '1px solid #333',
-              fontSize: '0.9em'
-            }}>
-              <h3>Glyph Definitions</h3>
-              {defs}
-            </div>
           </div>
         )
       } else if (activeTab === 'tweens') {
@@ -161,6 +148,10 @@ function App() {
     setAxes(newAxes)
   }
 
+  // Calculate definitions for Splines tab outside content useMemo
+  const splineIdxText = activeTab === 'splines' ? (text.length > 0 ? text : "a") : ""
+  const splineDefs = activeTab === 'splines' ? getGlyphDefs(splineIdxText) : null
+
   return (
     <div className="container">
       <div className="sidebar">
@@ -228,23 +219,31 @@ function App() {
           </div>
         </div>
 
-        <div className="input-area">
-          <textarea
-            value={text}
-            onChange={e => setText(e.target.value)}
-            rows={3}
-            placeholder="Type here..."
-          />
-          <button
-            className="text-reset-button"
-            onClick={() => {
-              const defaults = { font: allChars, splines: 'font', tweens: 'a' }
-              setText(defaults[activeTab])
-            }}
-            title="Reset Text to Default"
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>restart_alt</span>
-          </button>
+        <div className={`input-area ${activeTab === 'splines' ? 'with-defs' : ''}`}>
+          <div className="input-wrapper">
+            <textarea
+              value={text}
+              onChange={e => setText(e.target.value)}
+              rows={3}
+              placeholder="Type here..."
+            />
+            <button
+              className="text-reset-button"
+              onClick={() => {
+                const defaults = { font: allChars, splines: 'font', tweens: 'a' }
+                setText(defaults[activeTab])
+              }}
+              title="Reset Text to Default"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>restart_alt</span>
+            </button>
+          </div>
+          {activeTab === 'splines' && (
+            <div className="glyph-defs-panel">
+              <h3>Glyph Definitions</h3>
+              {splineDefs}
+            </div>
+          )}
         </div>
         <div className="preview">
           <div className="zoom-controls">
