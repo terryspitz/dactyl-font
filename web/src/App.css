@@ -57,17 +57,25 @@
     display: flex;
     flex-direction: column;
     font-size: 0.9em;
+    align-items: center;
+    /* Center label and content */
 }
 
 .control-group label {
     font-weight: bold;
     margin-bottom: 2px;
+    width: 100%;
+    text-align: center;
+    /* Center label text */
 }
 
 .control-input {
     display: flex;
     align-items: center;
     gap: 10px;
+    width: 100%;
+    /* Ensure full width for centering */
+    justify-content: center;
 }
 
 .value-display {
@@ -76,6 +84,49 @@
     /* Lighter text for dark mode */
     width: 40px;
     text-align: right;
+    margin-left: auto;
+    /* Push to right if needed, but in center alignment it might look weird. Let's keep it next to slider */
+    flex-shrink: 0;
+}
+
+/* Slider Alignment Styles */
+.slider-container {
+    position: relative;
+    width: 200px;
+    /* 2x Slider width to contain full range */
+    height: 20px;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.slider-center-line {
+    position: absolute;
+    left: 131px;
+    /* Center of 200px */
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: #444;
+    z-index: 0;
+}
+
+.slider-input {
+    width: 100px;
+    position: absolute;
+    left: 100px;
+    /* Start at center */
+    margin: 0;
+    padding: 0;
+    height: 20px;
+    z-index: 1;
+    cursor: pointer;
+}
+
+/* Neutral Style */
+.slider-input.neutral-slider {
+    accent-color: #888;
+    /* Grey instead of default blue */
 }
 
 .main {
