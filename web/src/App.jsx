@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { generateSvg, defaultAxes, controlDefinitions, generateSplineDebugSvg, generateTweenSvg, getGlyphDefs, allChars } from './lib/fable/Api' // Adjust path if needed
+import { useState, useMemo, useEffect } from 'react'
+import { generateSvg, defaultAxes, controlDefinitions, generateSplineDebugSvg, generateTweenSvg, getGlyphDefs, allChars, generateVisualTestsSvg } from './lib/fable/Api' // Adjust path if needed
 import './App.css'
 
 // Parse helper for glyph definitions
@@ -94,7 +94,8 @@ function App() {
   const [tabTexts, setTabTexts] = useState({
     font: allChars,
     splines: 'font',
-    tweens: 'a'
+    tweens: 'a',
+    visualTests: ''
   })
   const [axes, setAxes] = useState({ ...defaultAxes })
   const [activeTab, setActiveTab] = useState('font')
@@ -102,7 +103,26 @@ function App() {
     font: 1.0,
     splines: 1.0,
     tweens: 1.0,
+    visualTests: 1.0,
   })
+
+  // Check URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('view') === 'visualTests') {
+      setActiveTab('visualTests')
+    }
+  }, [])
+
+  // Update URL helper
+  const setVisualTestsMode = (e) => {
+    e.preventDefault()
+    setActiveTab('visualTests')
+    const url = new URL(window.location)
+    url.searchParams.set('view', 'visualTests')
+    window.history.pushState({}, '', url)
+  }
+
   const zoom = tabZooms[activeTab]
   const setZoom = (newValFunc) => {
     setTabZooms(prev => {
@@ -145,9 +165,6 @@ function App() {
   // Memoize SVG generation
   const content = useMemo(() => {
     try {
-      // For splines/tweens we might want to run even if text is empty (using default)
-      // but 'text' state init has default anyway.
-
       if (activeTab === 'font') {
         if (!text) return ""
         return <div
@@ -187,7 +204,7 @@ function App() {
                 // Apply zoom to individual boxes. use minWidth to override CSS
                 const boxWidth = 150 * zoom
                 variations.push(
-                  <div key={`${ctrl.name}-${i}`} className="tween-item" style={{ minWidth: boxWidth + 'px', width: boxWidth + 'px' }}>
+                  <div key={`${ctrl.name} -${i} `} className="tween-item" style={{ minWidth: boxWidth + 'px', width: boxWidth + 'px' }}>
                     <div dangerouslySetInnerHTML={{ __html: generateTweenSvg(char, tempAxes) }} />
                     <div style={{ fontSize: '0.7em' }}>{val.toFixed(2)}</div>
                   </div>
@@ -206,6 +223,13 @@ function App() {
           </div>
         )
       }
+      else if (activeTab === 'visualTests') {
+        return <div
+          className="svg-container"
+          dangerouslySetInnerHTML={{ __html: generateVisualTestsSvg() }}
+        />
+      }
+
       return null
 
     } catch (e) {
@@ -384,7 +408,12 @@ function App() {
           <div className="spline-legend">
             <div className="legend-item"><span className="swatch blue"></span> <a href="https://www.levien.com/spiro/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>Spiro</a></div>
             <div className="legend-item"><span className="swatch green"></span> <a href="https://raphlinus.github.io/curves/2018/12/21/new-spline.html" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>Spline2</a></div>
-            <div className="legend-item"><span className="swatch orange"></span> DactylSpline</div>
+            <div className="legend-item">
+              <span className="swatch orange"></span>
+              <span onClick={setVisualTestsMode} style={{ cursor: 'pointer', textDecoration: 'dotted underline' }} title="Visual Tests">
+                DactylSpline
+              </span>
+            </div>
             <div className="legend-item"><span className="swatch grey"></span> Guides</div>
             <div className="legend-item">
               <span className="swatch lightBlue circle"></span>

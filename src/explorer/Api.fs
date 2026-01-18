@@ -260,11 +260,7 @@ let getGlyphDefs (text: string) =
         ""
     else
         // Deduplicate chars to avoid spamming same def
-        let chars =
-            text
-            |> Seq.map id
-            |> Seq.distinct
-            |> Seq.toList
+        let chars = text |> Seq.map id |> Seq.distinct |> Seq.toList
 
         chars
         |> List.map (fun c ->
@@ -272,3 +268,9 @@ let getGlyphDefs (text: string) =
             | Some def -> sprintf "'%c': %s" c def
             | None -> sprintf "'%c': (no definition)" c)
         |> String.concat "\n"
+
+let generateVisualTestsSvg () =
+    VisualTests.splineStaticPage ()
+    |> toSvgDocument 0 0 10 12
+    |> String.concat "\n"
+    |> fun s -> s.Replace("svg ", "svg style='height: 95vh;' ")

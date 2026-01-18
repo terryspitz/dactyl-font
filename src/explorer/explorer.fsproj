@@ -12,7 +12,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Api.fs" />
-    <Compile Include="explorer.fs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Fable.Browser.Dom" Version="2.18.0" />
