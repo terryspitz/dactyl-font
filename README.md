@@ -1,3 +1,6 @@
+---
+layout: default
+---
 NOTE: This README is best viewed at https://terryspitz.github.io/dactyl-font/README.html
 
 # Dactyl Live
@@ -16,10 +19,6 @@ You can explore Dactyl live in your browser using the [Dactyl Live explorer](htt
 
 Here is some of Dactyl's checkered development history:
 
-<!-- Fotorama from CDNJS, 19 KB -->
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
-<link  href="https://cdnjs.cloudflare.com/ajax/libs/fotorama/4.6.4/fotorama.css" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/fotorama/4.6.4/fotorama.js"></script>
 <div class="fotorama" data-autoplay="300" data-transition="crossfade">
   <img src="png/font (1).png">
   <img src="png/font (2).png">
