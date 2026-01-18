@@ -253,7 +253,7 @@ function App() {
             <button className="icon-button" onClick={handleRandom} title="Randomize">
               <span className="material-symbols-outlined">casino</span>
             </button>
-            <a className="icon-button" href="https://terryspitz.github.io/dactyl-font/" target="_blank" title="Documentation">
+            <a className="icon-button" href="https://terryspitz.github.io/dactyl-font/README.html" target="_blank" title="Documentation">
               <span className="material-symbols-outlined">menu_book</span>
             </a>
           </div>

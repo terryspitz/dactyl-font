@@ -80,7 +80,7 @@ type Axes =
           "x_height", FracRange(0., 1.5), "default"
           "thickness", Range(1, 200), "default"
           "contrast", FracRange(-0.5, 0.5), "default"
-          "roundedness", Range(0, 300), "default"
+          "roundedness", Range(0, 200), "default"
           "tracking", Range(0, 200), "default"
           "leading", Range(-100, 200), "default"
           "monospace", FracRange(0.0, 1.0), "default"
