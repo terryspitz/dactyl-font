@@ -199,15 +199,33 @@ let generateSplineDebugSvg (text: string) (inputAxes: Axes) =
 
     let svgElements =
         if not axes.outline then
-            guidesSvg
-            @ fontSpiro.elementToSvgPath spiro offsetX offsetY 10 blue
-            @ fontSpline2.elementToSvgPath spline offsetX offsetY 10 green
-            @ fontDSpline.elementToSvgPath spline offsetX offsetY 10 orange
-            @ if axes.show_knots then
-                  (spline |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen)
-                  @ (spiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue)
-              else
-                  []
+            let wrapClass (cls: string) (svgs: string list) =
+                if List.isEmpty svgs then
+                    []
+                else
+                    [ sprintf "<g class='%s'>" cls ] @ svgs @ [ "</g>" ]
+
+            let guidesLayer = wrapClass "guides-layer" guidesSvg
+
+            let spiroLayer =
+                wrapClass "spiro-layer" (fontSpiro.elementToSvgPath spiro offsetX offsetY 10 blue)
+
+            let spline2Layer =
+                wrapClass "spline2-layer" (fontSpline2.elementToSvgPath spline offsetX offsetY 10 green)
+
+            let dsplineLayer =
+                wrapClass "dspline-layer" (fontDSpline.elementToSvgPath spline offsetX offsetY 10 orange)
+
+            let knotsLayer =
+                if axes.show_knots then
+                    wrapClass
+                        "knots-layer"
+                        ((spline |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen)
+                         @ (spiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue))
+                else
+                    []
+
+            guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer
         else
             let getOutline (font: Font) shape =
                 try
@@ -221,6 +239,12 @@ let generateSplineDebugSvg (text: string) (inputAxes: Axes) =
                 with _ ->
                     []
 
+            let wrapClass (cls: string) (svgs: string list) =
+                if List.isEmpty svgs then
+                    []
+                else
+                    [ sprintf "<g class='%s'>" cls ] @ svgs @ [ "</g>" ]
+
             let outlineSpiro = getOutline fontSpiro spiro
             let outlineSpline2 = getOutline fontSpline2 spline
             let outlineDSpline = getOutline fontDSpline spline // Note: dactyl_spline uses dactyl logic but applies to same structure? verify explorer.fs logic
@@ -230,20 +254,33 @@ let generateSplineDebugSvg (text: string) (inputAxes: Axes) =
             let outlineSpline2Svg = safeElementToSvgPath fontSpline2 outlineSpline2 green
             let outlineDSplineSvg = safeElementToSvgPath fontDSpline outlineDSpline orange
 
-            guidesSvg
-            @ fontSpiro.elementToSvgPath spiro offsetX offsetY 3 blue
-            @ fontSpline2.elementToSvgPath spline offsetX offsetY 3 green
-            @ fontDSpline.elementToSvgPath spline offsetX offsetY 3 orange
-            @ outlineSpiroSvg
-            @ outlineSpline2Svg
-            @ outlineDSplineSvg
-            @ if axes.show_knots then
-                  (spline |> fontSpline2.getSvgKnots offsetX offsetY 3 lightGreen)
-                  @ (spiro |> fontSpiro.getSvgKnots offsetX offsetY 3 lightBlue)
-                  @ (outlineSpline2 |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen)
-                  @ (outlineSpiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue)
-              else
-                  []
+            let guidesLayer = wrapClass "guides-layer" guidesSvg
+
+            let spiroLayer =
+                wrapClass "spiro-layer" (fontSpiro.elementToSvgPath spiro offsetX offsetY 3 blue @ outlineSpiroSvg)
+
+            let spline2Layer =
+                wrapClass
+                    "spline2-layer"
+                    (fontSpline2.elementToSvgPath spline offsetX offsetY 3 green @ outlineSpline2Svg)
+
+            let dsplineLayer =
+                wrapClass
+                    "dspline-layer"
+                    (fontDSpline.elementToSvgPath spline offsetX offsetY 3 orange @ outlineDSplineSvg)
+
+            let knotsLayer =
+                if axes.show_knots then
+                    wrapClass
+                        "knots-layer"
+                        ((spline |> fontSpline2.getSvgKnots offsetX offsetY 3 lightGreen)
+                         @ (spiro |> fontSpiro.getSvgKnots offsetX offsetY 3 lightBlue)
+                         @ (outlineSpline2 |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen)
+                         @ (outlineSpiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue))
+                else
+                    []
+
+            guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer
 
     // Calculate generic SVG bounds (similar to explorer.fs but returns string)
     // Explorer uses: toSvgDocument -50 fontSpline2.yBaselineOffset 1000 fontSpline2.charHeight svg

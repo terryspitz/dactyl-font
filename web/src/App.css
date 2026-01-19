@@ -474,3 +474,12 @@
 .swatch.circle {
     border-radius: 50%;
 }
+
+/* Visibility toggles */
+.hide-spiro .spiro-layer,
+.hide-spline2 .spline2-layer,
+.hide-dspline .dspline-layer,
+.hide-guides .guides-layer,
+.hide-knots .knots-layer {
+    display: none;
+}

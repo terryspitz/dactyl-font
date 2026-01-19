@@ -105,22 +105,34 @@ function App() {
     tweens: 1.0,
     visualTests: 1.0,
   })
+  const [layerVisibility, setLayerVisibility] = useState({
+    spiro: true,
+    spline2: true,
+    dspline: true,
+    guides: true,
+    knots: true,
+  })
 
   // Check URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    if (params.get('view') === 'visualTests') {
-      setActiveTab('visualTests')
+    const view = params.get('view')
+    if (view && ['font', 'splines', 'tweens', 'visualTests'].includes(view)) {
+      setActiveTab(view)
     }
   }, [])
 
   // Update URL helper
+  const setTabWithUrl = (tab) => {
+    setActiveTab(tab)
+    const url = new URL(window.location)
+    url.searchParams.set('view', tab)
+    window.history.pushState({}, '', url)
+  }
+
   const setVisualTestsMode = (e) => {
     e.preventDefault()
-    setActiveTab('visualTests')
-    const url = new URL(window.location)
-    url.searchParams.set('view', 'visualTests')
-    window.history.pushState({}, '', url)
+    setTabWithUrl('visualTests')
   }
 
   const zoom = tabZooms[activeTab]
@@ -175,9 +187,15 @@ function App() {
         // For splines, we likely want a shorter default text if it's empty or too long, 
         // but the user might want to debug specific chars.
         const splineText = text.length > 0 ? text : "a"
+
+        const visibilityClasses = Object.entries(layerVisibility)
+          .filter(([_, visible]) => !visible)
+          .map(([key]) => `hide-${key}`)
+          .join(' ')
+
         // Definitions moved to input area
         return (
-          <div className="splines-container">
+          <div className={`splines-container ${visibilityClasses}`}>
             <div
               className="svg-container"
               dangerouslySetInnerHTML={{ __html: generateSplineDebugSvg(splineText, axes) }}
@@ -236,7 +254,7 @@ function App() {
       console.error("Error generating Content:", e)
       return <div style={{ color: 'red' }}>Error: {e.message}</div>
     }
-  }, [text, axes, activeTab, zoom])
+  }, [text, axes, activeTab, zoom, layerVisibility])
 
   const handleControlChange = (name, value) => {
     setAxes(prev => ({ ...prev, [name]: value }))
@@ -354,9 +372,9 @@ function App() {
       <div className="main">
         <div className="top-bar">
           <div className="tabs">
-            <button className={`tab-button ${activeTab === 'font' ? 'active' : ''}`} onClick={() => setActiveTab('font')}>Font</button>
-            <button className={`tab-button ${activeTab === 'splines' ? 'active' : ''}`} onClick={() => setActiveTab('splines')}>Splines</button>
-            <button className={`tab-button ${activeTab === 'tweens' ? 'active' : ''}`} onClick={() => setActiveTab('tweens')}>Tweens</button>
+            <button className={`tab-button ${activeTab === 'font' ? 'active' : ''}`} onClick={() => setTabWithUrl('font')}>Font</button>
+            <button className={`tab-button ${activeTab === 'splines' ? 'active' : ''}`} onClick={() => setTabWithUrl('splines')}>Splines</button>
+            <button className={`tab-button ${activeTab === 'tweens' ? 'active' : ''}`} onClick={() => setTabWithUrl('tweens')}>Tweens</button>
           </div>
 
         </div>
@@ -406,16 +424,49 @@ function App() {
 
         {activeTab === 'splines' && (
           <div className="spline-legend">
-            <div className="legend-item"><span className="swatch blue"></span> <a href="https://www.levien.com/spiro/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>Spiro</a></div>
-            <div className="legend-item"><span className="swatch green"></span> <a href="https://raphlinus.github.io/curves/2018/12/21/new-spline.html" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>Spline2</a></div>
             <div className="legend-item">
+              <input
+                type="checkbox"
+                checked={layerVisibility.spiro}
+                onChange={e => setLayerVisibility(prev => ({ ...prev, spiro: e.target.checked }))}
+              />
+              <span className="swatch blue"></span>
+              <a href="https://www.levien.com/spiro/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>Spiro</a>
+            </div>
+            <div className="legend-item">
+              <input
+                type="checkbox"
+                checked={layerVisibility.spline2}
+                onChange={e => setLayerVisibility(prev => ({ ...prev, spline2: e.target.checked }))}
+              />
+              <span className="swatch green"></span>
+              <a href="https://raphlinus.github.io/curves/2018/12/21/new-spline.html" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>Spline2</a>
+            </div>
+            <div className="legend-item">
+              <input
+                type="checkbox"
+                checked={layerVisibility.dspline}
+                onChange={e => setLayerVisibility(prev => ({ ...prev, dspline: e.target.checked }))}
+              />
               <span className="swatch orange"></span>
               <span onClick={setVisualTestsMode} style={{ cursor: 'pointer', textDecoration: 'dotted underline' }} title="Visual Tests">
                 DactylSpline
               </span>
             </div>
-            <div className="legend-item"><span className="swatch grey"></span> Guides</div>
             <div className="legend-item">
+              <input
+                type="checkbox"
+                checked={layerVisibility.guides}
+                onChange={e => setLayerVisibility(prev => ({ ...prev, guides: e.target.checked }))}
+              />
+              <span className="swatch grey"></span> Guides
+            </div>
+            <div className="legend-item">
+              <input
+                type="checkbox"
+                checked={layerVisibility.knots}
+                onChange={e => setLayerVisibility(prev => ({ ...prev, knots: e.target.checked }))}
+              />
               <span className="swatch lightBlue circle"></span>
               <span className="swatch lightGreen circle"></span>
               Knots
