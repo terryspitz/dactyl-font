@@ -94,7 +94,8 @@ let generateSplineDebugSvg (text: string) (inputAxes: Axes) =
         { inputAxes with
             clip_rect = false
             filled = false
-            show_knots = true }
+            show_knots = true
+            show_comb = true }
 
     // Create fonts with specific settings
     let fontSpiro =

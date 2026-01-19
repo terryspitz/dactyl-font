@@ -480,6 +480,7 @@
 .hide-spline2 .spline2-layer,
 .hide-dspline .dspline-layer,
 .hide-guides .guides-layer,
-.hide-knots .knots-layer {
+.hide-knots .knots-layer,
+.hide-comb .comb-layer {
     display: none;
 }

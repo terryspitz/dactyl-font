@@ -1033,12 +1033,13 @@ type Font(axes: Axes) =
         @ if List.isEmpty combSvg then
               []
           else
-              [ "<path "; "d='" ]
+              [ "<g class='comb-layer'>"; "<path "; "d='" ]
               @ combSvg
               @ [ "'"
                   sprintf "transform='translate(%d,%d) scale(1,-1)'" offsetX offsetY
                   sprintf "style='fill:none;stroke:#000000;stroke-width:1'" // Black, min thickness (1px)
-                  "/>" ]
+                  "/>"
+                  "</g>" ]
 
     ///circles highlighting the knots (defined points on the spiro curves)
     member this.getSvgKnots offsetX offsetY size colour elem =

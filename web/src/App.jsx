@@ -111,6 +111,7 @@ function App() {
     dspline: true,
     guides: true,
     knots: true,
+    comb: true,
   })
 
   // Check URL on mount
@@ -452,6 +453,14 @@ function App() {
               <span onClick={setVisualTestsMode} style={{ cursor: 'pointer', textDecoration: 'dotted underline' }} title="Visual Tests">
                 DactylSpline
               </span>
+            </div>
+            <div className="legend-item">
+              <input
+                type="checkbox"
+                checked={layerVisibility.comb}
+                onChange={e => setLayerVisibility(prev => ({ ...prev, comb: e.target.checked }))}
+              />
+              <span className="swatch" style={{ border: '1px solid black', backgroundColor: 'transparent' }}></span> Comb
             </div>
             <div className="legend-item">
               <input
