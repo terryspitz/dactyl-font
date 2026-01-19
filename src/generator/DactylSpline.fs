@@ -328,7 +328,9 @@ type DSpline(ctrlPts, isClosed) =
     member this.ctrlPts: DControlPoint array = ctrlPts
     member this.isClosed = isClosed
 
-    member this.solveAndRender(maxIter, debug) =
+
+
+    member this.solveAndRenderTuple(maxIter, debug, showComb) =
         let length = ctrlPts.Length - if this.isClosed then 0 else 1
 
         // Implement LineToCurve and CurveToLine as Corners with fixed tangent theta
@@ -348,6 +350,7 @@ type DSpline(ctrlPts, isClosed) =
 
         // First point
         let path = BezPath()
+        let combPath = BezPath()
         let pt0 = ctrlPts.[0]
         path.moveto (pt0.x.Value, pt0.y.Value)
 
@@ -466,7 +469,38 @@ type DSpline(ctrlPts, isClosed) =
                 for k in 0 .. bezPts.Length - 2 do
                     let p1 = bezPts.[k]
                     let p2 = bezPts.[k + 1]
-                    path.curveto (p1.rpt().x, p1.rpt().y, p2.lpt().x, p2.lpt().y, p2.x, p2.y)
+                    let cp1x, cp1y = p1.rpt().x, p1.rpt().y
+                    let cp2x, cp2y = p2.lpt().x, p2.lpt().y
+                    path.curveto (cp1x, cp1y, cp2x, cp2y, p2.x, p2.y)
+
+                    if showComb then
+                        // Render curvature comb
+                        let bez = CubicBez([| p1.x; p1.y; cp1x; cp1y; cp2x; cp2y; p2.x; p2.y |])
+                        let STEPS = 20
+                        let SCALE = 2000.0 // Adjusted scale for visibility
+
+                        for s in 0..STEPS do
+                            let t = float s / float STEPS
+                            let k = bez.curvature t
+                            let pt = bez.eval t
+                            let d = bez.deriv t
+                            // Normal vector: (-dy, dx) normalized
+                            let normal = { x = -d.y; y = d.x }
+                            let nLen = normal.norm ()
+
+                            if nLen > 1e-6 then
+                                let n =
+                                    { x = normal.x / nLen
+                                      y = normal.y / nLen }
+                                // Comb line from pt to pt + k * SCALE * n
+                                let endPt =
+                                    { x = pt.x + k * SCALE * n.x
+                                      y = pt.y + k * SCALE * n.y }
+
+                                path.moveto (p2.x, p2.y) // Move main path back to end point (redundant if curveto did it, but safe)
+
+                                combPath.moveto (pt.x, pt.y)
+                                combPath.lineto (endPt.x, endPt.y)
 
                 if debug then
                     printfn "DSpline solved"
@@ -479,7 +513,7 @@ type DSpline(ctrlPts, isClosed) =
         if this.isClosed then
             path.closepath ()
 
-        path.tostringlist ()
+        (path.tostringlist (), combPath.tostringlist ())
 
 
 // member this.renderSvg show_tangents =

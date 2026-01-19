@@ -418,7 +418,7 @@ type Font(axes: Axes) =
     let rec elementToDactylSvg (elem: Element) =
         let ctrlPtsToSvg ctrlPts isClosed =
             let spline = DSpline(ctrlPts, isClosed)
-            spline.solveAndRender (axes.max_spline_iter, debug = axes.debug)
+            spline.solveAndRenderTuple (axes.max_spline_iter, debug = axes.debug, showComb = axes.show_comb)
 
         let ptsToSvg (pts: (Point * SpiroPointType) list) isClosed =
             ctrlPtsToSvg (pts |> List.map (fun (pt, ty) -> (pt, ty, None)) |> toDSplineControlPoints) isClosed
@@ -427,9 +427,12 @@ type Font(axes: Axes) =
         | OpenCurve(pts) -> ptsToSvg pts false
         | ClosedCurve(pts) -> ptsToSvg pts true
         | TangentCurve(pts, isClosed) -> ctrlPtsToSvg (toDSplineControlPoints pts) isClosed
-        | Dot(p) -> let x, y = getXY p in svgCircle x y thickness
-        | EList(elems) -> List.collect elementToDactylSvg elems
-        | Space -> []
+        | Dot(p) -> let x, y = getXY p in (svgCircle x y thickness, [])
+        | EList(elems) ->
+            let results = List.map elementToDactylSvg elems
+            let svgs, combs = List.unzip results
+            (List.concat svgs, List.concat combs)
+        | Space -> ([], [])
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
 
     //apply a transformation fn: Spiros -> Elements
@@ -974,9 +977,9 @@ type Font(axes: Axes) =
         if axes.dactyl_spline then
             elementToDactylSvg elem
         else if axes.spline2 then
-            elementToSpline2Svg elem
+            (elementToSpline2Svg elem, [])
         else
-            elementToSpiroSegments elem |> List.collect this.spiroToSvg
+            (elementToSpiroSegments elem |> List.collect this.spiroToSvg, [])
 
     member this.elementToSvgPath element offsetX offsetY strokeWidth fillColour =
         let GetStableHash (str: string) =
@@ -1003,7 +1006,7 @@ type Font(axes: Axes) =
             else
                 "none"
 
-        let svg = this.elementToSvg element
+        let svg, combSvg = this.elementToSvg element
         let guid = GetStableHash(String.concat "\n" svg)
 
         [ if axes.clip_rect then
@@ -1026,6 +1029,16 @@ type Font(axes: Axes) =
             sprintf "style='fill:%s;fill-rule:%s;stroke:%s;stroke-width:%d'" fillStyle fillrule fillColour strokeWidth
             sprintf "clip-path='url(#clip_%s)'" guid
             "/>" ]
+        // Add separate path for comb if present
+        @ if List.isEmpty combSvg then
+              []
+          else
+              [ "<path "; "d='" ]
+              @ combSvg
+              @ [ "'"
+                  sprintf "transform='translate(%d,%d) scale(1,-1)'" offsetX offsetY
+                  sprintf "style='fill:none;stroke:#000000;stroke-width:1'" // Black, min thickness (1px)
+                  "/>" ]
 
     ///circles highlighting the knots (defined points on the spiro curves)
     member this.getSvgKnots offsetX offsetY size colour elem =
