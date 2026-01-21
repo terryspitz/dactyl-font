@@ -418,7 +418,13 @@ type Font(axes: Axes) =
     let rec elementToDactylSvg (elem: Element) =
         let ctrlPtsToSvg ctrlPts isClosed =
             let spline = DSpline(ctrlPts, isClosed)
-            spline.solveAndRenderTuple (axes.max_spline_iter, debug = axes.debug, showComb = axes.show_comb)
+
+            spline.solveAndRenderTuple (
+                axes.max_spline_iter,
+                axes.flatness,
+                debug = axes.debug,
+                showComb = axes.show_comb
+            )
 
         let ptsToSvg (pts: (Point * SpiroPointType) list) isClosed =
             ctrlPtsToSvg (pts |> List.map (fun (pt, ty) -> (pt, ty, None)) |> toDSplineControlPoints) isClosed

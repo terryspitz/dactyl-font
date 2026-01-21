@@ -41,7 +41,7 @@ let splineStaticPage () =
                   [ sprintf "<g id='%d'>" i
                     sprintf "<text x='%d' y='%d' font-size='0.2'>%d</text>" -0 (i + 1) i
                     sprintf "<path d='" ]
-                  @ fst (spline.solveAndRenderTuple (20, debug, false))
+                  @ fst (spline.solveAndRenderTuple (20, 1.0, debug, false))
                   @ [ sprintf "' transform='translate(%d,%d) scale(0.9, 0.9)'" x (i + 1)
                       "style='fill:none;stroke:#000000;stroke-width:0.1'/>"
                       "</g>"
@@ -115,12 +115,12 @@ let splineStaticPage () =
               printfn "spline %d" i
 
               let splineOf (spline: DSpline) x =
-                  let spline2Font = Font({ Axes.DefaultAxes with spline2 = true })
+                  // let spline2Font = Font({ Axes.DefaultAxes with spline2 = true })
 
                   [ sprintf "<g id='%d'>" i
                     let debug: bool = (i = 0)
                     sprintf "<path d='" ]
-                  @ fst (spline.solveAndRenderTuple (i * 3, false, false))
+                  @ fst (spline.solveAndRenderTuple (i * 3, 1.0, false, false))
                   @ [ sprintf "' transform='translate(%d,%d) scale(0.9, 0.9)'" x (i + 1)
                       "style='fill:none;stroke:#000000;stroke-width:0.05'/>"
                       "</g>"
@@ -193,6 +193,6 @@ let splineStaticPage () =
               yield! (font.charToSvg 'c' 6 i black) ]
 
 
-    [ sprintf "<text x='1' y='0.5' font-size='0.5' fill='black'>testing Dactyl Spline</text>" ]
+    [ sprintf "<text x='1' y='0.5' font-size='0.5' fill='black'>Dactyl Spline test</text>" ]
     @ single_curve_rotate_theta
     @ show_iterations

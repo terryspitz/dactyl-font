@@ -154,19 +154,41 @@ let averageAngles rth lth =
         (lth + rth) / 2.
 
 
-type Solver(ctrlPts: DControlPoint array, isClosed: bool, debug: bool) =
+let linear_regression xs ys =
+    if Array.length xs <> Array.length ys then
+        failwith "linear_regression: arrays must be of same length"
+
+    let n = float (Array.length xs)
+    let mean_x = (Array.sum xs) / n
+    let sum_y = Array.sum ys
+    let mean_y = sum_y / n
+    // best fit k_i = m * dist_i + c using https://en.wikipedia.org/wiki/Simple_linear_regression
+    let m =
+        (Array.sumBy (fun (x, y) -> (y - mean_y) * (x - mean_x)) (Array.zip xs ys))
+        / (Array.sumBy (fun x -> (x - mean_x) * (x - mean_x)) xs)
+
+    let c = (mean_y - m * mean_x)
+
+    let residuals =
+        (Array.zip ys xs
+         |> Array.sumBy (fun (k, d) -> let err = k - (m * d + c) in err * err))
+
+    m, c, residuals
+
+type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug: bool) =
     let _points: BezierPoint array = Array.init ctrlPts.Length (fun _ -> BezierPoint())
     member this.ctrlPts = ctrlPts
     member this.isClosed = isClosed
     member val startTh: float option = None with get, set
     member val endTh: float option = None with get, set
     member this.points() = _points
+    member this.flatness = flatness
     member this.debug = debug
 
     member this.initialise() =
         //initialise points
         if this.debug then
-            printfn "solver init"
+            printfn "solver init. Flatness: %f" this.flatness
             printfn "%A" ctrlPts
 
         // Initialisation of points
@@ -276,45 +298,30 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, debug: bool) =
                         let t0 = (-0.5 + float j) / (float STEPS)
                         let t1 = (float j) / (float STEPS)
                         let t2 = (0.5 + float j) / (float STEPS)
-                        (bez.curvature (t1), (bez.eval (t2) - bez.eval (t0)).norm ()) ]
+                        (10000. * bez.curvature t1, (bez.eval t2 - bez.eval t0).norm ()) ]
 
         let ks, segmentLengths = curveNorm |> List.toArray |> Array.unzip
-        let n = float (STEPS + 1)
 
         let cumm_dists, max_dist =
             Array.mapFold (fun sum dist -> let acc = sum + dist in (acc, acc)) 0. segmentLengths
 
-        let linear_regression xs ys =
-            let mean_x = (Array.sum xs) / n
-            let sum_y = Array.sum ys
-            let mean_y = sum_y / n
-            // best fit k_i = m * dist_i + c using https://en.wikipedia.org/wiki/Simple_linear_regression
-            let m =
-                (Array.sumBy (fun (x, y) -> (y - mean_y) * (x - mean_x)) (Array.zip xs ys))
-                / (Array.sumBy (fun x -> (x - mean_x) * (x - mean_x)) xs)
-
-            let c = (mean_y - m * mean_x)
-
-            let residuals =
-                (Array.zip ys xs
-                 |> Array.sumBy (fun (k, d) -> let err = k - (m * d + c) in err * err))
-
-            if this.debug then
-                printfn "ks %A\nsegmentLengths %A\ndists %A" ks segmentLengths cumm_dists
-                printfn "m=%f c=%f res=%f" m c residuals
-
-            m, c, residuals
-
         let m, c, residuals = linear_regression cumm_dists ks
-        errs <- errs + residuals + abs m + max_dist
-        // errs <- errs +  abs m //+ max_dist
+        errs <- errs + residuals + abs m * flatness //+ max_dist
+        // errs <- errs + flatness * abs m //+ max_dist
+
         if this.debug then
+            printfn
+                "ks %A\nsegmentLengths %A\ndists %A"
+                (Array.map int ks)
+                (Array.map int segmentLengths)
+                (Array.map int cumm_dists)
+
             printfn "m=%f c=%f res=%f max_dist=%f errs=%f" m c residuals max_dist errs
-        // add error term for mismatch between end of previous bezier and start of this
 
         if isClosed then
-            let err = ks.[ks.Length - 1] - ks.[0]
-            errs <- errs + err * err
+            // add error term for mismatch between end of previous bezier and start of this
+            let segmentErr = ks.[ks.Length - 1] - ks.[0]
+            errs <- errs + segmentErr * segmentErr
 
         assert not (isnan errs)
 
@@ -323,14 +330,14 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, debug: bool) =
 
         errs
 
-/// DSpline handles general sequence of lines & curves, including corners.
+// DSpline handles general sequence of lines & curves, including corners.
 type DSpline(ctrlPts, isClosed) =
     member this.ctrlPts: DControlPoint array = ctrlPts
     member this.isClosed = isClosed
 
 
 
-    member this.solveAndRenderTuple(maxIter, debug, showComb) =
+    member this.solveAndRenderTuple(maxIter, flatness, debug, showComb) =
         let length = ctrlPts.Length - if this.isClosed then 0 else 1
 
         // Implement LineToCurve and CurveToLine as Corners with fixed tangent theta
@@ -401,7 +408,7 @@ type DSpline(ctrlPts, isClosed) =
                                  break_ <- true ]
 
                 let solver =
-                    Solver(Array.ofList innerPts, this.isClosed && innerPts.Length - 1 = length, debug)
+                    Solver(Array.ofList innerPts, this.isClosed && innerPts.Length - 1 = length, flatness, debug)
 
                 solver.initialise ()
 
@@ -476,11 +483,11 @@ type DSpline(ctrlPts, isClosed) =
                     if showComb then
                         // Render curvature comb
                         let bez = CubicBez([| p1.x; p1.y; cp1x; cp1y; cp2x; cp2y; p2.x; p2.y |])
-                        let STEPS = 20
+                        let COMB_STEPS = 20
                         let SCALE = 2000.0 // Adjusted scale for visibility
 
-                        for s in 0..STEPS do
-                            let t = float s / float STEPS
+                        for s in 0..COMB_STEPS do
+                            let t = float s / float COMB_STEPS
                             let k = bez.curvature t
                             let pt = bez.eval t
                             let d = bez.deriv t

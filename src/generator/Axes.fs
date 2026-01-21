@@ -39,6 +39,7 @@ type Axes =
       joints: bool //check joints to turn off serifs
       smooth: bool //no corners
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
+      flatness: float //weight of flatness (abs m) in objective function
       debug: bool } //show debug info in console
 
     static member DefaultAxes =
@@ -71,6 +72,7 @@ type Axes =
           constraints = false
           smooth = false
           clip_rect = true
+          flatness = 1.0
           debug = false }
 
     static member controls =
@@ -103,4 +105,5 @@ type Axes =
           "joints", Checkbox, "default"
           "smooth", Checkbox, "default"
           "clip_rect", Checkbox, "experimental"
+          "flatness", FracRange(0.0, 200.0), "experimental"
           "debug", Checkbox, "experimental" ]
