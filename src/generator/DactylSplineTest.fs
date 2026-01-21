@@ -198,12 +198,10 @@ type TestClass() =
             )
 
         let svgFlat0 =
-            fst (spline.solveAndRenderTuple (max_iter, 0.0, false, false))
-            |> String.concat " "
+            fst (spline.solveAndRenderTuple (500, 0.0, false, false)) |> String.concat " "
 
         let svgFlat10 =
-            fst (spline.solveAndRenderTuple (max_iter, 10.0, false, false))
-            |> String.concat " "
+            fst (spline.solveAndRenderTuple (500, 10.0, false, false)) |> String.concat " "
 
         printfn "Flatness 0.0: %s" svgFlat0
         printfn "Flatness 10.0: %s" svgFlat10
