@@ -6,7 +6,7 @@ open Curves
 open DactylSpline
 
 let PI = System.Math.PI
-let max_iter = 5
+let max_iter = 500
 
 [<TestFixture>]
 type TestClass() =
@@ -18,7 +18,7 @@ type TestClass() =
         svg.Trim()
 
     [<Test>]
-    member this.CheckLines() =
+    member this.CheckLinesCornerCorner() =
         let spline =
             DSpline(
                 [| { ty = SplinePointType.Corner
@@ -36,6 +36,8 @@ type TestClass() =
         Assert.That(svg, Does.StartWith("M 0,0"))
         Assert.That(svg, Does.EndWith("1,0"))
 
+    [<Test>]
+    member this.CheckLinesCornerSmooth() =
         let spline =
             DSpline(
                 [| { ty = SplinePointType.Smooth
@@ -53,6 +55,8 @@ type TestClass() =
         Assert.That(svg, Does.StartWith("M 0,0"))
         Assert.That(svg, Does.EndWith("1,0"))
 
+    [<Test>]
+    member this.CheckLinesSmoothCorner() =
         let spline =
             DSpline(
                 [| { ty = SplinePointType.Corner
@@ -70,6 +74,8 @@ type TestClass() =
         Assert.That(svg, Does.StartWith("M 0,0"))
         Assert.That(svg, Does.EndWith("1,0"))
 
+    [<Test>]
+    member this.CheckLinesSmoothSmooth() =
         let spline =
             DSpline(
                 [| { ty = SplinePointType.Smooth
@@ -198,10 +204,10 @@ type TestClass() =
             )
 
         let svgFlat0 =
-            fst (spline.solveAndRenderTuple (500, 0.0, false, false)) |> String.concat " "
+            fst (spline.solveAndRenderTuple (5000, 0.0, false, false)) |> String.concat " "
 
         let svgFlat10 =
-            fst (spline.solveAndRenderTuple (500, 10.0, false, false)) |> String.concat " "
+            fst (spline.solveAndRenderTuple (5000, 10.0, false, false)) |> String.concat " "
 
         printfn "Flatness 0.0: %s" svgFlat0
         printfn "Flatness 10.0: %s" svgFlat10
@@ -263,3 +269,126 @@ type LinearRegressionTests() =
         // Let's just check it doesn't crash unpredictably.
         // float 0.0 / float 0.0 is NaN
         Assert.That(Double.IsNaN(m), Is.True, "Slope should be NaN for single point")
+
+[<TestFixture>]
+type SolverTests() =
+    [<Test>]
+    member this.StraightLineZeroError() =
+        let ctrlPts =
+            [| { ty = SplinePointType.Smooth
+                 x = Some 0.
+                 y = Some 0.
+                 th = None }
+               { ty = SplinePointType.Smooth
+                 x = Some 1.
+                 y = Some 0.
+                 th = None }
+               { ty = SplinePointType.Smooth
+                 x = Some 2.
+                 y = Some 0.
+                 th = None } |]
+
+        let solver = Solver(ctrlPts, false, 1.0, false)
+        solver.initialise ()
+        let err = solver.computeErr ()
+        Assert.That(err, Is.EqualTo(0.0).Within(1e-9))
+
+    [<Test>]
+    member this.CurvedLineNonZeroError() =
+        let ctrlPts =
+            [| { ty = SplinePointType.Smooth
+                 x = Some 0.
+                 y = Some 0.
+                 th = None }
+               { ty = SplinePointType.Smooth
+                 x = Some 1.
+                 y = Some 1.
+                 th = None }
+               { ty = SplinePointType.Smooth
+                 x = Some 2.
+                 y = Some 0.
+                 th = None } |]
+
+        let solver = Solver(ctrlPts, false, 1.0, false)
+        solver.initialise ()
+        let err = solver.computeErr ()
+        Assert.That(err, Is.GreaterThan(0.0))
+
+[<TestFixture>]
+type VariablePointTests() =
+    [<Test>]
+    member this.VariableY_Collinear() =
+        // 0,0 - 1,? - 2,0
+        // Expect y to be 0 for perfect line
+        let ctrlPts: DControlPoint array =
+            [| { ty = SplinePointType.Smooth
+                 x = Some 0.
+                 y = Some 0.
+                 th = None }
+               { ty = SplinePointType.Smooth
+                 x = Some 1.
+                 y = None
+                 th = None }
+               { ty = SplinePointType.Smooth
+                 x = Some 2.
+                 y = Some 0.
+                 th = None } |]
+
+        let solver = Solver(ctrlPts, false, 0.0, false)
+        solver.initialise ()
+
+        let initialPts = solver.points ()
+        Assert.That(initialPts.[1].y, Is.Not.NaN, "Initial y should not be NaN")
+
+        solver.Solve(5000)
+        let pts = solver.points ()
+        Assert.That(pts.[1].y, Is.EqualTo(0.0).Within(1e-4))
+
+    [<Test>]
+    member this.VariableX_Symmetric() =
+        // 0,0 - ?,1 - 2,0
+        // Expect x to be 1 due to symmetry
+        let ctrlPts: DControlPoint array =
+            [| { ty = SplinePointType.Smooth
+                 x = Some 0.
+                 y = Some 0.
+                 th = None }
+               { ty = SplinePointType.Smooth
+                 x = None
+                 y = Some 1.
+                 th = None }
+               { ty = SplinePointType.Smooth
+                 x = Some 2.
+                 y = Some 0.
+                 th = None } |]
+
+        let solver = Solver(ctrlPts, false, 0.0, false)
+        solver.initialise ()
+        solver.Solve(5000)
+        let pts = solver.points ()
+        Assert.That(pts.[1].x, Is.EqualTo(1.0).Within(0.05))
+
+    [<Test>]
+    member this.VariableXY_Collinear() =
+        // 0,0 - ?,? - 2,0
+        // Initialized to midpoint (1,0). Since that's optimal (0 error), it should stay there.
+        let ctrlPts: DControlPoint array =
+            [| { ty = SplinePointType.Smooth
+                 x = Some 0.
+                 y = Some 0.
+                 th = None }
+               { ty = SplinePointType.Smooth
+                 x = None
+                 y = None
+                 th = None }
+               { ty = SplinePointType.Smooth
+                 x = Some 2.
+                 y = Some 0.
+                 th = None } |]
+
+        let solver = Solver(ctrlPts, false, 0.0, false)
+        solver.initialise ()
+        solver.Solve(5000)
+        let pts = solver.points ()
+        Assert.That(pts.[1].x, Is.EqualTo(1.0).Within(1e-4))
+        Assert.That(pts.[1].y, Is.EqualTo(0.0).Within(1e-4))

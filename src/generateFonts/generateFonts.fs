@@ -25,8 +25,14 @@ let main argv =
 
     let runUnitTest = false
     if runUnitTest then
-        printfn "Test:CheckLines"
-        DactylSplineTest.TestClass().CheckLines()
+        printfn "Test:CheckLinesCornerCorner"
+        DactylSplineTest.TestClass().CheckLinesCornerCorner()
+        printfn "Test:CheckLinesCornerSmooth"
+        DactylSplineTest.TestClass().CheckLinesCornerSmooth()
+        printfn "Test:CheckLinesSmoothCorner"
+        DactylSplineTest.TestClass().CheckLinesSmoothCorner()
+        printfn "Test:CheckLinesSmoothSmooth"
+        DactylSplineTest.TestClass().CheckLinesSmoothSmooth()
         printfn "Test:CheckTwoPointCurvesWithAlignedTangents"
         DactylSplineTest.TestClass().CheckTwoPointCurvesWithAlignedTangents()
         printfn "Test:CheckTwoPointCurvesWithOtherTangents"

@@ -16,8 +16,8 @@
         },
         {
             "label": "build Debug",
-            "command": "dotnet",
             "type": "shell",
+            "command": "dotnet",
             "args": [
                 "build",
                 "/property:GenerateFullPaths=true",
@@ -31,8 +31,8 @@
         },
         {
             "label": "build Release",
-            "command": "dotnet",
             "type": "shell",
+            "command": "dotnet",
             "args": [
                 "build",
                 "/property:GenerateFullPaths=true",
@@ -47,8 +47,8 @@
         },
         {
             "label": "run",
-            "command": "dotnet",
             "type": "shell",
+            "command": "dotnet",
             "args": [
                 "run",
                 "/property:GenerateFullPaths=true",
@@ -62,8 +62,8 @@
         },
         {
             "label": "run spiro tests",
-            "command": "dotnet",
             "type": "shell",
+            "command": "dotnet",
             "args": [
                 "test",
                 "./SpiroFsTest/SpiroFsTest.fsproj",
@@ -78,11 +78,30 @@
         },
         {
             "label": "run generator tests",
-            "command": "dotnet",
             "type": "shell",
+            "command": "dotnet",
             "args": [
                 "test",
                 "./src/generator/generator.fsproj",
+                "/property:GenerateFullPaths=true",
+                "/consoleloggerparameters:NoSummary",
+            ],
+            "group": "build",
+            "presentation": {
+                // "reveal": "silent"
+            },
+            "problemMatcher": "$msCompile",
+            // "options": {"env": {"VSTEST_HOST_DEBUG": "1"} }
+        },
+        {
+            "label": "run dactylspline tests",
+            "type": "shell",
+            "command": "dotnet",
+            "args": [
+                "test",
+                "./src/generator/generator.fsproj",
+                "--filter",
+                "FullyQualifiedName~DactylSplineTest",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary",
             ],

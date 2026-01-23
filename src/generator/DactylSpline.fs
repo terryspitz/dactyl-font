@@ -27,6 +27,7 @@
 
 module DactylSpline
 
+open System
 //reuse spline-research Vec2, SplinePointType, SplineControlPoint, CubicBez
 open Curves
 open BezPath
@@ -214,7 +215,14 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             | Some y ->
                 point.y <- y
                 point.fit_y <- false
-            | None -> ()
+            | None ->
+                point.y <-
+                    if i = 0 then
+                        ctrlPts.[i + 1].y.Value
+                    elif i = ctrlPts.Length - 1 then
+                        ctrlPts.[i - 1].y.Value
+                    else
+                        (ctrlPts.[i - 1].y.Value + ctrlPts.[i + 1].y.Value) / 2.
 
         // Initialise tangent angle/distance
         for i in 0 .. ctrlPts.Length - 1 do
@@ -306,7 +314,18 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             Array.mapFold (fun sum dist -> let acc = sum + dist in (acc, acc)) 0. segmentLengths
 
         let m, c, residuals = linear_regression cumm_dists ks
-        errs <- errs + residuals + abs m * flatness //+ max_dist
+
+        if
+            Double.IsNaN m
+            || Double.IsNaN c
+            || Double.IsNaN residuals
+            || Double.IsInfinity m
+            || Double.IsInfinity c
+            || Double.IsInfinity residuals
+        then
+            errs <- 1e9 // Large penalty for invalid configuration
+        else
+            errs <- errs + residuals + abs m * flatness //+ max_dist
         // errs <- errs + flatness * abs m //+ max_dist
 
         if this.debug then
@@ -325,10 +344,71 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
 
         assert not (isnan errs)
 
-        if this.debug then
-            printfn "errs=%f" errs
+        if Double.IsNaN errs || Double.IsInfinity errs then
+            if this.debug then
+                printfn "computeErr returning NaN/Inf, replaced with penalty"
 
-        errs
+            1e12
+        else
+            errs
+
+    member this.Solve(maxIter) =
+        if maxIter > 0 then
+            let mapping = ResizeArray()
+            let initial: ResizeArray<float> = ResizeArray()
+
+            for i in 0 .. _points.Length - 1 do
+                for j in 0 .. BEZIER_ARGS - 1 do
+                    if _points.[i].fit.[j] then
+                        mapping.Add((i, j))
+                        initial.Add(_points.[i].arr.[j])
+#if FABLE_COMPILER
+            let objectiveFunction (x: float[]) =
+                for i in 0 .. x.Length - 1 do
+                    let (index1, index2) = mapping.[i]
+                    _points.[index1].arr.[index2] <- x[i]
+
+                if isClosed then
+                    _points.[_points.Length - 1].th <- _points.[0].th
+
+                this.computeErr ()
+
+            let param = createObj [ "maxIterations" ==> maxIter ]
+            let best = nelderMead objectiveFunction (Array.ofSeq initial) param
+
+            for i in 0 .. best.Length - 1 do
+                let (index1, index2) = mapping.[i]
+                _points.[index1].arr.[index2] <- best[i]
+#else
+            let minimiser: Optimization.NelderMeadSimplex =
+                Optimization.NelderMeadSimplex(1e-5, maxIter)
+
+            let objectiveFunction (x: Vector<float>) =
+                assert (x.Count = mapping.Count)
+
+                for i in 0 .. x.Count - 1 do
+                    let (index1, index2) = mapping.[i]
+                    _points.[index1].arr.[index2] <- x[i]
+
+                this.computeErr ()
+
+            let objModel = Optimization.ObjectiveFunction.Value(objectiveFunction)
+
+            let best = minimiser.FindMinimum(objModel, DenseVector.ofArray (initial.ToArray()))
+
+            let resultVec =
+                if best.MinimizingPoint |> Seq.exists Double.IsNaN then
+                    if this.debug then
+                        printfn "Optimization returned NaNs! Falling back to initial."
+
+                    DenseVector.ofArray (initial.ToArray())
+                else
+                    best.MinimizingPoint
+
+            for i in 0 .. resultVec.Count - 1 do
+                let (index1, index2) = mapping.[i]
+                _points.[index1].arr.[index2] <- resultVec.[i]
+#endif
 
 // DSpline handles general sequence of lines & curves, including corners.
 type DSpline(ctrlPts, isClosed) =
@@ -411,66 +491,8 @@ type DSpline(ctrlPts, isClosed) =
                     Solver(Array.ofList innerPts, this.isClosed && innerPts.Length - 1 = length, flatness, debug)
 
                 solver.initialise ()
+                solver.Solve(maxIter)
 
-                if maxIter > 0 then
-                    let mapping = ResizeArray()
-                    let initial: ResizeArray<float> = ResizeArray()
-
-                    for i in 0 .. solver.points().Length - 1 do
-                        for j in 0 .. BEZIER_ARGS - 1 do
-                            if solver.points().[i].fit.[j] then
-                                mapping.Add((i, j))
-                                initial.Add(solver.points().[i].arr.[j])
-#if FABLE_COMPILER
-                    let objectiveFunction (x: float[]) =
-                        for i in 0 .. x.Length - 1 do
-                            let (index1, index2) = mapping.[i]
-                            solver.points().[index1].arr.[index2] <- x[i]
-
-                        if isClosed then
-                            solver.points().[solver.points().Length - 1].th <- solver.points().[0].th
-
-                        solver.computeErr ()
-
-                    let param = createObj [ "maxIterations" ==> maxIter ]
-                    let best = nelderMead objectiveFunction (Array.ofSeq initial) param
-
-                    for i in 0 .. best.Length - 1 do
-                        let (index1, index2) = mapping.[i]
-                        solver.points().[index1].arr.[index2] <- best[i]
-#else
-                    let minimiser =
-                        Optimization.LevenbergMarquardtMinimizer(maximumIterations = maxIter)
-
-                    /// Adjust params to minimise least squares error for x and y, which we'll just set to 0, 0
-                    let objectiveFunction (param: Vector<float>) (x: Vector<float>) =
-                        assert (param.Count = mapping.Count)
-
-                        for i in 0 .. param.Count - 1 do
-                            let (index1, index2) = mapping.[i]
-                            solver.points().[index1].arr.[index2] <- param[i]
-
-                        DenseVector.ofArray [| solver.computeErr () |]
-
-                    let objModel =
-                        Optimization.ObjectiveFunction.NonlinearModel(
-                            objectiveFunction,
-                            DenseVector.ofArray [| 0. |],
-                            DenseVector.ofArray [| 0. |]
-                        )
-
-                    let best =
-                        minimiser.FindMinimum(
-                            objModel,
-                            DenseVector.ofArray (initial.ToArray())
-                        // DenseVector.ofArray (lowerBound.ToArray()),
-                        // DenseVector.ofArray (upperBound.ToArray())
-                        )
-
-                    for i in 0 .. best.MinimizingPoint.Count - 1 do
-                        let (index1, index2) = mapping.[i]
-                        solver.points().[index1].arr.[index2] <- best.MinimizingPoint[i]
-#endif
                 let bezPts = solver.points ()
 
                 for k in 0 .. bezPts.Length - 2 do
