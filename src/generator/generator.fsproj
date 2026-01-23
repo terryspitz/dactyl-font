@@ -4,6 +4,7 @@
     <OtherFlags>
       --define:FABLE_COMPILER_XX
     </OtherFlags>
+    <IsTestProject>true</IsTestProject>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\SpiroFs\SpiroFs.fsproj">
@@ -31,7 +32,7 @@
   <ItemGroup Condition="'$(Configuration)' != 'Release'">
     <PackageReference Include="Fable.Core" Version="4.3.0" />
     <PackageReference Include="NUnit" Version="4.3.2" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.8.3" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
   </ItemGroup>
   <ItemGroup>

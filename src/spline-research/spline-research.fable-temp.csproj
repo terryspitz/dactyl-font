@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--This is a temporary file used by Fable to restore dependencies.
+If you see this file in your project, you can delete it safely-->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>spline_research</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="bezpath.fs" />
+    <Compile Include="curves.fs" />
+    <Compile Include="curves_test.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="NUnit" Version="4.3.2" />
+    <!-- <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.8.3"/> -->
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+  </ItemGroup>
+</Project>
