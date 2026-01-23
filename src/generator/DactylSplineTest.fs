@@ -207,7 +207,8 @@ type TestClass() =
             fst (spline.solveAndRenderTuple (5000, 0.0, false, false)) |> String.concat " "
 
         let svgFlat10 =
-            fst (spline.solveAndRenderTuple (5000, 10.0, false, false)) |> String.concat " "
+            fst (spline.solveAndRenderTuple (5000, 1000.0, false, false))
+            |> String.concat " "
 
         printfn "Flatness 0.0: %s" svgFlat0
         printfn "Flatness 10.0: %s" svgFlat10
