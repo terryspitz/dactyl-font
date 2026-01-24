@@ -64,7 +64,7 @@ type Axes =
           outline = true
           stroked = false
           scratches = false
-          max_spline_iter = 10
+          max_spline_iter = 100
           show_knots = false
           show_tangents = false
           show_comb = false
@@ -98,7 +98,7 @@ type Axes =
           "outline", Checkbox, "default"
           "stroked", Checkbox, "default"
           "scratches", Checkbox, "default"
-          "max_spline_iter", Range(0, 40), "experimental"
+          "max_spline_iter", Range(0, 200), "experimental"
           "show_knots", Checkbox, "experimental"
           "show_tangents", Checkbox, "experimental"
           "show_comb", Checkbox, "experimental"
