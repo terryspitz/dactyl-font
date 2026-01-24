@@ -393,3 +393,74 @@ type VariablePointTests() =
         let pts = solver.points ()
         Assert.That(pts.[1].x, Is.EqualTo(1.0).Within(1e-4))
         Assert.That(pts.[1].y, Is.EqualTo(0.0).Within(1e-4))
+
+[<TestFixture>]
+type AdvancedGeometricTests() =
+    let PI = System.Math.PI
+
+    [<Test>]
+    member this.QuarterCircle() =
+        // 3 points on unit circle: 0, 45, 90 degrees
+        // (1,0), (0.7071, 0.7071), (0,1)
+        let s45 = sin (PI / 4.0) // 0.7071...
+
+        let ctrlPts =
+            [| { ty = SplinePointType.Smooth
+                 x = Some 1.0
+                 y = Some 0.0
+                 th = Some(PI / 2.0) } // Tangent up
+               { ty = SplinePointType.Smooth
+                 x = Some s45
+                 y = Some s45
+                 th = None }
+               { ty = SplinePointType.Smooth
+                 x = Some 0.0
+                 y = Some 1.0
+                 th = Some(PI) } |] // Tangent left
+
+        let solver = Solver(ctrlPts, false, 0.0, false)
+        solver.initialise ()
+        solver.Solve(5000)
+
+        let err = solver.computeErr ()
+        // Error is sum of squared residuals of curvature * 10000.
+        // 500 ~ 0.05% deviation.
+        Assert.That(err, Is.LessThan(1000.0), "Error too high for quarter circle")
+
+        let pts = solver.points ()
+        // Tangent is stored in pts.[1].th (BezierPoint.th is float, not option)
+        let th = pts.[1].th
+        // 135 degrees is 3*PI/4 = 2.35619...
+        Assert.That(th, Is.EqualTo(3.0 * PI / 4.0).Within(0.1))
+
+    [<Test>]
+    member this.InflectionSCurve() =
+        // (-1, -1) -> (0,0) -> (1,1)
+        // Tangents equal at ends (0.0 horizontal)
+        let ctrlPts =
+            [| { ty = SplinePointType.Smooth
+                 x = Some -1.0
+                 y = Some -1.0
+                 th = Some 0.0 }
+               { ty = SplinePointType.Smooth
+                 x = Some 0.0
+                 y = Some 0.0
+                 th = None }
+               { ty = SplinePointType.Smooth
+                 x = Some 1.0
+                 y = Some 1.0
+                 th = Some 0.0 } |]
+
+        let solver = Solver(ctrlPts, false, 0.0, false)
+        solver.initialise ()
+        solver.Solve(5000)
+
+        let err = solver.computeErr ()
+        // S-curve fitting with Beziers is harder, expect higher residual on curvature linearity
+        Assert.That(err, Is.LessThan(2.0e7), "Error too high for S-curve")
+
+        let pts = solver.points ()
+        let th = pts.[1].th
+        Assert.That(th, Is.GreaterThan(0.0))
+        // Should be steep but not vertical?
+        Assert.That(th, Is.LessThan(PI / 2.0))

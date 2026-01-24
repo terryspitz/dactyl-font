@@ -30,7 +30,6 @@
             "name": "Launch generator tests",
             "type": "coreclr",
             "request": "launch",
-            "preLaunchTask": "build Debug",
             "program": "dotnet",
             "args": [
                 "test",

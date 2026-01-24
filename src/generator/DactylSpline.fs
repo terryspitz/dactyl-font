@@ -147,6 +147,12 @@ type BezierPoint() =
             this.rd
 
 
+// normalise angle to between PI and -PI
+let norm th =
+    if th > PI then th - PI * 2.0
+    else if th < (-PI) then th + PI * 2.0
+    else th
+
 let averageAngles rth lth =
     if abs (rth - lth) > PI then
         // if angle is more than 180 degrees, take the shorter path
@@ -245,6 +251,11 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                             dpl <- _points.[_points.Length - 1].vec - _points.[_points.Length - 2].vec
                             let lth = dpl.atan2 ()
                             averageAngles rth lth
+                        elif ctrlPts.Length > 2 then
+                            // Extrapolate tangent from first two segments
+                            let dpr2 = _points.[2].vec - _points.[1].vec
+                            let rth2 = dpr2.atan2 ()
+                            norm (rth - 0.5 * norm (rth2 - rth))
                         else
                             rth
                     elif i = ctrlPts.Length - 1 then
@@ -252,6 +263,10 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                             dpr <- _points.[1].vec - _points.[0].vec
                             let rth = dpr.atan2 ()
                             averageAngles rth lth
+                        elif ctrlPts.Length > 2 then
+                            let dpl2 = _points.[i - 1].vec - _points.[i - 2].vec
+                            let lth2 = dpl2.atan2 ()
+                            norm (lth + 0.5 * norm (lth - lth2))
                         else
                             lth
                     else

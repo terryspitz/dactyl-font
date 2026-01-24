@@ -46,11 +46,13 @@
             "problemMatcher": "$msCompile"
         },
         {
-            "label": "run",
+            "label": "run generateFonts",
             "type": "shell",
             "command": "dotnet",
             "args": [
                 "run",
+                "--project",
+                "src/generateFonts",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary",
             ],
@@ -94,7 +96,7 @@
             // "options": {"env": {"VSTEST_HOST_DEBUG": "1"} }
         },
         {
-            "label": "run dactylspline tests",
+            "label": "run generator dactylspline tests",
             "type": "shell",
             "command": "dotnet",
             "args": [
