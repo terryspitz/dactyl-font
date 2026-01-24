@@ -437,18 +437,26 @@ type DSpline(ctrlPts, isClosed) =
 
         // Implement LineToCurve and CurveToLine as Corners with fixed tangent theta
         // determined from the Line
-        // for i in 0..length do
-        //     let ptI = ctrlPts.[i % ctrlPts.Length]
-        //     if ptI.ty = SplinePointType.LineToCurve || ptI.ty = SplinePointType.CurveToLine then
-        //         assert (ptI.th.IsNone)
-        //         let ptJ, dp =
-        //             if ptI.ty = SplinePointType.LineToCurve then
-        //                 (ctrlPts.[i-1]), ptI - (ctrlPts.[i-1])
-        //             else
-        //                 ctrlPts.[(i+1) % ctrlPts.Length], ctrlPts.[(i+1) % ctrlPts.Length] - ptI
-        //         let th = atan2 dp.y dp.x
-        //         ptI.th <- Some th
-        //         ptJ.th <- Some th
+        for i in 0 .. ctrlPts.Length - 1 do
+            let ptI = ctrlPts.[i]
+
+            if ptI.ty = SplinePointType.LineToCurve then
+                // Line comes from previous point.
+                if this.isClosed || i > 0 then
+                    let prevIdx = if i = 0 then ctrlPts.Length - 1 else i - 1
+                    let ptPrev = ctrlPts.[prevIdx]
+                    let dp = ptI - ptPrev
+                    let th = atan2 dp.y dp.x
+                    ptI.th <- Some th
+
+            if ptI.ty = SplinePointType.CurveToLine then
+                // Line goes to next point
+                if this.isClosed || i < ctrlPts.Length - 1 then
+                    let nextIdx = (i + 1) % ctrlPts.Length
+                    let ptNext = ctrlPts.[nextIdx]
+                    let dp = ptNext - ptI
+                    let th = atan2 dp.y dp.x
+                    ptI.th <- Some th
 
         // First point
         let path = BezPath()
@@ -480,8 +488,8 @@ type DSpline(ctrlPts, isClosed) =
                  && ptI1.ty = SplinePointType.Corner
                  && ptI.th.IsNone
                  && ptI1.th.IsNone)
-            // || ptI.ty = SplinePointType.CurveToLine
-            // || ptI1.ty = SplinePointType.LineToCurve
+                || ptI.ty = SplinePointType.CurveToLine
+                || ptI1.ty = SplinePointType.LineToCurve
             then
                 path.lineto (ptI1.x.Value, ptI1.y.Value)
                 i <- i + 1
@@ -499,7 +507,11 @@ type DSpline(ctrlPts, isClosed) =
                              yield (ptJ)
                              j <- j + 1
 
-                             if ptJ.ty = SplinePointType.Corner then
+                             if
+                                 ptJ.ty = SplinePointType.Corner
+                                 || ptJ.ty = SplinePointType.CurveToLine
+                                 || ptJ.ty = SplinePointType.LineToCurve
+                             then
                                  break_ <- true ]
 
                 let solver =

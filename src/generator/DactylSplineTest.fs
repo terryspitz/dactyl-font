@@ -464,3 +464,54 @@ type AdvancedGeometricTests() =
         Assert.That(th, Is.GreaterThan(0.0))
         // Should be steep but not vertical?
         Assert.That(th, Is.LessThan(PI / 2.0))
+
+[<TestFixture>]
+type LineToCurveTests() =
+    let solve_and_print_spline (spline: DSpline) =
+        let svg = fst (spline.solveAndRenderTuple (max_iter, 1.0, false, false))
+        let svg = (String.Join(" ", svg))
+        printfn "%A" svg
+        svg.Trim()
+
+    [<Test>]
+    member this.LineToCurve_FirstSegmentShouldBeLine() =
+        let ctrlPts =
+            [| { ty = SplinePointType.Corner
+                 x = Some 0.
+                 y = Some 0.
+                 th = None }
+               { ty = SplinePointType.LineToCurve
+                 x = Some 1.
+                 y = Some 0.
+                 th = None }
+               { ty = SplinePointType.Corner
+                 x = Some 2.
+                 y = Some 1.
+                 th = None } |]
+
+        let spline = DSpline(ctrlPts, false)
+        let svg = solve_and_print_spline spline
+        // Expected: M 0,0 L 1,0 C ...
+        // We look for "L 1,0" or similar float representation
+        Assert.That(svg, Does.Match("M 0,0.*L 1,0.*C"), "First segment should be a line")
+
+    [<Test>]
+    member this.CurveToLine_SecondSegmentShouldBeLine() =
+        let ctrlPts =
+            [| { ty = SplinePointType.Corner
+                 x = Some 0.
+                 y = Some 0.
+                 th = None }
+               { ty = SplinePointType.CurveToLine
+                 x = Some 1.
+                 y = Some 1.
+                 th = None }
+               { ty = SplinePointType.Corner
+                 x = Some 2.
+                 y = Some 1.
+                 th = None } |]
+
+        let spline = DSpline(ctrlPts, false)
+        let svg = solve_and_print_spline spline
+        // Expected: M 0,0 C ... L 2,1
+        Assert.That(svg, Does.Match("M 0,0.*C.*L 2,1"), "Second segment should be a line")
