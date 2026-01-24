@@ -17,8 +17,7 @@ let splineToSpiroPointType ty =
     | _ -> SpiroPointType.Corner
 
 let SPLINE2SCALE = 10.
-
-let dcp ty x y th = { ty = ty; x = Some x; y = Some y; th = th }
+let dcp = DactylSpline.dcp
 
 let spline2PtsToSvg (spline2Font: Font) ctrlPts =
     let spline2CtrlPts =

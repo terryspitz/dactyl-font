@@ -57,6 +57,7 @@ type DControlPoint =
     static member (-)(lhs, rhs) =
         { x = lhs.x.Value - rhs.x.Value
           y = lhs.y.Value - rhs.y.Value }
+let dcp ty x y th = { ty = ty; x = Some x; y = Some y; th = th }
 
 
 // type ControlPointOut(ty, x, y, lth, rth) =

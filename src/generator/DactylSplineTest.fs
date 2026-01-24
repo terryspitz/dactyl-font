@@ -7,6 +7,7 @@ open DactylSpline
 
 let PI = System.Math.PI
 let max_iter = 500
+let dcp = DactylSpline.dcp
 
 [<TestFixture>]
 type TestClass() =
@@ -21,14 +22,8 @@ type TestClass() =
     member this.CheckLinesCornerCorner() =
         let spline =
             DSpline(
-                [| { ty = SplinePointType.Corner
-                     x = Some 0.
-                     y = Some 0.
-                     th = None }
-                   { ty = SplinePointType.Corner
-                     x = Some 1.
-                     y = Some 0.
-                     th = None } |],
+                [| dcp SplinePointType.Corner 0. 0. None
+                   dcp SplinePointType.Corner 1. 0. None |],
                 false
             )
 
@@ -40,14 +35,8 @@ type TestClass() =
     member this.CheckLinesCornerSmooth() =
         let spline =
             DSpline(
-                [| { ty = SplinePointType.Smooth
-                     x = Some 0.
-                     y = Some 0.
-                     th = None }
-                   { ty = SplinePointType.Corner
-                     x = Some 1.
-                     y = Some 0.
-                     th = None } |],
+                [| dcp SplinePointType.Smooth 0. 0. None
+                   dcp SplinePointType.Corner 1. 0. None |],
                 false
             )
 
@@ -59,14 +48,8 @@ type TestClass() =
     member this.CheckLinesSmoothCorner() =
         let spline =
             DSpline(
-                [| { ty = SplinePointType.Corner
-                     x = Some 0.
-                     y = Some 0.
-                     th = None }
-                   { ty = SplinePointType.Smooth
-                     x = Some 1.
-                     y = Some 0.
-                     th = None } |],
+                [| dcp SplinePointType.Corner 0. 0. None
+                   dcp SplinePointType.Smooth 1. 0. None |],
                 false
             )
 
@@ -78,14 +61,8 @@ type TestClass() =
     member this.CheckLinesSmoothSmooth() =
         let spline =
             DSpline(
-                [| { ty = SplinePointType.Smooth
-                     x = Some 0.
-                     y = Some 0.
-                     th = None }
-                   { ty = SplinePointType.Smooth
-                     x = Some 1.
-                     y = Some 0.
-                     th = None } |],
+                [| dcp SplinePointType.Smooth 0. 0. None
+                   dcp SplinePointType.Smooth 1. 0. None |],
                 false
             )
 
@@ -99,14 +76,8 @@ type TestClass() =
 
         let spline =
             DSpline(
-                [| { ty = SplinePointType.Corner
-                     x = Some 0.
-                     y = Some 0.
-                     th = Some 0. }
-                   { ty = SplinePointType.Corner
-                     x = Some 1.
-                     y = Some 0.
-                     th = None } |],
+                [| dcp SplinePointType.Corner 0. 0. (Some 0.)
+                   dcp SplinePointType.Corner 1. 0. None |],
                 false
             )
 
@@ -116,14 +87,8 @@ type TestClass() =
 
         let spline =
             DSpline(
-                [| { ty = SplinePointType.Corner
-                     x = Some 0.
-                     y = Some 0.
-                     th = None }
-                   { ty = SplinePointType.Corner
-                     x = Some 1.
-                     y = Some 0.
-                     th = Some(-PI) } |],
+                [| dcp SplinePointType.Corner 0. 0. None
+                   dcp SplinePointType.Corner 1. 0. (Some(-PI)) |],
                 false
             )
 
@@ -133,14 +98,8 @@ type TestClass() =
 
         let spline =
             DSpline(
-                [| { ty = SplinePointType.Corner
-                     x = Some 0.
-                     y = Some 0.
-                     th = Some 0. }
-                   { ty = SplinePointType.Corner
-                     x = Some 1.
-                     y = Some 0.
-                     th = Some(-PI) } |],
+                [| dcp SplinePointType.Corner 0. 0. (Some 0.)
+                   dcp SplinePointType.Corner 1. 0. (Some(-PI)) |],
                 false
             )
 
@@ -152,14 +111,8 @@ type TestClass() =
     member this.CheckTwoPointCurvesWithOtherTangents() =
         let spline =
             DSpline(
-                [| { ty = SplinePointType.Corner
-                     x = Some 0.
-                     y = Some 0.
-                     th = Some(PI / 2.) }
-                   { ty = SplinePointType.Corner
-                     x = Some 1.
-                     y = Some 0.
-                     th = Some(PI) } |],
+                [| dcp SplinePointType.Corner 0. 0. (Some(PI / 2.))
+                   dcp SplinePointType.Corner 1. 0. (Some(PI)) |],
                 false
             )
 
@@ -169,14 +122,8 @@ type TestClass() =
 
         let spline =
             DSpline(
-                [| { ty = SplinePointType.Corner
-                     x = Some 0.
-                     y = Some 0.
-                     th = Some(PI / 2.) }
-                   { ty = SplinePointType.Corner
-                     x = Some 1.
-                     y = Some 0.
-                     th = Some(PI / 2.) } |],
+                [| dcp SplinePointType.Corner 0. 0. (Some(PI / 2.))
+                   dcp SplinePointType.Corner 1. 0. (Some(PI / 2.)) |],
                 false
             )
 
@@ -188,18 +135,9 @@ type TestClass() =
     member this.CheckFlatnessParam() =
         let spline =
             DSpline(
-                [| { ty = SplinePointType.Corner
-                     x = Some 0.
-                     y = Some 0.
-                     th = None }
-                   { ty = SplinePointType.Smooth
-                     x = Some 0.5
-                     y = Some 1.0
-                     th = None }
-                   { ty = SplinePointType.Corner
-                     x = Some 1.
-                     y = Some 0.
-                     th = None } |],
+                [| dcp SplinePointType.Corner 0. 0. None
+                   dcp SplinePointType.Smooth 0.5 1.0 None
+                   dcp SplinePointType.Corner 1. 0. None |],
                 false
             )
 
@@ -276,18 +214,9 @@ type SolverTests() =
     [<Test>]
     member this.StraightLineZeroError() =
         let ctrlPts =
-            [| { ty = SplinePointType.Smooth
-                 x = Some 0.
-                 y = Some 0.
-                 th = None }
-               { ty = SplinePointType.Smooth
-                 x = Some 1.
-                 y = Some 0.
-                 th = None }
-               { ty = SplinePointType.Smooth
-                 x = Some 2.
-                 y = Some 0.
-                 th = None } |]
+            [| dcp SplinePointType.Smooth 0. 0. None
+               dcp SplinePointType.Smooth 1. 0. None
+               dcp SplinePointType.Smooth 2. 0. None |]
 
         let solver = Solver(ctrlPts, false, 1.0, false)
         solver.initialise ()
@@ -297,18 +226,9 @@ type SolverTests() =
     [<Test>]
     member this.CurvedLineNonZeroError() =
         let ctrlPts =
-            [| { ty = SplinePointType.Smooth
-                 x = Some 0.
-                 y = Some 0.
-                 th = None }
-               { ty = SplinePointType.Smooth
-                 x = Some 1.
-                 y = Some 1.
-                 th = None }
-               { ty = SplinePointType.Smooth
-                 x = Some 2.
-                 y = Some 0.
-                 th = None } |]
+            [| dcp SplinePointType.Smooth 0. 0. None
+               dcp SplinePointType.Smooth 1. 1. None
+               dcp SplinePointType.Smooth 2. 0. None |]
 
         let solver = Solver(ctrlPts, false, 1.0, false)
         solver.initialise ()
@@ -322,18 +242,12 @@ type VariablePointTests() =
         // 0,0 - 1,? - 2,0
         // Expect y to be 0 for perfect line
         let ctrlPts: DControlPoint array =
-            [| { ty = SplinePointType.Smooth
-                 x = Some 0.
-                 y = Some 0.
-                 th = None }
+            [| dcp SplinePointType.Smooth 0. 0. None
                { ty = SplinePointType.Smooth
                  x = Some 1.
                  y = None
                  th = None }
-               { ty = SplinePointType.Smooth
-                 x = Some 2.
-                 y = Some 0.
-                 th = None } |]
+               dcp SplinePointType.Smooth 2. 0. None |]
 
         let solver = Solver(ctrlPts, false, 0.0, false)
         solver.initialise ()
@@ -350,18 +264,12 @@ type VariablePointTests() =
         // 0,0 - ?,1 - 2,0
         // Expect x to be 1 due to symmetry
         let ctrlPts: DControlPoint array =
-            [| { ty = SplinePointType.Smooth
-                 x = Some 0.
-                 y = Some 0.
-                 th = None }
+            [| dcp SplinePointType.Smooth 0. 0. None
                { ty = SplinePointType.Smooth
                  x = None
                  y = Some 1.
                  th = None }
-               { ty = SplinePointType.Smooth
-                 x = Some 2.
-                 y = Some 0.
-                 th = None } |]
+               dcp SplinePointType.Smooth 2. 0. None |]
 
         let solver = Solver(ctrlPts, false, 0.0, false)
         solver.initialise ()
@@ -374,18 +282,12 @@ type VariablePointTests() =
         // 0,0 - ?,? - 2,0
         // Initialized to midpoint (1,0). Since that's optimal (0 error), it should stay there.
         let ctrlPts: DControlPoint array =
-            [| { ty = SplinePointType.Smooth
-                 x = Some 0.
-                 y = Some 0.
-                 th = None }
+            [| dcp SplinePointType.Smooth 0. 0. None
                { ty = SplinePointType.Smooth
                  x = None
                  y = None
                  th = None }
-               { ty = SplinePointType.Smooth
-                 x = Some 2.
-                 y = Some 0.
-                 th = None } |]
+               dcp SplinePointType.Smooth 2. 0. None |]
 
         let solver = Solver(ctrlPts, false, 0.0, false)
         solver.initialise ()
@@ -405,18 +307,9 @@ type AdvancedGeometricTests() =
         let s45 = sin (PI / 4.0) // 0.7071...
 
         let ctrlPts =
-            [| { ty = SplinePointType.Smooth
-                 x = Some 1.0
-                 y = Some 0.0
-                 th = Some(PI / 2.0) } // Tangent up
-               { ty = SplinePointType.Smooth
-                 x = Some s45
-                 y = Some s45
-                 th = None }
-               { ty = SplinePointType.Smooth
-                 x = Some 0.0
-                 y = Some 1.0
-                 th = Some(PI) } |] // Tangent left
+            [| dcp SplinePointType.Smooth 1. 0. (Some(PI / 2.0)) // Tangent up
+               dcp SplinePointType.Smooth s45 s45 None
+               dcp SplinePointType.Smooth 0. 1. (Some(PI)) |] // Tangent left
 
         let solver = Solver(ctrlPts, false, 0.0, false)
         solver.initialise ()
@@ -476,18 +369,9 @@ type LineToCurveTests() =
     [<Test>]
     member this.LineToCurve_FirstSegmentShouldBeLine() =
         let ctrlPts =
-            [| { ty = SplinePointType.Corner
-                 x = Some 0.
-                 y = Some 0.
-                 th = None }
-               { ty = SplinePointType.LineToCurve
-                 x = Some 1.
-                 y = Some 0.
-                 th = None }
-               { ty = SplinePointType.Corner
-                 x = Some 2.
-                 y = Some 1.
-                 th = None } |]
+            [| dcp SplinePointType.Corner 0. 0. None
+               dcp SplinePointType.LineToCurve 1. 0. None
+               dcp SplinePointType.Corner 2. 1. None |]
 
         let spline = DSpline(ctrlPts, false)
         let svg = solve_and_print_spline spline
@@ -498,18 +382,9 @@ type LineToCurveTests() =
     [<Test>]
     member this.CurveToLine_SecondSegmentShouldBeLine() =
         let ctrlPts =
-            [| { ty = SplinePointType.Corner
-                 x = Some 0.
-                 y = Some 0.
-                 th = None }
-               { ty = SplinePointType.CurveToLine
-                 x = Some 1.
-                 y = Some 1.
-                 th = None }
-               { ty = SplinePointType.Corner
-                 x = Some 2.
-                 y = Some 1.
-                 th = None } |]
+            [| dcp SplinePointType.Corner 0. 0. None
+               dcp SplinePointType.CurveToLine 1. 1. None
+               dcp SplinePointType.Corner 2. 1. None |]
 
         let spline = DSpline(ctrlPts, false)
         let svg = solve_and_print_spline spline

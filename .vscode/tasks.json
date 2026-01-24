@@ -63,6 +63,24 @@
             "problemMatcher": "$msCompile"
         },
         {
+            "label": "all tests",
+            "type": "shell",
+            "command": "dotnet",
+            "args": [
+                "test",
+                "/property:GenerateFullPaths=true",
+                "/consoleloggerparameters:NoSummary"
+            ],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "silent"
+            },
+            "problemMatcher": "$msCompile"
+        },
+        {
             "label": "run spiro tests",
             "type": "shell",
             "command": "dotnet",
@@ -72,7 +90,7 @@
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary",
             ],
-            "group": "build",
+            "group": "test",
             "presentation": {
                 // "reveal": "silent"
             },
@@ -88,7 +106,7 @@
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary",
             ],
-            "group": "build",
+            "group": "test",
             "presentation": {
                 // "reveal": "silent"
             },
@@ -107,7 +125,7 @@
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary",
             ],
-            "group": "build",
+            "group": "test",
             "presentation": {
                 // "reveal": "silent"
             },
