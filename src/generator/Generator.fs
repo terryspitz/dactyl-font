@@ -1143,7 +1143,10 @@ type Font(axes: Axes) =
 
     member this.stringWidth str = List.sum (this.charWidths str)
 
-    member this.stringToSvgLineInternal (lines: string list) offsetX offsetY colour =
+    member this.stringToSvgLineInternal (lines: string list) offsetX offsetY colour (progress: (float -> unit) option) =
+        let totalChars = lines |> List.sumBy (fun s -> s.Length)
+        let mutable charCount = 0
+
         let svg, lineWidths =
             List.unzip
                 [ for i in 0 .. lines.Length - 1 do
@@ -1156,6 +1159,12 @@ type Font(axes: Axes) =
 
                       let svg =
                           [ for c in 0 .. str.Length - 1 do
+                                charCount <- charCount + 1
+
+                                match progress with
+                                | Some p -> p (float charCount / float totalChars)
+                                | None -> ()
+
                                 yield! this.charToSvg str.[c] (offsetXs.[c]) lineOffset colour ]
 
                       (svg, List.sum widths) ]
@@ -1163,11 +1172,13 @@ type Font(axes: Axes) =
         (List.collect id svg, lineWidths)
 
     member this.stringToSvgLines (lines: string list) offsetX offsetY colour =
-        fst (this.stringToSvgLineInternal lines offsetX offsetY colour)
+        fst (this.stringToSvgLineInternal lines offsetX offsetY colour None)
 
-    member this.stringToSvg (lines: string list) offsetX offsetY autoscale colour =
+    member this.stringToSvg (lines: string list) offsetX offsetY autoscale colour (progress: (float -> unit) option) =
         let margin = 50
-        let svg, lineWidths = this.stringToSvgLineInternal lines offsetX offsetY colour
+
+        let svg, lineWidths =
+            this.stringToSvgLineInternal lines offsetX offsetY colour progress
 
         let w, h =
             if autoscale then

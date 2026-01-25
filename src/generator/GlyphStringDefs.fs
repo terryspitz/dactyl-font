@@ -79,7 +79,10 @@ let glyphMap =
           '5', "tr-tl-hl hl~ttbc~bbtr~bc~bol"
           '6', "tor~tc~hl~bbtl~bc~bbtr~ttbc~bbtlN"
           '7', "tl-tr-bcl"
-          '8', "hc~thl~tc~thr~ hc~bhl~bc~bhr~"
+          //  two loops:
+          //  '8', "hc~thl~tc~thr~ hc~bhl~bc~bhr~"
+          // figure of eight:
+          '8', "hc~thl~tc~thr~hc~bhl~bc~bhr~"
           '9', "bol~bc~hr~ttbr~tc~ttbl~bbtc~ttbrS"
 
           'A', "bl-tc-br bhlc-bhrc"
@@ -99,11 +102,11 @@ let glyphMap =
           'H', "tl-bl hl-hr tr-br"
           'h', "tl-bl xol~xc~xbcr-bcr"
           'I', "tl-tr tc-bc bl-br"
-          'i', "xl-bl tl"
+          'i', "xl-bl txl"
           'J', "tl-tr.tr-hr~bc~bol"
           'j', "xcr-bcr~dcl~dol tcr"
           'K', "tl-bl tr-hl hl-br"
-          'k', "tl-bl xc-xbl xbl-bc"
+          'k', "tl-bl xcr-xbl xbl-bcr"
           'L', "tl-bl-br"
           'l', "tl-xbl~bc"
           'M', "bl-tl-blw-tw-bw"

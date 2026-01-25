@@ -38,7 +38,7 @@ let defaultAxes = Axes.DefaultAxes
 
 let allChars = GlyphFsDefs.allChars
 
-let generateSvg (text: string) (axes: Axes) =
+let generateSvg (text: string) (axes: Axes) (progress: (float -> unit) option) =
     let font = Font axes
 
     let lines =
@@ -49,7 +49,9 @@ let generateSvg (text: string) (axes: Axes) =
 
     // Using the same parameters as explorer.fs: 0 0 false black
     // You might want to make these configurable later
-    font.stringToSvg lines 0 0 false "black" |> String.concat "\n"
+    // Using the same parameters as explorer.fs: 0 0 false black
+    // You might want to make these configurable later
+    font.stringToSvg lines 0 0 false "black" progress |> String.concat "\n"
 
 let generateTweenSvg (text: string) (axes: Axes) =
     let font = Font axes
@@ -63,7 +65,10 @@ let generateTweenSvg (text: string) (axes: Axes) =
     // Manually construct SVG to crop tighter
     // Use smaller margin and height based on cap height + thickness, ignoring leading
     let margin = 10
-    let svg, lineWidths = font.stringToSvgLineInternal lines 0 0 "black"
+    // Manually construct SVG to crop tighter
+    // Use smaller margin and height based on cap height + thickness, ignoring leading
+    let margin = 10
+    let svg, lineWidths = font.stringToSvgLineInternal lines 0 0 "black" None
     let width = (List.max lineWidths) + margin * 2
 
     // Calculate vertical bounds to crop leading and alignment space
@@ -89,7 +94,7 @@ let generateTweenSvg (text: string) (axes: Axes) =
     // Let's set height to exactly what we need.
     toSvgDocument -margin minY width height svg |> String.concat "\n"
 
-let generateSplineDebugSvg (text: string) (inputAxes: Axes) =
+let generateSplineDebugSvg (text: string) (inputAxes: Axes) (progress: (float -> unit) option) =
     let axes =
         { inputAxes with
             clip_rect = false
@@ -148,10 +153,18 @@ let generateSplineDebugSvg (text: string) (inputAxes: Axes) =
     // We will assume `text` is the glyph definition.
 
     let chars = text |> Seq.truncate 5 |> List.ofSeq
+    let totalChars = chars.Length
+    let mutable charIndex = 0
     let mutable xOffset = 0
 
     let elements =
         [ for c in chars do
+              charIndex <- charIndex + 1
+
+              match progress with
+              | Some p -> p (float charIndex / float totalChars)
+              | None -> ()
+
               if Map.containsKey c GlyphStringDefs.glyphMap then
                   let elem =
                       GlyphStringDefs.stringDefsToElem (GlyphFsDefs(fontSpline2.axes)) c fontSpline2.axes.debug

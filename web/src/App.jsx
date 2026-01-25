@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { generateSvg, defaultAxes, controlDefinitions, generateSplineDebugSvg, generateTweenSvg, getGlyphDefs, allChars, generateVisualTestsSvg } from './lib/fable/Api' // Adjust path if needed
 import './App.css'
 
@@ -175,87 +175,168 @@ function App() {
     setOpenCategories(prev => ({ ...prev, [cat]: !prev[cat] }))
   }
 
-  // Memoize SVG generation
-  const content = useMemo(() => {
+  // Worker state
+  const workerRef = useRef(null)
+  const renderIdRef = useRef(0)
+  const loadingRef = useRef(false)
+  const [loading, setLoading] = useState(false)
+  const [showProgress, setShowProgress] = useState(false)
+  const [progressValue, setProgressValue] = useState(0)
+  const [workerResult, setWorkerResult] = useState(null)
+  const [error, setError] = useState(null)
+
+  // Worker setup
+  useEffect(() => {
+    workerRef.current = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    workerRef.current.onmessage = (e) => {
+      const { id, result, error, type, value } = e.data
+      if (id !== renderIdRef.current) return
+
+      if (type === 'progress') {
+        setProgressValue(value)
+        // If we get progress, we can show the bar immediately if we want, or stick to timer
+        // Showing immediately for progress updates makes sense
+        if (value > 0) setShowProgress(true)
+        return
+      }
+
+      if (error) {
+        setError(error)
+      } else {
+        setWorkerResult(result)
+        setError(null)
+      }
+      setLoading(false)
+      loadingRef.current = false
+      setShowProgress(false)
+    }
+    return () => workerRef.current.terminate()
+  }, [])
+
+  // Trigger generation
+  useEffect(() => {
+    const id = ++renderIdRef.current
+    setLoading(true)
+    setLoading(true)
+    loadingRef.current = true
+    setProgressValue(0)
+    setError(null)
+
+    // Timer for progress bar
+    const timer = setTimeout(() => {
+      if (id === renderIdRef.current && loadingRef.current) {
+        setShowProgress(true)
+      }
+    }, 1000)
+
+    let type, args
+    if (activeTab === 'font') {
+      if (!text) {
+        setWorkerResult("")
+        setLoading(false)
+        clearTimeout(timer)
+        return
+      }
+      type = 'font'
+      args = [text, axes]
+    } else if (activeTab === 'splines') {
+      const splineText = text.length > 0 ? text : "a"
+      type = 'splines'
+      args = [splineText, axes]
+    } else if (activeTab === 'tweens') {
+      const char = text.length > 0 ? text[0] : 'a'
+      type = 'tweens'
+      args = [char, axes]
+    } else if (activeTab === 'visualTests') {
+      type = 'visualTests'
+      args = []
+    }
+
+    if (type && workerRef.current) {
+      workerRef.current.postMessage({ id, type, args })
+    }
+
+    return () => clearTimeout(timer)
+  }, [text, axes, activeTab, zoom, layerVisibility])
+
+  const renderContent = () => {
+    if (error) return <div style={{ color: 'red' }}>Error: {error}</div>
+    if (!workerResult && loading && activeTab !== 'tweens') {
+      // Optional: return <div style={{padding: '20px'}}>Generating...</div> 
+      // But user asked for progress bar at top, so maybe leave blank or keep old?
+      // If we return null, it might flash.
+    }
+
+    // Safety check: ensure result matches expected type for tab
+    const content = workerResult
+    if (!content) return null
+
     try {
       if (activeTab === 'font') {
-        if (!text) return ""
+        if (typeof content !== 'string') return null
         return <div
           className="svg-container"
-          dangerouslySetInnerHTML={{ __html: generateSvg(text, axes) }}
+          dangerouslySetInnerHTML={{ __html: content }}
         />
       } else if (activeTab === 'splines') {
-        // For splines, we likely want a shorter default text if it's empty or too long, 
-        // but the user might want to debug specific chars.
-        const splineText = text.length > 0 ? text : "a"
-
+        if (typeof content !== 'string') return null
         const visibilityClasses = Object.entries(layerVisibility)
           .filter(([_, visible]) => !visible)
           .map(([key]) => `hide-${key}`)
           .join(' ')
 
-        // Definitions moved to input area
         return (
           <div className={`splines-container ${visibilityClasses}`}>
             <div
               className="svg-container"
-              dangerouslySetInnerHTML={{ __html: generateSplineDebugSvg(splineText, axes) }}
+              dangerouslySetInnerHTML={{ __html: content }}
             />
           </div>
         )
       } else if (activeTab === 'tweens') {
-        // Logic for tweens: iterate over controls, generate variations
-        const steps = 9
-        const char = text.length > 0 ? text[0] : 'a'
+        if (typeof content !== 'object') return null
+        // content is { [ctrlName]: [ { val, svg } ] }
 
         return (
           <div className="tweens-grid">
             {controlDefinitions.filter(c => c.type_ !== 'checkbox').map(ctrl => {
-              const variations = []
-              const min = ctrl.min
-              const max = ctrl.max
-              const range = max - min
+              const variations = content[ctrl.name]
+              if (!variations) return null
 
-              for (let i = 0; i < steps; i++) {
-                const val = min + (range * (i / (steps - 1)))
-                // Create a temporary axes object with this value overridden
-                const tempAxes = { ...axes, [ctrl.name]: val }
-                // Apply zoom to individual boxes. use minWidth to override CSS
+              const rowVariations = variations.map((v, i) => {
                 const boxWidth = 150 * zoom
-                variations.push(
-                  <div key={`${ctrl.name} -${i} `} className="tween-item" style={{ minWidth: boxWidth + 'px', width: boxWidth + 'px' }}>
-                    <div dangerouslySetInnerHTML={{ __html: generateTweenSvg(char, tempAxes) }} />
-                    <div style={{ fontSize: '0.7em' }}>{val.toFixed(2)}</div>
+                return (
+                  <div key={`${ctrl.name}-${i}`} className="tween-item" style={{ minWidth: boxWidth + 'px', width: boxWidth + 'px' }}>
+                    <div dangerouslySetInnerHTML={{ __html: v.svg }} />
+                    <div style={{ fontSize: '0.7em' }}>{v.val.toFixed(2)}</div>
                   </div>
                 )
-              }
+              })
 
               return (
                 <div key={ctrl.name} className="tween-row" style={{ gridColumn: '1 / -1', marginBottom: '20px' }}>
                   <h4 style={{ textAlign: 'left', margin: '5px 0' }}>{ctrl.name}</h4>
                   <div className="tween-variations" style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px' }}>
-                    {variations}
+                    {rowVariations}
                   </div>
                 </div>
               )
             })}
           </div>
         )
-      }
-      else if (activeTab === 'visualTests') {
+      } else if (activeTab === 'visualTests') {
+        if (typeof content !== 'string') return null
         return <div
           className="svg-container"
-          dangerouslySetInnerHTML={{ __html: generateVisualTestsSvg() }}
+          dangerouslySetInnerHTML={{ __html: content }}
         />
       }
-
       return null
-
     } catch (e) {
       console.error("Error generating Content:", e)
       return <div style={{ color: 'red' }}>Error: {e.message}</div>
     }
-  }, [text, axes, activeTab, zoom, layerVisibility])
+  }
 
   const handleControlChange = (name, value) => {
     setAxes(prev => ({ ...prev, [name]: value }))
@@ -407,19 +488,33 @@ function App() {
           )}
         </div>
         <div className="preview">
-          <div className="zoom-controls">
-            <button onClick={() => setZoom(z => Math.min(z + 0.1, 5.0))} title="Zoom In">
-              <span className="material-symbols-outlined">add</span>
-            </button>
-            <button onClick={() => setZoom(1.0)} title="Reset Zoom">
-              <span className="material-symbols-outlined">restart_alt</span>
-            </button>
-            <button onClick={() => setZoom(z => Math.max(z - 0.1, 0.1))} title="Zoom Out">
-              <span className="material-symbols-outlined">remove</span>
-            </button>
-          </div>
-          <div style={{ transform: activeTab === 'tweens' ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
-            {content}
+          {showProgress && (
+            <div className="progress-bar-container">
+              {progressValue > 0 ? (
+                <div
+                  className="progress-bar-determinate"
+                  style={{ width: `${progressValue * 100}%` }}
+                />
+              ) : (
+                <div className="progress-bar-indeterminate"></div>
+              )}
+            </div>
+          )}
+          <div className="preview-content">
+            <div className="zoom-controls">
+              <button onClick={() => setZoom(z => Math.min(z + 0.1, 5.0))} title="Zoom In">
+                <span className="material-symbols-outlined">add</span>
+              </button>
+              <button onClick={() => setZoom(1.0)} title="Reset Zoom">
+                <span className="material-symbols-outlined">restart_alt</span>
+              </button>
+              <button onClick={() => setZoom(z => Math.max(z - 0.1, 0.1))} title="Zoom Out">
+                <span className="material-symbols-outlined">remove</span>
+              </button>
+            </div>
+            <div style={{ transform: activeTab === 'tweens' ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
+              {renderContent()}
+            </div>
           </div>
         </div>
 
