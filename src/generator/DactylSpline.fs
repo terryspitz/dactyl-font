@@ -57,7 +57,12 @@ type DControlPoint =
     static member (-)(lhs, rhs) =
         { x = lhs.x.Value - rhs.x.Value
           y = lhs.y.Value - rhs.y.Value }
-let dcp ty x y th = { ty = ty; x = Some x; y = Some y; th = th }
+
+let dcp ty x y th =
+    { ty = ty
+      x = Some x
+      y = Some y
+      th = th }
 
 
 // type ControlPointOut(ty, x, y, lth, rth) =
@@ -290,15 +295,15 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 printfn "%s" (p.tostring ())
 
     member this.computeErr() =
-        // Sample the curvature and distance (arc length) at STEPS fractions along each bezier.
-        // Euler spiral (like spiro spline) wants its curvature k to be linear in curve length l
-        // So treat l as an x-coord and k as a y-coord and fit a line to the data, then measure residuals from that line and minimise
-        // Also if there are free variables, curvature should be as constant as possible ,
-        // so minimise the gradient of the fitted curvature line
-        // Also [optionally?] minimise line length
-        let mutable errs = 0.
-        let mutable curveNorm: (float * float) list = []
+        // Piecewise Euler spiral fitting
+        // Fit a line to the curvature k(l) for EACH segment separately.
+        // Then enforce continuity of k between segments.
+
+        let mutable totalErr = 0.
+        let mutable previousEndK = None
         let STEPS = 8
+
+        let segmentFits = ResizeArray()
 
         for i in 0 .. _points.Length - 2 do
             let point1 = _points.[i]
@@ -316,57 +321,69 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                        point2.y |]
                 )
 
-            curveNorm <-
-                curveNorm
-                @ [ for j in 0..STEPS do
-                        let t0 = (-0.5 + float j) / (float STEPS)
-                        let t1 = (float j) / (float STEPS)
-                        let t2 = (0.5 + float j) / (float STEPS)
-                        (10000. * bez.curvature t1, (bez.eval t2 - bez.eval t0).norm ()) ]
+            let curveSamples =
+                [ for j in 0..STEPS do
+                      let t0 = (-0.5 + float j) / (float STEPS)
+                      let t1 = (float j) / (float STEPS)
+                      let t2 = (0.5 + float j) / (float STEPS)
+                      (10000. * bez.curvature t1, (bez.eval t2 - bez.eval t0).norm ()) ]
 
-        let ks, segmentLengths = curveNorm |> List.toArray |> Array.unzip
+            let ks, segmentLengths = curveSamples |> List.toArray |> Array.unzip
 
-        let cumm_dists, max_dist =
-            Array.mapFold (fun sum dist -> let acc = sum + dist in (acc, acc)) 0. segmentLengths
+            let cumm_dists, max_dist =
+                Array.mapFold (fun sum dist -> let acc = sum + dist in (acc, acc)) 0. segmentLengths
 
-        let m, c, residuals = linear_regression cumm_dists ks
+            // Fit line to this segment's curvature
+            let m, c, residuals = linear_regression cumm_dists ks
 
-        if
-            Double.IsNaN m
-            || Double.IsNaN c
-            || Double.IsNaN residuals
-            || Double.IsInfinity m
-            || Double.IsInfinity c
-            || Double.IsInfinity residuals
-        then
-            errs <- 1e9 // Large penalty for invalid configuration
-        else
-            errs <- errs + residuals + abs m * flatness //+ max_dist
-        // errs <- errs + flatness * abs m //+ max_dist
+            if
+                Double.IsNaN m
+                || Double.IsNaN c
+                || Double.IsNaN residuals
+                || Double.IsInfinity m
+                || Double.IsInfinity c
+                || Double.IsInfinity residuals
+            then
+                totalErr <- totalErr + 1e9 // Penalty for invalid
+            else
+                // 1. Residuals from being an Euler spiral
+                totalErr <- totalErr + residuals
 
-        if this.debug then
-            printfn
-                "ks %A\nsegmentLengths %A\ndists %A"
-                (Array.map int ks)
-                (Array.map int segmentLengths)
-                (Array.map int cumm_dists)
+                // 2. Penalty for high variation in curvature (flatness)
+                totalErr <- totalErr + abs m * flatness
 
-            printfn "m=%f c=%f res=%f max_dist=%f errs=%f" m c residuals max_dist errs
+                // Calculate start and end curvature for continuity
+                // k(s) = m*s + c. Start is s=0 (c), End is s=max_dist
+                let startK = c
+                let endK = m * max_dist + c
 
-        if isClosed then
-            // add error term for mismatch between end of previous bezier and start of this
-            let segmentErr = ks.[ks.Length - 1] - ks.[0]
-            errs <- errs + segmentErr * segmentErr
+                segmentFits.Add(startK, endK)
 
-        assert not (isnan errs)
+        // 3. Continuity Penalties
+        // Penalize jumps in curvature between segments
+        for i in 0 .. segmentFits.Count - 1 do
+            let startK, endK = segmentFits.[i]
 
-        if Double.IsNaN errs || Double.IsInfinity errs then
+            if i > 0 then
+                let _, prevEndK = segmentFits.[i - 1]
+                let gap = startK - prevEndK
+                // Weight this heavily so segments join smoothly in curvature
+                totalErr <- totalErr + gap * gap * 10.0
+
+        if isClosed && segmentFits.Count > 0 then
+            // Continuity between last and first
+            let _, lastEndK = segmentFits.[segmentFits.Count - 1]
+            let firstStartK, _ = segmentFits.[0]
+            let gap = firstStartK - lastEndK
+            totalErr <- totalErr + gap * gap * 10.0
+
+        if Double.IsNaN totalErr || Double.IsInfinity totalErr then
             if this.debug then
                 printfn "computeErr returning NaN/Inf, replaced with penalty"
 
             1e12
         else
-            errs
+            totalErr
 
     member this.Solve(maxIter) =
         if maxIter > 0 then
