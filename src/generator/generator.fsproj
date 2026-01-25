@@ -22,11 +22,11 @@
     <None Include="font.props" />
     <Compile Include="Axes.fs" />
     <Compile Include="DactylSpline.fs" />
-    <Compile Include="DactylSplineTest.fs" />
     <Compile Include="GeneratorTypes.fs" />
     <Compile Include="GlyphFsDefs.fs" />
     <Compile Include="GlyphStringDefs.fs" />
     <Compile Include="Generator.fs" />
+    <Compile Include="DactylSplineTest.fs" />
     <Compile Include="VisualTests.fs" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' != 'Release'">

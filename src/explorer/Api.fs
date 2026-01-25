@@ -204,7 +204,7 @@ let generateSplineDebugSvg (text: string) (inputAxes: Axes) (progress: (float ->
     let grey = "#e0e0e0"
     let blue = "blue"
     let green = "green"
-    let orange = "orange"
+    let orange = "#FFA500c0"
     let lightGreen = "lightGreen"
     let lightBlue = "lightBlue"
 

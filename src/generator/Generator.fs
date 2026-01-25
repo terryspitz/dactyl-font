@@ -22,6 +22,7 @@
 // Caustics overlay
 // Optional debug mode to show coordinates/curves
 // debug 'sharp bend' duplicate points in 'e'
+// mobius strip font
 
 //Features :
 // Backscratch font (made of 4 parallel lines)
