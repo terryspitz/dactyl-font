@@ -65,9 +65,6 @@ let generateTweenSvg (text: string) (axes: Axes) =
     // Manually construct SVG to crop tighter
     // Use smaller margin and height based on cap height + thickness, ignoring leading
     let margin = 10
-    // Manually construct SVG to crop tighter
-    // Use smaller margin and height based on cap height + thickness, ignoring leading
-    let margin = 10
     let svg, lineWidths = font.stringToSvgLineInternal lines 0 0 "black" None
     let width = (List.max lineWidths) + margin * 2
 

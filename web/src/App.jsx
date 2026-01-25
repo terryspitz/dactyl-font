@@ -299,29 +299,34 @@ function App() {
 
         return (
           <div className="tweens-grid">
-            {controlDefinitions.filter(c => c.type_ !== 'checkbox').map(ctrl => {
-              const variations = content[ctrl.name]
-              if (!variations) return null
+            {(() => {
+              const EXCLUDED_TWEEN_AXES = ['tracking', 'leading']
+              return controlDefinitions
+                .filter(c => c.type_ !== 'checkbox' && !EXCLUDED_TWEEN_AXES.includes(c.name))
+                .map(ctrl => {
+                  const variations = content[ctrl.name]
+                  if (!variations) return null
 
-              const rowVariations = variations.map((v, i) => {
-                const boxWidth = 150 * zoom
-                return (
-                  <div key={`${ctrl.name}-${i}`} className="tween-item" style={{ minWidth: boxWidth + 'px', width: boxWidth + 'px' }}>
-                    <div dangerouslySetInnerHTML={{ __html: v.svg }} />
-                    <div style={{ fontSize: '0.7em' }}>{v.val.toFixed(2)}</div>
-                  </div>
-                )
-              })
+                  const rowVariations = variations.map((v, i) => {
+                    const boxWidth = 150 * zoom
+                    return (
+                      <div key={`${ctrl.name}-${i}`} className="tween-item" style={{ minWidth: boxWidth + 'px', width: boxWidth + 'px' }}>
+                        <div dangerouslySetInnerHTML={{ __html: v.svg }} />
+                        <div style={{ fontSize: '0.7em' }}>{v.val.toFixed(2)}</div>
+                      </div>
+                    )
+                  })
 
-              return (
-                <div key={ctrl.name} className="tween-row" style={{ gridColumn: '1 / -1', marginBottom: '20px' }}>
-                  <h4 style={{ textAlign: 'left', margin: '5px 0' }}>{ctrl.name}</h4>
-                  <div className="tween-variations" style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px' }}>
-                    {rowVariations}
-                  </div>
-                </div>
-              )
-            })}
+                  return (
+                    <div key={ctrl.name} className="tween-row" style={{ gridColumn: '1 / -1', marginBottom: '20px' }}>
+                      <h4 style={{ textAlign: 'left', margin: '5px 0' }}>{ctrl.name}</h4>
+                      <div className="tween-variations" style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px' }}>
+                        {rowVariations}
+                      </div>
+                    </div>
+                  )
+                })
+            })()}
           </div>
         )
       } else if (activeTab === 'visualTests') {

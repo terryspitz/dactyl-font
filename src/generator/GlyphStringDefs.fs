@@ -94,17 +94,17 @@ let glyphMap =
           'D', "tl-bl.bl~hr~"
           'd', "tr-br xor~xc~xbl~bc~bor"
           'E', "tr-tl-bl-br hl-hr"
-          'e', "xbl-xbrN.xbrN~xc~xbl~bc~bor"
+          'e', "xbl-xbr xbrN~xcW~xblS~bcE~bor"
           'F', "bl-tl-tr hl-hrc"
-          'f', "bllc-xtllc~tcr xl-xc"
+          'f', "bllc-xtllc~tcrW xl-xc"
           'G', "tor~tc~hl~bc~bhr-hr.hr-hc"
-          'g', "xr-br~dc~dol xor~xc~xbl~bc~bor"
+          'g', "xr-bdr~dcW~dol xor~xcW~xbl~bcE~bor"
           'H', "tl-bl hl-hr tr-br"
           'h', "tl-bl xol~xc~xbcr-bcr"
           'I', "tl-tr tc-bc bl-br"
-          'i', "xl-bl txl"
+          'i', "xl-bl ttxl"
           'J', "tl-tr.tr-hr~bc~bol"
-          'j', "xcr-bcr~dcl~dol tcr"
+          'j', "xcr-bdcr~dc~dol ttxcr"
           'K', "tl-bl tr-hl hl-br"
           'k', "tl-bl xcr-xbl xbl-bcr"
           'L', "tl-bl-br"
@@ -122,7 +122,7 @@ let glyphMap =
           'R', "bl-tlE.tlE~thr~hcl-hl hc-br"
           'r', "xl-bl xol~xlcc~xoccr"
           'S', "thr~tc~ttbl~hc~tbbr~bc~bhl"
-          's', "xor~xc~xxbl~xbc~xbbr~bc~bol"
+          's', "xor~xcW~xxbl~xbcE~xbbr~bcW~bol"
           'T', "tl-tr tc-bc"
           't', "tlc-xbblc~bc~bccr xl-xccr"
           'U', "tl-hl~bc~hr-tr"
@@ -164,7 +164,7 @@ let parse_point (glyph: GlyphFsDefs) def_raw =
         def <- def.[1..]
 
         y_coord <-
-            if y_coord > glyph._H then
+            if y_coord >= glyph._X || y_coord >= glyph._H then
                 y_coord - glyph._offset
             else
                 y_coord + glyph._offset
