@@ -204,7 +204,7 @@ type Font(axes: Axes) =
                     [ SpiroOpenCurve(List.map makeSeg pts) ]
             else
                 let offsetHandlePt pt theta =
-                    let fthickness = if axes.outline then (float thickness + 10.) else 1. //minimum increment
+                    let fthickness = 1. //minimum increment
                     let x, y = getXY pt in
                     YX(int (float y + fthickness * sin (theta)), int (float x + fthickness * cos (theta)))
 
@@ -410,10 +410,18 @@ type Font(axes: Axes) =
                    | SpiroPointType.G4 -> SplinePointType.Smooth
                    | _ -> invalidArg "ty" (sprintf "Unexpected SpiroPointType %A" spiroType)
 
+               let x, y = getXY p
+               let x_opt, y_opt =
+                   match p with
+                   | OYX(_, _, y_fit, x_fit) ->
+                       (if x_fit then None else Some(float x)),
+                       (if y_fit then None else Some(float y))
+                   | _ -> Some(float x), Some(float y)
+
                yield
                    { ty = ty
-                     x = Some(float x)
-                     y = Some(float y)
+                     x = x_opt
+                     y = y_opt
                      th = tangent } |]
 
     let rec elementToDactylSvg (elem: Element) =
