@@ -91,11 +91,15 @@ const FormattedDefs = ({ text }) => {
 }
 
 function App() {
-  const [tabTexts, setTabTexts] = useState({
-    font: allChars,
-    splines: 'font',
-    tweens: 'a',
-    visualTests: ''
+  const [tabTexts, setTabTexts] = useState(() => {
+    const savedSplines = localStorage.getItem('splineText')
+
+    return {
+      font: allChars,
+      splines: savedSplines !== null ? savedSplines : 'font',
+      tweens: 'a',
+      visualTests: ''
+    }
   })
   const [axes, setAxes] = useState({ ...defaultAxes })
   const [activeTab, setActiveTab] = useState('font')
@@ -146,7 +150,12 @@ function App() {
   }
 
   const text = tabTexts[activeTab]
-  const setText = (newVal) => setTabTexts(prev => ({ ...prev, [activeTab]: newVal }))
+  const setText = (newVal) => {
+    setTabTexts(prev => ({ ...prev, [activeTab]: newVal }))
+    if (activeTab === 'splines') {
+      localStorage.setItem('splineText', newVal)
+    }
+  }
 
   // Group controls by category
   const controlsByCategory = useMemo(() => {
