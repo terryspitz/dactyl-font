@@ -22,14 +22,11 @@ open System.Text
 /// </summary>
 /// <param name="value"></param>
 /// <returns></returns>
-let Format (value : float) =
-    if abs (value - round(value))  < 1e-3 then
+let Format (value: float) =
+    if abs (value - round (value)) < 1e-3 then
         (round value).ToString()
     else
-        // value.ToString("F1", ToStringCulture)
         value.ToString("F3")
-        // sprintf "%d" (int value)
-        // (int value).ToString()
 
 /// <summary>
 /// Bezier context implementation that handles the creation of Path data representation of bézier splines.
@@ -43,8 +40,7 @@ type BezPath() =
     /// Get output Path data string format.
     /// </summary>
     /// <returns>The Path data string format.</returns>
-    member this.tostring() =
-        _sb.ToString()
+    member this.tostring() = _sb.ToString()
 
     member this.tostringlist() =
         _sb.ToString().Split("\r\n") |> List.ofArray
@@ -56,11 +52,11 @@ type BezPath() =
         _sb.AppendLine(sprintf "L %s,%s" (Format x) (Format y)) |> ignore
 
     member this.curveto(p1x, p1y, p2x, p2y, x, y) =
-        let curve = sprintf "C %s,%s %s,%s %s,%s" (Format p1x) (Format p1y) (Format p2x) (Format p2y) (Format x) (Format y)
+        let curve =
+            sprintf "C %s,%s %s,%s %s,%s" (Format p1x) (Format p1y) (Format p2x) (Format p2y) (Format x) (Format y)
+
         _sb.AppendLine(curve) |> ignore
 
-    member this.closepath() =
-        _sb.AppendLine("Z")  |> ignore
+    member this.closepath() = _sb.AppendLine("Z") |> ignore
 
-    member this.mark(i) =
-        ()
+    member this.mark(i) = ()

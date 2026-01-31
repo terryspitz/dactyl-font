@@ -11,40 +11,87 @@ type Point =
 
     // Y coordinate: Top,X-height,Half-height,Bottom
     // X coordinate: Left,Centre,Right
+    // Top points: Left, Left offset inward, Centre, Right
+    | TL
+    | TLo
+    | TC
+    | TRo
+    | TR
+    // Top - offset down
     // o adds/subtracts an offset to the dimension it follows
-    | TL | TLo | TC | TRo | TR        // Top points: Left, Left offset inward, Centre, Right
-    | ToL | ToC | ToR           // Top offset down
-    | XL | XLo | XC | XRo | XR  // x-height
-    | XoL | XoC | XoR           // x-height offset down
-    | ML | MC | MR              // Midway down from x-height
-    | HL | HLo | HC | HRo | HR  // half glyph height
-    | BoL | BoC | BoR           // Bottom offset up
-    | BL | BLo | BC | BRo | BR  // Bottom
-    | DoL                       // Descender offset up
-    | DL | DC | DR              // Descender
-    | BN | BoN | HN | XoN | XN | TN         // Narrow width points
-    | Mid of p1 : Point * p2 : Point
-    | Interp of p1 : Point * p2 : Point * frac : float
-    
-    member this.GetXY = match this with | YX(y,x) -> x,y | _ -> invalidArg "this" "Point (+) only works with reduced points"
-    static member (+) (lhs : Point, rhs : Point) =
-        let x1,y1 = lhs.GetXY
-        let x2,y2 = rhs.GetXY
-        YX(y1+y2, x1+x2)
-    static member (-) (lhs : Point, rhs : Point) =
-        let x1,y1 = lhs.GetXY
-        let x2,y2 = rhs.GetXY
-        YX(y1-y2, x1-x2)
+    | ToL
+    | ToC
+    | ToR
+    // x-height
+    | XL
+    | XLo
+    | XC
+    | XRo
+    | XR
+    // x-height - offset down
+    | XoL
+    | XoC
+    | XoR
+    // Midway down from x-height
+    | ML
+    | MC
+    | MR
+    // half glyph height
+    | HL
+    | HLo
+    | HC
+    | HRo
+    | HR
+    // Bottom + offset up
+    | BoL
+    | BoC
+    | BoR
+    // Bottom
+    | BL
+    | BLo
+    | BC
+    | BRo
+    | BR
+    // Descender
+    | DoL
+    | DL
+    | DC
+    | DR
+    // Narrow width points
+    | BN
+    | BoN
+    | HN
+    | XoN
+    | XN
+    | TN
+    // relative points
+    | Mid of p1: Point * p2: Point
+    | Interp of p1: Point * p2: Point * frac: float
+
+    member this.GetXY =
+        match this with
+        | YX(y, x) -> x, y
+        | _ -> invalidArg "this" "Point (+) only works with reduced points"
+
+    static member (+)(lhs: Point, rhs: Point) =
+        let x1, y1 = lhs.GetXY
+        let x2, y2 = rhs.GetXY
+        YX(y1 + y2, x1 + x2)
+
+    static member (-)(lhs: Point, rhs: Point) =
+        let x1, y1 = lhs.GetXY
+        let x2, y2 = rhs.GetXY
+        YX(y1 - y2, x1 - x2)
 
 type SCP = SpiroControlPoint
 
-type Element = 
-    | Glyph of c : char
-    | Line of p1 : Point * p2 : Point
+type Element =
+    | Glyph of c: char
+    | Line of p1: Point * p2: Point
     | PolyLine of list<Point>
     | OpenCurve of list<Point * SpiroPointType>
     | ClosedCurve of list<Point * SpiroPointType>
-    | TangentCurve of knots : list<Point * SpiroPointType * float option> * isClosed : bool
+    | TangentCurve of knots: list<Point * SpiroPointType * float option> * isClosed: bool
     | Dot of Point
     | EList of list<Element>
     | Space
