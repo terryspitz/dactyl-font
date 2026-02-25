@@ -413,9 +413,6 @@ type Font(axes: Axes) =
                let x, y = getXY p
                let x_opt, y_opt =
                    match p with
-                   | OYX(_, _, y_fit, x_fit) ->
-                       (if x_fit then None else Some(float x)),
-                       (if y_fit then None else Some(float y))
                    | _ -> Some(float x), Some(float y)
 
                yield
