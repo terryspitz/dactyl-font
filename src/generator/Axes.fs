@@ -43,8 +43,8 @@ type Axes =
       debug: bool } //show debug info in console
 
     static member DefaultAxes =
-        { new_definitions = false
-          dactyl_spline = false
+        { new_definitions = true
+          dactyl_spline = true
           spline2 = false
           width = 300
           height = 600

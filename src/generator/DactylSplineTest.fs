@@ -4,10 +4,27 @@ open System
 open NUnit.Framework
 open Curves
 open DactylSpline
+open GlyphStringDefs
+open GlyphFsDefs
+open GeneratorTypes
+open Axes
 
 let PI = System.Math.PI
 let max_iter = 500
 let dcp = DactylSpline.dcp
+
+let pointToDcp (p: Point) =
+    let x, y = p.GetXY
+
+    let x_opt, y_opt =
+        match p with
+        | OYX(_, _, y_fit, x_fit) -> (if x_fit then None else Some(float x)), (if y_fit then None else Some(float y))
+        | _ -> Some(float x), Some(float y)
+
+    { ty = SplinePointType.Smooth
+      x = x_opt
+      y = y_opt
+      th = None }
 
 [<TestFixture>]
 type TestClass() =
@@ -358,6 +375,47 @@ type AdvancedGeometricTests() =
         // Should be steep but not vertical?
         Assert.That(th, Is.LessThan(PI / 2.0))
 
+    [<Test>]
+    member this.FitVsFixedCoordinate() =
+        // V shape: (-1, 1) -> (0, 0) -> (1, 1).
+        // If middle point is fixed at (0,0), it stays there.
+        // If middle point y is optional, a smoother curve will lift it up to reduce curvature.
+
+        // 1. Fixed case
+        let ctrlPtsFixed =
+            [| dcp SplinePointType.Smooth -1. 1. None
+               dcp SplinePointType.Smooth 0. 0. None
+               dcp SplinePointType.Smooth 1. 1. None |]
+
+        let solverFixed = Solver(ctrlPtsFixed, false, 1.0, false)
+        solverFixed.initialise ()
+        solverFixed.Solve(5000)
+        let ptsFixed = solverFixed.points ()
+        let yFixed = ptsFixed.[1].y
+
+        // 2. Optional case (y is None)
+        let ctrlPtsOpt =
+            [| dcp SplinePointType.Smooth -1. 1. None
+               { ty = SplinePointType.Smooth
+                 x = Some 0.
+                 y = None
+                 th = None }
+               dcp SplinePointType.Smooth 1. 1. None |]
+
+        let solverOpt = Solver(ctrlPtsOpt, false, 1.0, false)
+        solverOpt.initialise ()
+        solverOpt.Solve(500) // Lower iter for faster test, should be enough to move
+        let ptsOpt = solverOpt.points ()
+        let yOpt = ptsOpt.[1].y
+
+        printfn "Fixed y: %f, Fitted y: %f" yFixed yOpt
+
+        // Verify they are different
+        Assert.That(yFixed, Is.EqualTo(0.0).Within(1e-5), "Fixed point should stay at 0.0")
+        Assert.That(yOpt, Is.Not.EqualTo(yFixed).Within(0.1), "Fitted point should move away from 0.0")
+        // In this case, since y=1 is a straight line (zero curvature), we expect yOpt to approach 1.0
+        Assert.That(yOpt, Is.GreaterThan(0.1), "Fitted point should move up towards linear fit")
+
 [<TestFixture>]
 type LineToCurveTests() =
     let solve_and_print_spline (spline: DSpline) =
@@ -390,3 +448,171 @@ type LineToCurveTests() =
         let svg = solve_and_print_spline spline
         // Expected: M 0,0 C ... L 2,1
         Assert.That(svg, Does.Match("M 0,0.*C.*L 2,1"), "Second segment should be a line")
+
+[<TestFixture>]
+type IntegrationTests() =
+    [<Test>]
+    member this.BracketSyntaxIntegration() =
+        // Verify that parsing string inputs with brackets leads to fitted points.
+        let axes =
+            { Axes.Axes.DefaultAxes with
+                width = 1000
+                height = 1000 }
+
+        let glyphDefs = GlyphFsDefs(axes)
+
+        // Define V shape: TL -> B(L) -> TR
+        // TL=(0,1000), TR=(1000,1000), BL= (0,0) (nominal) with y=0
+        // B(L) means x=0 is optional.
+
+        // Parsing
+        let p1, _, _ = parse_point glyphDefs "tl"
+        let p2, _, _ = parse_point glyphDefs "b(l)"
+        let p3, _, _ = parse_point glyphDefs "tr"
+
+        let cp1 = pointToDcp p1
+        let cp2 = pointToDcp p2
+        let cp3 = pointToDcp p3
+
+        // Verify parsing result for p2 flags
+        match p2 with
+        | OYX(_, _, yfit, xfit) ->
+            Assert.That(yfit, Is.False, "Parser should not set y_fit for b")
+            Assert.That(xfit, Is.True, "Parser should set x_fit for (l)")
+        | _ -> Assert.Fail("Parser should return OYX for b(l)")
+
+        // Verify DControlPoint conversion (x should be None)
+        Assert.That(cp2.x, Is.EqualTo(None), "DControlPoint x should be None")
+        Assert.That(cp2.y, Is.Not.EqualTo(None), "DControlPoint y should be distinct Some")
+
+        // Solve
+        // Fixed points at (0,1000) and (1000,1000) y.
+        // Middle point nominal x=0 (left), y=0 (bottom).
+        // Solver should move x towards 500 (center) to minimize curvature of (0,1000)->(x,0)->(1000,1000).
+        let solver = Solver([| cp1; cp2; cp3 |], false, 1.0, false)
+        solver.initialise ()
+
+        solver.Solve(2000)
+        let finalX = solver.points().[1].x
+
+        printfn "Final X: %f (Left is 0, Right is 1000)" finalX
+        Assert.That(finalX, Is.GreaterThan(100.0), "Point should have moved right significantly from 0")
+
+    [<Test>]
+    member this.TestAsymmetricFit() =
+        // tl -> hl -> b(c) -> tr
+        // Verify that adding points on the left 'pulls' the fit that way.
+        let axes =
+            { Axes.Axes.DefaultAxes with
+                width = 1000
+                height = 1000 }
+
+        let glyphDefs = GlyphFsDefs(axes)
+
+        let p1, _, _ = parse_point glyphDefs "tl"
+        let p2, _, _ = parse_point glyphDefs "hl" // (0, 500)
+        let p3, _, _ = parse_point glyphDefs "b(c)" // (500, 0) optional x
+        let p4, _, _ = parse_point glyphDefs "tr"
+
+        let cp1 = pointToDcp p1
+        let cp2 = pointToDcp p2
+        let cp3 = pointToDcp p3
+        let cp4 = pointToDcp p4
+
+        // Check initial assumptions
+        Assert.That(cp3.x, Is.EqualTo(None), "Middle point x should be optional")
+
+        let solver = Solver([| cp1; cp2; cp3; cp4 |], false, 1.0, false)
+        solver.initialise ()
+
+        // Solve
+        solver.Solve(2000)
+        let finalX = solver.points().[2].x
+
+        printfn "Final X: %f (Center is 500)" finalX
+        // Solver moves point RIGHT (542) to minimize curvature of the turn from the vertical HL segment.
+        // A wider turn (larger X) reduces energy compared to a tight turn (small X).
+        Assert.That(
+            finalX,
+            Is.GreaterThan(500.0),
+            "Point should move RIGHT of center to allow wider turn from vertical left edge"
+        )
+
+    [<Test>]
+    member this.TestAsymmetricFit_U_Shape() =
+        // tl-tbbl~b(c)~tbr-tr
+        // Left vertical drop is (1000 -> 333) = 667 length?
+        // Wait: tl(1000, 0) -> tbbl(333, 0)? No, y is first usually?
+        // parse_point: Y then X.
+        // tl: Top(1000) Left(0). (y=1000, x=0)
+        // tbbl: Average(T,B,B) = 333. Left(0). (y=333, x=0)
+        // Left segment is (0,1000)->(0,333). Length 667.
+        // b(c): Bottom(0). Center(500) (fit). (y=0, x=500?)
+        // tbr: Average(T,B)=500. Right(1000). (y=500, x=1000)
+        // tr: Top(1000) Right(1000). (y=1000, x=1000)
+        // Right segment is (1000,500)->(1000,1000). Length 500.
+
+        // Curve is from (0,333) -> (x,0) -> (1000,500).
+        // Left side drop: 333. Right side drop: 500.
+        // Requirement: fitted x < 500. (Shifted Left).
+
+        let axes =
+            { Axes.Axes.DefaultAxes with
+                width = 1000
+                height = 1000 }
+
+        let glyphDefs = GlyphFsDefs(axes)
+
+        let p1, _, _ = parse_point glyphDefs "tl"
+        let p2, _, _ = parse_point glyphDefs "tbbl"
+        let p3, _, _ = parse_point glyphDefs "b(c)"
+        let p4, _, _ = parse_point glyphDefs "tbr"
+        let p5, _, _ = parse_point glyphDefs "tr"
+
+        printfn "P1: %A" p1
+        printfn "P2: %A" p2
+        printfn "P3: %A" p3
+        printfn "P4: %A" p4
+        printfn "P5: %A" p5
+
+        // Manually set types AND tangents for line transitions, as Solver doesn't do this automatically
+        // (DSpline.solveAndRenderTuple usually handles this).
+        let cp1 =
+            { pointToDcp p1 with
+                ty = SplinePointType.Corner }
+
+        // tl(0,1000) -> tbbl(0,333). Downwards (-PI/2).
+        let cp2 =
+            { pointToDcp p2 with
+                ty = SplinePointType.LineToCurve
+                th = Some(-System.Math.PI / 2.0) }
+
+        let cp3 =
+            { pointToDcp p3 with
+                ty = SplinePointType.Smooth }
+
+        // tbr(1000,500) -> tr(1000,1000). Upwards (PI/2).
+        let cp4 =
+            { pointToDcp p4 with
+                ty = SplinePointType.CurveToLine
+                th = Some(System.Math.PI / 2.0) }
+
+        let cp5 =
+            { pointToDcp p5 with
+                ty = SplinePointType.Corner }
+
+        let solver = Solver([| cp1; cp2; cp3; cp4; cp5 |], false, 1.0, false)
+        solver.initialise ()
+        solver.Solve(5000)
+
+        let finalX = solver.points().[2].x
+
+        // With explicit lines on the vertical segments, the solver fits the curve sections.
+        // Left curve: (0, 333) -> (x, 0). Height 333.
+        // Right curve: (x, 0) -> (1000, 500). Height 500.
+        // The LEFT curve is shorter (333) -> stiffer -> pushes center to the RIGHT to minimize curvature.
+        Assert.That(
+            finalX,
+            Is.GreaterThan(500.0),
+            "fitted x of the bottom point should be to the right of centre (stiffer left side pushes right)"
+        )

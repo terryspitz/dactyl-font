@@ -266,7 +266,7 @@ function App() {
     }
 
     return () => clearTimeout(timer)
-  }, [text, axes, activeTab, zoom, layerVisibility])
+  }, [text, axes, activeTab])
 
   const renderContent = () => {
     if (error) return <div style={{ color: 'red' }}>Error: {error}</div>

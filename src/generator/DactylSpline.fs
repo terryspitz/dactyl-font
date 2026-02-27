@@ -140,7 +140,7 @@ type BezierPoint() =
         let fit_str f = if f then "~" else ""
 
         sprintf
-            "BezPt x:%s%f y:%s%f th:%s%f ld:%s%f rd:%s%f"
+            "BezPt x:%s%.2f y:%s%.2f th:%s%.2f ld:%s%.2f rd:%s%.2f"
             (fit_str this.fit_x)
             this.x
             (fit_str this.fit_y)
@@ -309,73 +309,110 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             let point1 = _points.[i]
             let point2 = _points.[i + 1]
 
-            let bez =
-                CubicBez(
-                    [| point1.x
-                       point1.y
-                       point1.rpt().x
-                       point1.rpt().y
-                       point2.lpt().x
-                       point2.lpt().y
-                       point2.x
-                       point2.y |]
-                )
+            // Skip zero-length segments to avoid NaN/Inf errors
+            // Use a small epsilon
+            if (point1.vec - point2.vec).norm () > 1e-4 then
+                let bez =
+                    CubicBez(
+                        [| point1.x
+                           point1.y
+                           point1.rpt().x
+                           point1.rpt().y
+                           point2.lpt().x
+                           point2.lpt().y
+                           point2.x
+                           point2.y |]
+                    )
 
-            let curveSamples =
-                [ for j in 0..STEPS do
-                      let t0 = (-0.5 + float j) / (float STEPS)
-                      let t1 = (float j) / (float STEPS)
-                      let t2 = (0.5 + float j) / (float STEPS)
-                      (10000. * bez.curvature t1, (bez.eval t2 - bez.eval t0).norm ()) ]
+                let curveSamples =
+                    [ for j in 0..STEPS do
+                          let t0 = (-0.5 + float j) / (float STEPS)
+                          let t1 = (float j) / (float STEPS)
+                          let t2 = (0.5 + float j) / (float STEPS)
+                          (10000. * bez.curvature t1, (bez.eval t2 - bez.eval t0).norm ()) ]
 
-            let ks, segmentLengths = curveSamples |> List.toArray |> Array.unzip
+                let ks, segmentLengths = curveSamples |> List.toArray |> Array.unzip
 
-            let cumm_dists, max_dist =
-                Array.mapFold (fun sum dist -> let acc = sum + dist in (acc, acc)) 0. segmentLengths
+                let cumm_dists, max_dist =
+                    Array.mapFold (fun sum dist -> let acc = sum + dist in (acc, acc)) 0. segmentLengths
 
-            // Fit line to this segment's curvature
-            let m, c, residuals = linear_regression cumm_dists ks
+                // Fit line to this segment's curvature
+                let m, c, residuals = linear_regression cumm_dists ks
 
-            if
-                Double.IsNaN m
-                || Double.IsNaN c
-                || Double.IsNaN residuals
-                || Double.IsInfinity m
-                || Double.IsInfinity c
-                || Double.IsInfinity residuals
-            then
-                totalErr <- totalErr + 1e9 // Penalty for invalid
-            else
-                // 1. Residuals from being an Euler spiral
-                totalErr <- totalErr + residuals
+                if
+                    Double.IsNaN m
+                    || Double.IsNaN c
+                    || Double.IsNaN residuals
+                    || Double.IsInfinity m
+                    || Double.IsInfinity c
+                    || Double.IsInfinity residuals
+                then
+                    totalErr <- totalErr + 1e9 // Penalty for invalid
+                else
+                    // 1. Residuals from being an Euler spiral
+                    totalErr <- totalErr + residuals
 
-                // 2. Penalty for high variation in curvature (flatness)
-                totalErr <- totalErr + abs m * flatness
+                    // 2. Penalty for high variation in curvature (flatness)
+                    totalErr <- totalErr + abs m * flatness
 
-                // Calculate start and end curvature for continuity
-                // k(s) = m*s + c. Start is s=0 (c), End is s=max_dist
-                let startK = c
-                let endK = m * max_dist + c
+                    // Calculate start and end curvature for continuity
+                    // k(s) = m*s + c. Start is s=0 (c), End is s=max_dist
+                    let startK = c
+                    let endK = m * max_dist + c
 
-                segmentFits.Add(startK, endK)
+                    // Store start/end indices for continuity check
+                    segmentFits.Add(startK, endK, i, i + 1)
 
         // 3. Continuity Penalties
         // Penalize jumps in curvature between segments
         for i in 0 .. segmentFits.Count - 1 do
-            let startK, endK = segmentFits.[i]
+            let startK, endK, startIdx, endIdx = segmentFits.[i]
 
             if i > 0 then
-                let _, prevEndK = segmentFits.[i - 1]
-                let gap = startK - prevEndK
-                // Weight this heavily so segments join smoothly in curvature
-                totalErr <- totalErr + gap * gap * 10.0
+                let _, prevEndK, _, prevEndIdx = segmentFits.[i - 1]
+
+                // Check if the connection point(s) allow discontinuity (Corner)
+                // We check all points from prevEndIdx to startIdx (inclusive of boundary points logic)
+                // Usually prevEndIdx == startIdx, but if we skipped segments, there might be a gap.
+                // If ANY point in the gap (including ends) is a Corner, we break continuity.
+                let mutable isJoinSmooth = true
+
+                for k in prevEndIdx..startIdx do
+                    let ty = ctrlPts.[k].ty
+
+                    if ty = SplinePointType.Corner then
+                        isJoinSmooth <- false
+
+                if isJoinSmooth then
+                    let gap = startK - prevEndK
+                    // Weight this heavily so segments join smoothly in curvature
+                    totalErr <- totalErr + gap * gap * 10.0
 
         if isClosed && segmentFits.Count > 0 then
             // Continuity between last and first
-            let _, lastEndK = segmentFits.[segmentFits.Count - 1]
-            let firstStartK, _ = segmentFits.[0]
-            let gap = firstStartK - lastEndK
-            totalErr <- totalErr + gap * gap * 10.0
+            let _, lastEndK, _, lastEndIdx = segmentFits.[segmentFits.Count - 1]
+            let firstStartK, _, firstStartIdx, _ = segmentFits.[0]
+
+            // Check boundary points for Corner (from lastEndIdx to end of array, and 0 to firstStartIdx)
+            let mutable isJoinSmooth = true
+            // Check wrap-around gap: lastEndIdx -> end, 0 -> firstStartIdx
+            // Actually, logical path is lastEndIdx -> ... -> Length-1 -> loop -> 0 -> ... -> firstStartIdx
+
+            for k in lastEndIdx .. _points.Length - 1 do
+                let ty = ctrlPts.[k].ty
+
+                if ty = SplinePointType.Corner then
+                    isJoinSmooth <- false
+
+            for k in 0..firstStartIdx do
+                let ty = ctrlPts.[k].ty
+
+                if ty = SplinePointType.Corner then
+                    isJoinSmooth <- false
+
+            if isJoinSmooth then
+                let gap = firstStartK - lastEndK
+                totalErr <- totalErr + gap * gap * 10.0
 
         if Double.IsNaN totalErr || Double.IsInfinity totalErr then
             if this.debug then
@@ -570,8 +607,6 @@ type DSpline(ctrlPts, isClosed) =
                                 let endPt =
                                     { x = pt.x + k * SCALE * n.x
                                       y = pt.y + k * SCALE * n.y }
-
-                                path.moveto (p2.x, p2.y) // Move main path back to end point (redundant if curveto did it, but safe)
 
                                 combPath.moveto (pt.x, pt.y)
                                 combPath.lineto (endPt.x, endPt.y)

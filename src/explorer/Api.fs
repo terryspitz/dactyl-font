@@ -134,21 +134,6 @@ let generateSplineDebugSvg (text: string) (inputAxes: Axes) (progress: (float ->
         with _ ->
             Dot(YX(font.axes.thickness, font.axes.thickness))
 
-    // Just take the first character's curve if possible, or iterate
-    // explorer.fs seems to split by separator and parse. Here we'll just handle the whole string as "text"
-    // but the original code `for c in text.Split...` implies it processes segments.
-    // However, `parse_curve` takes a string name (like "a" or "one") from `GlyphFsDefs`.
-    // The input `text` here is likely just characters.
-    // Let's assume the user types characters. `parse_curve` actually parses the *definition* string from GlyphFsDefs.
-    // But in `explorer.fs`, it does: `for c in text.Split...`
-    // Wait, `explorer.fs` has: `textbox.value` -> `text`. `text.Split` -> `c`.
-    // If the textbox contains characters, `parse_curve` fails unless `c` is a glyph name?
-    // Looking at `parse_curve` usage in `explorer.fs`: `parse_curve ... c ...`
-    // Actually, `parse_curve` expects the *code* string (e.g. "z z z").
-    // In `run_compare_splines` it seems `textbox.value` is set to `glyphMap.[select.value.[0]]` which IS the code.
-    // So for "Splines" tab, the text area should contain the GLYPH DEFINITION, not the character.
-    // We will assume `text` is the glyph definition.
-
     let chars = text |> Seq.truncate 5 |> List.ofSeq
     let totalChars = chars.Length
     let mutable charIndex = 0
@@ -166,22 +151,8 @@ let generateSplineDebugSvg (text: string) (inputAxes: Axes) (progress: (float ->
                   let elem =
                       GlyphStringDefs.stringDefsToElem (GlyphFsDefs(fontSpline2.axes)) c fontSpline2.axes.debug
 
-                  // Use full width calculation including tracking/margins/etc
-                  // Note: elem is reduced so we should really compute width on the glyph element wrapper or manual calc
-                  // font.width expects an Element, so let's wrap it back in Glyph(c) style or just use width logic
-                  // Actually fontSpline2.width works on any element.
-                  // However, let's verify if we need to account for tracking separately.
-                  // font.width includes: elemWidth + tracking + margins.
-                  // So we just use fontSpline2.width(elem).
-                  // But wait, elem is the *result* of stringDefsToElem, which is reduced.
-                  // font.width runs reduce internally. Double reduce is fine usually or we just trust it.
-                  // Alternatively, we manually do: elemWidth + tracking + padding
-                  // Let's rely on fontSpline2.width(elem) but we need to subtract tracking if we add it manually?
-                  // No, font.width includes checking axes.tracking.
                   let width = fontSpline2.width elem
-
                   let translated = fontSpline2.translateBy xOffset 0 elem
-
                   // xOffset is the start of the next char.
                   // font.width includes tracking, so we just add it to xOffset.
                   xOffset <- xOffset + width
@@ -204,6 +175,7 @@ let generateSplineDebugSvg (text: string) (inputAxes: Axes) (progress: (float ->
     let orange = "#FFA500c0"
     let lightGreen = "lightGreen"
     let lightBlue = "lightBlue"
+    let lightOrange = "#FFD580"
 
     let guidesSvg =
         fontGuides.charToSvg '□' offsetX offsetY grey @ [ svgText 0 0 "Guides" ]
@@ -231,8 +203,8 @@ let generateSplineDebugSvg (text: string) (inputAxes: Axes) (progress: (float ->
                 if axes.show_knots then
                     wrapClass
                         "knots-layer"
-                        ((spline |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen)
-                         @ (spiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue))
+                        ((spline |> fontSpiro.getSvgKnots offsetX offsetY 5 lightGreen)
+                         @ (spiro |> fontDSpline.getSvgKnots offsetX offsetY 5 lightOrange))
                 else
                     []
 
@@ -284,10 +256,10 @@ let generateSplineDebugSvg (text: string) (inputAxes: Axes) (progress: (float ->
                 if axes.show_knots then
                     wrapClass
                         "knots-layer"
-                        ((spline |> fontSpline2.getSvgKnots offsetX offsetY 3 lightGreen)
-                         @ (spiro |> fontSpiro.getSvgKnots offsetX offsetY 3 lightBlue)
-                         @ (outlineSpline2 |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen)
-                         @ (outlineSpiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue))
+                        ((spline |> fontSpiro.getSvgKnots offsetX offsetY 5 lightGreen)
+                         @ (spiro |> fontDSpline.getSvgKnots offsetX offsetY 5 lightOrange)
+                         @ (outlineSpline2 |> fontSpiro.getSvgKnots offsetX offsetY 5 lightGreen)
+                         @ (outlineSpiro |> fontDSpline.getSvgKnots offsetX offsetY 5 lightOrange))
                 else
                     []
 

@@ -82,6 +82,21 @@ let norm th =
 
 let toPolar dx dy = hypot dx dy, atan2 dy dx
 
+let mergeConsecutive keyFn mergeFn list =
+    let rec loop =
+        function
+        | x :: y :: rest ->
+            if keyFn x = keyFn y then
+                loop ((mergeFn x y) :: rest)
+            else
+                x :: loop (y :: rest)
+        | other -> other
+
+    loop list
+
+let distinctConsecutive keyFn list =
+    mergeConsecutive keyFn (fun x y -> x) list
+
 let svgCircle x y r =
     [ sprintf "M %d,%d" (x - r) y
       sprintf "C %d,%d %d,%d %d,%d" (x - r) (y + r / 2) (x - r / 2) (y + r) x (y + r)
@@ -169,10 +184,14 @@ type Font(axes: Axes) =
 
         match elem with
         | OpenCurve(pts) ->
+            let pts = distinctConsecutive (fun (pt, _) -> getXY pt) pts
+
             match Spiro.SpiroCPsToSegments (List.map makeSCP pts |> Array.ofList) false with
             | Some segs -> [ SpiroOpenCurve(Array.toList segs) ]
             | None -> [ SpiroDot(BC) ]
         | ClosedCurve(pts) ->
+            let pts = distinctConsecutive (fun (pt, _) -> getXY pt) pts
+
             match Spiro.SpiroCPsToSegments (List.map makeSCP pts |> Array.ofList) true with
             | Some segs -> [ SpiroClosedCurve(Array.toList segs.[0 .. segs.Length - 2]) ] //cut duplicate point
             | None -> [ SpiroDot(BC) ]
@@ -208,6 +227,16 @@ type Font(axes: Axes) =
                     let x, y = getXY pt in
                     YX(int (float y + fthickness * sin (theta)), int (float x + fthickness * cos (theta)))
 
+                let pts =
+                    mergeConsecutive
+                        (fun (pt, _, _) -> getXY pt)
+                        (fun (p1, ty1, t1) (p2, ty2, t2) ->
+                            // if either tangent is None (e.g. blE.bl -> E, None), result should be None to allow Corner
+                            let t = if Option.isNone t1 || Option.isNone t2 then None else t1
+                            // prefer the second point's type (e.g. Corner from '.')
+                            (p2, ty2, t))
+                        pts
+
                 let scps =
                     [| for i in 0 .. pts.Length - 1 do
                            let pt, ty, tang = pts.[i]
@@ -238,6 +267,14 @@ type Font(axes: Axes) =
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
 
     let toSpline2ControlPoints (pts: list<Point * SpiroPointType * float option>) =
+        let pts =
+            mergeConsecutive
+                (fun (pt, _, _) -> getXY pt)
+                (fun (p1, ty1, t1) (p2, ty2, t2) ->
+                    let t = if Option.isNone t1 || Option.isNone t2 then None else t1
+                    (p2, ty2, t))
+                pts
+
         [| for i in 0 .. pts.Length - 1 do
                let p, spiroType, tangent = pts.[i]
                let x, y = getXY p
@@ -411,8 +448,11 @@ type Font(axes: Axes) =
                    | _ -> invalidArg "ty" (sprintf "Unexpected SpiroPointType %A" spiroType)
 
                let x, y = getXY p
+
                let x_opt, y_opt =
                    match p with
+                   | OYX(_, _, y_fit, x_fit) ->
+                       (if x_fit then None else Some(float x)), (if y_fit then None else Some(float y))
                    | _ -> Some(float x), Some(float y)
 
                yield
@@ -422,6 +462,9 @@ type Font(axes: Axes) =
                      th = tangent } |]
 
     let rec elementToDactylSvg (elem: Element) =
+        if axes.debug then
+            printfn "elementToDactylSvg %A" elem
+
         let ctrlPtsToSvg ctrlPts isClosed =
             let spline = DSpline(ctrlPts, isClosed)
 

@@ -8,9 +8,11 @@ open SpiroControlPoint
 type Point =
     // Raw coordinates
     | YX of y: int * x: int
+    | OYX of y: int * x: int * y_fit: bool * x_fit: bool
 
     // Y coordinate: Top,X-height,Half-height,Bottom
     // X coordinate: Left,Centre,Right
+    // o adds/subtracts an offset to the dimension it follows
     // Top points: Left, Left offset inward, Centre, Right
     | TL
     | TLo
@@ -18,7 +20,6 @@ type Point =
     | TRo
     | TR
     // Top - offset down
-    // o adds/subtracts an offset to the dimension it follows
     | ToL
     | ToC
     | ToR
@@ -52,8 +53,9 @@ type Point =
     | BC
     | BRo
     | BR
-    // Descender
+    // Descender offset up
     | DoL
+    // Descender
     | DL
     | DC
     | DR
@@ -64,13 +66,13 @@ type Point =
     | XoN
     | XN
     | TN
-    // relative points
     | Mid of p1: Point * p2: Point
     | Interp of p1: Point * p2: Point * frac: float
 
     member this.GetXY =
         match this with
         | YX(y, x) -> x, y
+        | OYX(y, x, _, _) -> x, y
         | _ -> invalidArg "this" "Point (+) only works with reduced points"
 
     static member (+)(lhs: Point, rhs: Point) =

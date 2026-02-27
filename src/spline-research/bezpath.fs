@@ -26,7 +26,10 @@ let Format (value: float) =
     if abs (value - round (value)) < 1e-3 then
         (round value).ToString()
     else
+        // value.ToString("F1", ToStringCulture)
         value.ToString("F3")
+// sprintf "%d" (int value)
+// (int value).ToString()
 
 /// <summary>
 /// Bezier context implementation that handles the creation of Path data representation of bézier splines.
@@ -43,7 +46,8 @@ type BezPath() =
     member this.tostring() = _sb.ToString()
 
     member this.tostringlist() =
-        _sb.ToString().Split("\r\n") |> List.ofArray
+        _sb.ToString().Split([| "\r\n"; "\n" |], StringSplitOptions.RemoveEmptyEntries)
+        |> List.ofArray
 
     member this.moveto(x, y) =
         _sb.AppendLine(sprintf "M %s,%s" (Format x) (Format y)) |> ignore

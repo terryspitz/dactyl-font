@@ -75,6 +75,7 @@ type GlyphFsDefs(axes: Axes) =
     let rec reducePoint p =
         match p with
         | YX(y, x) -> (y, x)
+        | OYX(y, x, _, _) -> (y, x)
         | TL -> (T, L)
         | TLo -> (T, L + offset)
         | TC -> (T, C)

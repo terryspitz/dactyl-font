@@ -27,6 +27,8 @@
     <Compile Include="GlyphStringDefs.fs" />
     <Compile Include="Generator.fs" />
     <Compile Include="DactylSplineTest.fs" />
+    <Compile Include="ParserTests.fs" />
+    <Compile Include="OutlineTests.fs" />
     <Compile Include="VisualTests.fs" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' != 'Release'">
