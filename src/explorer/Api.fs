@@ -91,7 +91,7 @@ let generateTweenSvg (text: string) (axes: Axes) =
     // Let's set height to exactly what we need.
     toSvgDocument -margin minY width height svg |> String.concat "\n"
 
-let generateSplineDebugSvg (text: string) (inputAxes: Axes) (progress: (float -> unit) option) =
+let private buildSplineDebugSvg (inputAxes: Axes) (elementsBuilder: Font -> (Element list * int)) =
     let axes =
         { inputAxes with
             clip_rect = false
@@ -125,39 +125,7 @@ let generateSplineDebugSvg (text: string) (inputAxes: Axes) (progress: (float ->
                 show_knots = false
                 debug = false }
 
-    // Parse curves (handling errors gracefully as in explorer.fs)
-    let separator_re = [| '\r'; '\n' |]
-
-    let safeParseCurve (font: Font) c =
-        try
-            parse_curve (GlyphFsDefs(font.axes)) c font.axes.debug
-        with _ ->
-            Dot(YX(font.axes.thickness, font.axes.thickness))
-
-    let chars = text |> Seq.truncate 5 |> List.ofSeq
-    let totalChars = chars.Length
-    let mutable charIndex = 0
-    let mutable xOffset = 0
-
-    let elements =
-        [ for c in chars do
-              charIndex <- charIndex + 1
-
-              match progress with
-              | Some p -> p (float charIndex / float totalChars)
-              | None -> ()
-
-              if Map.containsKey c GlyphStringDefs.glyphMap then
-                  let elem =
-                      GlyphStringDefs.stringDefsToElem (GlyphFsDefs(fontSpline2.axes)) c fontSpline2.axes.debug
-
-                  let width = fontSpline2.width elem
-                  let translated = fontSpline2.translateBy xOffset 0 elem
-                  // xOffset is the start of the next char.
-                  // font.width includes tracking, so we just add it to xOffset.
-                  xOffset <- xOffset + width
-
-                  yield translated ]
+    let elements, xOffset = elementsBuilder fontSpline2
 
     let combinedElement =
         if List.isEmpty elements then
@@ -230,9 +198,8 @@ let generateSplineDebugSvg (text: string) (inputAxes: Axes) (progress: (float ->
 
             let outlineSpiro = getOutline fontSpiro spiro
             let outlineSpline2 = getOutline fontSpline2 spline
-            let outlineDSpline = getOutline fontDSpline spline // Note: dactyl_spline uses dactyl logic but applies to same structure? verify explorer.fs logic
+            let outlineDSpline = getOutline fontDSpline spline
 
-            // Replicating explorer.fs logic exactly:
             let outlineSpiroSvg = safeElementToSvgPath fontSpiro outlineSpiro blue
             let outlineSpline2Svg = safeElementToSvgPath fontSpline2 outlineSpline2 green
             let outlineDSplineSvg = safeElementToSvgPath fontDSpline outlineDSpline orange
@@ -265,15 +232,78 @@ let generateSplineDebugSvg (text: string) (inputAxes: Axes) (progress: (float ->
 
             guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer
 
-    // Calculate generic SVG bounds (similar to explorer.fs but returns string)
-    // Explorer uses: toSvgDocument -50 fontSpline2.yBaselineOffset 1000 fontSpline2.charHeight svg
-    // We need 'toSvgDocument' equivalent or just wrap it.
-    // 'toSvgDocument' is likely in Generator/Axes/GlyphStringDefs.
-    // Assuming 'toSvgDocument' returns a generic list of strings (lines of SVG).
-    let svgWidth = max 1000 (xOffset + 100) // Ensure enough width, defaulting to at least 1000
+    let svgWidth = max 1000 (xOffset + 100)
 
     toSvgDocument -50 fontSpline2.yBaselineOffset svgWidth fontSpline2.charHeight svgElements
     |> String.concat "\n"
+
+let generateSplineDebugSvg (text: string) (inputAxes: Axes) (progress: (float -> unit) option) =
+    let elementsBuilder (fontSpline2: Font) =
+        let chars = text |> Seq.truncate 5 |> List.ofSeq
+        let totalChars = chars.Length
+        let mutable charIndex = 0
+        let mutable xOffset = 0
+
+        let elements =
+            [ for c in chars do
+                  charIndex <- charIndex + 1
+
+                  match progress with
+                  | Some p -> p (float charIndex / float totalChars)
+                  | None -> ()
+
+                  if Map.containsKey c GlyphStringDefs.glyphMap then
+                      let elem =
+                          GlyphStringDefs.stringDefsToElem (GlyphFsDefs(fontSpline2.axes)) c fontSpline2.axes.debug
+
+                      let width = fontSpline2.width elem
+                      let translated = fontSpline2.translateBy xOffset 0 elem
+                      xOffset <- xOffset + width
+
+                      yield translated ]
+
+        elements, xOffset
+
+    buildSplineDebugSvg inputAxes elementsBuilder
+
+let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progress: (float -> unit) option) =
+    let elementsBuilder (fontSpline2: Font) =
+        let lines =
+            defsText.Split([| '\n'; '\r' |], System.StringSplitOptions.RemoveEmptyEntries)
+
+        let totalChars = lines.Length
+        let mutable charIndex = 0
+        let mutable xOffset = 0
+
+        let elements =
+            [ for line in lines do
+                  charIndex <- charIndex + 1
+
+                  match progress with
+                  | Some p -> p (float charIndex / float totalChars)
+                  | None -> ()
+
+                  let def =
+                      let colonIdx = line.IndexOf(':')
+
+                      if colonIdx >= 0 then
+                          line.Substring(colonIdx + 1).Trim()
+                      else
+                          line.Trim()
+
+                  if not (System.String.IsNullOrWhiteSpace(def)) then
+                      let elem =
+                          GlyphStringDefs.rawDefToElem (GlyphFsDefs(fontSpline2.axes)) def fontSpline2.axes.debug
+
+                      let width = fontSpline2.width elem
+                      let translated = fontSpline2.translateBy xOffset 0 elem
+                      xOffset <- xOffset + width
+
+                      yield translated ]
+
+        elements, xOffset
+
+    buildSplineDebugSvg inputAxes elementsBuilder
 
 let getGlyphDefs (text: string) =
     if System.String.IsNullOrEmpty(text) then

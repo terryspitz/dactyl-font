@@ -285,6 +285,18 @@ let parse_curve (glyph: GlyphFsDefs) raw_def debug =
 
         TangentCurve(List.zip3 pts lines tangents, false)
 
+let private parse_curves (glyph: GlyphFsDefs) (def: string) debug =
+    if System.String.IsNullOrEmpty(def) then
+        Dot(HC)
+    elif def = " " then
+        Space
+    else
+        EList(
+            [ for d in def.Split(separator_re) do
+                  if not (System.String.IsNullOrWhiteSpace(d)) then
+                      parse_curve glyph d debug ]
+        )
+
 let stringDefsToElem (glyph: GlyphFsDefs) e debug =
     let def = glyphMap.[e]
     assert Regex.IsMatch(def, glyph_re)
@@ -292,15 +304,10 @@ let stringDefsToElem (glyph: GlyphFsDefs) e debug =
     if debug then
         printfn "%A: %A" e def
 
-    if def = "" then
+    parse_curves glyph def debug
+
+let rawDefToElem (glyph: GlyphFsDefs) (rawDef: string) debug =
+    try
+        parse_curves glyph rawDef debug
+    with _ ->
         Dot(HC)
-    elif def = " " then
-        Space
-    else
-        let curves =
-            EList(
-                [ for def in def.Split(separator_re) do
-                      parse_curve glyph def debug ]
-            )
-        // printfn "%A" curves
-        curves

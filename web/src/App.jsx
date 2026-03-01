@@ -2,93 +2,6 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { generateSvg, defaultAxes, controlDefinitions, generateSplineDebugSvg, generateTweenSvg, getGlyphDefs, allChars, generateVisualTestsSvg } from './lib/fable/Api' // Adjust path if needed
 import './App.css'
 
-// Parse helper for glyph definitions
-const ABBR_MAP = {
-  t: 'top',
-  x: 'x-height',
-  h: 'half-height',
-  b: 'bottom',
-  d: 'descender',
-  l: 'left',
-  r: 'right',
-  c: 'center',
-  w: 'wide',
-  o: 'roundness offset',
-  N: 'North',
-  S: 'South',
-  E: 'East',
-  W: 'West',
-}
-
-const parseToken = (token) => {
-  const match = token.match(/^([txhbd]+)(o?)([lrcw]+)([NSEW]?)$/)
-  if (!match) return null
-
-  const [, y, offset, x, dir] = match
-  const parts = []
-
-  // Helper to map characters
-  const mapChars = (str) => {
-    const mapped = str.split('').map(c => ABBR_MAP[c])
-    return mapped.length > 1 ? mapped.join('<->') : mapped[0]
-  }
-
-  parts.push(mapChars(y))
-  if (offset) parts.push(ABBR_MAP[offset])
-  parts.push(mapChars(x))
-  if (dir) parts.push(ABBR_MAP[dir])
-
-  return parts.join(', ')
-}
-
-const FormattedDefs = ({ text }) => {
-  if (!text) return null
-  return (
-    <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-      {text.split('\n').map((line, i) => {
-        const colonIndex = line.indexOf(': ')
-        if (colonIndex === -1) return <div key={i}>{line}</div>
-
-        const charPart = line.substring(0, colonIndex + 2)
-        const defPart = line.substring(colonIndex + 2)
-
-        // Split by spaces to separate curves/segments
-        const segments = defPart.split(' ').map((segment, segIdx) => {
-          // Split by separators (-, ~, .), keeping them
-          const tokens = segment.split(/([-~.])/).filter(t => t)
-
-          return (
-            <span key={segIdx}>
-              {segIdx > 0 && ' '}
-              {tokens.map((token, tokIdx) => {
-                const tooltip = parseToken(token)
-                if (tooltip) {
-                  return (
-                    <span
-                      key={tokIdx}
-                      title={tooltip}
-                      style={{ cursor: 'help', textDecoration: 'underline dotted', textDecorationColor: '#888' }}
-                    >
-                      {token}
-                    </span>
-                  )
-                }
-                return <span key={tokIdx}>{token}</span>
-              })}
-            </span>
-          )
-        })
-
-        return (
-          <div key={i}>
-            {charPart}
-            {segments}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
 
 function App() {
   const [tabTexts, setTabTexts] = useState(() => {
@@ -100,6 +13,10 @@ function App() {
       tweens: 'a',
       visualTests: ''
     }
+  })
+  const [splinesDefsText, setSplinesDefsText] = useState(() => {
+    const initialText = tabTexts['splines'] || 'a'
+    return getGlyphDefs(initialText)
   })
   const [axes, setAxes] = useState({ ...defaultAxes })
   const [activeTab, setActiveTab] = useState('font')
@@ -154,6 +71,7 @@ function App() {
     setTabTexts(prev => ({ ...prev, [activeTab]: newVal }))
     if (activeTab === 'splines') {
       localStorage.setItem('splineText', newVal)
+      setSplinesDefsText(getGlyphDefs(newVal || 'a'))
     }
   }
 
@@ -249,9 +167,8 @@ function App() {
       type = 'font'
       args = [text, axes]
     } else if (activeTab === 'splines') {
-      const splineText = text.length > 0 ? text : "a"
-      type = 'splines'
-      args = [splineText, axes]
+      type = 'splinesFromDefs'
+      args = [splinesDefsText, axes]
     } else if (activeTab === 'tweens') {
       const char = text.length > 0 ? text[0] : 'a'
       type = 'tweens'
@@ -266,7 +183,7 @@ function App() {
     }
 
     return () => clearTimeout(timer)
-  }, [text, axes, activeTab])
+  }, [text, axes, activeTab, splinesDefsText])
 
   const renderContent = () => {
     if (error) return <div style={{ color: 'red' }}>Error: {error}</div>
@@ -374,9 +291,6 @@ function App() {
     setAxes(newAxes)
   }
 
-  // Calculate definitions for Splines tab outside content useMemo
-  const splineIdxText = activeTab === 'splines' ? (text.length > 0 ? text : "a") : ""
-  const splineDefs = activeTab === 'splines' ? getGlyphDefs(splineIdxText) : null
 
   return (
     <div className="container">
@@ -481,7 +395,7 @@ function App() {
               value={text}
               onChange={e => setText(e.target.value)}
               rows={3}
-              placeholder="Type here..."
+              placeholder="Characters..."
             />
             <button
               className="text-reset-button"
@@ -495,9 +409,17 @@ function App() {
             </button>
           </div>
           {activeTab === 'splines' && (
-            <div className="glyph-defs-panel">
-              <h3>Glyph Definitions</h3>
-              <FormattedDefs text={splineDefs} />
+            <div className="glyph-defs-panel" style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <h3 style={{ margin: 0 }}>Glyph Definitions</h3>
+              <textarea
+                value={splinesDefsText}
+                onChange={e => setSplinesDefsText(e.target.value)}
+                style={{ width: '100%', flex: '1', minHeight: '100px', fontFamily: 'monospace', resize: 'vertical' }}
+                spellCheck="false"
+              />
+              <div className="helper-key" style={{ fontSize: '0.85em', color: '#666' }}>
+                <strong>Key:</strong> y: (t)op, (x)-height, (h)alf, (b)ottom, (d)escender, (o)ffset. x: (l)eft, (c)enter, (r)ight, (w)ide. Dirs: N,S,E,W. Lines: (-) straight, (~) curve, (.) corner
+              </div>
             </div>
           )}
         </div>
