@@ -93,6 +93,7 @@ type Element =
     | PolyLine of list<Point>
     | OpenCurve of list<Point * SpiroPointType>
     | ClosedCurve of list<Point * SpiroPointType>
+    // DSpline's preferred curve, with optional Point coords, line type and optional tangent 
     | TangentCurve of knots: list<Point * SpiroPointType * float option> * isClosed: bool
     | Dot of Point
     | EList of list<Element>

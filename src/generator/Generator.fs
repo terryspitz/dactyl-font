@@ -420,7 +420,6 @@ type Font(axes: Axes) =
     let toDSplineControlPoints (pts: list<Point * SpiroPointType * float option>) =
         [| for i in 0 .. pts.Length - 1 do
                let p, spiroType, tangent = pts.[i]
-               let x, y = getXY p
                assert (spiroType <> SpiroPointType.Anchor && spiroType <> SpiroPointType.Handle)
 
                let ty =
@@ -729,10 +728,10 @@ type Font(axes: Axes) =
                       let lastSeg = segments.[segments.Length - 1]
                       yield! this.offsetSegment seg lastSeg reverse dist
                   else
-                      (segAddPolar seg (seg.tangent1 + angle) dist, seg.Type)
+                      yield (segAddPolar seg (seg.tangent1 + angle) dist, seg.Type)
               elif i = segments.Length - 1 && not closed then
                   let lastSeg = segments.[i - 1]
-                  (segAddPolar seg (lastSeg.tangent2 + angle) dist, seg.Type)
+                  yield (segAddPolar seg (lastSeg.tangent2 + angle) dist, seg.Type)
               else
                   let lastSeg = segments.[i - 1]
                   yield! this.offsetSegment seg lastSeg reverse dist ]
@@ -831,7 +830,12 @@ type Font(axes: Axes) =
         match spiro with
         | SpiroOpenCurve(segments) ->
             [ for i in 0 .. lines - 1 do
-                  let offset = (float thickness) * (float i / float (lines - 1) - 0.5) * 2.0
+                  let offset =
+                      if lines <= 1 then
+                          0.0
+                      else
+                          (float thickness) * (float i / float (lines - 1) - 0.5) * 2.0
+
                   OpenCurve(this.offsetSegments segments 0 (segments.Length - 1) false false offset) ]
         | SpiroClosedCurve(segments) ->
             [ for i in 0 .. lines - 1 do

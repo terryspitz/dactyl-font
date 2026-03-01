@@ -36,7 +36,7 @@ let glyph_re = "^ ?$|^(" + curve_re + separator_re + ")*" + curve_re + "$"
 let glyphMap =
     Map.ofList
         [ ' ', " "
-          '□', "tl-tr-br-bl- xl-xr bl-dl-dr-br"
+          '□', "tl-tr-br-bl- xl-xr bl-dl-dr-br" //frame for showing top/x/descender heights
           '!', "tc-hbc bc"
           '"', "tllr-tthllr tlrr-tthlrr"
           '#', "ttbl-ttbr tbbl-tbbr tllr-bllr tlrr-blrr"
