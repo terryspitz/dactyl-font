@@ -96,7 +96,6 @@ let private buildSplineDebugSvg (inputAxes: Axes) (elementsBuilder: Font -> (Ele
         { inputAxes with
             clip_rect = false
             filled = false
-            show_knots = true
             show_comb = true }
 
     // Create fonts with specific settings
@@ -168,13 +167,9 @@ let private buildSplineDebugSvg (inputAxes: Axes) (elementsBuilder: Font -> (Ele
                 wrapClass "dspline-layer" (fontDSpline.elementToSvgPath spline offsetX offsetY 10 orange)
 
             let knotsLayer =
-                if axes.show_knots then
-                    wrapClass
-                        "knots-layer"
-                        ((spline |> fontSpiro.getSvgKnots offsetX offsetY 5 lightGreen)
-                         @ (spiro |> fontDSpline.getSvgKnots offsetX offsetY 5 lightOrange))
-                else
-                    []
+                (wrapClass "spiro-layer knots-layer" (spiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue))
+                @ (wrapClass "spline2-layer knots-layer" (spline |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen))
+                @ (wrapClass "dspline-layer knots-layer" (spline |> fontDSpline.getSvgKnots offsetX offsetY 5 lightOrange))
 
             guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer
         else
@@ -220,15 +215,12 @@ let private buildSplineDebugSvg (inputAxes: Axes) (elementsBuilder: Font -> (Ele
                     (fontDSpline.elementToSvgPath spline offsetX offsetY 3 orange @ outlineDSplineSvg)
 
             let knotsLayer =
-                if axes.show_knots then
-                    wrapClass
-                        "knots-layer"
-                        ((spline |> fontSpiro.getSvgKnots offsetX offsetY 5 lightGreen)
-                         @ (spiro |> fontDSpline.getSvgKnots offsetX offsetY 5 lightOrange)
-                         @ (outlineSpline2 |> fontSpiro.getSvgKnots offsetX offsetY 5 lightGreen)
-                         @ (outlineSpiro |> fontDSpline.getSvgKnots offsetX offsetY 5 lightOrange))
-                else
-                    []
+                (wrapClass "spiro-layer knots-layer" (spiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue))
+                @ (wrapClass "spiro-layer knots-layer" (outlineSpiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue))
+                @ (wrapClass "spline2-layer knots-layer" (spline |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen))
+                @ (wrapClass "spline2-layer knots-layer" (outlineSpline2 |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen))
+                @ (wrapClass "dspline-layer knots-layer" (spline |> fontDSpline.getSvgKnots offsetX offsetY 5 lightOrange))
+                @ (wrapClass "dspline-layer knots-layer" (outlineDSpline |> fontDSpline.getSvgKnots offsetX offsetY 5 lightOrange))
 
             guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer
 
