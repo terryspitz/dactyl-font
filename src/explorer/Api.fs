@@ -316,3 +316,62 @@ let generateVisualTestsSvg () =
     |> toSvgDocument 0 0 10 12
     |> String.concat "\n"
     |> fun s -> s.Replace("svg ", "svg style='height: 95vh;' ")
+
+let generateVisualDiffsSvg (text: string) (axes: Axes) (progress: (float -> unit) option) =
+    let fontOff = Font { axes with new_definitions = false }
+    let fontOn = Font { axes with new_definitions = true; debug = false }
+
+    let chars = 
+        if System.String.IsNullOrEmpty(text) then
+            []
+        else
+            text.Replace("\n", "").Replace("\r", "") |> Seq.toList
+    let totalChars = chars.Length
+
+    let marginX = max 200 (axes.thickness * 2)
+    let marginY = max 200 (axes.thickness * 2)
+    
+    let cols = 5
+    let cellWidth = (axes.width + marginX) * 3 + marginX
+    let cellHeight = fontOn.charHeight + marginY * 2
+
+    let keyFontSize = (axes.width / 3) |> string
+    let keySvg = [ sprintf "<text x='0' y='%d' font-size='%s' fill='black'>Key: Left = Old, Middle = New, Right = Overlaid Diff (Red=Old, Blue=New)</text>" (cellHeight / 2) keyFontSize ]
+
+    let svgs =
+        keySvg @ (chars |> List.mapi (fun i ch ->
+            match progress with
+            | Some p -> p (float i / float totalChars)
+            | None -> ()
+
+            let row = i / cols
+            let col = i % cols
+            
+            let xOffset = col * cellWidth
+            let yOffset = (row + 1) * cellHeight
+            
+            // Col 1: off
+            let svgOff = fontOff.charToSvg ch xOffset yOffset "black"
+            
+            // Col 2: on
+            let svgOn = fontOn.charToSvg ch (xOffset + axes.width + marginX) yOffset "black"
+
+            // Col 3: overlaid
+            let overlayX = xOffset + (axes.width + marginX) * 2
+            let svgOffRed = fontOff.charToSvg ch overlayX yOffset "rgba(255, 0, 0, 0.5)"
+            let svgOnBlue = fontOn.charToSvg ch overlayX yOffset "rgba(0, 0, 255, 0.5)"
+            
+            // Add labels
+            let fontSize = (axes.width / 5) |> string
+            let labels = 
+                [ sprintf "<text x='%d' y='%d' font-size='%s' fill='gray'>%c</text>" xOffset (yOffset - axes.thickness) fontSize ch ]
+
+            labels @ svgOff @ svgOn @ svgOffRed @ svgOnBlue
+        ) |> List.concat)
+
+    let totalWidth = cols * cellWidth
+    let totalHeight = ((chars.Length + cols - 1) / cols + 1) * cellHeight
+    
+    toSvgDocument -marginX -marginY totalWidth totalHeight svgs
+    |> String.concat "\n"
+

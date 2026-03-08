@@ -1,4 +1,4 @@
-import { generateSvg, generateSplineDebugSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateVisualTestsSvg, controlDefinitions } from './lib/fable/Api'
+import { generateSvg, generateSplineDebugSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateVisualTestsSvg, generateVisualDiffsSvg, controlDefinitions } from './lib/fable/Api'
 
 self.onmessage = (e) => {
     const { id, type, args } = e.data
@@ -49,6 +49,11 @@ self.onmessage = (e) => {
             }
             case 'visualTests':
                 result = generateVisualTestsSvg()
+                break
+            case 'visualDiffs':
+                result = generateVisualDiffsSvg(...args, (p) => {
+                    self.postMessage({ id, type: 'progress', value: p });
+                })
                 break
             default:
                 throw new Error(`Unknown generation type: ${type}`)

@@ -11,7 +11,8 @@ function App() {
       font: allChars,
       splines: savedSplines !== null ? savedSplines : 'font',
       tweens: 'a',
-      visualTests: ''
+      visualTests: '',
+      visualDiffs: allChars
     }
   })
   const [splinesDefsText, setSplinesDefsText] = useState(() => {
@@ -25,6 +26,7 @@ function App() {
     splines: 1.0,
     tweens: 1.0,
     visualTests: 1.0,
+    visualDiffs: 1.0,
   })
   const [layerVisibility, setLayerVisibility] = useState({
     spiro: true,
@@ -39,7 +41,7 @@ function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const view = params.get('view')
-    if (view && ['font', 'splines', 'tweens', 'visualTests'].includes(view)) {
+    if (view && ['font', 'splines', 'tweens', 'visualTests', 'visualDiffs'].includes(view)) {
       setActiveTab(view)
     }
   }, [])
@@ -102,8 +104,8 @@ function App() {
     setOpenCategories(prev => ({ ...prev, [cat]: !prev[cat] }))
   }
 
-  // Worker state
-  const workerRef = useRef(null)
+  // Worker state is now handled within the effect directly
+
   const renderIdRef = useRef(0)
   const loadingRef = useRef(false)
   const [loading, setLoading] = useState(false)
@@ -112,17 +114,16 @@ function App() {
   const [workerResult, setWorkerResult] = useState(null)
   const [error, setError] = useState(null)
 
-  // Worker setup
+  // Trigger generation
   useEffect(() => {
-    workerRef.current = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
-    workerRef.current.onmessage = (e) => {
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    
+    worker.onmessage = (e) => {
       const { id, result, error, type, value } = e.data
       if (id !== renderIdRef.current) return
 
       if (type === 'progress') {
         setProgressValue(value)
-        // If we get progress, we can show the bar immediately if we want, or stick to timer
-        // Showing immediately for progress updates makes sense
         if (value > 0) setShowProgress(true)
         return
       }
@@ -137,13 +138,8 @@ function App() {
       loadingRef.current = false
       setShowProgress(false)
     }
-    return () => workerRef.current.terminate()
-  }, [])
 
-  // Trigger generation
-  useEffect(() => {
     const id = ++renderIdRef.current
-    setLoading(true)
     setLoading(true)
     loadingRef.current = true
     setProgressValue(0)
@@ -156,33 +152,40 @@ function App() {
       }
     }, 1000)
 
-    let type, args
+    let typeReq, args
     if (activeTab === 'font') {
       if (!text) {
         setWorkerResult("")
         setLoading(false)
         clearTimeout(timer)
+        worker.terminate()
         return
       }
-      type = 'font'
+      typeReq = 'font'
       args = [text, axes]
     } else if (activeTab === 'splines') {
-      type = 'splinesFromDefs'
+      typeReq = 'splinesFromDefs'
       args = [splinesDefsText, axes]
     } else if (activeTab === 'tweens') {
       const char = text.length > 0 ? text[0] : 'a'
-      type = 'tweens'
+      typeReq = 'tweens'
       args = [char, axes]
     } else if (activeTab === 'visualTests') {
-      type = 'visualTests'
+      typeReq = 'visualTests'
       args = []
+    } else if (activeTab === 'visualDiffs') {
+      typeReq = 'visualDiffs'
+      args = [text || allChars, axes]
     }
 
-    if (type && workerRef.current) {
-      workerRef.current.postMessage({ id, type, args })
+    if (typeReq) {
+      worker.postMessage({ id, type: typeReq, args })
     }
 
-    return () => clearTimeout(timer)
+    return () => {
+      clearTimeout(timer)
+      worker.terminate()
+    }
   }, [text, axes, activeTab, splinesDefsText])
 
   const renderContent = () => {
@@ -255,7 +258,7 @@ function App() {
             })()}
           </div>
         )
-      } else if (activeTab === 'visualTests') {
+      } else if (activeTab === 'visualTests' || activeTab === 'visualDiffs') {
         if (typeof content !== 'string') return null
         return <div
           className="svg-container"
@@ -385,6 +388,7 @@ function App() {
             <button className={`tab-button ${activeTab === 'font' ? 'active' : ''}`} onClick={() => setTabWithUrl('font')}>Font</button>
             <button className={`tab-button ${activeTab === 'splines' ? 'active' : ''}`} onClick={() => setTabWithUrl('splines')}>Splines</button>
             <button className={`tab-button ${activeTab === 'tweens' ? 'active' : ''}`} onClick={() => setTabWithUrl('tweens')}>Tweens</button>
+            <button className={`tab-button ${activeTab === 'visualDiffs' ? 'active' : ''}`} onClick={() => setTabWithUrl('visualDiffs')}>Visual Diffs</button>
           </div>
 
         </div>
@@ -400,7 +404,7 @@ function App() {
             <button
               className="text-reset-button"
               onClick={() => {
-                const defaults = { font: allChars, splines: 'font', tweens: 'a' }
+                const defaults = { font: allChars, splines: 'font', tweens: 'a', visualTests: '', visualDiffs: allChars }
                 setText(defaults[activeTab])
               }}
               title="Reset Text to Default"
