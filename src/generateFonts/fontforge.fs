@@ -38,8 +38,7 @@ let charToFontForge (font: Font) (ch: char) =
                       let x, y = font.GlyphFsDefs._getXY p in sprintf "%d %d %c" x y (SpiroPointType.ToChar t)
 
                   match elem with
-                  | OpenCurve(pts)
-                  | ClosedCurve(pts) -> List.map ptToString pts
+                  | Curve(knots, _) -> List.map (fun (p, t, _) -> ptToString (p, t)) knots
                   | EList(elems) -> List.collect toSpiroString elems
                   | Dot(p) -> let x, y = font.GlyphFsDefs._getXY p in spiroCircle x y thickness
                   | Space -> []

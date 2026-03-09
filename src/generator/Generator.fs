@@ -1,4 +1,4 @@
-﻿// Functional Fonts by terryspitz
+// Functional Fonts by terryspitz
 // Mar 2020-
 
 module Generator
@@ -46,9 +46,6 @@ let mergeConsecutive keyFn mergeFn list =
         | other -> other
 
     loop list
-
-let distinctConsecutive keyFn list =
-    mergeConsecutive keyFn (fun x y -> x) list
 
 let svgCircle x y r =
     [ sprintf "M %d,%d" (x - r) y
@@ -136,19 +133,7 @@ type Font(axes: Axes) =
               Type = ty }
 
         match elem with
-        | OpenCurve(pts) ->
-            let pts = distinctConsecutive (fun (pt, _) -> getXY pt) pts
-
-            match Spiro.SpiroCPsToSegments (List.map makeSCP pts |> Array.ofList) false with
-            | Some segs -> [ SpiroOpenCurve(Array.toList segs) ]
-            | None -> [ SpiroDot(BC) ]
-        | ClosedCurve(pts) ->
-            let pts = distinctConsecutive (fun (pt, _) -> getXY pt) pts
-
-            match Spiro.SpiroCPsToSegments (List.map makeSCP pts |> Array.ofList) true with
-            | Some segs -> [ SpiroClosedCurve(Array.toList segs.[0 .. segs.Length - 2]) ] //cut duplicate point
-            | None -> [ SpiroDot(BC) ]
-        | TangentCurve(pts, isClosed) ->
+        | Curve(pts, isClosed) ->
             let simple = false
 
             if simple then
@@ -183,11 +168,11 @@ type Font(axes: Axes) =
                 let pts =
                     mergeConsecutive
                         (fun (pt, _, _) -> getXY pt)
-                        (fun (p1, ty1, t1) (p2, ty2, t2) ->
+                        (fun (p1, ty1, th1) (p2, ty2, th2) ->
                             // if either tangent is None (e.g. blE.bl -> E, None), result should be None to allow Corner
-                            let t = if Option.isNone t1 || Option.isNone t2 then None else t1
+                            let th = if Option.isNone th1 || Option.isNone th2 then None else th1
                             // prefer the second point's type (e.g. Corner from '.')
-                            (p2, ty2, t))
+                            (p2, ty2, th))
                         pts
 
                 let scps =
@@ -286,10 +271,7 @@ type Font(axes: Axes) =
             let _, types, _ = (List.unzip3 pts)
             let spline = Spline2(ctrlPts, isClosed)
             spline.solve (axes.max_spline_iter)
-            // printfn "spline"
-            // for pt in spline.ctrlPts do
-            //     printfn "%f %f %f %f" pt.pt.x pt.pt.y pt.lTh pt.rTh
-            // assert (spline.ctrlPts.Length = pts.Length)  // other than Handles
+
             [ for i in 0 .. ctrlPts.Length - 1 do
                   let pt = spline.ctrlPts.[i]
                   let pt1 = spline.ctrlPts.[(i + 1) % spline.ctrlPts.Length]
@@ -301,18 +283,11 @@ type Font(axes: Axes) =
                     ks = Array.empty
                     seg_ch = hypot (pt1.pt.x - pt.pt.x) (pt1.pt.y - pt.pt.y)
                     seg_th = Double.NaN
-                    //spiro has tangents at start/end of segment pointing along curve,
-                    //while spline has tangents at point, facing left/right
                     tangent1 = pt.rTh
                     tangent2 = pt1.lTh } ]
 
-        let toSegs (pts: list<Point * SpiroPointType>) isClosed =
-            (pts |> List.map (fun (pt, ty) -> (pt, ty, None)) |> toSegs2) isClosed
-
         match elem with
-        | OpenCurve(pts) -> [ SpiroOpenCurve(toSegs pts false) ]
-        | ClosedCurve(pts) -> [ SpiroClosedCurve(toSegs pts true) ]
-        | TangentCurve(pts, isClosed) ->
+        | Curve(pts, isClosed) ->
             let segs = toSegs2 pts isClosed
 
             if isClosed then
@@ -358,13 +333,11 @@ type Font(axes: Axes) =
         [ spline.renderSvg (axes.show_tangents) ]
 
     let spline2ptsToSvg pts isClosed =
-        spline2ctrlPtsToSvg (pts |> List.map (fun (pt, ty) -> (pt, ty, None)) |> toSpline2ControlPoints) isClosed
+        spline2ctrlPtsToSvg (pts |> withNoTangents |> toSpline2ControlPoints) isClosed
 
     let rec elementToSpline2Svg elem =
         match elem with
-        | OpenCurve(pts) -> spline2ptsToSvg pts false
-        | ClosedCurve(pts) -> spline2ptsToSvg pts true
-        | TangentCurve(pts, isClosed) -> spline2ctrlPtsToSvg (toSpline2ControlPoints pts) isClosed
+        | Curve(pts, isClosed) -> spline2ctrlPtsToSvg (toSpline2ControlPoints pts) isClosed
         | Dot(p) -> let x, y = getXY p in svgCircle x y thickness
         | EList(elems) -> List.collect elementToSpline2Svg elems
         | Space -> []
@@ -427,13 +400,8 @@ type Font(axes: Axes) =
                 showComb = axes.show_comb
             )
 
-        let ptsToSvg (pts: (Point * SpiroPointType) list) isClosed =
-            ctrlPtsToSvg (pts |> List.map (fun (pt, ty) -> (pt, ty, None)) |> toDSplineControlPoints) isClosed
-
         match elem with
-        | OpenCurve(pts) -> ptsToSvg pts false
-        | ClosedCurve(pts) -> ptsToSvg pts true
-        | TangentCurve(pts, isClosed) -> ctrlPtsToSvg (toDSplineControlPoints pts) isClosed
+        | Curve(pts, isClosed) -> ctrlPtsToSvg (toDSplineControlPoints pts) isClosed
         | Dot(p) -> let x, y = getXY p in (svgCircle x y thickness, [])
         | EList(elems) ->
             let results = List.map elementToDactylSvg elems
@@ -478,13 +446,7 @@ type Font(axes: Axes) =
             safeMinMax min l1 l2, safeMinMax max r1 r2, safeMinMax min b1 b2, safeMinMax max t1 t2
 
         match elem with
-        | OpenCurve(pts)
-        | ClosedCurve(pts) ->
-            bound (safeMinMax min) fst pts,
-            bound (safeMinMax max) fst pts,
-            bound (safeMinMax min) snd pts,
-            bound (safeMinMax max) snd pts
-        | TangentCurve(pts, _) ->
+        | Curve(pts, _) ->
             bound3 (safeMinMax min) fst pts,
             bound3 (safeMinMax max) fst pts,
             bound3 (safeMinMax min) snd pts,
@@ -518,24 +480,20 @@ type Font(axes: Axes) =
         | _ -> _GlyphFsDefs.reduce e
 
     static member dotToClosedCurve x y r =
-        ClosedCurve(
-            [ (YX(y - r, x), G2)
-              (YX(y, x + r), G2)
-              (YX(y + r, x), G2)
-              (YX(y, x - r), G2) ]
+        Curve(
+            [ (YX(y - r, x), G2, None)
+              (YX(y, x + r), G2, None)
+              (YX(y + r, x), G2, None)
+              (YX(y, x - r), G2, None) ],
+            true
         )
 
     member this.elemWidth e =
-        let maxX pts =
-            List.fold max 0 (List.map (fst >> getXY >> fst) pts)
-
         let maxX2 pts =
             List.fold max 0 (List.map ((fun (pt, _, _) -> (getXY pt)) >> fst) pts)
 
         match e with
-        | OpenCurve(pts) -> maxX pts
-        | ClosedCurve(pts) -> maxX pts
-        | TangentCurve(pts, _) -> maxX2 pts
+        | Curve(pts, _) -> maxX2 pts
         | Dot(p) -> fst (getXY p)
         | EList(elems) -> List.fold max 0 (List.map this.elemWidth elems)
         | Space ->
@@ -593,9 +551,7 @@ type Font(axes: Axes) =
         //TODO: check joints on curves, or mark manually in reduce fn.
         let rec checkElem e =
             match e with
-            | OpenCurve(pts)
-            | ClosedCurve(pts) -> checkXYColinearPoints pts
-            | TangentCurve(knots, _) -> let pts, ty, _ = List.unzip3 knots in checkXYColinearPoints (List.zip pts ty)
+            | Curve(knots, _) -> let pts, ty, _ = List.unzip3 knots in checkXYColinearPoints (List.zip pts ty)
             | Dot(p) -> false
             | EList(elems) -> List.fold (||) false (List.map checkElem elems)
             | Space -> false
@@ -761,14 +717,19 @@ type Font(axes: Axes) =
                     @ offsetMidSegments segments false
                     @ endCap segments.[segments.Length - 1] segments.[segments.Length - 2]
                     @ (offsetMidSegments segments true |> List.rev)
-                // reversed segments can't properly calculate last chord theta
-                //  @ (offsetMidSegments (this.reverseSegments segments) false)
-                [ ClosedCurve(points) ]
+
+                [ Curve(withNoTangents points, true) ]
             | SpiroClosedCurve(segments) ->
-                [ ClosedCurve(this.offsetSegments segments 0 (segments.Length - 1) false true fthickness)
-                  ClosedCurve(
-                      this.offsetSegments segments 0 (segments.Length - 1) true true fthickness
-                      |> List.rev
+                [ Curve(
+                      withNoTangents (this.offsetSegments segments 0 (segments.Length - 1) false true fthickness),
+                      true
+                  )
+                  Curve(
+                      withNoTangents (
+                          this.offsetSegments segments 0 (segments.Length - 1) true true fthickness
+                          |> List.rev
+                      ),
+                      true
                   ) ]
             | SpiroDot(p) ->
                 let x, y = getXY p
@@ -789,11 +750,11 @@ type Font(axes: Axes) =
                       else
                           (float thickness) * (float i / float (lines - 1) - 0.5) * 2.0
 
-                  OpenCurve(this.offsetSegments segments 0 (segments.Length - 1) false false offset) ]
+                  Curve(withNoTangents (this.offsetSegments segments 0 (segments.Length - 1) false false offset), false) ]
         | SpiroClosedCurve(segments) ->
             [ for i in 0 .. lines - 1 do
                   let offset = (float thickness) * (float i / float (lines - 1) - 0.5) * 2.0
-                  ClosedCurve(this.offsetSegments segments 0 (segments.Length - 1) false true offset) ]
+                  Curve(withNoTangents (this.offsetSegments segments 0 (segments.Length - 1) false true offset), true) ]
         | SpiroDot(p) ->
             let x, y = getXY p
 
@@ -832,14 +793,20 @@ type Font(axes: Axes) =
                     @ endCap segments.[segments.Length - 1] segments.[segments.Length - 2]
                     @ (offsetMidSegments segments true |> List.rev)
 
-                [ ClosedCurve(points) ]
+                [ Curve(withNoTangents points, true) ]
             | SpiroClosedCurve(segments) ->
                 let fthickness = thicknessby3 / 3.
 
-                [ ClosedCurve(this.offsetSegments segments 0 (segments.Length - 1) false true fthickness)
-                  ClosedCurve(
-                      this.offsetSegments segments 0 (segments.Length - 1) true true fthickness
-                      |> List.rev
+                [ Curve(
+                      withNoTangents (this.offsetSegments segments 0 (segments.Length - 1) false true fthickness),
+                      true
+                  )
+                  Curve(
+                      withNoTangents (
+                          this.offsetSegments segments 0 (segments.Length - 1) true true fthickness
+                          |> List.rev
+                      ),
+                      true
                   ) ]
             | SpiroDot(p) -> [ Dot(p) ]
             | SpiroSpace -> [ Space ]
@@ -885,15 +852,20 @@ type Font(axes: Axes) =
         let splitSegments spiros =
             match spiros with
             | SpiroOpenCurve(segments) ->
-                OpenCurve(
-                    [ for i in 0 .. segments.Length - 2 do
-                          yield! splitOneSegment segments.[i] segments.[i + 1] ]
-                    @ [ let seg = segments.[segments.Length - 1] in YX(int seg.Y, int seg.X), seg.Type ]
+                Curve(
+                    withNoTangents (
+                        [ for i in 0 .. segments.Length - 2 do
+                              yield! splitOneSegment segments.[i] segments.[i + 1] ]
+                        @ [ let seg = segments.[segments.Length - 1] in YX(int seg.Y, int seg.X), seg.Type ]
+                    ),
+                    false
                 )
             | SpiroClosedCurve(segments) ->
-                ClosedCurve(
-                    [ for i in 0 .. segments.Length - 1 do
-                          yield! splitOneSegment segments.[i] segments.[(i + 1) % segments.Length] ]
+                Curve(
+                    withNoTangents
+                        [ for i in 0 .. segments.Length - 1 do
+                              yield! splitOneSegment segments.[i] segments.[(i + 1) % segments.Length] ],
+                    true
                 )
             | SpiroDot(p) -> Dot(p)
             | SpiroSpace -> Space
@@ -957,12 +929,12 @@ type Font(axes: Axes) =
 
         let spiroConstrain spiro =
             match spiro with
-            | SpiroOpenCurve(segments) -> [ TangentCurve(List.map constrainSegment segments, false) ]
+            | SpiroOpenCurve(segments) -> [ Curve(List.map constrainSegment segments, false) ]
             //   @ [
             //     let angle = PI - segments.[segments.Length-2].tangent2 in
             //      let lastSeg = segments.[segments.Length-1] in
             //     (lastSeg.Point, lastSeg.Type, (tangentAngle lastSeg.Point lastSeg.Type angle))], false)]
-            | SpiroClosedCurve(segments) -> [ TangentCurve(List.map constrainSegment segments, true) ]
+            | SpiroClosedCurve(segments) -> [ Curve(List.map constrainSegment segments, true) ]
             | SpiroDot(p) -> [ Dot(p) ]
             | SpiroSpace -> [ Space ]
 
@@ -1070,13 +1042,8 @@ type Font(axes: Axes) =
                 else svgCircle x y radius
 
             match elem2 with
-            | OpenCurve(pts)
-            | ClosedCurve(pts) -> List.collect svgKnot pts
-            | TangentCurve(pts, _) ->
-                let svgKnotTangent (p, ty, tang) = svgKnot (p, ty)
-                // match tang with
-                // | Some t -> [sprintf //render tangent ]
-                // | _ -> ()
+            | Curve(pts, _) ->
+                let svgKnotTangent (p, ty, _) = svgKnot (p, ty)
                 List.collect svgKnotTangent pts
             | Dot(p) -> svgKnot (p, G2)
             | EList(elems) -> List.collect toSvgPoints elems

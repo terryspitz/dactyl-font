@@ -91,10 +91,8 @@ type Element =
     | Glyph of c: char
     | Line of p1: Point * p2: Point
     | PolyLine of list<Point>
-    | OpenCurve of list<Point * SpiroPointType>
-    | ClosedCurve of list<Point * SpiroPointType>
-    // DSpline's preferred curve, with optional Point coords, line type and optional tangent 
-    | TangentCurve of knots: list<Point * SpiroPointType * float option> * isClosed: bool
+    // Curve with optional tangent per knot and open/closed flag
+    | Curve of knots: list<Point * SpiroPointType * float option> * isClosed: bool
     | Dot of Point
     | EList of list<Element>
     | Space

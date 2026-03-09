@@ -72,13 +72,13 @@ type ParserTests() =
         let elem = parse_curve glyph "tl.tl" false
 
         match elem with
-        | TangentCurve(pts, isClosed) ->
+        | Curve(pts, isClosed) ->
             Assert.That(pts.Length, Is.EqualTo(2), "Should have 2 points")
             let (p1, ty1, th1) = pts.[0]
             let (p2, ty2, th2) = pts.[1]
             Assert.That(p1, Is.EqualTo(p2), "Points should be coincident")
             Assert.That(ty1, Is.EqualTo(SpiroPointType.Corner), "First point should be Corner")
-        | _ -> Assert.Fail("Expected TangentCurve")
+        | _ -> Assert.Fail("Expected Curve")
 
     [<Test>]
     member this.TestTangentDot() =
@@ -86,11 +86,11 @@ type ParserTests() =
         let elem = parse_curve glyph "blE.bl" false
 
         match elem with
-        | TangentCurve(pts, isClosed) ->
+        | Curve(pts, isClosed) ->
             Assert.That(pts.Length, Is.EqualTo(2))
             let (p1, ty1, th1) = pts.[0]
             let (p2, ty2, th2) = pts.[1]
             Assert.That(p1, Is.EqualTo(p2))
             Assert.That(th1, Is.Not.Null, "First point should have tangent")
             Assert.That(th2, Is.EqualTo(None), "Second point should be None")
-        | _ -> Assert.Fail("Expected TangentCurve")
+        | _ -> Assert.Fail("Expected Curve")

@@ -14,20 +14,17 @@ NOPQRSTUVWXYZ
 <=>?@[\\]^_`{|}~"
 
 
+// Helpers to create Curve from simpler point lists
+let withNoTangents pts =
+    List.map (fun (p, t) -> (p, t, None)) pts
+
+let openCurve pts = Curve(withNoTangents pts, false)
+let closedCurve pts = Curve(withNoTangents pts, true)
+
 let rec movePoints fn e =
     match e with
-    | OpenCurve(pts) ->
-        OpenCurve(
-            [ for p, t in pts do
-                  (fn p, t) ]
-        )
-    | ClosedCurve(pts) ->
-        ClosedCurve(
-            [ for p, t in pts do
-                  (fn p, t) ]
-        )
-    | TangentCurve(pts, isClosed) ->
-        TangentCurve(
+    | Curve(pts, isClosed) ->
+        Curve(
             [ for p, ty, tang in pts do
                   (fn p, ty, tang) ],
             isClosed
@@ -145,7 +142,7 @@ type GlyphFsDefs(axes: Axes) =
 
     member this.getGlyph e =
         let adgqLoop =
-            OpenCurve([ (XoR, Corner); (XC, G2); (ML, G2); (BC, G2); (BoR, Corner) ])
+            openCurve [ (XoR, Corner); (XC, G2); (ML, G2); (BC, G2); (BoR, Corner) ]
 
         match e with
         | Glyph('□') -> EList([ PolyLine([ TL; TR; BR; BL; TL ]); Line(XL, XR) ])
@@ -162,12 +159,11 @@ type GlyphFsDefs(axes: Axes) =
             )
         | Glyph('£') ->
             EList(
-                [ OpenCurve(
+                [ openCurve
                       [ (ToR, Start)
                         (YX(T, R - flooredOffset), G2)
                         (YX(H, R / 4), CurveToLine)
                         (YX(B, R / 4), End) ]
-                  )
                   Line(BL, BR)
                   Line(HL, HC) ]
             )
@@ -175,11 +171,11 @@ type GlyphFsDefs(axes: Axes) =
         | Glyph('%') ->
             EList(
                 [ Line(TR, BL)
-                  ClosedCurve([ (YX(T - T / 5, L), G2); (YX(T, R / 5), G2); (YX(T - T / 5, R * 2 / 5), G2) ])
-                  ClosedCurve([ (YX(T / 5, R), G2); (YX(B, R - R / 5), G2); (YX(T / 5, R * 3 / 5), G2) ]) ]
+                  closedCurve [ (YX(T - T / 5, L), G2); (YX(T, R / 5), G2); (YX(T - T / 5, R * 2 / 5), G2) ]
+                  closedCurve [ (YX(T / 5, R), G2); (YX(B, R - R / 5), G2); (YX(T / 5, R * 3 / 5), G2) ] ]
             )
         | Glyph('&') ->
-            OpenCurve(
+            openCurve
                 [ (BR, Start)
                   (YX(T / 4, C), LineToCurve)
                   (YX(T - flooredOffset, L), G2)
@@ -189,14 +185,12 @@ type GlyphFsDefs(axes: Axes) =
                   (YX(B + flooredOffset, L), G2)
                   (BLo, G2)
                   (BoR, End) ]
-            )
         | Glyph(''') -> Line(TL, YX(T - flooredOffset, L))
         | Glyph('(') ->
-            OpenCurve(
+            openCurve
                 [ (YX(T + thickness, flooredOffset), Start)
                   (HL, G2)
                   (YX(B - thickness, flooredOffset), End) ]
-            )
         | Glyph(')') -> this.reflect flooredOffset (Glyph('('))
         | Glyph('*') ->
             let sin30 = int (0.866 * float T / 4.0)
@@ -218,17 +212,16 @@ type GlyphFsDefs(axes: Axes) =
         | Glyph('>') -> this.reflect R (Glyph('<'))
         | Glyph('?') ->
             EList(
-                [ OpenCurve(
+                [ openCurve
                       [ (YX(T - flooredOffset, L), G2)
                         (TC, G2)
                         (Mid(TR, HR), G2)
                         (HC, Corner)
                         (YX(T / 4, C), End) ]
-                  )
                   Dot(BC) ]
             )
         | Glyph('@') ->
-            OpenCurve(
+            openCurve
                 [ (YX(T / 3, R * 3 / 4), Corner)
                   (YX(T / 4, C), G2)
                   (YX(H, R / 4), G2)
@@ -241,7 +234,6 @@ type GlyphFsDefs(axes: Axes) =
                   (HL, G2)
                   (BLo, G2)
                   (BR, End) ]
-            )
         | Glyph('[') ->
             PolyLine(
                 [ YX(T + thickness, C)
@@ -256,33 +248,30 @@ type GlyphFsDefs(axes: Axes) =
         | Glyph('`') -> Line(TC, YX(T - min thickness 50, C + min thickness 50))
         | Glyph('{') ->
             EList(
-                [ OpenCurve(
+                [ openCurve
                       [ (YX(T + thickness, N), Start)
                         (YX(T + thickness, N - 10), LineToCurve)
                         (YX(H + flooredOffset, L + flooredOffset / 2), G2)
                         (HL, G2) ]
-                  )
-                  OpenCurve(
+                  openCurve
                       [ (YX(B - thickness, N), Start)
                         (YX(B - thickness, N - 10), LineToCurve)
                         (YX(H - flooredOffset, L + flooredOffset / 2), G2)
-                        (HL, G2) ]
-                  ) ]
+                        (HL, G2) ] ]
             )
         | Glyph('|') -> Line(TC, BC)
         | Glyph('}') -> this.reflect N (Glyph('{'))
         | Glyph('~') ->
             let h = flooredOffset / 2
 
-            OpenCurve(
+            openCurve
                 [ (YX(T - h, L), Start)
                   (YX(T, R / 4), G2)
                   (YX(T - h, R / 2), G2)
                   (YX(T - h * 2, R * 3 / 4), G2)
                   (YX(T - h, R), G2) ]
-            )
 
-        | Glyph('0') -> EList([ ClosedCurve([ (HL, G2); (BC, G2); (HR, G2); (TC, G2) ]); Line(TR, BL) ])
+        | Glyph('0') -> EList([ closedCurve [ (HL, G2); (BC, G2); (HR, G2); (TC, G2) ]; Line(TR, BL) ])
         | Glyph('1') ->
             let midX = max (thickness * 2) (int ((float monospaceWidth * axes.monospace) / 2.0))
 
@@ -294,30 +283,27 @@ type GlyphFsDefs(axes: Axes) =
                       []
             )
         | Glyph('2') ->
-            OpenCurve(
+            openCurve
                 [ (YX(T - offset, L), Start)
                   (YX(T, L + flooredOffset), G2)
                   (YX(T - flooredOffset, R), G2)
                   (YX((T - offset) / 3, C), CurveToLine)
                   (BL, Corner)
                   (BR, End) ]
-            )
         | Glyph('3') ->
             EList(
-                [ OpenCurve(
+                [ openCurve
                       [ (YX(T - offset, L), Start)
                         (YX(T, L + min flooredOffset R), G2)
                         (Mid(TR, HR), G2)
                         (YX(H, C + 1), CurveToLine)
                         (HC, End) ]
-                  )
-                  OpenCurve(
+                  openCurve
                       [ (HC, Start)
                         (YX(H, C + 1), LineToCurve)
                         (Mid(HR, BR), G2)
                         (YX(B, L + flooredOffset), G2)
-                        (YX(B + min offset R, L), End) ]
-                  ) ]
+                        (YX(B + min offset R, L), End) ] ]
             )
         | Glyph('4') -> PolyLine([ BN; TN; YX(T / 4, L); YX(T / 4, R) ])
         // Wow i've been struggling with the tight bend where the vertical meets the curve.
@@ -325,17 +311,16 @@ type GlyphFsDefs(axes: Axes) =
         // | Glyph('5') -> OpenCurve([(TR, Start); (TL, Corner); (YX(T*2/3-offset,L), Corner); (YX(T*2/3,C), G2); (YX(T/3,R), G2); (YX(B,L+flooredOffset), G2); (BoL, End)])
         | Glyph('5') ->
             EList(
-                [ OpenCurve([ (TR, Start); (TL, Corner); (YX(T * 2 / 3 - offset, L), Corner) ])
-                  OpenCurve(
+                [ openCurve [ (TR, Start); (TL, Corner); (YX(T * 2 / 3 - offset, L), Corner) ]
+                  openCurve
                       [ (YX(T * 2 / 3 - offset, L), Corner)
                         (YX(T * 2 / 3, C), G2)
                         (YX(T / 3, R), G2)
                         (YX(B, L + flooredOffset), G2)
-                        (BoL, End) ]
-                  ) ]
+                        (BoL, End) ] ]
             )
         | Glyph('6') ->
-            OpenCurve(
+            openCurve
                 [ (ToR, Start)
                   (TC, G2)
                   (HL, G2)
@@ -343,10 +328,9 @@ type GlyphFsDefs(axes: Axes) =
                   (YX(T / 3, R), G2)
                   (YX(T * 2 / 3, C), G2)
                   (HL, End) ]
-            )
         | Glyph('7') -> PolyLine([ TL; TR; BC ])
         | Glyph('8') ->
-            ClosedCurve(
+            closedCurve
                 [ (TC, G2)
                   (Mid(TL, HL), G2)
                   (HC, Anchor)
@@ -357,9 +341,8 @@ type GlyphFsDefs(axes: Axes) =
                   (HC, Anchor)
                   (YX(T * 6 / 10, C + flooredOffsetHalf), Handle)
                   (Mid(TR, HR), G2) ]
-            )
         | Glyph('9') ->
-            OpenCurve(
+            openCurve
                 [ (BC, Start)
                   (HR, G2)
                   (Mid(TR, HR), G2)
@@ -367,7 +350,6 @@ type GlyphFsDefs(axes: Axes) =
                   (Mid(TL, HL), G2)
                   (HC, G2)
                   (YX(H + min offset (H / 2 - thickness), R), End) ]
-            )
 
         | Glyph('A') ->
             let f = float (H / 2) / float (T)
@@ -377,43 +359,40 @@ type GlyphFsDefs(axes: Axes) =
         | Glyph('B') ->
             EList(
                 [ Glyph('P')
-                  OpenCurve(
+                  openCurve
                       [ (HL, Corner)
                         (HC, LineToCurve)
                         (Mid(HR, BR), G2)
                         (BC, CurveToLine)
-                        (BL, End) ]
-                  ) ]
+                        (BL, End) ] ]
             )
         | Glyph('b') ->
             EList(
                 [ Line(TL, BL)
-                  OpenCurve([ (XoL, Start); (XC, G2); (MR, G2); (BC, G2); (BoL, End) ]) ]
+                  openCurve [ (XoL, Start); (XC, G2); (MR, G2); (BC, G2); (BoL, End) ] ]
             )
-        | Glyph('C') -> OpenCurve([ (ToR, Start); (TC, G2); (HL, G2); (BC, G2); (BoR, End) ])
+        | Glyph('C') -> openCurve [ (ToR, Start); (TC, G2); (HL, G2); (BC, G2); (BoR, End) ]
         | Glyph('c') ->
-            OpenCurve(
+            openCurve
                 [ (YX(X - max 0 (offset - thickness), R), Start)
                   (XC, G2)
                   (ML, G2)
                   (BC, G2)
                   (YX(B + max 0 (offset - thickness), R), End) ]
-            )
         | Glyph('D') ->
             let cornerOffset = min flooredOffset (R - minOffset)
 
-            ClosedCurve(
+            closedCurve
                 [ (BL, Corner)
                   (TL, Corner)
                   (YX(T, R - cornerOffset), LineToCurve)
                   (YX(T - cornerOffset, R), CurveToLine)
                   (YX(B + cornerOffset, R), LineToCurve)
                   (YX(B, R - cornerOffset), CurveToLine) ]
-            )
         | Glyph('d') -> EList([ Line(BR, TR); adgqLoop ])
         | Glyph('E') -> EList([ PolyLine([ TR; TL; BL; BR ]); Line(HL, HR) ])
         | Glyph('e') ->
-            OpenCurve(
+            openCurve
                 [ (YX(M, L + thickness), Start)
                   (MR, Corner)
                   (YX(M + flooredOffsetHalf, R), G2)
@@ -421,12 +400,11 @@ type GlyphFsDefs(axes: Axes) =
                   (ML, G2)
                   (BC, G2)
                   (YX(B + max 0 (offset - thickness), R), End) ]
-            )
         | Glyph('F') -> EList([ PolyLine([ TR; TL; BL ]); Line(HL, HRo) ])
-        | Glyph('f') -> EList([ OpenCurve([ (TC, Start); (XL, CurveToLine); (BL, End) ]); Line(XL, XC) ])
+        | Glyph('f') -> EList([ openCurve [ (TC, Start); (XL, CurveToLine); (BL, End) ]; Line(XL, XC) ])
         // | Glyph('f') -> EList([OpenCurve([(TC, Anchor); (TL, Handle); (XL, CurveToLine); (BL, End)]); Line(XL, XC)])
         | Glyph('G') ->
-            OpenCurve(
+            openCurve
                 [ (ToR, G2)
                   (TC, G2)
                   (HL, G2)
@@ -434,17 +412,16 @@ type GlyphFsDefs(axes: Axes) =
                   (YX(H - flooredOffset, R), CurveToLine)
                   (HR, Corner)
                   (HC, End) ]
-            )
         | Glyph('g') ->
             EList(
-                [ OpenCurve([ (XR, Corner); (BR, LineToCurve); (DC, G2); (DoL, End) ])
+                [ openCurve [ (XR, Corner); (BR, LineToCurve); (DC, G2); (DoL, End) ]
                   adgqLoop ]
             )
         | Glyph('H') -> EList([ Line(BL, TL); Line(HL, HR); Line(BR, TR) ])
         | Glyph('h') ->
             EList(
                 [ Line(BL, TL)
-                  OpenCurve([ (XoL, Start); (XC, G2); (MR, CurveToLine); (BR, End) ]) ]
+                  openCurve [ (XoL, Start); (XC, G2); (MR, CurveToLine); (BR, End) ] ]
             )
         | Glyph('I') ->
             let midX = int (float axes.width * axes.monospace / 2.0)
@@ -464,49 +441,47 @@ type GlyphFsDefs(axes: Axes) =
                   else
                       []
             )
-        | Glyph('J') -> OpenCurve([ (TL, Corner); (TR, Corner); (HR, LineToCurve); (BC, G2); (BoL, End) ])
+        | Glyph('J') -> openCurve [ (TL, Corner); (TR, Corner); (HR, LineToCurve); (BC, G2); (BoL, End) ]
         | Glyph('j') ->
             EList(
-                [ OpenCurve([ (XN, Start); (BN, LineToCurve); (DC, G2); (DoL, End) ])
+                [ openCurve [ (XN, Start); (BN, LineToCurve); (DC, G2); (DoL, End) ]
                   Dot(YX(dotHeight, N)) ]
             )
         | Glyph('K') -> EList([ PolyLine([ TR; HL; BL ]); PolyLine([ TL; HL; BR ]) ])
         | Glyph('k') -> EList([ Line(TL, BL); PolyLine([ YX(X, N); ML; YX(B, N) ]) ])
         | Glyph('L') -> PolyLine([ TL; BL; BR ])
-        | Glyph('l') -> OpenCurve([ (TL, Corner); (ML, LineToCurve); (BC, G2) ])
+        | Glyph('l') -> openCurve [ (TL, Corner); (ML, LineToCurve); (BC, G2) ]
         | Glyph('M') -> PolyLine([ BL; TL; YX(B, R * 3 / 4); YX(T, R * 3 / 2); YX(B, R * 3 / 2) ])
         | Glyph('m') ->
             EList(
                 [ Glyph('n')
-                  OpenCurve(
+                  openCurve
                       [ (BN, Start)
                         (YX(X - flooredOffset, N), LineToCurve)
                         (YX(X, N + C), G2)
                         (YX(M, N + N), CurveToLine)
-                        (YX(B, N + N), End) ]
-                  ) ]
+                        (YX(B, N + N), End) ] ]
             )
         | Glyph('N') -> PolyLine([ BL; TL; BR; TR ])
         | Glyph('n') ->
             EList(
                 [ Line(XL, BL)
-                  OpenCurve([ (BL, Start); (XoL, Corner); (XC, G2); (YX(M, N), CurveToLine); (BN, End) ]) ]
+                  openCurve [ (BL, Start); (XoL, Corner); (XC, G2); (YX(M, N), CurveToLine); (BN, End) ] ]
             )
-        | Glyph('O') -> ClosedCurve([ (HL, G4); (BC, G2); (HR, G4); (TC, G2) ])
-        | Glyph('o') -> ClosedCurve([ (XC, G2); (ML, G2); (BC, G2); (MR, G2) ])
+        | Glyph('O') -> closedCurve [ (HL, G4); (BC, G2); (HR, G4); (TC, G2) ]
+        | Glyph('o') -> closedCurve [ (XC, G2); (ML, G2); (BC, G2); (MR, G2) ]
         | Glyph('P') ->
-            OpenCurve(
+            openCurve
                 [ (BL, Corner)
                   (TL, Corner)
                   (TC, LineToCurve)
                   (Mid(TR, HR), G2)
                   (HC, CurveToLine)
                   (HL, End) ]
-            )
         | Glyph('p') ->
             EList(
                 [ Line(XL, DL)
-                  OpenCurve([ (XoL, Start); (XC, G2); (MR, G2); (BC, G2); (BoL, End) ]) ]
+                  openCurve [ (XoL, Start); (XC, G2); (MR, G2); (BC, G2); (BoL, End) ] ]
             )
         | Glyph('Q') -> EList([ Line(Mid(HC, BR), BR); Glyph('O') ])
         | Glyph('q') -> EList([ Line(XR, DR); adgqLoop ])
@@ -514,11 +489,11 @@ type GlyphFsDefs(axes: Axes) =
         | Glyph('r') ->
             EList(
                 [ Line(BL, XL)
-                  //OpenCurve([(BL, Start); (XoL, LineToCurve); (XC, G2); (XoN, End)])])
-                  OpenCurve([ (YX(X - minOffset, L), Corner); (XC, G2); (XoN, End) ]) ]
+                  //openCurve [(BL, Start); (XoL, LineToCurve); (XC, G2); (XoN, End)]
+                  openCurve [ (YX(X - minOffset, L), Corner); (XC, G2); (XoN, End) ] ]
             )
         | Glyph('S') ->
-            OpenCurve(
+            openCurve
                 [ (ToR, G2)
                   (TC, G2)
                   (Mid(TL, HL), G2)
@@ -527,11 +502,10 @@ type GlyphFsDefs(axes: Axes) =
                   (Mid(HR, BR), G2)
                   (BC, G2)
                   (BoL, End) ]
-            )
         | Glyph('s') ->
             let X14, X2, X34, cOffsetX, cOffsetY = X / 4, X / 2, X * 3 / 4, 100, 25
 
-            OpenCurve(
+            openCurve
                 [ (YX(X - max 0 (offset - thickness), R), G2)
                   (YX(X, C - offset / 2), G2)
                   (YX(X34, L), G2)
@@ -541,14 +515,13 @@ type GlyphFsDefs(axes: Axes) =
                   (YX(X14, R), G2)
                   (YX(B, C + offset / 2), G2)
                   (YX(B + max 0 (offset - thickness), L), End) ]
-            )
         | Glyph('T') -> EList([ Line(TL, TR); Line(TC, BC) ])
         | Glyph('t') -> EList([ Glyph('l'); Line(XL, XC) ])
-        | Glyph('U') -> OpenCurve([ (TL, Corner); (HL, LineToCurve); (BC, G2); (HR, CurveToLine); (TR, End) ])
+        | Glyph('U') -> openCurve [ (TL, Corner); (HL, LineToCurve); (BC, G2); (HR, CurveToLine); (TR, End) ]
         | Glyph('u') ->
             EList(
                 [ Line(BN, XN)
-                  OpenCurve([ (BoN, Start); (BC, G2); (ML, CurveToLine); (XL, End) ]) ]
+                  openCurve [ (BoN, Start); (BC, G2); (ML, CurveToLine); (XL, End) ] ]
             )
         | Glyph('V') -> PolyLine([ TL; BC; TR ])
         | Glyph('v') -> PolyLine([ XL; BC; XR ])
@@ -559,8 +532,8 @@ type GlyphFsDefs(axes: Axes) =
         | Glyph('Y') -> EList([ PolyLine([ TL; HC; TR ]); Line(HC, BC) ])
         | Glyph('y') ->
             EList(
-                [ OpenCurve([ (XR, Corner); (BR, LineToCurve); (DC, G2); (DoL, End) ])
-                  OpenCurve([ (XL, Corner); (ML, LineToCurve); (BC, G2); (MR, CurveToLine); (XR, End) ]) ]
+                [ openCurve [ (XR, Corner); (BR, LineToCurve); (DC, G2); (DoL, End) ]
+                  openCurve [ (XL, Corner); (ML, LineToCurve); (BC, G2); (MR, CurveToLine); (XR, End) ] ]
             )
         | Glyph('Z') -> PolyLine([ TL; TR; BL; BR ])
         | Glyph('z') -> PolyLine([ XL; XR; BL; BR ])
@@ -575,27 +548,17 @@ type GlyphFsDefs(axes: Axes) =
 
     member this.reduce e =
         match e with
-        | Line(p1, p2) -> OpenCurve([ (p1, Start); (p2, End) ]) |> this.reduce
+        | Line(p1, p2) -> Curve([ (YX(reducePoint p1), Start, None); (YX(reducePoint p2), End, None) ], false)
         | PolyLine(points) ->
             let a = Array.ofList points
 
-            OpenCurve(
+            Curve(
                 [ for i in 0 .. a.Length - 1 do
-                      yield (a.[i], if i = (a.Length - 1) then End else Corner) ]
+                      yield (YX(reducePoint a.[i]), (if i = (a.Length - 1) then End else Corner), None) ],
+                false
             )
-            |> this.reduce
-        | OpenCurve(pts) ->
-            OpenCurve(
-                [ for p, t in pts do
-                      YX(reducePoint p), t ]
-            )
-        | ClosedCurve(pts) ->
-            ClosedCurve(
-                [ for p, t in pts do
-                      YX(reducePoint p), t ]
-            )
-        | TangentCurve(pts, isClosed) ->
-            TangentCurve(
+        | Curve(pts, isClosed) ->
+            Curve(
                 [ for p, t, tang in pts do
                       YX(reducePoint p), t, tang ],
                 isClosed

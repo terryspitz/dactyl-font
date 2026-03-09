@@ -172,11 +172,13 @@ let parse_point (glyph: GlyphFsDefs) def_raw =
     // printfn "post-ycoord %A" def_left
     // offset
     let matchOffset = Regex.Match(def, "^" + offset_re)
+
     if matchOffset.Success then
         def <- def.[matchOffset.Length ..]
 
         let isExtended = matchOffset.Value = "e"
         let offsetAmount = if isExtended then glyph._thickness else -glyph._offset
+
         y_coord <-
             if y_coord >= glyph._X || y_coord >= glyph._H then
                 y_coord + offsetAmount
@@ -280,14 +282,14 @@ let parse_curve (glyph: GlyphFsDefs) raw_def debug =
         if last_line = "." then
             lines <- lines @ [ Corner ]
 
-        TangentCurve(List.zip3 pts lines tangents, true)
+        Curve(List.zip3 pts lines tangents, true)
     else // Open curve
         if last_line = "~" then
             lines <- lines @ [ G2 ]
         else
             lines <- lines @ [ Corner ]
 
-        TangentCurve(List.zip3 pts lines tangents, false)
+        Curve(List.zip3 pts lines tangents, false)
 
 let private parse_curves (glyph: GlyphFsDefs) (def: string) debug =
     if System.String.IsNullOrEmpty(def) then
