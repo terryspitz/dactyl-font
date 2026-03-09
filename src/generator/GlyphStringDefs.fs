@@ -12,18 +12,19 @@ let PI = System.Math.PI
 /// This was invented independently.
 /// Defines glyphs using following symbols:
 /// y coordinates: (b)ottom/(b)ase, (t)op, (h)alf height, (x)-height, (d)escender
-/// (o) adds/subtracts a 'roundness' offset to y
+/// "o" adds/subtracts a "roundness" offset to y (inwards)
+/// "e" adds/subtracts an "extended" thickness offset to y (outwards)
 /// x coordinates: (l)eft, (r)ight, (c)enter, (w)ide (em-width)
 /// note multiple y or x coordinates means average across them, so "bt"="h" and "bbt" means one-third up
 /// brackets mean coordinates are adjusted (by the DactylSpline only) to be smoother
 /// optional tangent direction (N)orth (S)outh (E)ast (W)est
 /// lines/curves: (-) straight line, (~) curve, note: lines join curves smoothly
-/// (.) for a corner (which requires a repeated point on both sides, sorry!)
+/// (.) for a corner (which requires a repeated point on both sides)
 /// ( ) terminates a curve, a preceeding (- or ~) means closed curve (last point rejoins first point)
 /// Solo points become dots
 /// Regex for the language
 let y_re = "[txhbd]+|\([txhbd]+\)"
-let offset_re = "o"
+let offset_re = "[oe]"
 let x_re = "[lrcw]+|\([lrcw]+\)"
 let direction_re = "[NSEW]"
 let line_re = "[-~.]"
@@ -37,27 +38,27 @@ let glyphMap =
     Map.ofList
         [ ' ', " "
           '□', "tl-tr-br-bl- xl-xr bl-dl-dr-br" //frame for showing top/x/descender heights
-          '!', "tc-hbc bc"
-          '"', "tllr-tthllr tlrr-tthlrr"
+          '!', "tl-hbl bl"
+          '"', "tellr-tthllr telrr-tthlrr"
           '#', "ttbl-ttbr tbbl-tbbr tllr-bllr tlrr-blrr"
           '£', "tor~tc~txl~xllc~bl.bl-br xl-xcr"
           '$', "tthor~tthc~tthol~hc~hbbor~hbbc~hbbol tc-bc"
           '%', "tthllc bbhrrc tr-bl"
           '&', "hbrS~bc~hbl~thcr~tlcc~thl-br"
-          ''', "tl-tthl"
-          '’', "tl-tthl"
-          '(', "tlc~hl~blc"
-          ')', "tl~hlc~bl"
-          '*', "xl-xr-xbllc-txc-xbrrc-"
+          ''', "tel-tthl"
+          '’', "tel-tthl"
+          '(', "telc~hl~belc"
+          ')', "tel~hlc~bel"
+          '*', "xl-xbr xbl-xr txxc-xbbc"
           '+', "hl-hr htc-hbc"
           '-', "hl-hr"
           '.', "bl"
           ',', "blc-bbdl"
-          '/', "bl-tr"
-          ':', "xl bl"
-          ';', "xcl bocl-bl"
+          '/', "bel-ter"
+          ':', "xbl bl"
+          ';', "xbcl bocl-bbdl"
           '<', "xr-xbl-br"
-          '=', "xl-xr xbl-xbr"
+          '=', "xxbl-xxbr xbbl-xbbr"
           '>', "xl-xbr-bl"
           '?', "tol~tc~tor~hc-bbhc bc"
           '@', ""
@@ -73,7 +74,7 @@ let glyphMap =
           '~', ""
 
           '0', "hl~tc~hr~bc~ tr-bl"
-          '1', "tl-bl"
+          '1', "tol-tlllr-blllr"
           '2', "tol~tc~thr~hbc-bl.bl-br"
           '3', "tol~tc~thr~hc-hllr hllr-hc~bhr~bc~bol"
           '4', "brrrl-trrrl-bhl-bhr"
@@ -101,7 +102,7 @@ let glyphMap =
           'G', "tor~tc~hl~bc~bhr-hr.hr-hc"
           'g', "xr-bdr~dcW~dol xor~xcW~xbl~bcE~bor"
           'H', "tl-bl hl-hr tr-br"
-          'h', "tl-bl xol~xc~xbcr-bcr"
+          'h', "tl-bl xol~xc~xbr-br"
           'I', "tl-tr tc-bc bl-br"
           'i', "xl-bl ttxl"
           'J', "tl-tr.tr-hr~bc~bol"
@@ -123,7 +124,7 @@ let glyphMap =
           'R', "bl-tlE.tlE~thr~hcl-hl hc-br"
           'r', "xl-bl xol~xlcc~xoccr"
           'S', "thr~tc~ttbl~hc~tbbr~bc~bhl"
-          's', "xor~x(c)W~xbl~xbcE~xbbr~bcW~bol"
+          's', "xor~x(c)W~xxbl~xbcE~xbbr~bcW~bol"
           'T', "tl-tr tc-bc"
           't', "tlc-xbblc~bc~bccr xl-xccr"
           'U', "tl-hl~bc~hr-tr"
@@ -170,14 +171,17 @@ let parse_point (glyph: GlyphFsDefs) def_raw =
     def <- def.[match_.Length ..]
     // printfn "post-ycoord %A" def_left
     // offset
-    if def.StartsWith(offset_re) then
-        def <- def.[1..]
+    let matchOffset = Regex.Match(def, "^" + offset_re)
+    if matchOffset.Success then
+        def <- def.[matchOffset.Length ..]
 
+        let isExtended = matchOffset.Value = "e"
+        let offsetAmount = if isExtended then glyph._thickness else -glyph._offset
         y_coord <-
             if y_coord >= glyph._X || y_coord >= glyph._H then
-                y_coord - glyph._offset
+                y_coord + offsetAmount
             else
-                y_coord + glyph._offset
+                y_coord - offsetAmount
     // printfn "post-offset %A" def_left
     // x_coord-------------------------------------
     let match_ = Regex.Match(def, "^" + x_re)
