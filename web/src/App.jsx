@@ -422,7 +422,9 @@ function App() {
                 spellCheck="false"
               />
               <div className="helper-key" style={{ fontSize: '0.85em', color: '#666' }}>
-                <strong>Key:</strong> y: (t)op, (x)-height, (h)alf, (b)ottom, (d)escender, (o)ffset. x: (l)eft, (c)enter, (r)ight, (w)ide. Dirs: N,S,E,W. Lines: (-) straight, (~) curve, (.) corner
+                <strong>Key:</strong> y: (t)op, (x)-height, (h)alf, (b)ottom, (d)escender, (o)ffset, (e)xtended. <br/>
+                x: (l)eft, (c)enter, (r)ight, (w)ide. <br/>
+                Dirs: N,S,E,W. Lines: (-) straight, (~) curve, (.) corner. Brackets mean 'fit this coordinate instead'
               </div>
             </div>
           )}
