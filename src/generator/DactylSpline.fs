@@ -609,6 +609,16 @@ type DSpline(ctrlPts, isClosed) =
 
         this.preprocessLineTangents ()
 
+        // Flip end tangent for open splines to match Spiro "handle direction" interpretation.
+        // We do this here so the solver sees the flipped tangent in ctrlPt.th.
+        if not isClosed && ctrlPts.Length > 1 then
+            let lastPt = ctrlPts.[ctrlPts.Length - 1]
+
+            match lastPt.th with
+            | Some th ->
+                lastPt.th <- Some(norm (th + PI))
+            | None -> ()
+
         // Result array: one BezierPoint per ctrlPts entry
         let result = Array.init ctrlPts.Length (fun _ -> BezierPoint())
 
@@ -683,7 +693,6 @@ type DSpline(ctrlPts, isClosed) =
                     if
                         resIdx = ctrlPts.Length - 1
                         && not isClosed
-                        && Double.IsNaN result.[resIdx].th_out
                     then
                         result.[resIdx].th_out <- bezPts.[k].th_in
 

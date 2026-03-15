@@ -168,6 +168,78 @@ type TestClass() =
         printfn "Flatness 10.0: %s" svgFlat10
 
         Assert.That(svgFlat0, Is.Not.EqualTo(svgFlat10))
+    
+    [<Test>]
+    member this.EndTangentReversal() =
+        // Horizontal line from 0,0 to 1,0.
+        // User specifies tangent West (PI) at the end.
+        // Spiro behavior (which we now match) expects this to be flipped to East (0) internally
+        // so that the incoming control point (lpt) is to the West of the end point.
+        let ctrlPts =
+            [| dcp SplinePointType.Corner 0. 0. None
+               dcp SplinePointType.Corner 1. 0. (Some PI) |]
+
+        let spline = DSpline(ctrlPts, false)
+        let bezPts = spline.solveAndGetPoints(max_iter, 1.0, false)
+        
+        // check that th_in at the end is 0 (East), after being flipped from PI (West)
+        Assert.That(bezPts.[1].th_in, Is.EqualTo(0.0).Within(1e-10))
+        
+        // check that lpt is West of the end point (1,0)
+        let lpt = bezPts.[1].lpt()
+        Assert.That(lpt.x, Is.LessThan(1.0))
+        Assert.That(lpt.y, Is.EqualTo(0.0).Within(1e-10))
+
+        // Conversely, a tangent specified at the START should NOT be flipped.
+        let ctrlPtsStart =
+            [| dcp SplinePointType.Corner 0. 0. (Some 0.0) // East
+               dcp SplinePointType.Corner 1. 0. None |]
+
+        let splineStart = DSpline(ctrlPtsStart, false)
+        let bezPtsStart = splineStart.solveAndGetPoints(max_iter, 1.0, false)
+        
+        Assert.That(bezPtsStart.[0].th_out, Is.EqualTo(0.0).Within(1e-10))
+        let rpt = bezPtsStart.[0].rpt()
+        Assert.That(rpt.x, Is.GreaterThan(0.0))
+        Assert.That(rpt.y, Is.EqualTo(0.0).Within(1e-10))
+
+    [<Test>]
+    member this.TestF_StemToHookTransition() =
+        // Points from user's bug report:
+        // xtllc: x=80, y=510, th=PI/2 (North)
+        // tcrW: x=255, y=630, th=PI (West)
+        let ctrlPts =
+            [| dcp SplinePointType.LineToCurve 80. 510. (Some(PI / 2.0))
+               dcp SplinePointType.Corner 255. 630. (Some PI) |]
+
+        let spline = DSpline(ctrlPts, false)
+        let bezPts = spline.solveAndGetPoints(500, 1.0, true)
+        
+        // Point 0 (xtllc) should NOT be flipped. It should point North.
+        Assert.That(bezPts.[0].th_out, Is.EqualTo(PI / 2.0).Within(1e-10), "xtllc should point North")
+        
+        // Point 1 (tcrW) SHOULD be flipped to East (0).
+        Assert.That(bezPts.[1].th_in, Is.EqualTo(0.0).Within(1e-10), "tcrW should be flipped to East")
+
+    [<Test>]
+    member this.TestF_StemToHookTransition_Smooth() =
+        // Same coordinates but as a 3-point spline (matching "bllc-xtllc~tcrW")
+        let ctrlPts =
+            [| dcp SplinePointType.Corner 80. 0. None
+               dcp SplinePointType.LineToCurve 80. 510. None // tangent set by preprocess
+               dcp SplinePointType.Corner 255. 630. (Some PI) |]
+
+        let spline = DSpline(ctrlPts, false)
+        let bezPts = spline.solveAndGetPoints(500, 1.0, true)
+        
+        // xtllc (pt 1) should point North (from stem line)
+        Assert.That(bezPts.[1].th_in, Is.EqualTo(PI / 2.0).Within(1e-10), "xtllc in should be North")
+        Assert.That(bezPts.[1].th_out, Is.EqualTo(PI / 2.0).Within(1e-10), "xtllc out should be North")
+        
+        // tcrW (pt 2) should be flipped to East
+        Assert.That(bezPts.[2].th_in, Is.EqualTo(0.0).Within(1e-10), "tcrW should be flipped to East")
+
+
 
 [<TestFixture>]
 type LinearRegressionTests() =
@@ -434,7 +506,7 @@ type LineToCurveTests() =
         let svg = solve_and_print_spline spline
         // Expected: M 0,0 L 1,0 C ...
         // We look for "L 1,0" or similar float representation
-        Assert.That(svg, Does.Match("M 0,0.*L 1,0.*C"), "First segment should be a line")
+        Assert.That(svg, Does.Match("M 0,0.*L 1(\.0+)?,0.*C"), "First segment should be a line")
 
     [<Test>]
     member this.CurveToLine_SecondSegmentShouldBeLine() =
