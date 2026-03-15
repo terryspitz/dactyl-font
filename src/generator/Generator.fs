@@ -414,7 +414,7 @@ type Font(axes: Axes) =
         let ctrlPtsToSvg ctrlPts isClosed =
             let spline = DSpline(ctrlPts, isClosed)
 
-            spline.solveAndRenderTuple (
+            spline.solveAndRenderSvg (
                 axes.max_spline_iter,
                 axes.flatness,
                 debug = axes.debug,

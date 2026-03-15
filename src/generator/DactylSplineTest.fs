@@ -30,7 +30,7 @@ let pointToDcp (p: Point) =
 type TestClass() =
 
     let solve_and_print_spline (spline: DSpline) =
-        let svg, _, _ = spline.solveAndRenderTuple (max_iter, 1.0, false, false, false)
+        let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, false, false, false)
         let svg = (String.Join(" ", svg))
         printfn "%A" svg
         svg.Trim()
@@ -159,11 +159,10 @@ type TestClass() =
             )
 
         let svgFlat0 =
-            let svg, _, _ = spline.solveAndRenderTuple (5000, 0.0, false, false, false) in svg |> String.concat " "
+            let svg, _, _ = spline.solveAndRenderSvg (5000, 0.0, false, false, false) in svg |> String.concat " "
 
         let svgFlat10 =
-            let svg, _, _ = spline.solveAndRenderTuple (5000, 1000.0, false, false, false) in svg
-            |> String.concat " "
+            let svg, _, _ = spline.solveAndRenderSvg (5000, 1000.0, false, false, false) in svg |> String.concat " "
 
         printfn "Flatness 0.0: %s" svgFlat0
         printfn "Flatness 10.0: %s" svgFlat10
@@ -419,7 +418,7 @@ type AdvancedGeometricTests() =
 [<TestFixture>]
 type LineToCurveTests() =
     let solve_and_print_spline (spline: DSpline) =
-        let svg, _, _ = spline.solveAndRenderTuple (max_iter, 1.0, false, false, false)
+        let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, false, false, false)
         let svg = (String.Join(" ", svg))
         printfn "%A" svg
         svg.Trim()

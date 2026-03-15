@@ -267,7 +267,10 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 let new_th =
                     if i = 0 then
                         if isClosed then
-                            dpl <- _points.[_points.Length - 1].vec - _points.[_points.Length - 2].vec
+                            // For closed splines, the 'previous' point for the first point (i=0)
+                            // is the point before the final duplicate point (at Length-2).
+                            // e.g. [p0; p1; p2; p0] has Length=4, p3 is at index 2 (Length-2).
+                            dpl <- point.vec - _points.[_points.Length - 2].vec
                             let lth = dpl.atan2 ()
                             averageAngles rth lth
                         elif ctrlPts.Length > 2 then
@@ -652,22 +655,31 @@ type DSpline(ctrlPts, isClosed) =
                 let bezPts = solver.points ()
 
                 // Copy solver results back.
-                let copyCount = min bezPts.Length (ctrlPts.Length - i)
+                // For closed splines, we must copy the final point back to point 0 too.
+                let copyCount = bezPts.Length
 
                 for k in 0 .. copyCount - 1 do
-                    let resIdx = i + k
-                    result.[resIdx].x <- bezPts.[k].x
-                    result.[resIdx].y <- bezPts.[k].y
-                    result.[resIdx].th_in <- bezPts.[k].th_in
-                    result.[resIdx].th_out <- bezPts.[k].th_out
-                    result.[resIdx].ld <- bezPts.[k].ld
-                    result.[resIdx].rd <- bezPts.[k].rd
+                    let resIdx = (i + k) % ctrlPts.Length
 
-                    // For start of open curve, ensure th_in is not NaN
+                    if Double.IsNaN result.[resIdx].x then
+                        result.[resIdx].x <- bezPts.[k].x
+                        result.[resIdx].y <- bezPts.[k].y
+
+                    // Selective copy: only update properties relevant for the segment sides this point is on.
+                    // 'th_in' and 'ld' come from the segment END (incoming direction).
+                    if k > 0 || (i = 0 && not isClosed) then
+                        result.[resIdx].th_in <- bezPts.[k].th_in
+                        result.[resIdx].ld <- bezPts.[k].ld
+
+                    // 'th_out' and 'rd' come from the segment START (outgoing direction).
+                    if k < bezPts.Length - 1 || (resIdx = ctrlPts.Length - 1 && not isClosed) then
+                        result.[resIdx].th_out <- bezPts.[k].th_out
+                        result.[resIdx].rd <- bezPts.[k].rd
+
+                    // Legacy ensure non-NaN th_in/out for open ends (from user)
                     if resIdx = 0 && not isClosed && Double.IsNaN result.[resIdx].th_in then
                         result.[resIdx].th_in <- bezPts.[k].th_out
 
-                    // For end of open curve, ensure th_out is not NaN
                     if
                         resIdx = ctrlPts.Length - 1
                         && not isClosed
@@ -677,62 +689,58 @@ type DSpline(ctrlPts, isClosed) =
 
                 i <- j - 1
 
+        // Final pass to ensure all points have non-NaN ld/rd (defaulting to 0 for lines)
+        for p in result do
+            if Double.IsNaN p.ld then
+                p.ld <- 0.
+
+            if Double.IsNaN p.rd then
+                p.rd <- 0.
+
         result
 
-    member this.solveAndRenderTuple(maxIter, flatness, debug, showComb, showTangents) =
+    member this.solveAndRenderSvg(maxIter, flatness, debug, showComb, showTangents) =
         let length = ctrlPts.Length - if isClosed then 0 else 1
+        let bezPts = this.solveAndGetPoints (maxIter, flatness, debug)
 
-        this.preprocessLineTangents ()
-
-        // First point
         let path = BezPath()
         let combPath = BezPath()
         let tangentPath = BezPath()
-        let pt0 = ctrlPts.[0]
-        path.moveto (pt0.x.Value, pt0.y.Value)
 
-        // Process all segments between points
-        let mutable i = 0
+        path.moveto (bezPts.[0].x, bezPts.[0].y)
 
-        while i < length do
+        for i in 0 .. length - 1 do
+            let p1 = bezPts.[i]
+            let p2 = bezPts.[(i + 1) % bezPts.Length]
             let ptI = ctrlPts.[i]
             let ptI1 = ctrlPts.[(i + 1) % ctrlPts.Length]
 
             // Skip if points are coincident
             if
-                ptI.x.IsSome
-                && ptI.y.IsSome
-                && ptI1.x.IsSome
-                && ptI1.y.IsSome
-                && ptI.x.Value = ptI1.x.Value
-                && ptI.y.Value = ptI1.y.Value
+                not (
+                    ptI.x.IsSome
+                    && ptI.y.IsSome
+                    && ptI1.x.IsSome
+                    && ptI1.y.IsSome
+                    && ptI.x.Value = ptI1.x.Value
+                    && ptI.y.Value = ptI1.y.Value
+                )
             then
-                i <- i + 1
-            // Straight line if both points are corners with no tangents, or CurveToLine/LineToCurve
-            elif this.isLineSegment (ptI, ptI1) then
-                path.lineto (ptI1.x.Value, ptI1.y.Value)
+                if this.isLineSegment (ptI, ptI1) then
+                    path.lineto (p2.x, p2.y)
 
-                if showTangents then
-                    let dx = ptI1.x.Value - ptI.x.Value
-                    let dy = ptI1.y.Value - ptI.y.Value
-                    let lineAngle = atan2 dy dx
-                    let dist = sqrt (dx * dx + dy * dy) / 3.0
-                    // Draw outgoing tangent from ptI
-                    tangentPath.moveto (ptI.x.Value, ptI.y.Value)
-                    tangentPath.lineto (ptI.x.Value + dist * cos lineAngle, ptI.y.Value + dist * sin lineAngle)
-                    // Draw incoming tangent to ptI1
-                    tangentPath.moveto (ptI1.x.Value, ptI1.y.Value)
-                    tangentPath.lineto (ptI1.x.Value - dist * cos lineAngle, ptI1.y.Value - dist * sin lineAngle)
-
-                i <- i + 1
-            else
-                let innerPts, j = this.collectCurveSection (i, length)
-                let solver = this.solveSection (innerPts, length, maxIter, flatness, debug)
-                let bezPts = solver.points ()
-
-                for k in 0 .. bezPts.Length - 2 do
-                    let p1 = bezPts.[k]
-                    let p2 = bezPts.[k + 1]
+                    if showTangents then
+                        let dx = p2.x - p1.x
+                        let dy = p2.y - p1.y
+                        let lineAngle = atan2 dy dx
+                        let dist = sqrt (dx * dx + dy * dy) / 3.0
+                        // Draw outgoing tangent from p1
+                        tangentPath.moveto (p1.x, p1.y)
+                        tangentPath.lineto (p1.x + dist * cos lineAngle, p1.y + dist * sin lineAngle)
+                        // Draw incoming tangent to p2
+                        tangentPath.moveto (p2.x, p2.y)
+                        tangentPath.lineto (p2.x - dist * cos lineAngle, p2.y - dist * sin lineAngle)
+                else
                     let cp1x, cp1y = p1.rpt().x, p1.rpt().y
                     let cp2x, cp2y = p2.lpt().x, p2.lpt().y
                     path.curveto (cp1x, cp1y, cp2x, cp2y, p2.x, p2.y)
@@ -741,14 +749,13 @@ type DSpline(ctrlPts, isClosed) =
                         // Render curvature comb
                         let bez = CubicBez([| p1.x; p1.y; cp1x; cp1y; cp2x; cp2y; p2.x; p2.y |])
                         let COMB_STEPS = 20
-                        let SCALE = 2000.0 // Adjusted scale for visibility
+                        let SCALE = 2000.0
 
                         for s in 0..COMB_STEPS do
                             let t = float s / float COMB_STEPS
-                            let k = bez.curvature t
+                            let kv = bez.curvature t
                             let pt = bez.eval t
                             let d = bez.deriv t
-                            // Normal vector: (-dy, dx) normalized
                             let normal = { x = -d.y; y = d.x }
                             let nLen = normal.norm ()
 
@@ -756,36 +763,30 @@ type DSpline(ctrlPts, isClosed) =
                                 let n =
                                     { x = normal.x / nLen
                                       y = normal.y / nLen }
-                                // Comb line from pt to pt + k * SCALE * n
+
                                 let endPt =
-                                    { x = pt.x + k * SCALE * n.x
-                                      y = pt.y + k * SCALE * n.y }
+                                    { x = pt.x + kv * SCALE * n.x
+                                      y = pt.y + kv * SCALE * n.y }
 
                                 combPath.moveto (pt.x, pt.y)
                                 combPath.lineto (endPt.x, endPt.y)
 
-                if showTangents then
-                    for k in 0 .. bezPts.Length - 1 do
-                        let p = bezPts.[k]
-                        // Draw line to left control point if rd exists (wait, rd is for previous, ld is for current)
-                        // Actually rpt() is p.rd * cos(p.th_out), lpt() is p.ld * cos(p.th_in)
-                        if k > 0 || isClosed then
-                            let lpt = p.lpt ()
-                            tangentPath.moveto (p.x, p.y)
-                            tangentPath.lineto (lpt.x, lpt.y)
+                if showTangents && not (this.isLineSegment (ptI, ptI1)) then
+                    // For curve segments, draw control point lines
+                    if i > 0 || isClosed then
+                        let lpt = p1.lpt ()
+                        tangentPath.moveto (p1.x, p1.y)
+                        tangentPath.lineto (lpt.x, lpt.y)
 
-                        if k < bezPts.Length - 1 || isClosed then
-                            let rpt = p.rpt ()
-                            tangentPath.moveto (p.x, p.y)
-                            tangentPath.lineto (rpt.x, rpt.y)
+                    let rpt = p1.rpt ()
+                    tangentPath.moveto (p1.x, p1.y)
+                    tangentPath.lineto (rpt.x, rpt.y)
 
-                if debug then
-                    printfn "DSpline solved, pts:"
-
-                    for p in solver.points () do
-                        printfn "%s" (p.tostring ())
-
-                i <- j - 1
+                    // Also handle p2's incoming tangent if it's the end of an open curve
+                    if not isClosed && i + 1 = ctrlPts.Length - 1 then
+                        let lpt2 = p2.lpt ()
+                        tangentPath.moveto (p2.x, p2.y)
+                        tangentPath.lineto (lpt2.x, lpt2.y)
 
         if isClosed then
             path.closepath ()

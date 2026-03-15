@@ -43,22 +43,24 @@ let splineStaticPage () =
                 [ sprintf "<g id='%d'>" i
                   sprintf "<text x='%f' y='%d' font-size='0.2'>%d</text>" 0.5 (i + 1) i
                   sprintf "<path d='" ]
-                @ let svg, _, _ = spline.solveAndRenderTuple (max_iter, 1.0, debug, false, false) in svg
-                @ [ sprintf "' transform='translate(%d,%d) scale(0.9, 0.9)'" x (i + 1)
-                    "style='fill:none;stroke:#000000;stroke-width:0.1'/>"
-                    "</g>"
-                    sprintf "<g id='%d'>" (i + 1000)
-                    sprintf "<path d='" ]
-                @ spline2PtsToSvg spline2Font spline.ctrlPts
-                @ [ sprintf "'"
-                    sprintf
-                        "transform='translate(%d,%d) scale(%f, %f)'"
-                        x
-                        (i + 1)
-                        (0.9 / SPLINE2SCALE)
-                        (0.9 / SPLINE2SCALE)
-                    "style='fill:none;stroke:#40000060;stroke-width:1'/>"
-                    "</g>" ]
+                @ let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, debug, false, false) in
+
+                  svg
+                  @ [ sprintf "' transform='translate(%d,%d) scale(0.9, 0.9)'" x (i + 1)
+                      "style='fill:none;stroke:#000000;stroke-width:0.1'/>"
+                      "</g>"
+                      sprintf "<g id='%d'>" (i + 1000)
+                      sprintf "<path d='" ]
+                  @ spline2PtsToSvg spline2Font spline.ctrlPts
+                  @ [ sprintf "'"
+                      sprintf
+                          "transform='translate(%d,%d) scale(%f, %f)'"
+                          x
+                          (i + 1)
+                          (0.9 / SPLINE2SCALE)
+                          (0.9 / SPLINE2SCALE)
+                      "style='fill:none;stroke:#40000060;stroke-width:1'/>"
+                      "</g>" ]
             with ex ->
                 printfn "ERROR in one_example (i=%d, x=%d): %s" i x ex.Message
                 []
@@ -111,19 +113,21 @@ let splineStaticPage () =
                       // let iter = if x >= 7 then max 1 (i * 50) else max 1 (i * 3)
 
                       [ sprintf "<g id='%d'>" i; sprintf "<path d='" ]
-                      @ let svg, _, _ = spline.solveAndRenderTuple (iter, 1.0, debug, false, false) in svg
-                      @ [ sprintf "' transform='translate(%d,%d) scale(%f, %f)'" x (i + 1) scale scale
-                          sprintf "style='fill:none;stroke:#000000;stroke-width:%f'/>" strokeWidth
-                          "</g>" ]
-                      @ (if SHOW_LEGACY_SPLINE then
-                             [ sprintf "<g id='%d'>" (i + 1000); sprintf "<path d='" ]
-                             @ spline2PtsToSvg spline2Font spline.ctrlPts
-                             @ [ sprintf "'"
-                                 sprintf "transform='translate(%d,%d)'" x (i + 1)
-                                 "style='fill:none;stroke:#40000060;stroke-width:0.1'/>"
-                                 "</g>" ]
-                         else
-                             [])
+                      @ let svg, _, _ = spline.solveAndRenderSvg (iter, 1.0, debug, false, false) in
+
+                        svg
+                        @ [ sprintf "' transform='translate(%d,%d) scale(%f, %f)'" x (i + 1) scale scale
+                            sprintf "style='fill:none;stroke:#000000;stroke-width:%f'/>" strokeWidth
+                            "</g>" ]
+                        @ (if SHOW_LEGACY_SPLINE then
+                               [ sprintf "<g id='%d'>" (i + 1000); sprintf "<path d='" ]
+                               @ spline2PtsToSvg spline2Font spline.ctrlPts
+                               @ [ sprintf "'"
+                                   sprintf "transform='translate(%d,%d)'" x (i + 1)
+                                   "style='fill:none;stroke:#40000060;stroke-width:0.1'/>"
+                                   "</g>" ]
+                           else
+                               [])
                   with ex ->
                       printfn "ERROR in splineOf (i=%d, x=%d): %s" i x ex.Message
                       []
@@ -206,4 +210,4 @@ let splineStaticPage () =
       sprintf "<text x='8' y='0.8' font-size='0.15' fill='blue'>Asymmetric</text>" ]
     @ single_curve_rotate_theta
     @ show_iterations
-    // @ show_char_iterations
+// @ show_char_iterations
