@@ -710,28 +710,31 @@ type Font(axes: Axes) =
                   let lastSeg = segments.[i - 1]
                   yield! this.offsetSegment seg lastSeg reverse dist ]
 
+    member this.strokeSegments (segs: Segment list) (fthickness: float) (startCapFn: Segment -> (Point * SpiroPointType) list) (endCapFn: Segment -> Segment -> (Point * SpiroPointType) list) (closed: bool) =
+        if not closed then
+            let offsetMidSegments (segs: Segment list) reverse =
+                this.offsetSegments segs 1 (segs.Length - 2) reverse false fthickness
+
+            let points =
+                startCapFn segs.[0]
+                @ offsetMidSegments segs false
+                @ endCapFn segs.[segs.Length - 1] segs.[segs.Length - 2]
+                @ (offsetMidSegments segs true |> List.rev)
+
+            [ Curve(withNoTangents points, true) ]
+        else
+            [ Curve(withNoTangents (this.offsetSegments segs 0 (segs.Length - 1) false true fthickness), true)
+              Curve(withNoTangents (this.offsetSegments segs 0 (segs.Length - 1) true true fthickness |> List.rev), true) ]
+
     member this.getSpiroSansOutlines e =
         let fthickness = float thickness
 
-        let offsetMidSegments (segs: Segment list) reverse =
-            this.offsetSegments segs 1 (segs.Length - 2) reverse false fthickness
-
         let startCap (seg: Segment) =
-            let ty =
-                if seg.Type = SpiroPointType.Anchor then
-                    SpiroPointType.Anchor
-                else
-                    Corner
-
+            let ty = if seg.Type = SpiroPointType.Anchor then SpiroPointType.Anchor else Corner
             this.startCap seg e ty
 
         let endCap (seg: Segment) (lastSeg: Segment) =
-            let ty =
-                if seg.Type = SpiroPointType.Anchor then
-                    SpiroPointType.Anchor
-                else
-                    Corner
-
+            let ty = if seg.Type = SpiroPointType.Anchor then SpiroPointType.Anchor else Corner
             this.endCap seg lastSeg e ty
 
         let spiroToOutline spiro =
@@ -742,24 +745,14 @@ type Font(axes: Axes) =
                 if axes.debug then
                     printfn "spiroToOutline opencurve: %A" segs
 
-                let points =
-                    startCap segs.[0]
-                    @ offsetMidSegments segs false
-                    @ endCap segs.[segs.Length - 1] segs.[segs.Length - 2]
-                    @ (offsetMidSegments segs true |> List.rev)
-
-                [ Curve(withNoTangents points, true) ]
+                this.strokeSegments segs fthickness startCap endCap false
             | SpiroClosedCurve(segments) ->
                 let segs = List.map toSegment segments
 
                 if axes.debug then
                     printfn "spiroToOutline closedcurve: %A" segs
 
-                [ Curve(withNoTangents (this.offsetSegments segs 0 (segs.Length - 1) false true fthickness), true)
-                  Curve(
-                      withNoTangents (this.offsetSegments segs 0 (segs.Length - 1) true true fthickness |> List.rev),
-                      true
-                  ) ]
+                this.strokeSegments segs fthickness startCap endCap true
             | SpiroDot(p) ->
                 let x, y = getXY p
                 [ Font.dotToClosedCurve x y (thickness + 5) ]
@@ -806,9 +799,6 @@ type Font(axes: Axes) =
             let offsetPointCap X Y theta =
                 addPolarContrast X Y theta (thicknessby3 * sqrt 2.0)
 
-            let offsetMidSegments (segs: Segment list) reverse =
-                this.offsetSegments segs 1 (segs.Length - 2) reverse false thicknessby3
-
             let startCap (seg: Segment) =
                 [ (segmentAddPolar seg (seg.tangentStart - PI * 0.90) (thicknessby3 * 3.0), Corner)
                   (offsetPointCap seg.X seg.Y (seg.tangentStart + PI * 0.75), Corner) ]
@@ -819,23 +809,10 @@ type Font(axes: Axes) =
             match spiro with
             | SpiroOpenCurve(segments) ->
                 let segs = List.map toSegment segments
-
-                let points =
-                    startCap segs.[0]
-                    @ offsetMidSegments segs false
-                    @ endCap segs.[segs.Length - 1] segs.[segs.Length - 2]
-                    @ (offsetMidSegments segs true |> List.rev)
-
-                [ Curve(withNoTangents points, true) ]
+                this.strokeSegments segs thicknessby3 startCap endCap false
             | SpiroClosedCurve(segments) ->
                 let segs = List.map toSegment segments
-                let fthickness = thicknessby3 / 3.
-
-                [ Curve(withNoTangents (this.offsetSegments segs 0 (segs.Length - 1) false true fthickness), true)
-                  Curve(
-                      withNoTangents (this.offsetSegments segs 0 (segs.Length - 1) true true fthickness |> List.rev),
-                      true
-                  ) ]
+                this.strokeSegments segs (thicknessby3 / 3.) startCap endCap true
             | SpiroDot(p) -> [ Dot(p) ]
             | SpiroSpace -> [ Space ]
 
@@ -909,11 +886,7 @@ type Font(axes: Axes) =
     member this.getDactylSansOutlines e =
         let fthickness = float thickness
 
-        let offsetMidSegs (segs: Segment list) reverse =
-            this.offsetSegments segs 1 (segs.Length - 2) reverse false fthickness
-
         let startCap (seg: Segment) = this.startCap seg e Corner
-
         let endCap (seg: Segment) (lastSeg: Segment) = this.endCap seg lastSeg e Corner
 
         let splineTypeToSpiroType ty =
@@ -965,20 +938,7 @@ type Font(axes: Axes) =
                 if axes.debug then
                     printfn "dactylToOutline curve: %A" segs
 
-                if not isClosed then
-                    let points =
-                        startCap segs.[0]
-                        @ offsetMidSegs segs false
-                        @ endCap segs.[segs.Length - 1] segs.[segs.Length - 2]
-                        @ (offsetMidSegs segs true |> List.rev)
-
-                    [ Curve(withNoTangents points, true) ]
-                else
-                    [ Curve(withNoTangents (this.offsetSegments segs 0 (segs.Length - 1) false true fthickness), true)
-                      Curve(
-                          withNoTangents (this.offsetSegments segs 0 (segs.Length - 1) true true fthickness |> List.rev),
-                          true
-                      ) ]
+                this.strokeSegments segs fthickness startCap endCap isClosed
             | Dot(p) ->
                 let x, y = getXY p
                 [ Font.dotToClosedCurve x y (thickness + 5) ]
