@@ -1,10 +1,9 @@
 #root {
-    width: 100vw;
-    height: 100vh;
+    width: 100%;
+    height: 100%;
     margin: 0;
     padding: 0;
     text-align: center;
-    box-sizing: border-box;
     overflow: hidden;
     /* Prevent body scroll, handle in sidebar/main */
 }
@@ -315,6 +314,14 @@
     font-size: 1rem;
     border-radius: 4px;
     /* Slight rounded corners */
+    color: #ccc;
+    /* Inactive tab color */
+    transition: color 0.2s, border-color 0.2s;
+}
+
+.tab-button:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
 }
 
 .tab-button.active {
