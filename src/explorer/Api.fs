@@ -168,8 +168,12 @@ let private buildSplineDebugSvg (inputAxes: Axes) (elementsBuilder: Font -> (Ele
 
             let knotsLayer =
                 (wrapClass "spiro-layer knots-layer" (spiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue))
-                @ (wrapClass "spline2-layer knots-layer" (spline |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen))
-                @ (wrapClass "dspline-layer knots-layer" (spline |> fontDSpline.getSvgKnots offsetX offsetY 5 lightOrange))
+                @ (wrapClass
+                    "spline2-layer knots-layer"
+                    (spline |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen))
+                @ (wrapClass
+                    "dspline-layer knots-layer"
+                    (spline |> fontDSpline.getSvgKnots offsetX offsetY 5 lightOrange))
 
             guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer
         else
@@ -216,11 +220,21 @@ let private buildSplineDebugSvg (inputAxes: Axes) (elementsBuilder: Font -> (Ele
 
             let knotsLayer =
                 (wrapClass "spiro-layer knots-layer" (spiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue))
-                @ (wrapClass "spiro-layer knots-layer" (outlineSpiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue))
-                @ (wrapClass "spline2-layer knots-layer" (spline |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen))
-                @ (wrapClass "spline2-layer knots-layer" (outlineSpline2 |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen))
-                @ (wrapClass "dspline-layer knots-layer" (spline |> fontDSpline.getSvgKnots offsetX offsetY 5 lightOrange))
-                @ (wrapClass "dspline-layer knots-layer" (outlineDSpline |> fontDSpline.getSvgKnots offsetX offsetY 5 lightOrange))
+                @ (wrapClass
+                    "spiro-layer knots-layer"
+                    (outlineSpiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue))
+                @ (wrapClass
+                    "spline2-layer knots-layer"
+                    (spline |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen))
+                @ (wrapClass
+                    "spline2-layer knots-layer"
+                    (outlineSpline2 |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen))
+                @ (wrapClass
+                    "dspline-layer knots-layer"
+                    (spline |> fontDSpline.getSvgKnots offsetX offsetY 5 lightOrange))
+                @ (wrapClass
+                    "dspline-layer knots-layer"
+                    (outlineDSpline |> fontDSpline.getSvgKnots offsetX offsetY 5 lightOrange))
 
             guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer
 
@@ -319,59 +333,77 @@ let generateVisualTestsSvg () =
 
 let generateVisualDiffsSvg (text: string) (axes: Axes) (progress: (float -> unit) option) =
     let fontOff = Font { axes with new_definitions = false }
-    let fontOn = Font { axes with new_definitions = true; debug = false }
 
-    let chars = 
+    let fontOn =
+        Font
+            { axes with
+                new_definitions = true
+                debug = false }
+
+    let chars =
         if System.String.IsNullOrEmpty(text) then
             []
         else
             text.Replace("\n", "").Replace("\r", "") |> Seq.toList
+
     let totalChars = chars.Length
 
     let marginX = max 200 (axes.thickness * 2)
     let marginY = max 200 (axes.thickness * 2)
-    
+
     let cols = 5
     let cellWidth = (axes.width + marginX) * 3 + marginX
     let cellHeight = fontOn.charHeight + marginY * 2
 
     let keyFontSize = (axes.width / 3) |> string
-    let keySvg = [ sprintf "<text x='0' y='%d' font-size='%s' fill='black'>Key: Left = Old, Middle = New, Right = Overlaid Diff (Red=Old, Blue=New)</text>" (cellHeight / 2) keyFontSize ]
+
+    let keySvg =
+        [ sprintf
+              "<text x='0' y='%d' font-size='%s' fill='black'>Key: Left = Old, Middle = New, Right = Overlaid Diff (Red=Old, Blue=New)</text>"
+              (cellHeight / 2)
+              keyFontSize ]
 
     let svgs =
-        keySvg @ (chars |> List.mapi (fun i ch ->
-            match progress with
-            | Some p -> p (float i / float totalChars)
-            | None -> ()
+        keySvg
+        @ (chars
+           |> List.mapi (fun i ch ->
+               match progress with
+               | Some p -> p (float i / float totalChars)
+               | None -> ()
 
-            let row = i / cols
-            let col = i % cols
-            
-            let xOffset = col * cellWidth
-            let yOffset = (row + 1) * cellHeight
-            
-            // Col 1: off
-            let svgOff = fontOff.charToSvg ch xOffset yOffset "black"
-            
-            // Col 2: on
-            let svgOn = fontOn.charToSvg ch (xOffset + axes.width + marginX) yOffset "black"
+               let row = i / cols
+               let col = i % cols
 
-            // Col 3: overlaid
-            let overlayX = xOffset + (axes.width + marginX) * 2
-            let svgOffRed = fontOff.charToSvg ch overlayX yOffset "rgba(255, 0, 0, 0.5)"
-            let svgOnBlue = fontOn.charToSvg ch overlayX yOffset "rgba(0, 0, 255, 0.5)"
-            
-            // Add labels
-            let fontSize = (axes.width / 5) |> string
-            let labels = 
-                [ sprintf "<text x='%d' y='%d' font-size='%s' fill='gray'>%c</text>" xOffset (yOffset - axes.thickness) fontSize ch ]
+               let xOffset = col * cellWidth
+               let yOffset = (row + 1) * cellHeight
 
-            labels @ svgOff @ svgOn @ svgOffRed @ svgOnBlue
-        ) |> List.concat)
+               // Col 1: off
+               let svgOff = fontOff.charToSvg ch xOffset yOffset "black"
+
+               // Col 2: on
+               let svgOn = fontOn.charToSvg ch (xOffset + axes.width + marginX) yOffset "black"
+
+               // Col 3: overlaid
+               let overlayX = xOffset + (axes.width + marginX) * 2
+               let svgOffRed = fontOff.charToSvg ch overlayX yOffset "rgba(255, 0, 0, 0.5)"
+               let svgOnBlue = fontOn.charToSvg ch overlayX yOffset "rgba(0, 0, 255, 0.5)"
+
+               // Add labels
+               let fontSize = (axes.width / 5) |> string
+
+               let labels =
+                   [ sprintf
+                         "<text x='%d' y='%d' font-size='%s' fill='gray'>%c</text>"
+                         xOffset
+                         (yOffset - axes.thickness)
+                         fontSize
+                         ch ]
+
+               labels @ svgOff @ svgOn @ svgOffRed @ svgOnBlue)
+           |> List.concat)
 
     let totalWidth = cols * cellWidth
     let totalHeight = ((chars.Length + cols - 1) / cols + 1) * cellHeight
-    
+
     toSvgDocument -marginX -marginY totalWidth totalHeight svgs
     |> String.concat "\n"
-
