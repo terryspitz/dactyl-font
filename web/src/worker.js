@@ -1,4 +1,4 @@
-import { generateSvg, generateSplineDebugSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateVisualTestsSvg, generateVisualDiffsSvg, controlDefinitions } from './lib/fable/Api'
+import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateVisualTestsSvg, generateVisualDiffsSvg, controlDefinitions } from './lib/fable/Api'
 
 self.onmessage = (e) => {
     const { id, type, args } = e.data
@@ -7,11 +7,6 @@ self.onmessage = (e) => {
         switch (type) {
             case 'font':
                 result = generateSvg(...args, (p) => {
-                    self.postMessage({ id, type: 'progress', value: p });
-                })
-                break
-            case 'splines':
-                result = generateSplineDebugSvg(...args, (p) => {
                     self.postMessage({ id, type: 'progress', value: p });
                 })
                 break

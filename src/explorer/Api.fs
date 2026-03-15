@@ -49,8 +49,6 @@ let generateSvg (text: string) (axes: Axes) (progress: (float -> unit) option) =
 
     // Using the same parameters as explorer.fs: 0 0 false black
     // You might want to make these configurable later
-    // Using the same parameters as explorer.fs: 0 0 false black
-    // You might want to make these configurable later
     font.stringToSvg lines 0 0 false "black" progress |> String.concat "\n"
 
 let generateTweenSvg (text: string) (axes: Axes) =
@@ -91,7 +89,7 @@ let generateTweenSvg (text: string) (axes: Axes) =
     // Let's set height to exactly what we need.
     toSvgDocument -margin minY width height svg |> String.concat "\n"
 
-let private buildSplineDebugSvg (inputAxes: Axes) (elementsBuilder: Font -> (Element list * int)) =
+let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progress: (float -> unit) option) =
     let axes =
         { inputAxes with
             clip_rect = false
@@ -127,7 +125,39 @@ let private buildSplineDebugSvg (inputAxes: Axes) (elementsBuilder: Font -> (Ele
                 show_tangents = false
                 debug = false }
 
-    let elements, xOffset = elementsBuilder fontSpline2
+
+    let lines =
+        defsText.Split([| '\n'; '\r' |], System.StringSplitOptions.RemoveEmptyEntries)
+
+    let totalChars = lines.Length
+    let mutable charIndex = 0
+    let mutable xOffset = 0
+
+    let elements =
+        [ for line in lines do
+              charIndex <- charIndex + 1
+
+              match progress with
+              | Some p -> p (float charIndex / float totalChars)
+              | None -> ()
+
+              let def =
+                  let colonIdx = line.IndexOf(':')
+
+                  if colonIdx >= 0 then
+                      line.Substring(colonIdx + 1).Trim()
+                  else
+                      line.Trim()
+
+              if not (System.String.IsNullOrWhiteSpace(def)) then
+                  let elem =
+                      GlyphStringDefs.rawDefToElem (GlyphFsDefs(fontSpline2.axes)) def fontSpline2.axes.debug
+
+                  let width = fontSpline2.width elem
+                  let translated = fontSpline2.translateBy xOffset 0 elem
+                  xOffset <- xOffset + width
+
+                  yield translated ]
 
     let combinedElement =
         if List.isEmpty elements then
@@ -245,74 +275,6 @@ let private buildSplineDebugSvg (inputAxes: Axes) (elementsBuilder: Font -> (Ele
 
     toSvgDocument -50 fontSpline2.yBaselineOffset svgWidth fontSpline2.charHeight svgElements
     |> String.concat "\n"
-
-let generateSplineDebugSvg (text: string) (inputAxes: Axes) (progress: (float -> unit) option) =
-    let elementsBuilder (fontSpline2: Font) =
-        let chars = text |> Seq.truncate 5 |> List.ofSeq
-        let totalChars = chars.Length
-        let mutable charIndex = 0
-        let mutable xOffset = 0
-
-        let elements =
-            [ for c in chars do
-                  charIndex <- charIndex + 1
-
-                  match progress with
-                  | Some p -> p (float charIndex / float totalChars)
-                  | None -> ()
-
-                  if Map.containsKey c GlyphStringDefs.glyphMap then
-                      let elem =
-                          GlyphStringDefs.stringDefsToElem (GlyphFsDefs(fontSpline2.axes)) c fontSpline2.axes.debug
-
-                      let width = fontSpline2.width elem
-                      let translated = fontSpline2.translateBy xOffset 0 elem
-                      xOffset <- xOffset + width
-
-                      yield translated ]
-
-        elements, xOffset
-
-    buildSplineDebugSvg inputAxes elementsBuilder
-
-let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progress: (float -> unit) option) =
-    let elementsBuilder (fontSpline2: Font) =
-        let lines =
-            defsText.Split([| '\n'; '\r' |], System.StringSplitOptions.RemoveEmptyEntries)
-
-        let totalChars = lines.Length
-        let mutable charIndex = 0
-        let mutable xOffset = 0
-
-        let elements =
-            [ for line in lines do
-                  charIndex <- charIndex + 1
-
-                  match progress with
-                  | Some p -> p (float charIndex / float totalChars)
-                  | None -> ()
-
-                  let def =
-                      let colonIdx = line.IndexOf(':')
-
-                      if colonIdx >= 0 then
-                          line.Substring(colonIdx + 1).Trim()
-                      else
-                          line.Trim()
-
-                  if not (System.String.IsNullOrWhiteSpace(def)) then
-                      let elem =
-                          GlyphStringDefs.rawDefToElem (GlyphFsDefs(fontSpline2.axes)) def fontSpline2.axes.debug
-
-                      let width = fontSpline2.width elem
-                      let translated = fontSpline2.translateBy xOffset 0 elem
-                      xOffset <- xOffset + width
-
-                      yield translated ]
-
-        elements, xOffset
-
-    buildSplineDebugSvg inputAxes elementsBuilder
 
 let getGlyphDefs (text: string) =
     if System.String.IsNullOrEmpty(text) then
