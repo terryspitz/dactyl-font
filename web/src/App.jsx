@@ -35,6 +35,7 @@ function App() {
     guides: true,
     knots: true,
     comb: true,
+    tangents: true,
   })
 
   // Check URL on mount
@@ -498,6 +499,14 @@ function App() {
                 onChange={e => setLayerVisibility(prev => ({ ...prev, comb: e.target.checked }))}
               />
               <span className="swatch" style={{ border: '1px solid black', backgroundColor: 'transparent' }}></span> Comb
+            </div>
+            <div className="legend-item">
+              <input
+                type="checkbox"
+                checked={layerVisibility.tangents}
+                onChange={e => setLayerVisibility(prev => ({ ...prev, tangents: e.target.checked }))}
+              />
+              <span className="swatch" style={{ backgroundColor: '#e00000' }}></span> Tangents
             </div>
             <div className="legend-item">
               <input

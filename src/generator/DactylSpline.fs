@@ -65,88 +65,100 @@ let dcp ty x y th =
       th = th }
 
 
-// type ControlPointOut(ty, x, y, lth, rth) =
-//     member val ty : SplinePointType = ty with get, set
-//     member val x : float = x with get
-//     member val y : float = y with get
-//     member val th : float = lth with get, set  // angle of tangent towards next point
-//     // member val lth : float = lth with get, set  // angle of curve to previous point
-//     // member val rth : float = lth with get, set  // angle of curve to next point
+type BezierIndex =
+    | X = 0
+    | Y = 1
+    | ThIn = 2
+    | ThOut = 3
+    | Ld = 4
+    | Rd = 5
 
-let BEZIER_ARGS = 5
+let BEZIER_ARGS = System.Enum.GetValues(typeof<BezierIndex>).Length
+
 // Internal class for a knot on bezier curve including tangents and distances to control points
 type BezierPoint() =
-    //     x : float
-    //     y : float
-    //     th : float   // tangent towards next (right) point
-    //     ld : float   // distance to left bezier control point
-    //     rd : float   // distance to right bezier control point
+    //     x : float      (0)
+    //     y : float      (1)
+    //     th_in : float  (2) tangent from previous (left) segment
+    //     th_out : float (3) tangent towards next (right) segment
+    //     ld : float     (4) distance to left bezier control point
+    //     rd : float     (5) distance to right bezier control point
     let _arr = Array.create BEZIER_ARGS nan
     let _fit = Array.create BEZIER_ARGS true
 
     member this.x
-        with get () = _arr.[0]
-        and set (v) = _arr.[0] <- v
+        with get () = _arr.[int BezierIndex.X]
+        and set (v) = _arr.[int BezierIndex.X] <- v
 
     member this.y
-        with get () = _arr.[1]
-        and set (v) = _arr.[1] <- v
+        with get () = _arr.[int BezierIndex.Y]
+        and set (v) = _arr.[int BezierIndex.Y] <- v
 
-    member this.th
-        with get () = _arr.[2]
-        and set (v) = _arr.[2] <- v
+    member this.th_in
+        with get () = _arr.[int BezierIndex.ThIn]
+        and set (v) = _arr.[int BezierIndex.ThIn] <- v
+
+    member this.th_out
+        with get () = _arr.[int BezierIndex.ThOut]
+        and set (v) = _arr.[int BezierIndex.ThOut] <- v
 
     member this.ld
-        with get () = _arr.[3]
-        and set (v) = _arr.[3] <- v
+        with get () = _arr.[int BezierIndex.Ld]
+        and set (v) = _arr.[int BezierIndex.Ld] <- v
 
     member this.rd
-        with get () = _arr.[4]
-        and set (v) = _arr.[4] <- v
+        with get () = _arr.[int BezierIndex.Rd]
+        and set (v) = _arr.[int BezierIndex.Rd] <- v
 
     member this.fit_x
-        with get () = _fit.[0]
-        and set (v) = _fit.[0] <- v
+        with get () = _fit.[int BezierIndex.X]
+        and set (v) = _fit.[int BezierIndex.X] <- v
 
     member this.fit_y
-        with get () = _fit.[1]
-        and set (v) = _fit.[1] <- v
+        with get () = _fit.[int BezierIndex.Y]
+        and set (v) = _fit.[int BezierIndex.Y] <- v
 
-    member this.fit_th
-        with get () = _fit.[2]
-        and set (v) = _fit.[2] <- v
+    member this.fit_th_in
+        with get () = _fit.[int BezierIndex.ThIn]
+        and set (v) = _fit.[int BezierIndex.ThIn] <- v
+
+    member this.fit_th_out
+        with get () = _fit.[int BezierIndex.ThOut]
+        and set (v) = _fit.[int BezierIndex.ThOut] <- v
 
     member this.fit_ld
-        with get () = _fit.[3]
-        and set (v) = _fit.[3] <- v
+        with get () = _fit.[int BezierIndex.Ld]
+        and set (v) = _fit.[int BezierIndex.Ld] <- v
 
     member this.fit_rd
-        with get () = _fit.[4]
-        and set (v) = _fit.[4] <- v
+        with get () = _fit.[int BezierIndex.Rd]
+        and set (v) = _fit.[int BezierIndex.Rd] <- v
 
     member this.vec = { x = this.x; y = this.y }
     member this.arr = _arr
     member this.fit = _fit
 
     member this.lpt() =
-        { x = this.x - this.ld * cos this.th
-          y = this.y - this.ld * sin this.th }
+        { x = this.x - this.ld * cos this.th_in
+          y = this.y - this.ld * sin this.th_in }
 
     member this.rpt() =
-        { x = this.x + this.rd * cos this.th
-          y = this.y + this.rd * sin this.th }
+        { x = this.x + this.rd * cos this.th_out
+          y = this.y + this.rd * sin this.th_out }
 
     member this.tostring() =
         let fit_str f = if f then "~" else ""
 
         sprintf
-            "BezPt x:%s%.2f y:%s%.2f th:%s%.2f ld:%s%.2f rd:%s%.2f"
+            "BezPt x:%s%.2f y:%s%.2f th_in:%s%.2f th_out:%s%.2f ld:%s%.2f rd:%s%.2f"
             (fit_str this.fit_x)
             this.x
             (fit_str this.fit_y)
             this.y
-            (fit_str this.fit_th)
-            this.th
+            (fit_str this.fit_th_in)
+            this.th_in
+            (fit_str this.fit_th_out)
+            this.th_out
             (fit_str this.fit_ld)
             this.ld
             (fit_str this.fit_rd)
@@ -201,8 +213,7 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
     member this.initialise() =
         //initialise points
         if this.debug then
-            printfn "solver init. Flatness: %f" this.flatness
-            printfn "%A" ctrlPts
+            printfn "dspline solver init, flatness: %f, pts: %A" this.flatness ctrlPts
 
         // Initialisation of points
         for i in 0 .. ctrlPts.Length - 1 do
@@ -245,8 +256,10 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
 
             match ctrlPt.th with
             | Some th ->
-                point.th <- th
-                point.fit_th <- false
+                point.th_in <- th
+                point.th_out <- th
+                point.fit_th_in <- false
+                point.fit_th_out <- false
             | None ->
                 let lth = dpl.atan2 ()
                 let rth = dpr.atan2 ()
@@ -278,7 +291,8 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     else
                         averageAngles rth lth
 
-                point.th <- new_th
+                point.th_in <- new_th
+                point.th_out <- new_th
 
             point.ld <- dpl.norm () / 3.
             point.rd <- dpr.norm () / 3.
@@ -289,7 +303,7 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 point.fit_rd <- false
 
         if this.debug then
-            printfn "solver post init"
+            printfn "solver post init:"
 
             for p in _points do
                 printfn "%s" (p.tostring ())
@@ -430,16 +444,30 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             for i in 0 .. _points.Length - 1 do
                 for j in 0 .. BEZIER_ARGS - 1 do
                     if _points.[i].fit.[j] then
-                        mapping.Add((i, j))
-                        initial.Add(_points.[i].arr.[j])
+                        // For smooth points, th_in and th_out are synchronized.
+                        // We only add th_in (index 2) to the mapping.
+                        if j = int BezierIndex.ThOut && ctrlPts.[i].ty = SplinePointType.Smooth then
+                            ()
+                        else
+                            mapping.Add((i, j))
+                            initial.Add(_points.[i].arr.[j])
 #if FABLE_COMPILER
             let objectiveFunction (x: float[]) =
                 for i in 0 .. x.Length - 1 do
                     let (index1, index2) = mapping.[i]
                     _points.[index1].arr.[index2] <- x[i]
 
+                    // Synchronize th_out for smooth points
+                    if
+                        index2 = int BezierIndex.ThIn
+                        && ctrlPts.[index1].ty = SplinePointType.Smooth
+                        && _points.[index1].fit_th_out
+                    then
+                        _points.[index1].th_out <- x[i]
+
                 if isClosed then
-                    _points.[_points.Length - 1].th <- _points.[0].th
+                    _points.[_points.Length - 1].th_in <- _points.[0].th_in
+                    _points.[_points.Length - 1].th_out <- _points.[0].th_out
 
                 this.computeErr ()
 
@@ -449,6 +477,13 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             for i in 0 .. best.Length - 1 do
                 let (index1, index2) = mapping.[i]
                 _points.[index1].arr.[index2] <- best[i]
+
+                if
+                    index2 = int BezierIndex.ThIn
+                    && ctrlPts.[index1].ty = SplinePointType.Smooth
+                    && _points.[index1].fit_th_out
+                then
+                    _points.[index1].th_out <- best[i]
 #else
             let minimiser: Optimization.NelderMeadSimplex =
                 Optimization.NelderMeadSimplex(1e-5, maxIter)
@@ -459,6 +494,14 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 for i in 0 .. x.Count - 1 do
                     let (index1, index2) = mapping.[i]
                     _points.[index1].arr.[index2] <- x[i]
+
+                    // Synchronize th_out for smooth points
+                    if
+                        index2 = int BezierIndex.ThIn
+                        && ctrlPts.[index1].ty = SplinePointType.Smooth
+                        && _points.[index1].fit_th_out
+                    then
+                        _points.[index1].th_out <- x[i]
 
                 this.computeErr ()
 
@@ -478,6 +521,13 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             for i in 0 .. resultVec.Count - 1 do
                 let (index1, index2) = mapping.[i]
                 _points.[index1].arr.[index2] <- resultVec.[i]
+
+                if
+                    index2 = int BezierIndex.ThIn
+                    && ctrlPts.[index1].ty = SplinePointType.Smooth
+                    && _points.[index1].fit_th_out
+                then
+                    _points.[index1].th_out <- resultVec.[i]
 #endif
 
 // DSpline handles general sequence of lines & curves, including corners.
@@ -485,37 +535,159 @@ type DSpline(ctrlPts, isClosed) =
     member this.ctrlPts: DControlPoint array = ctrlPts
     member this.isClosed = isClosed
 
-
-
-    member this.solveAndRenderTuple(maxIter, flatness, debug, showComb) =
-        let length = ctrlPts.Length - if this.isClosed then 0 else 1
-
-        // Implement LineToCurve and CurveToLine as Corners with fixed tangent theta
-        // determined from the Line
+    /// Pre-process LineToCurve/CurveToLine points: fix their tangent to the line direction.
+    /// Must be called before segment iteration in both solveAndGetPoints and solveAndRenderTuple.
+    member this.preprocessLineTangents() =
         for i in 0 .. ctrlPts.Length - 1 do
             let ptI = ctrlPts.[i]
 
-            if ptI.ty = SplinePointType.LineToCurve then
-                // Line comes from previous point.
-                if this.isClosed || i > 0 then
-                    let prevIdx = if i = 0 then ctrlPts.Length - 1 else i - 1
-                    let ptPrev = ctrlPts.[prevIdx]
-                    let dp = ptI - ptPrev
-                    let th = atan2 dp.y dp.x
-                    ptI.th <- Some th
+            if ptI.ty = SplinePointType.LineToCurve && (isClosed || i > 0) then
+                let prevIdx = if i = 0 then ctrlPts.Length - 1 else i - 1
+                let ptPrev = ctrlPts.[prevIdx]
+                let dp = ptI - ptPrev
+                ptI.th <- Some(atan2 dp.y dp.x)
 
-            if ptI.ty = SplinePointType.CurveToLine then
-                // Line goes to next point
-                if this.isClosed || i < ctrlPts.Length - 1 then
-                    let nextIdx = (i + 1) % ctrlPts.Length
-                    let ptNext = ctrlPts.[nextIdx]
-                    let dp = ptNext - ptI
-                    let th = atan2 dp.y dp.x
-                    ptI.th <- Some th
+            if ptI.ty = SplinePointType.CurveToLine && (isClosed || i < ctrlPts.Length - 1) then
+                let nextIdx = (i + 1) % ctrlPts.Length
+                let ptNext = ctrlPts.[nextIdx]
+                let dp = ptNext - ptI
+                ptI.th <- Some(atan2 dp.y dp.x)
+
+    /// Predicate: true when segment i→i+1 is a straight line (no solver needed).
+    member this.isLineSegment(ptI: DControlPoint, ptI1: DControlPoint) =
+        (ptI.ty = SplinePointType.Corner
+         && ptI1.ty = SplinePointType.Corner
+         && ptI.th.IsNone
+         && ptI1.th.IsNone)
+        || ptI.ty = SplinePointType.CurveToLine
+        || ptI1.ty = SplinePointType.LineToCurve
+
+    /// Collect the run of smooth inner points starting at index i, returning the list and
+    /// the exclusive end index j (i.e. the next segment to process starts at j-1).
+    member this.collectCurveSection(i: int, length: int) =
+        let ptI = ctrlPts.[i]
+        let mutable j = i + 1
+        let mutable break_ = false
+
+        let innerPts =
+            ptI
+            :: [ while j <= length && not break_ do
+                     let ptJ = ctrlPts.[j % ctrlPts.Length]
+                     yield ptJ
+                     j <- j + 1
+
+                     if
+                         ptJ.ty = SplinePointType.Corner
+                         || ptJ.ty = SplinePointType.CurveToLine
+                         || ptJ.ty = SplinePointType.LineToCurve
+                     then
+                         break_ <- true ]
+
+        innerPts, j
+
+    /// Construct and solve a Solver for the given inner points.
+    /// If the optimizer hits its iteration limit the best-so-far state is kept (no exception).
+    member this.solveSection(innerPts: DControlPoint list, length: int, maxIter, flatness, debug) =
+        let solver =
+            Solver(Array.ofList innerPts, isClosed && innerPts.Length - 1 = length, flatness, debug)
+
+        solver.initialise ()
+
+        try
+            solver.Solve(maxIter)
+        with _ ->
+            () // keep whatever state the optimizer had when it stopped
+
+        solver
+
+    member this.solveAndGetPoints(maxIter, flatness, debug) : BezierPoint[] =
+        /// Returns one BezierPoint per ctrlPts entry with solved x, y, th values.
+        let length = ctrlPts.Length - if isClosed then 0 else 1
+
+        this.preprocessLineTangents ()
+
+        // Result array: one BezierPoint per ctrlPts entry
+        let result = Array.init ctrlPts.Length (fun _ -> BezierPoint())
+
+        for i in 0 .. ctrlPts.Length - 1 do
+            result.[i].x <- ctrlPts.[i].x |> Option.defaultValue Double.NaN
+            result.[i].y <- ctrlPts.[i].y |> Option.defaultValue Double.NaN
+            result.[i].th_in <- ctrlPts.[i].th |> Option.defaultValue Double.NaN
+            result.[i].th_out <- ctrlPts.[i].th |> Option.defaultValue Double.NaN
+
+        let mutable i = 0
+
+        while i < length do
+            let ptI = ctrlPts.[i]
+            let ptI1 = ctrlPts.[(i + 1) % ctrlPts.Length]
+
+            if this.isLineSegment (ptI, ptI1) then
+                // Line segment — tangents point along the line
+                let lineAngle = atan2 (ptI1.y.Value - ptI.y.Value) (ptI1.x.Value - ptI.x.Value)
+                let nextIdx = (i + 1) % result.Length
+
+                if Double.IsNaN result.[i].th_out then
+                    result.[i].th_out <- lineAngle
+
+                // For start of open curve, initialize th_in to lineAngle too
+                if i = 0 && not isClosed && Double.IsNaN result.[i].th_in then
+                    result.[i].th_in <- lineAngle
+
+                result.[nextIdx].th_in <- lineAngle
+
+                // For end of open curve, initialize th_out to lineAngle too
+                if
+                    i + 1 = ctrlPts.Length - 1
+                    && not isClosed
+                    && Double.IsNaN result.[nextIdx].th_out
+                then
+                    result.[nextIdx].th_out <- lineAngle
+
+                result.[nextIdx].x <- ptI1.x.Value
+                result.[nextIdx].y <- ptI1.y.Value
+                i <- i + 1
+            else
+                let innerPts, j = this.collectCurveSection (i, length)
+                let solver = this.solveSection (innerPts, length, maxIter, flatness, debug)
+                let bezPts = solver.points ()
+
+                // Copy solver results back.
+                let copyCount = min bezPts.Length (ctrlPts.Length - i)
+
+                for k in 0 .. copyCount - 1 do
+                    let resIdx = i + k
+                    result.[resIdx].x <- bezPts.[k].x
+                    result.[resIdx].y <- bezPts.[k].y
+                    result.[resIdx].th_in <- bezPts.[k].th_in
+                    result.[resIdx].th_out <- bezPts.[k].th_out
+                    result.[resIdx].ld <- bezPts.[k].ld
+                    result.[resIdx].rd <- bezPts.[k].rd
+
+                    // For start of open curve, ensure th_in is not NaN
+                    if resIdx = 0 && not isClosed && Double.IsNaN result.[resIdx].th_in then
+                        result.[resIdx].th_in <- bezPts.[k].th_out
+
+                    // For end of open curve, ensure th_out is not NaN
+                    if
+                        resIdx = ctrlPts.Length - 1
+                        && not isClosed
+                        && Double.IsNaN result.[resIdx].th_out
+                    then
+                        result.[resIdx].th_out <- bezPts.[k].th_in
+
+                i <- j - 1
+
+        result
+
+    member this.solveAndRenderTuple(maxIter, flatness, debug, showComb, showTangents) =
+        let length = ctrlPts.Length - if isClosed then 0 else 1
+
+        this.preprocessLineTangents ()
 
         // First point
         let path = BezPath()
         let combPath = BezPath()
+        let tangentPath = BezPath()
         let pt0 = ctrlPts.[0]
         path.moveto (pt0.x.Value, pt0.y.Value)
 
@@ -528,53 +700,34 @@ type DSpline(ctrlPts, isClosed) =
 
             // Skip if points are coincident
             if
-                (ptI.x.IsSome
-                 && ptI.y.IsSome
-                 && ptI1.x.IsSome
-                 && ptI1.y.IsSome
-                 && ptI.x.Value = ptI1.x.Value
-                 && ptI.y.Value = ptI1.y.Value)
+                ptI.x.IsSome
+                && ptI.y.IsSome
+                && ptI1.x.IsSome
+                && ptI1.y.IsSome
+                && ptI.x.Value = ptI1.x.Value
+                && ptI.y.Value = ptI1.y.Value
             then
                 i <- i + 1
-            // Curve if either point is Smooth or Curve to/from Line , or if either has a tangent
-            // Straight line if both points are corners and have no tangents
-            else if
-                (ptI.ty = SplinePointType.Corner
-                 && ptI1.ty = SplinePointType.Corner
-                 && ptI.th.IsNone
-                 && ptI1.th.IsNone)
-                || ptI.ty = SplinePointType.CurveToLine
-                || ptI1.ty = SplinePointType.LineToCurve
-            then
+            // Straight line if both points are corners with no tangents, or CurveToLine/LineToCurve
+            elif this.isLineSegment (ptI, ptI1) then
                 path.lineto (ptI1.x.Value, ptI1.y.Value)
+
+                if showTangents then
+                    let dx = ptI1.x.Value - ptI.x.Value
+                    let dy = ptI1.y.Value - ptI.y.Value
+                    let lineAngle = atan2 dy dx
+                    let dist = sqrt (dx * dx + dy * dy) / 3.0
+                    // Draw outgoing tangent from ptI
+                    tangentPath.moveto (ptI.x.Value, ptI.y.Value)
+                    tangentPath.lineto (ptI.x.Value + dist * cos lineAngle, ptI.y.Value + dist * sin lineAngle)
+                    // Draw incoming tangent to ptI1
+                    tangentPath.moveto (ptI1.x.Value, ptI1.y.Value)
+                    tangentPath.lineto (ptI1.x.Value - dist * cos lineAngle, ptI1.y.Value - dist * sin lineAngle)
+
                 i <- i + 1
-
             else
-                // Find a curved section with Smooth points
-                // i.e. stop if Corner or Curve to/from Line
-                let mutable j = i + 1
-                let mutable break_ = false
-
-                let innerPts =
-                    ptI
-                    :: [ while j <= length && not break_ do
-                             let ptJ = ctrlPts.[j % ctrlPts.Length]
-                             yield (ptJ)
-                             j <- j + 1
-
-                             if
-                                 ptJ.ty = SplinePointType.Corner
-                                 || ptJ.ty = SplinePointType.CurveToLine
-                                 || ptJ.ty = SplinePointType.LineToCurve
-                             then
-                                 break_ <- true ]
-
-                let solver =
-                    Solver(Array.ofList innerPts, this.isClosed && innerPts.Length - 1 = length, flatness, debug)
-
-                solver.initialise ()
-                solver.Solve(maxIter)
-
+                let innerPts, j = this.collectCurveSection (i, length)
+                let solver = this.solveSection (innerPts, length, maxIter, flatness, debug)
                 let bezPts = solver.points ()
 
                 for k in 0 .. bezPts.Length - 2 do
@@ -611,18 +764,33 @@ type DSpline(ctrlPts, isClosed) =
                                 combPath.moveto (pt.x, pt.y)
                                 combPath.lineto (endPt.x, endPt.y)
 
+                if showTangents then
+                    for k in 0 .. bezPts.Length - 1 do
+                        let p = bezPts.[k]
+                        // Draw line to left control point if rd exists (wait, rd is for previous, ld is for current)
+                        // Actually rpt() is p.rd * cos(p.th_out), lpt() is p.ld * cos(p.th_in)
+                        if k > 0 || isClosed then
+                            let lpt = p.lpt ()
+                            tangentPath.moveto (p.x, p.y)
+                            tangentPath.lineto (lpt.x, lpt.y)
+
+                        if k < bezPts.Length - 1 || isClosed then
+                            let rpt = p.rpt ()
+                            tangentPath.moveto (p.x, p.y)
+                            tangentPath.lineto (rpt.x, rpt.y)
+
                 if debug then
-                    printfn "DSpline solved"
+                    printfn "DSpline solved, pts:"
 
                     for p in solver.points () do
                         printfn "%s" (p.tostring ())
 
                 i <- j - 1
 
-        if this.isClosed then
+        if isClosed then
             path.closepath ()
 
-        (path.tostringlist (), combPath.tostringlist ())
+        (path.tostringlist (), combPath.tostringlist (), tangentPath.tostringlist ())
 
 
 // member this.renderSvg show_tangents =

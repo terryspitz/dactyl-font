@@ -30,7 +30,7 @@ let pointToDcp (p: Point) =
 type TestClass() =
 
     let solve_and_print_spline (spline: DSpline) =
-        let svg = fst (spline.solveAndRenderTuple (max_iter, 1.0, false, false))
+        let svg, _, _ = spline.solveAndRenderTuple (max_iter, 1.0, false, false, false)
         let svg = (String.Join(" ", svg))
         printfn "%A" svg
         svg.Trim()
@@ -159,10 +159,10 @@ type TestClass() =
             )
 
         let svgFlat0 =
-            fst (spline.solveAndRenderTuple (5000, 0.0, false, false)) |> String.concat " "
+            let svg, _, _ = spline.solveAndRenderTuple (5000, 0.0, false, false, false) in svg |> String.concat " "
 
         let svgFlat10 =
-            fst (spline.solveAndRenderTuple (5000, 1000.0, false, false))
+            let svg, _, _ = spline.solveAndRenderTuple (5000, 1000.0, false, false, false) in svg
             |> String.concat " "
 
         printfn "Flatness 0.0: %s" svgFlat0
@@ -338,8 +338,8 @@ type AdvancedGeometricTests() =
         Assert.That(err, Is.LessThan(1000.0), "Error too high for quarter circle")
 
         let pts = solver.points ()
-        // Tangent is stored in pts.[1].th (BezierPoint.th is float, not option)
-        let th = pts.[1].th
+        // Tangent is stored in pts.[1].th_in (BezierPoint.th_in is float, not option)
+        let th = pts.[1].th_in
         // 135 degrees is 3*PI/4 = 2.35619...
         Assert.That(th, Is.EqualTo(3.0 * PI / 4.0).Within(0.1))
 
@@ -370,7 +370,7 @@ type AdvancedGeometricTests() =
         Assert.That(err, Is.LessThan(2.0e7), "Error too high for S-curve")
 
         let pts = solver.points ()
-        let th = pts.[1].th
+        let th = pts.[1].th_in
         Assert.That(th, Is.GreaterThan(0.0))
         // Should be steep but not vertical?
         Assert.That(th, Is.LessThan(PI / 2.0))
@@ -419,7 +419,7 @@ type AdvancedGeometricTests() =
 [<TestFixture>]
 type LineToCurveTests() =
     let solve_and_print_spline (spline: DSpline) =
-        let svg = fst (spline.solveAndRenderTuple (max_iter, 1.0, false, false))
+        let svg, _, _ = spline.solveAndRenderTuple (max_iter, 1.0, false, false, false)
         let svg = (String.Join(" ", svg))
         printfn "%A" svg
         svg.Trim()

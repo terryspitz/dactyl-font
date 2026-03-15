@@ -21,5 +21,5 @@ type TestClass() =
         // let pt = new ControlPoint(new Vec2(knot.x, knot.y), knot.ty, knot.lth, knot.rth);
         let spline = Spline2(ctrlPts, false)
         spline.solve(10)
-        let bezpath = spline.renderSvg(false)
+        let bezpath = spline.renderSvg
         printfn "%A" bezpath

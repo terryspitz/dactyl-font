@@ -693,7 +693,7 @@ type Spline2 (ctrlPts, isClosed) =
                         let lK = myTan(pt.lAk) / this.chordLen(i)
                         Some (2. / (1. / rK + 1. / lK))
 
-    member this.renderSvg show_tangents =
+    member this.renderSvg =
         let path = BezPath()
         if this.ctrlPts.Length = 0 then "" else
         let pt0 = this.ctrlPts.[0] in path.moveto(pt0.pt.x, pt0.pt.y)
@@ -730,14 +730,19 @@ type Spline2 (ctrlPts, isClosed) =
         if this.isClosed then
             path.closepath()
 
-        //terryspitz: also render tangents in SVG
-        if show_tangents then
-            for i in 1..length-1 do
-                path.mark i
+        path.tostring()
+
+    member this.renderTangents =
+        let path = BezPath()
+        let length = this.ctrlPts.Length - if this.isClosed then 0 else 1
+        for i in 0..length do
+            if i < this.ctrlPts.Length then
                 let ptI = this.pt(i, 0)
                 let offset = 100.
-                // path.moveto(ptI.pt.x, ptI.pt.y)
-                // path.lineto(ptI.pt.x + offset*cos(-ptI1.lTh), ptI.pt.y + offset*sin(-ptI1.lTh))
-                path.moveto(ptI.pt.x, ptI.pt.y)
-                path.lineto(ptI.pt.x + offset*cos(ptI.lTh), ptI.pt.y + offset*sin(ptI.lTh))
-        path.tostring()
+                if not (isnan ptI.lTh) then
+                    path.moveto(ptI.pt.x, ptI.pt.y)
+                    path.lineto(ptI.pt.x + offset*cos(ptI.lTh), ptI.pt.y + offset*sin(ptI.lTh))
+                if not (isnan ptI.rTh) then
+                    path.moveto(ptI.pt.x, ptI.pt.y)
+                    path.lineto(ptI.pt.x + offset*cos(ptI.rTh), ptI.pt.y + offset*sin(ptI.rTh))
+        path.tostringlist()
