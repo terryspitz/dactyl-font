@@ -96,7 +96,8 @@ let private buildSplineDebugSvg (inputAxes: Axes) (elementsBuilder: Font -> (Ele
         { inputAxes with
             clip_rect = false
             filled = false
-            show_comb = true }
+            show_comb = true
+            show_tangents = true }
 
     // Create fonts with specific settings
     let fontSpiro =
@@ -122,6 +123,8 @@ let private buildSplineDebugSvg (inputAxes: Axes) (elementsBuilder: Font -> (Ele
             { axes with
                 spline2 = false
                 show_knots = false
+                show_comb = false
+                show_tangents = false
                 debug = false }
 
     let elements, xOffset = elementsBuilder fontSpline2

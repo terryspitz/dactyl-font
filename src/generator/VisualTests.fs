@@ -24,7 +24,8 @@ let spline2PtsToSvg (spline2Font: Font) ctrlPts =
         [ for pt in ctrlPts do
               (YX(int (SPLINE2SCALE * pt.y.Value), int (SPLINE2SCALE * pt.x.Value)), splineToSpiroPointType pt.ty) ]
 
-    spline2Font.Spline2PtsToSvg spline2CtrlPts false
+    let (svg, _, _) = spline2Font.Spline2PtsToSvg spline2CtrlPts false
+    svg
 
 let splineStaticPage () =
     let curves = 10
@@ -42,7 +43,7 @@ let splineStaticPage () =
                 [ sprintf "<g id='%d'>" i
                   sprintf "<text x='%f' y='%d' font-size='0.2'>%d</text>" 0.5 (i + 1) i
                   sprintf "<path d='" ]
-                @ fst (spline.solveAndRenderTuple (max_iter, 1.0, debug, false))
+                @ let svg, _, _ = spline.solveAndRenderTuple (max_iter, 1.0, debug, false, false) in svg
                 @ [ sprintf "' transform='translate(%d,%d) scale(0.9, 0.9)'" x (i + 1)
                     "style='fill:none;stroke:#000000;stroke-width:0.1'/>"
                     "</g>"
@@ -110,7 +111,7 @@ let splineStaticPage () =
                       // let iter = if x >= 7 then max 1 (i * 50) else max 1 (i * 3)
 
                       [ sprintf "<g id='%d'>" i; sprintf "<path d='" ]
-                      @ fst (spline.solveAndRenderTuple (iter, 1.0, debug, false))
+                      @ let svg, _, _ = spline.solveAndRenderTuple (iter, 1.0, debug, false, false) in svg
                       @ [ sprintf "' transform='translate(%d,%d) scale(%f, %f)'" x (i + 1) scale scale
                           sprintf "style='fill:none;stroke:#000000;stroke-width:%f'/>" strokeWidth
                           "</g>" ]

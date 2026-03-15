@@ -1,5 +1,9 @@
 
 **TODOs**
+- rename DSpline to DactylSpline, Generator.fs to Font.fs
+- move svg helper functions to SvgHelpers.fs
+- migrate remaining glyphs from GlyphFsDefs to GlyphStringDefs
+- remove generateSplineDebugSvg
 - move outline point inward only
 - improve serifs
 - join lines properly
@@ -17,12 +21,11 @@
 - Add help tooltips on explorer sliders
 - fix fontforge errors: direction, non-integral coords
 - fix serifs: curve joints, check Y{}, spacing
-- Caustics overlay
 - Optional debug mode to show coordinates/curves
 - debug 'sharp bend' duplicate points in 'e'
 - mobius strip font
 -
-**Features**
+**DONE: Implemented Features**
 - Backscratch font (made of 4 parallel lines)
 - Generated FontForge fonts
 - Variable font explorer: https://terryspitz.github.io/dactyl-font/
@@ -34,7 +37,6 @@
 - Constrain tangents to horiz/vertical
 - Italics subdivide splines to ensure better fit
 - Dactyl-smooth which has no corners
-
 
 **Document if interesting the following categories**
 - Straights: AEFHIKLMNTVWXYZklvwxyz147/=[]\`|*"'

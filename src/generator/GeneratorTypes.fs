@@ -103,6 +103,16 @@ type SpiroElement =
     | SpiroDot of Point
     | SpiroSpace
 
+/// Minimal solved-knot data needed for outline offsetting.
+/// Populated either from Spiro/Spline2 (via SpiroSegment) or DSpline (via BezierPoint).
+type OffsetSegment =
+    { X: float
+      Y: float
+      tangentStart: float // entry tangent at this knot
+      tangentEnd: float // exit tangent from this knot
+      seg_ch: float // chord length to next knot
+      Type: SpiroPointType }
+
 // Bring into local namespace, and rename if nec.
 let CurveToLine = SpiroPointType.Left
 let LineToCurve = SpiroPointType.Right
