@@ -2,7 +2,7 @@ module Api
 
 open Fable.Core
 open Axes
-open Generator
+open Font
 open GeneratorTypes
 open GlyphStringDefs
 open GlyphFsDefs
@@ -112,7 +112,7 @@ let private buildSplineDebugSvg (inputAxes: Axes) (elementsBuilder: Font -> (Ele
                 spline2 = true
                 dactyl_spline = false }
 
-    let fontDSpline =
+    let fontDactylSpline =
         Font
             { axes with
                 spline2 = false
@@ -167,7 +167,7 @@ let private buildSplineDebugSvg (inputAxes: Axes) (elementsBuilder: Font -> (Ele
                 wrapClass "spline2-layer" (fontSpline2.elementToSvgPath spline offsetX offsetY 10 green)
 
             let dsplineLayer =
-                wrapClass "dspline-layer" (fontDSpline.elementToSvgPath spline offsetX offsetY 10 orange)
+                wrapClass "dspline-layer" (fontDactylSpline.elementToSvgPath spline offsetX offsetY 10 orange)
 
             let knotsLayer =
                 (wrapClass "spiro-layer knots-layer" (spiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue))
@@ -176,7 +176,7 @@ let private buildSplineDebugSvg (inputAxes: Axes) (elementsBuilder: Font -> (Ele
                     (spline |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen))
                 @ (wrapClass
                     "dspline-layer knots-layer"
-                    (spline |> fontDSpline.getSvgKnots offsetX offsetY 5 lightOrange))
+                    (spline |> fontDactylSpline.getSvgKnots offsetX offsetY 5 lightOrange))
 
             guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer
         else
@@ -200,11 +200,11 @@ let private buildSplineDebugSvg (inputAxes: Axes) (elementsBuilder: Font -> (Ele
 
             let outlineSpiro = getOutline fontSpiro spiro
             let outlineSpline2 = getOutline fontSpline2 spline
-            let outlineDSpline = getOutline fontDSpline spline
+            let outlineDactylSpline = getOutline fontDactylSpline spline
 
             let outlineSpiroSvg = safeElementToSvgPath fontSpiro outlineSpiro blue
             let outlineSpline2Svg = safeElementToSvgPath fontSpline2 outlineSpline2 green
-            let outlineDSplineSvg = safeElementToSvgPath fontDSpline outlineDSpline orange
+            let outlineDactylSplineSvg = safeElementToSvgPath fontDactylSpline outlineDactylSpline orange
 
             let guidesLayer = wrapClass "guides-layer" guidesSvg
 
@@ -219,7 +219,7 @@ let private buildSplineDebugSvg (inputAxes: Axes) (elementsBuilder: Font -> (Ele
             let dsplineLayer =
                 wrapClass
                     "dspline-layer"
-                    (fontDSpline.elementToSvgPath spline offsetX offsetY 3 orange @ outlineDSplineSvg)
+                    (fontDactylSpline.elementToSvgPath spline offsetX offsetY 3 orange @ outlineDactylSplineSvg)
 
             let knotsLayer =
                 (wrapClass "spiro-layer knots-layer" (spiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue))
@@ -234,10 +234,10 @@ let private buildSplineDebugSvg (inputAxes: Axes) (elementsBuilder: Font -> (Ele
                     (outlineSpline2 |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen))
                 @ (wrapClass
                     "dspline-layer knots-layer"
-                    (spline |> fontDSpline.getSvgKnots offsetX offsetY 5 lightOrange))
+                    (spline |> fontDactylSpline.getSvgKnots offsetX offsetY 5 lightOrange))
                 @ (wrapClass
                     "dspline-layer knots-layer"
-                    (outlineDSpline |> fontDSpline.getSvgKnots offsetX offsetY 5 lightOrange))
+                    (outlineDactylSpline |> fontDactylSpline.getSvgKnots offsetX offsetY 5 lightOrange))
 
             guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer
 

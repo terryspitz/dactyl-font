@@ -25,7 +25,7 @@
     <Compile Include="GeneratorTypes.fs" />
     <Compile Include="GlyphFsDefs.fs" />
     <Compile Include="GlyphStringDefs.fs" />
-    <Compile Include="Generator.fs" />
+    <Compile Include="Font.fs" />
     <Compile Include="DactylSplineTest.fs" />
     <Compile Include="FontTest.fs" />
     <Compile Include="ParserTests.fs" />

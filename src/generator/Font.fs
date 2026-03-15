@@ -1,7 +1,7 @@
 // Functional Fonts by terryspitz
 // Mar 2020-
 
-module Generator
+module Font
 
 open System
 open System.Security.Cryptography
@@ -364,7 +364,7 @@ type Font(axes: Axes) =
         | Space -> ([], [], [])
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
 
-    let toDSplineControlPoints (pts: list<Point * SpiroPointType * float option>) =
+    let toDactylSplineControlPoints (pts: list<Point * SpiroPointType * float option>) =
         [| for i in 0 .. pts.Length - 1 do
                let p, spiroType, tangent = pts.[i]
                assert (spiroType <> SpiroPointType.Anchor && spiroType <> SpiroPointType.Handle)
@@ -412,7 +412,7 @@ type Font(axes: Axes) =
             printfn "elementToDactylSvg %A" elem
 
         let ctrlPtsToSvg ctrlPts isClosed =
-            let spline = DSpline(ctrlPts, isClosed)
+            let spline = DactylSpline(ctrlPts, isClosed)
 
             spline.solveAndRenderSvg (
                 axes.max_spline_iter,
@@ -423,7 +423,7 @@ type Font(axes: Axes) =
             )
 
         match elem with
-        | Curve(pts, isClosed) -> ctrlPtsToSvg (toDSplineControlPoints pts) isClosed
+        | Curve(pts, isClosed) -> ctrlPtsToSvg (toDactylSplineControlPoints pts) isClosed
         | Dot(p) -> let x, y = getXY p in (svgCircle x y thickness, [], [])
         | EList(elems) ->
             let results = List.map elementToDactylSvg elems
@@ -929,12 +929,12 @@ type Font(axes: Axes) =
             if axes.debug then
                 printfn "solveCurveSegs pts: %A" pts
 
-            let ctrlPts = toDSplineControlPoints pts
+            let ctrlPts = toDactylSplineControlPoints pts
 
             if axes.debug then
                 printfn "solveCurveSegs ctrlPts: %A" ctrlPts
 
-            let spline = DSpline(ctrlPts, isClosed)
+            let spline = DactylSpline(ctrlPts, isClosed)
 
             let bezPts =
                 spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.debug)

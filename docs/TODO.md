@@ -1,9 +1,9 @@
 
 **TODOs**
-- rename DSpline to DactylSpline, Generator.fs to Font.fs
 - move svg helper functions to SvgHelpers.fs
 - migrate remaining glyphs from GlyphFsDefs to GlyphStringDefs
 - remove generateSplineDebugSvg
+- 
 - move outline point inward only
 - improve serifs
 - join lines properly

@@ -533,8 +533,8 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     _points.[index1].th_out <- resultVec.[i]
 #endif
 
-// DSpline handles general sequence of lines & curves, including corners.
-type DSpline(ctrlPts, isClosed) =
+// DactylSpline handles general sequence of lines & curves, including corners.
+type DactylSpline(ctrlPts, isClosed) =
     member this.ctrlPts: DControlPoint array = ctrlPts
     member this.isClosed = isClosed
 

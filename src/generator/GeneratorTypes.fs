@@ -104,7 +104,7 @@ type SpiroElement =
     | SpiroSpace
 
 /// Minimal solved-knot data needed for outline offsetting.
-/// Populated either from Spiro/Spline2 (via SpiroSegment) or DSpline (via BezierPoint).
+/// Populated either from Spiro/Spline2 (via SpiroSegment) or DactylSpline (via BezierPoint).
 type OffsetSegment =
     { X: float
       Y: float

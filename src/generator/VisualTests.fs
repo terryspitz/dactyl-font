@@ -4,7 +4,7 @@ open Curves
 open Axes
 open DactylSpline
 open GeneratorTypes
-open Generator
+open Font
 open SpiroPointType
 
 
@@ -36,7 +36,7 @@ let splineStaticPage () =
 
         let one_example ctrlPts i x =
             try
-                let spline = DSpline(ctrlPts, false)
+                let spline = DactylSpline(ctrlPts, false)
                 let debug: bool = false
                 let spline2Font = Font({ Axes.DefaultAxes with spline2 = true })
 
@@ -101,7 +101,7 @@ let splineStaticPage () =
         [ for i in 0..curves do
               printfn "show_iterations %d" i
 
-              let splineOf (spline: DSpline) x =
+              let splineOf (spline: DactylSpline) x =
                   let spline2Font = Font({ Axes.DefaultAxes with spline2 = true })
                   let SHOW_LEGACY_SPLINE = false
 
@@ -135,7 +135,7 @@ let splineStaticPage () =
               // U-shape
               yield!
                   splineOf
-                      (DSpline(
+                      (DactylSpline(
                           [| dcp SplinePointType.Corner 0. 0. None
                              dcp SplinePointType.Smooth 0.5 0.8 None
                              dcp SplinePointType.Corner 1. 0. None |],
@@ -146,7 +146,7 @@ let splineStaticPage () =
               // C-shape
               yield!
                   splineOf
-                      (DSpline(
+                      (DactylSpline(
                           [| dcp SplinePointType.Corner 1000. 700. None
                              dcp SplinePointType.Smooth 500. 1000. None
                              dcp SplinePointType.Smooth 0. 500. None
@@ -161,7 +161,7 @@ let splineStaticPage () =
 
               yield!
                   splineOf
-                      (DSpline(
+                      (DactylSpline(
                           [| dcp SplinePointType.Smooth 1000.0 0.0 (Some(PI / 2.0))
                              dcp SplinePointType.Smooth s45 s45 None
                              dcp SplinePointType.Smooth 0.0 1000.0 (Some(PI)) |],
@@ -174,7 +174,7 @@ let splineStaticPage () =
               // tl -> hl -> b(c) -> tr
               yield!
                   splineOf
-                      (DSpline(
+                      (DactylSpline(
                           [| dcp SplinePointType.Smooth 0.0 0.0 None // tl
                              dcp SplinePointType.LineToCurve 0.0 700.0 None // hl
                              { ty = SplinePointType.Smooth

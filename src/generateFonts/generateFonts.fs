@@ -7,7 +7,7 @@ open System
 open System.IO
 
 open Axes
-open Generator
+open Font
 open FontForge
 open DactylSpline
 

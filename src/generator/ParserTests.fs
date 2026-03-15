@@ -6,6 +6,7 @@ open GlyphFsDefs
 open GlyphStringDefs
 open GeneratorTypes
 open SpiroPointType
+open Font
 
 [<TestFixture>]
 type ParserTests() =

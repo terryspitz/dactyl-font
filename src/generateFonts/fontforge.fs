@@ -4,7 +4,7 @@ open System.IO
 open System.Text.RegularExpressions
 
 open GeneratorTypes
-open Generator
+open Font
 
 
 let spiroCircle x y r =

@@ -6,7 +6,7 @@ open Curves
 open DactylSpline
 open Axes
 open GeneratorTypes
-open Generator
+open Font
 open GlyphFsDefs
 
 let dcp = DactylSpline.dcp
@@ -28,7 +28,7 @@ type FontTests() =
                dcp SplinePointType.Smooth 500. 100. None // bottom
                dcp SplinePointType.Smooth 0. 500. None |] // left
 
-        let spline = DSpline(ctrlPts, true)
+        let spline = DactylSpline(ctrlPts, true)
         // Should not throw IndexOutOfRangeException
         let bezPts = spline.solveAndGetPoints (500, 1.0, false)
 

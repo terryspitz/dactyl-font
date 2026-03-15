@@ -29,7 +29,7 @@ let pointToDcp (p: Point) =
 [<TestFixture>]
 type TestClass() =
 
-    let solve_and_print_spline (spline: DSpline) =
+    let solve_and_print_spline (spline: DactylSpline) =
         let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, false, false, false)
         let svg = (String.Join(" ", svg))
         printfn "%A" svg
@@ -38,7 +38,7 @@ type TestClass() =
     [<Test>]
     member this.CheckLinesCornerCorner() =
         let spline =
-            DSpline(
+            DactylSpline(
                 [| dcp SplinePointType.Corner 0. 0. None
                    dcp SplinePointType.Corner 1. 0. None |],
                 false
@@ -51,7 +51,7 @@ type TestClass() =
     [<Test>]
     member this.CheckLinesCornerSmooth() =
         let spline =
-            DSpline(
+            DactylSpline(
                 [| dcp SplinePointType.Smooth 0. 0. None
                    dcp SplinePointType.Corner 1. 0. None |],
                 false
@@ -64,7 +64,7 @@ type TestClass() =
     [<Test>]
     member this.CheckLinesSmoothCorner() =
         let spline =
-            DSpline(
+            DactylSpline(
                 [| dcp SplinePointType.Corner 0. 0. None
                    dcp SplinePointType.Smooth 1. 0. None |],
                 false
@@ -77,7 +77,7 @@ type TestClass() =
     [<Test>]
     member this.CheckLinesSmoothSmooth() =
         let spline =
-            DSpline(
+            DactylSpline(
                 [| dcp SplinePointType.Smooth 0. 0. None
                    dcp SplinePointType.Smooth 1. 0. None |],
                 false
@@ -92,7 +92,7 @@ type TestClass() =
         let expectedLineWithCurveTo = "M 0,0C 0.333,0 0.667,0 1.000,0"
 
         let spline =
-            DSpline(
+            DactylSpline(
                 [| dcp SplinePointType.Corner 0. 0. (Some 0.)
                    dcp SplinePointType.Corner 1. 0. None |],
                 false
@@ -103,7 +103,7 @@ type TestClass() =
         Assert.That(svg, Does.EndWith("1,0"))
 
         let spline =
-            DSpline(
+            DactylSpline(
                 [| dcp SplinePointType.Corner 0. 0. None
                    dcp SplinePointType.Corner 1. 0. (Some(-PI)) |],
                 false
@@ -114,7 +114,7 @@ type TestClass() =
         Assert.That(svg, Does.EndWith("1,0"))
 
         let spline =
-            DSpline(
+            DactylSpline(
                 [| dcp SplinePointType.Corner 0. 0. (Some 0.)
                    dcp SplinePointType.Corner 1. 0. (Some(-PI)) |],
                 false
@@ -127,7 +127,7 @@ type TestClass() =
     [<Test>]
     member this.CheckTwoPointCurvesWithOtherTangents() =
         let spline =
-            DSpline(
+            DactylSpline(
                 [| dcp SplinePointType.Corner 0. 0. (Some(PI / 2.))
                    dcp SplinePointType.Corner 1. 0. (Some(PI)) |],
                 false
@@ -138,7 +138,7 @@ type TestClass() =
         Assert.That(svg, Does.EndWith("1,0"))
 
         let spline =
-            DSpline(
+            DactylSpline(
                 [| dcp SplinePointType.Corner 0. 0. (Some(PI / 2.))
                    dcp SplinePointType.Corner 1. 0. (Some(PI / 2.)) |],
                 false
@@ -151,7 +151,7 @@ type TestClass() =
     [<Test>]
     member this.CheckFlatnessParam() =
         let spline =
-            DSpline(
+            DactylSpline(
                 [| dcp SplinePointType.Corner 0. 0. None
                    dcp SplinePointType.Smooth 0.5 1.0 None
                    dcp SplinePointType.Corner 1. 0. None |],
@@ -179,7 +179,7 @@ type TestClass() =
             [| dcp SplinePointType.Corner 0. 0. None
                dcp SplinePointType.Corner 1. 0. (Some PI) |]
 
-        let spline = DSpline(ctrlPts, false)
+        let spline = DactylSpline(ctrlPts, false)
         let bezPts = spline.solveAndGetPoints(max_iter, 1.0, false)
         
         // check that th_in at the end is 0 (East), after being flipped from PI (West)
@@ -195,7 +195,7 @@ type TestClass() =
             [| dcp SplinePointType.Corner 0. 0. (Some 0.0) // East
                dcp SplinePointType.Corner 1. 0. None |]
 
-        let splineStart = DSpline(ctrlPtsStart, false)
+        let splineStart = DactylSpline(ctrlPtsStart, false)
         let bezPtsStart = splineStart.solveAndGetPoints(max_iter, 1.0, false)
         
         Assert.That(bezPtsStart.[0].th_out, Is.EqualTo(0.0).Within(1e-10))
@@ -212,7 +212,7 @@ type TestClass() =
             [| dcp SplinePointType.LineToCurve 80. 510. (Some(PI / 2.0))
                dcp SplinePointType.Corner 255. 630. (Some PI) |]
 
-        let spline = DSpline(ctrlPts, false)
+        let spline = DactylSpline(ctrlPts, false)
         let bezPts = spline.solveAndGetPoints(500, 1.0, true)
         
         // Point 0 (xtllc) should NOT be flipped. It should point North.
@@ -229,7 +229,7 @@ type TestClass() =
                dcp SplinePointType.LineToCurve 80. 510. None // tangent set by preprocess
                dcp SplinePointType.Corner 255. 630. (Some PI) |]
 
-        let spline = DSpline(ctrlPts, false)
+        let spline = DactylSpline(ctrlPts, false)
         let bezPts = spline.solveAndGetPoints(500, 1.0, true)
         
         // xtllc (pt 1) should point North (from stem line)
@@ -489,7 +489,7 @@ type AdvancedGeometricTests() =
 
 [<TestFixture>]
 type LineToCurveTests() =
-    let solve_and_print_spline (spline: DSpline) =
+    let solve_and_print_spline (spline: DactylSpline) =
         let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, false, false, false)
         let svg = (String.Join(" ", svg))
         printfn "%A" svg
@@ -502,7 +502,7 @@ type LineToCurveTests() =
                dcp SplinePointType.LineToCurve 1. 0. None
                dcp SplinePointType.Corner 2. 1. None |]
 
-        let spline = DSpline(ctrlPts, false)
+        let spline = DactylSpline(ctrlPts, false)
         let svg = solve_and_print_spline spline
         // Expected: M 0,0 L 1,0 C ...
         // We look for "L 1,0" or similar float representation
@@ -515,7 +515,7 @@ type LineToCurveTests() =
                dcp SplinePointType.CurveToLine 1. 1. None
                dcp SplinePointType.Corner 2. 1. None |]
 
-        let spline = DSpline(ctrlPts, false)
+        let spline = DactylSpline(ctrlPts, false)
         let svg = solve_and_print_spline spline
         // Expected: M 0,0 C ... L 2,1
         Assert.That(svg, Does.Match("M 0,0.*C.*L 2,1"), "Second segment should be a line")
