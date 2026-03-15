@@ -105,7 +105,7 @@ type SpiroElement =
 
 /// Minimal solved-knot data needed for outline offsetting.
 /// Populated either from Spiro/Spline2 (via SpiroSegment) or DactylSpline (via BezierPoint).
-type OffsetSegment =
+type Segment =
     { X: float
       Y: float
       tangentStart: float // entry tangent at this knot
