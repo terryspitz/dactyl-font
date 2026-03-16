@@ -67,7 +67,7 @@ let glyphMap =
           '\\', "tel-ber"
           ']', "tec-ter-ber-bec"
           '^', "ttbl-tc-ttbr"
-          '_', "bel-ben"
+          '_', "bel-ber"
           '{', "tecW~hlE hlE~becW"
           '}', "telE~hcW hcW~belE"
           '|', "tec-bec"
