@@ -1,7 +1,9 @@
 
 **TODOs**
 - move svg helper functions to SvgHelpers.fs
-- migrate remaining glyphs from GlyphFsDefs to GlyphStringDefs
+- add proper interactive spline editor (tab)
+- tidy up UI
+- add documentation tooltips, links
 - flare with tangents wrong way round
 - move outline point inward only
 - improve serifs
