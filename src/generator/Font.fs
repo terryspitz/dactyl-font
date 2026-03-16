@@ -17,6 +17,7 @@ open PathBezierContext
 open Axes
 open Curves
 open DactylSpline
+open SvgHelpers
 
 
 // Attach extension method to segment class
@@ -47,65 +48,13 @@ let mergeConsecutive keyFn mergeFn list =
 
     loop list
 
-let svgCircle x y r =
-    [ sprintf "M %d,%d" (x - r) y
-      sprintf "C %d,%d %d,%d %d,%d" (x - r) (y + r / 2) (x - r / 2) (y + r) x (y + r)
-      sprintf "C %d,%d %d,%d %d,%d" (x + r / 2) (y + r) (x + r) (y + r / 2) (x + r) y
-      sprintf "C %d,%d %d,%d %d,%d" (x + r) (y - r / 2) (x + r / 2) (y - r) x (y - r)
-      sprintf "C %d,%d %d,%d %d,%d" (x - r / 2) (y - r) (x - r) (y - r / 2) (x - r) y
-      "Z" ]
+let dotToClosedCurve x y r =
+    closedCurve
+        [ (YX(y - r, x), G2)
+          (YX(y, x + r), G2)
+          (YX(y + r, x), G2)
+          (YX(y, x - r), G2) ]
 
-let svgDiamond x y r =
-    [ sprintf "M %d,%d" (x - r) y
-      sprintf "L %d,%d" x (y + r)
-      sprintf "L %d,%d" (x + r) y
-      sprintf "L %d,%d" x (y - r)
-      sprintf "L %d,%d" (x - r) y
-      "Z" ]
-
-let svgSemiCircle x y r (ch: char) =
-    assert "udlr".Contains(ch)
-
-    [ if ch = 'u' || ch = 'd' then
-          sprintf "M %d,%d" (x - r) y
-      else
-          sprintf "M %d,%d" x (y - r)
-      if ch = 'u' then
-          sprintf "C %d,%d %d,%d %d,%d" (x - r) (y + r) (x + r) (y + r) (x + r) y
-      elif ch = 'd' then
-          sprintf "C %d,%d %d,%d %d,%d" (x - r) (y - r) (x + r) (y - r) (x + r) y
-      elif ch = 'l' then
-          sprintf "C %d,%d %d,%d %d,%d" (x - r) (y - r) (x - r) (y + r) x (y + r)
-      elif ch = 'r' then
-          sprintf "C %d,%d %d,%d %d,%d" (x + r) (y - r) (x + r) (y + r) x (y + r)
-      "Z" ]
-
-let svgText x y text =
-    sprintf "<text x='%d' y='%d' font-size='200'>%s</text>" x y text
-
-let toSvgDocument left bottom width height svg =
-    [ "<svg xmlns='http://www.w3.org/2000/svg'"
-      sprintf "viewBox='%d %d %d %d'>" left bottom width height
-      "<g id='1'>" ]
-    @ svg
-    @ [ "</g>"; "</svg>" ]
-
-let toHtmlDocument left bottom width height svg =
-    [ "<body>"
-      //from https://www.cssscript.com/svg-pan-zoom-container/
-      "<script src='https://cdn.jsdelivr.net/npm/svg-pan-zoom-container@0.1.2'></script>"
-      "<div data-zoom-on-wheel='' data-pan-on-drag=''>" ]
-    @ toSvgDocument left bottom width height svg
-    @ [ "</div>"; "</body>" ]
-
-let black = "#000000"
-let red = "#e00000"
-let green = "#00e000d0"
-let lightGreen = "#aaffaa"
-let blue = "#0000e0d0"
-let lightBlue = "#aaaaff"
-let pink = "#ffaaaa"
-let orange = "#ffaa00d0"
 
 
 //class
@@ -505,15 +454,6 @@ type Font(axes: Axes) =
         | EList(elems) -> EList(List.map this.reduce elems)
         | _ -> _GlyphFsDefs.reduce e
 
-    static member dotToClosedCurve x y r =
-        Curve(
-            [ (YX(y - r, x), G2, None)
-              (YX(y, x + r), G2, None)
-              (YX(y + r, x), G2, None)
-              (YX(y, x - r), G2, None) ],
-            true
-        )
-
     member this.elemWidth e =
         let maxX2 pts =
             List.fold max 0 (List.map ((fun (pt, _, _) -> (getXY pt)) >> fst) pts)
@@ -710,7 +650,13 @@ type Font(axes: Axes) =
                   let lastSeg = segments.[i - 1]
                   yield! this.offsetSegment seg lastSeg reverse dist ]
 
-    member this.strokeSegments (segs: Segment list) (fthickness: float) (startCapFn: Segment -> (Point * SpiroPointType) list) (endCapFn: Segment -> Segment -> (Point * SpiroPointType) list) (closed: bool) =
+    member this.strokeSegments
+        (segs: Segment list)
+        (fthickness: float)
+        (startCapFn: Segment -> (Point * SpiroPointType) list)
+        (endCapFn: Segment -> Segment -> (Point * SpiroPointType) list)
+        (closed: bool)
+        =
         if not closed then
             let offsetMidSegments (segs: Segment list) reverse =
                 this.offsetSegments segs 1 (segs.Length - 2) reverse false fthickness
@@ -724,17 +670,30 @@ type Font(axes: Axes) =
             [ Curve(withNoTangents points, true) ]
         else
             [ Curve(withNoTangents (this.offsetSegments segs 0 (segs.Length - 1) false true fthickness), true)
-              Curve(withNoTangents (this.offsetSegments segs 0 (segs.Length - 1) true true fthickness |> List.rev), true) ]
+              Curve(
+                  withNoTangents (this.offsetSegments segs 0 (segs.Length - 1) true true fthickness |> List.rev),
+                  true
+              ) ]
 
     member this.getSpiroSansOutlines e =
         let fthickness = float thickness
 
         let startCap (seg: Segment) =
-            let ty = if seg.Type = SpiroPointType.Anchor then SpiroPointType.Anchor else Corner
+            let ty =
+                if seg.Type = SpiroPointType.Anchor then
+                    SpiroPointType.Anchor
+                else
+                    Corner
+
             this.startCap seg e ty
 
         let endCap (seg: Segment) (lastSeg: Segment) =
-            let ty = if seg.Type = SpiroPointType.Anchor then SpiroPointType.Anchor else Corner
+            let ty =
+                if seg.Type = SpiroPointType.Anchor then
+                    SpiroPointType.Anchor
+                else
+                    Corner
+
             this.endCap seg lastSeg e ty
 
         let spiroToOutline spiro =
@@ -755,7 +714,7 @@ type Font(axes: Axes) =
                 this.strokeSegments segs fthickness startCap endCap true
             | SpiroDot(p) ->
                 let x, y = getXY p
-                [ Font.dotToClosedCurve x y (thickness + 5) ]
+                [ dotToClosedCurve x y (thickness + 5) ]
             | SpiroSpace -> [ Space ]
 
         applyToSegments spiroToOutline e
@@ -784,8 +743,7 @@ type Font(axes: Axes) =
         | SpiroDot(p) ->
             let x, y = getXY p
 
-            [ Font.dotToClosedCurve x y thickness
-              Font.dotToClosedCurve x y (thickness / 2) ]
+            [ dotToClosedCurve x y thickness; dotToClosedCurve x y (thickness / 2) ]
         | SpiroSpace -> [ Space ]
 
     member this.getStroked =
@@ -941,7 +899,7 @@ type Font(axes: Axes) =
                 this.strokeSegments segs fthickness startCap endCap isClosed
             | Dot(p) ->
                 let x, y = getXY p
-                [ Font.dotToClosedCurve x y (thickness + 5) ]
+                [ dotToClosedCurve x y (thickness + 5) ]
             | EList(elems) -> List.collect dactylToOutline elems
             | Space -> [ Space ]
             | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)

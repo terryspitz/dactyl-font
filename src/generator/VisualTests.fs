@@ -6,6 +6,7 @@ open DactylSpline
 open GeneratorTypes
 open Font
 open SpiroPointType
+open SvgHelpers
 
 
 let splineToSpiroPointType ty =

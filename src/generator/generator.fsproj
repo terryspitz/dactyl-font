@@ -21,6 +21,7 @@
     <None Include="../../README.md" />
     <None Include="font.props" />
     <Compile Include="Axes.fs" />
+    <Compile Include="SvgHelpers.fs" />
     <Compile Include="DactylSpline.fs" />
     <Compile Include="GeneratorTypes.fs" />
     <Compile Include="GlyphFsDefs.fs" />

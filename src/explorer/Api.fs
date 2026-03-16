@@ -6,6 +6,7 @@ open Font
 open GeneratorTypes
 open GlyphStringDefs
 open GlyphFsDefs
+open SvgHelpers
 
 // Helper to convert the union type Controls to a JS-friendly object
 let getControlDetails (name: string, control: Controls, category: string) =
@@ -234,7 +235,9 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
 
             let outlineSpiroSvg = safeElementToSvgPath fontSpiro outlineSpiro blue
             let outlineSpline2Svg = safeElementToSvgPath fontSpline2 outlineSpline2 green
-            let outlineDactylSplineSvg = safeElementToSvgPath fontDactylSpline outlineDactylSpline orange
+
+            let outlineDactylSplineSvg =
+                safeElementToSvgPath fontDactylSpline outlineDactylSpline orange
 
             let guidesLayer = wrapClass "guides-layer" guidesSvg
 
@@ -249,7 +252,8 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
             let dsplineLayer =
                 wrapClass
                     "dspline-layer"
-                    (fontDactylSpline.elementToSvgPath spline offsetX offsetY 3 orange @ outlineDactylSplineSvg)
+                    (fontDactylSpline.elementToSvgPath spline offsetX offsetY 3 orange
+                     @ outlineDactylSplineSvg)
 
             let knotsLayer =
                 (wrapClass "spiro-layer knots-layer" (spiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue))
@@ -267,7 +271,8 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
                     (spline |> fontDactylSpline.getSvgKnots offsetX offsetY 5 lightOrange))
                 @ (wrapClass
                     "dspline-layer knots-layer"
-                    (outlineDactylSpline |> fontDactylSpline.getSvgKnots offsetX offsetY 5 lightOrange))
+                    (outlineDactylSpline
+                     |> fontDactylSpline.getSvgKnots offsetX offsetY 5 lightOrange))
 
             guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer
 
