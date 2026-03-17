@@ -1209,7 +1209,6 @@ type Font(axes: Axes) =
 
         toSvgDocument -margin -margin w h svg
 
-    member this.ElementToSpiroSegments = elementToSpiroSegments
     member this.CharToOutline ch = this.charToElem ch |> this.getOutline
     member this.GlyphFsDefs = _GlyphFsDefs
     member this.Spline2PtsToSvg = spline2ptsToSvg
