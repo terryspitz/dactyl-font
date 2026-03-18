@@ -10,8 +10,8 @@ open Axes
 open Font
 open FontForge
 open DactylSpline
-
 open Curves
+open SvgHelpers
 
 
 let writeFile filename text =
