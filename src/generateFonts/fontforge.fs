@@ -29,9 +29,9 @@ let charToFontForge (font: Font) (ch: char) =
             |> List.ofArray
 
         let bezierString (svg: string) = split svg |> List.map reorder
+        let svg, _, _ = font.elementToSvg elem
 
-        (font.elementToSvg elem |> fst |> List.collect bezierString)
-
+        List.collect bezierString svg
         @ if addSpiro then
               let rec toSpiroString elem =
                   let ptToString (p, t) =

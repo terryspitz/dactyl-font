@@ -1,6 +1,5 @@
 
 **TODOs**
-- move svg helper functions to SvgHelpers.fs
 - add proper interactive spline editor (tab)
 - tidy up UI
 - add documentation tooltips, links
