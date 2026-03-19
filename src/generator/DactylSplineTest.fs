@@ -24,7 +24,8 @@ let pointToDcp (p: Point) =
     { ty = SplinePointType.Smooth
       x = x_opt
       y = y_opt
-      th = None }
+      th_in = None
+      th_out = None }
 
 [<TestFixture>]
 type TestClass() =
@@ -334,7 +335,8 @@ type VariablePointTests() =
                { ty = SplinePointType.Smooth
                  x = Some 1.
                  y = None
-                 th = None }
+                 th_in = None
+                 th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
 
         let solver = Solver(ctrlPts, false, 0.0, false)
@@ -356,7 +358,8 @@ type VariablePointTests() =
                { ty = SplinePointType.Smooth
                  x = None
                  y = Some 1.
-                 th = None }
+                 th_in = None
+                 th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
 
         let solver = Solver(ctrlPts, false, 0.0, false)
@@ -374,7 +377,8 @@ type VariablePointTests() =
                { ty = SplinePointType.Smooth
                  x = None
                  y = None
-                 th = None }
+                 th_in = None
+                 th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
 
         let solver = Solver(ctrlPts, false, 0.0, false)
@@ -422,15 +426,18 @@ type AdvancedGeometricTests() =
             [| { ty = SplinePointType.Smooth
                  x = Some -1.0
                  y = Some -1.0
-                 th = Some 0.0 }
+                 th_in = Some 0.0
+                 th_out = Some 0.0 }
                { ty = SplinePointType.Smooth
                  x = Some 0.0
                  y = Some 0.0
-                 th = None }
+                 th_in = None
+                 th_out = None }
                { ty = SplinePointType.Smooth
                  x = Some 1.0
                  y = Some 1.0
-                 th = Some 0.0 } |]
+                 th_in = Some 0.0
+                 th_out = Some 0.0 } |]
 
         let solver = Solver(ctrlPts, false, 0.0, false)
         solver.initialise ()
@@ -470,7 +477,8 @@ type AdvancedGeometricTests() =
                { ty = SplinePointType.Smooth
                  x = Some 0.
                  y = None
-                 th = None }
+                 th_in = None
+                 th_out = None }
                dcp SplinePointType.Smooth 1. 1. None |]
 
         let solverOpt = Solver(ctrlPtsOpt, false, 1.0, false)
@@ -656,7 +664,8 @@ type IntegrationTests() =
         let cp2 =
             { pointToDcp p2 with
                 ty = SplinePointType.LineToCurve
-                th = Some(-System.Math.PI / 2.0) }
+                th_in = Some(-System.Math.PI / 2.0)
+                th_out = Some(-System.Math.PI / 2.0) }
 
         let cp3 =
             { pointToDcp p3 with
@@ -666,7 +675,8 @@ type IntegrationTests() =
         let cp4 =
             { pointToDcp p4 with
                 ty = SplinePointType.CurveToLine
-                th = Some(System.Math.PI / 2.0) }
+                th_in = Some(System.Math.PI / 2.0)
+                th_out = Some(System.Math.PI / 2.0) }
 
         let cp5 =
             { pointToDcp p5 with

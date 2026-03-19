@@ -16,7 +16,7 @@ NOPQRSTUVWXYZ
 
 // Helpers to create Curve from simpler point lists
 let withNoTangents pts =
-    List.map (fun (p, t) -> (p, t, None)) pts
+    List.map (fun (p, t) -> (p, t, None, None)) pts
 
 let openCurve pts = Curve(withNoTangents pts, false)
 let closedCurve pts = Curve(withNoTangents pts, true)
@@ -25,8 +25,8 @@ let rec movePoints fn e =
     match e with
     | Curve(pts, isClosed) ->
         Curve(
-            [ for p, ty, tang in pts do
-                  (fn p, ty, tang) ],
+            [ for p, ty, tanIn, tanOut in pts do
+                  (fn p, ty, tanIn, tanOut) ],
             isClosed
         )
     | Dot(p) -> Dot(fn p)
@@ -548,19 +548,19 @@ type GlyphFsDefs(axes: Axes) =
 
     member this.reduce e =
         match e with
-        | Line(p1, p2) -> Curve([ (YX(reducePoint p1), Start, None); (YX(reducePoint p2), End, None) ], false)
+        | Line(p1, p2) -> Curve([ (YX(reducePoint p1), Start, None, None); (YX(reducePoint p2), End, None, None) ], false)
         | PolyLine(points) ->
             let a = Array.ofList points
 
             Curve(
                 [ for i in 0 .. a.Length - 1 do
-                      yield (YX(reducePoint a.[i]), (if i = (a.Length - 1) then End else Corner), None) ],
+                      yield (YX(reducePoint a.[i]), (if i = (a.Length - 1) then End else Corner), None, None) ],
                 false
             )
         | Curve(pts, isClosed) ->
             Curve(
-                [ for p, t, tang in pts do
-                      YX(reducePoint p), t, tang ],
+                [ for p, ty, tanIn, tanOut in pts do
+                      YX(reducePoint p), ty, tanIn, tanOut ],
                 isClosed
             )
         | Dot(p) -> Dot(YX(reducePoint (p)))

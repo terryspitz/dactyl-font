@@ -49,9 +49,8 @@ type DControlPoint =
     { mutable ty: SplinePointType //Continuity at this point: Smooth, Corner, LineToCurve or CurveToLine
       x: float option // x coord or None to fit x to 'smoothest' curve
       y: float option // same for y
-      mutable th: float option  // optional tangent theta in direction of next point
-    // member this.tostring() =
-    //     sprintf "CP ty:%A x:%A y:%A th:%A" this.ty this.x this.y this.th
+      mutable th_in: float option   // optional incoming tangent angle (from previous segment)
+      mutable th_out: float option  // optional outgoing tangent angle (toward next segment)
     }
 
     static member (-)(lhs, rhs) =
@@ -62,7 +61,8 @@ let dcp ty x y th =
     { ty = ty
       x = Some x
       y = Some y
-      th = th }
+      th_in = th
+      th_out = th }
 
 
 type BezierIndex =
@@ -254,13 +254,27 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             let mutable dpl = point.vec - _points.[max (i - 1) 0].vec //pointing from previous point to this
             let mutable dpr = _points.[min (i + 1) (_points.Length - 1)].vec - point.vec
 
-            match ctrlPt.th with
-            | Some th ->
-                point.th_in <- th
-                point.th_out <- th
+            match ctrlPt.th_in, ctrlPt.th_out with
+            | Some th_i, Some th_o ->
+                point.th_in <- th_i
+                point.th_out <- th_o
                 point.fit_th_in <- false
                 point.fit_th_out <- false
-            | None ->
+            | Some th_i, None ->
+                point.th_in <- th_i
+                point.fit_th_in <- false
+                // Initialise th_out from geometry, leave fittable
+                let lth = dpl.atan2 ()
+                let rth = dpr.atan2 ()
+                point.th_out <- if i < ctrlPts.Length - 1 then rth else lth
+            | None, Some th_o ->
+                point.th_out <- th_o
+                point.fit_th_out <- false
+                // Initialise th_in from geometry, leave fittable
+                let lth = dpl.atan2 ()
+                let rth = dpr.atan2 ()
+                point.th_in <- if i > 0 then lth else rth
+            | None, None ->
                 let lth = dpl.atan2 ()
                 let rth = dpr.atan2 ()
 
@@ -548,20 +562,24 @@ type DactylSpline(ctrlPts, isClosed) =
                 let prevIdx = if i = 0 then ctrlPts.Length - 1 else i - 1
                 let ptPrev = ctrlPts.[prevIdx]
                 let dp = ptI - ptPrev
-                ptI.th <- Some(atan2 dp.y dp.x)
+                let lineAngle = Some(atan2 dp.y dp.x)
+                ptI.th_in <- lineAngle
+                ptI.th_out <- lineAngle
 
             if ptI.ty = SplinePointType.CurveToLine && (isClosed || i < ctrlPts.Length - 1) then
                 let nextIdx = (i + 1) % ctrlPts.Length
                 let ptNext = ctrlPts.[nextIdx]
                 let dp = ptNext - ptI
-                ptI.th <- Some(atan2 dp.y dp.x)
+                let lineAngle = Some(atan2 dp.y dp.x)
+                ptI.th_in <- lineAngle
+                ptI.th_out <- lineAngle
 
     /// Predicate: true when segment i→i+1 is a straight line (no solver needed).
     member this.isLineSegment(ptI: DControlPoint, ptI1: DControlPoint) =
         (ptI.ty = SplinePointType.Corner
          && ptI1.ty = SplinePointType.Corner
-         && ptI.th.IsNone
-         && ptI1.th.IsNone)
+         && ptI.th_out.IsNone
+         && ptI1.th_in.IsNone)
         || ptI.ty = SplinePointType.CurveToLine
         || ptI1.ty = SplinePointType.LineToCurve
 
@@ -610,13 +628,18 @@ type DactylSpline(ctrlPts, isClosed) =
         this.preprocessLineTangents ()
 
         // Flip end tangent for open splines to match Spiro "handle direction" interpretation.
-        // We do this here so the solver sees the flipped tangent in ctrlPt.th.
+        // We do this here so the solver sees the flipped tangent in ctrlPt.th_in.
         if not isClosed && ctrlPts.Length > 1 then
             let lastPt = ctrlPts.[ctrlPts.Length - 1]
 
-            match lastPt.th with
+            match lastPt.th_in with
             | Some th ->
-                lastPt.th <- Some(norm (th + PI))
+                lastPt.th_in <- Some(norm (th + PI))
+            | None -> ()
+
+            match lastPt.th_out with
+            | Some th ->
+                lastPt.th_out <- Some(norm (th + PI))
             | None -> ()
 
         // Result array: one BezierPoint per ctrlPts entry
@@ -625,8 +648,8 @@ type DactylSpline(ctrlPts, isClosed) =
         for i in 0 .. ctrlPts.Length - 1 do
             result.[i].x <- ctrlPts.[i].x |> Option.defaultValue Double.NaN
             result.[i].y <- ctrlPts.[i].y |> Option.defaultValue Double.NaN
-            result.[i].th_in <- ctrlPts.[i].th |> Option.defaultValue Double.NaN
-            result.[i].th_out <- ctrlPts.[i].th |> Option.defaultValue Double.NaN
+            result.[i].th_in <- ctrlPts.[i].th_in |> Option.defaultValue Double.NaN
+            result.[i].th_out <- ctrlPts.[i].th_out |> Option.defaultValue Double.NaN
 
         let mutable i = 0
 

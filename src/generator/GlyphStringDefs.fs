@@ -247,7 +247,7 @@ let parse_curve (glyph: GlyphFsDefs) raw_def debug =
             invalidArg "string" "'.' must separate points at the same location"
 
         pts <- pts @ [ pt ]
-        tangents <- tangents @ [ tangent ]
+        tangents <- tangents @ [ (tangent, tangent) ]
         // line_re
         let match_ = Regex.Match(def, "^" + line_re)
 
@@ -282,14 +282,24 @@ let parse_curve (glyph: GlyphFsDefs) raw_def debug =
         if last_line = "." then
             lines <- lines @ [ Corner ]
 
-        Curve(List.zip3 pts lines tangents, true)
+        Curve(
+            [ for i in 0 .. pts.Length - 1 do
+                  let (thIn, thOut) = tangents.[i]
+                  (pts.[i], lines.[i], thIn, thOut) ],
+            true
+        )
     else // Open curve
         if last_line = "~" then
             lines <- lines @ [ G2 ]
         else
             lines <- lines @ [ Corner ]
 
-        Curve(List.zip3 pts lines tangents, false)
+        Curve(
+            [ for i in 0 .. pts.Length - 1 do
+                  let (thIn, thOut) = tangents.[i]
+                  (pts.[i], lines.[i], thIn, thOut) ],
+            false
+        )
 
 let private parse_curves (glyph: GlyphFsDefs) (def: string) debug =
     if System.String.IsNullOrEmpty(def) then

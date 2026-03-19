@@ -181,7 +181,8 @@ let splineStaticPage () =
                              { ty = SplinePointType.Smooth
                                x = None
                                y = Some 1000.0
-                               th = Some 0.0 }
+                               th_in = Some 0.0
+                               th_out = Some 0.0 }
                              dcp SplinePointType.Smooth 1000.0 0.0 None |],
                           false
                       ))

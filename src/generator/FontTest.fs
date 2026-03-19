@@ -88,7 +88,7 @@ type FontTests() =
         // A correct V outline has a closed path. Count 'C' and 'L' commands.
         // Before the fix the outline collapsed (inner points overlapped the outer),
         // producing a degenerate tiny path with very few commands.
-        let commands = svgStr.Split(' ') |> Array.filter (fun s -> s = "L")
+        let commands = svgStr.Split(' ') |> Array.filter (fun s -> s = "L" || s = "C")
 
         Assert.That(
             commands,

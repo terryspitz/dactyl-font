@@ -91,8 +91,8 @@ type Element =
     | Glyph of c: char
     | Line of p1: Point * p2: Point
     | PolyLine of list<Point>
-    // Curve with optional tangent per knot and open/closed flag
-    | Curve of knots: list<Point * SpiroPointType * float option> * isClosed: bool
+    // Curve with optional incoming/outgoing tangent pair per knot and open/closed flag
+    | Curve of knots: list<Point * SpiroPointType * float option * float option> * isClosed: bool
     | Dot of Point
     | EList of list<Element>
     | Space
