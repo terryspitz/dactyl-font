@@ -75,10 +75,10 @@ type ParserTests() =
         match elem with
         | Curve(pts, isClosed) ->
             Assert.That(pts.Length, Is.EqualTo(2), "Should have 2 points")
-            let (p1, ty1, th1_in, th1_out) = pts.[0]
-            let (p2, ty2, th2_in, th2_out) = pts.[1]
-            Assert.That(p1, Is.EqualTo(p2), "Points should be coincident")
-            Assert.That(ty1, Is.EqualTo(SpiroPointType.Corner), "First point should be Corner")
+            let k1 = pts.[0]
+            let k2 = pts.[1]
+            Assert.That(k1.pt, Is.EqualTo(k2.pt), "Points should be coincident")
+            Assert.That(k1.ty, Is.EqualTo(SpiroPointType.Corner), "First point should be Corner")
         | _ -> Assert.Fail("Expected Curve")
 
     [<Test>]
@@ -89,11 +89,11 @@ type ParserTests() =
         match elem with
         | Curve(pts, isClosed) ->
             Assert.That(pts.Length, Is.EqualTo(2))
-            let (p1, ty1, th1_in, th1_out) = pts.[0]
-            let (p2, ty2, th2_in, th2_out) = pts.[1]
-            Assert.That(p1, Is.EqualTo(p2))
-            Assert.That(th1_in, Is.Not.Null, "First point should have th_in tangent")
-            Assert.That(th1_out, Is.Not.Null, "First point should have th_out tangent")
-            Assert.That(th2_in, Is.EqualTo(None))
-            Assert.That(th2_out, Is.EqualTo(None))
+            let k1 = pts.[0]
+            let k2 = pts.[1]
+            Assert.That(k1.pt, Is.EqualTo(k2.pt))
+            Assert.That(k1.th_in, Is.Not.Null, "First point should have th_in tangent")
+            Assert.That(k1.th_out, Is.Not.Null, "First point should have th_out tangent")
+            Assert.That(k2.th_in, Is.EqualTo(None))
+            Assert.That(k2.th_out, Is.EqualTo(None))
         | _ -> Assert.Fail("Expected Curve")

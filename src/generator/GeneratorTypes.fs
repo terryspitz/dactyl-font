@@ -85,6 +85,12 @@ type Point =
         let x2, y2 = rhs.GetXY
         YX(y1 - y2, x1 - x2)
 
+type Knot =
+    { pt: Point
+      ty: SpiroPointType
+      th_in: float option
+      th_out: float option }
+
 type SCP = SpiroControlPoint
 
 type Element =
@@ -92,7 +98,7 @@ type Element =
     | Line of p1: Point * p2: Point
     | PolyLine of list<Point>
     // Curve with optional incoming/outgoing tangent pair per knot and open/closed flag
-    | Curve of knots: list<Point * SpiroPointType * float option * float option> * isClosed: bool
+    | Curve of knots: list<Knot> * isClosed: bool
     | Dot of Point
     | EList of list<Element>
     | Space

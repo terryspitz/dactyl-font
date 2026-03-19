@@ -40,7 +40,7 @@ let toPolar dx dy = hypot dx dy, atan2 dy dx
 /// the Spiro renderer, which would misinterpret tangent values as extra control points.
 let clearElemTangents elem =
     match elem with
-    | Curve(pts, isClosed) -> Curve(List.map (fun (p, t, _, _) -> (p, t, None, None)) pts, isClosed)
+    | Curve(pts, isClosed) -> Curve(List.map (fun k -> { k with th_in = None; th_out = None }) pts, isClosed)
     | other -> other
 
 let mergeConsecutive keyFn mergeFn list =
@@ -105,8 +105,8 @@ type Font(axes: Axes) =
             let simple = false
 
             if simple then
-                let makeSeg (pt, ty, tang_in: float option, tang_out: float option) =
-                    let x, y = getXY pt
+                let makeSeg (k: Knot) =
+                    let x, y = getXY k.pt
 
                     let getVal v =
                         match v with
@@ -115,12 +115,12 @@ type Font(axes: Axes) =
 
                     { SpiroSegment.X = float (x)
                       Y = float (y)
-                      Type = ty
+                      Type = k.ty
                       bend_th = Double.NaN
                       ks = [| 0.; 0.; 0.; 0. |]
                       seg_ch = Double.NaN
                       seg_th = Double.NaN
-                      tangent1 = getVal tang_out
+                      tangent1 = getVal k.th_out
                       tangent2 = Double.NaN }
 
                 if isClosed then
@@ -135,30 +135,30 @@ type Font(axes: Axes) =
 
                 let pts =
                     mergeConsecutive
-                        (fun (pt, _, _, _) -> getXY pt)
-                        (fun (p1, ty1, th1_in, th1_out) (p2, ty2, th2_in, th2_out) ->
+                        (fun k -> getXY k.pt)
+                        (fun k1 k2 ->
                             // if either tangent is None (e.g. blE.bl -> E, None), result should be None to allow Corner
-                            let th_in = if Option.isNone th1_in || Option.isNone th2_in then None else th1_in
-                            let th_out = if Option.isNone th1_out || Option.isNone th2_out then None else th1_out
+                            let th_in = if Option.isNone k1.th_in || Option.isNone k2.th_in then None else k1.th_in
+                            let th_out = if Option.isNone k1.th_out || Option.isNone k2.th_out then None else k1.th_out
                             // prefer the second point's type (e.g. Corner from '.')
-                            (p2, ty2, th_in, th_out))
+                            { k2 with th_in = th_in; th_out = th_out })
                         pts
 
                 let scps =
                     [| for i in 0 .. pts.Length - 1 do
-                           let pt, ty, tang_in, tang_out = pts.[i]
+                           let k = pts.[i]
 
-                           match tang_out with
+                           match k.th_out with
                            | Some theta ->
                                if i = pts.Length - 1 then
-                                   yield! [ makeSCP (offsetHandlePt pt theta, CurveToLine); makeSCP (pt, Corner) ]
+                                   yield! [ makeSCP (offsetHandlePt k.pt theta, CurveToLine); makeSCP (k.pt, Corner) ]
                                else
                                    // yield! [makeSCP (pt, Anchor)
                                    //         makeSCP(offsetHandlePt pt theta, Handle)]
                                    yield!
-                                       [ makeSCP (pt, if ty = G2 then CurveToLine else Corner)
-                                         makeSCP (offsetHandlePt pt theta, LineToCurve) ]
-                           | None -> makeSCP (pt, ty) |]
+                                       [ makeSCP (k.pt, if k.ty = G2 then CurveToLine else Corner)
+                                         makeSCP (offsetHandlePt k.pt theta, LineToCurve) ]
+                           | None -> makeSCP (k.pt, k.ty) |]
 
                 match Spiro.SpiroCPsToSegments scps isClosed with
                 | Some segs ->
@@ -173,23 +173,23 @@ type Font(axes: Axes) =
         | Space -> [ SpiroSpace ]
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
 
-    let toSpline2ControlPoints (pts: list<Point * SpiroPointType * float option * float option>) =
+    let toSpline2ControlPoints (pts: list<Knot>) =
         let pts =
             mergeConsecutive
-                (fun (pt, _, _, _) -> getXY pt)
-                (fun (p1, ty1, t1_in, t1_out) (p2, ty2, t2_in, t2_out) ->
-                    let t_in = if Option.isNone t1_in || Option.isNone t2_in then None else t1_in
-                    let t_out = if Option.isNone t1_out || Option.isNone t2_out then None else t1_out
-                    (p2, ty2, t_in, t_out))
+                (fun k -> getXY k.pt)
+                (fun k1 k2 ->
+                    let t_in = if Option.isNone k1.th_in || Option.isNone k2.th_in then None else k1.th_in
+                    let t_out = if Option.isNone k1.th_out || Option.isNone k2.th_out then None else k1.th_out
+                    { k2 with th_in = t_in; th_out = t_out })
                 pts
 
         [| for i in 0 .. pts.Length - 1 do
-               let p, spiroType, tangent_in, tangent_out = pts.[i]
-               let x, y = getXY p
+               let k = pts.[i]
+               let x, y = getXY k.pt
 
-               if spiroType = SpiroPointType.Anchor then
-                   let p1, _, _, _ = pts.[i + 1]
-                   let x2, y2 = getXY (p1 - p)
+               if k.ty = SpiroPointType.Anchor then
+                   let kNext = pts.[i + 1]
+                   let x2, y2 = getXY (kNext.pt - k.pt)
                    let rth = atan2 (float y2) (float x2)
 
                    yield
@@ -202,9 +202,9 @@ type Font(axes: Axes) =
                            None,
                            Some rth
                        )
-               else if spiroType <> SpiroPointType.Handle then
+               else if k.ty <> SpiroPointType.Handle then
                    let ty =
-                       match spiroType with
+                       match k.ty with
                        | SpiroPointType.Corner
                        | SpiroPointType.OpenContour
                        | SpiroPointType.EndOpenContour
@@ -225,14 +225,14 @@ type Font(axes: Axes) =
                                SplinePointType.LineToCurve
                        | SpiroPointType.G2
                        | SpiroPointType.G4 -> SplinePointType.Smooth
-                       | _ -> invalidArg "ty" (sprintf "Unexpected SpiroPointType %A" spiroType)
+                       | _ -> invalidArg "ty" (sprintf "Unexpected SpiroPointType %A" k.ty)
                    // yield SplineControlPoint({x=float x;y=float y}, ty)
                    yield
                        Spline2ControlPoint(
                            { x = float x; y = float y },
                            ty,
-                           (if ty = SplinePointType.Smooth then tangent_in else None),
-                           tangent_out
+                           (if ty = SplinePointType.Smooth then k.th_in else None),
+                           k.th_out
                        ) |]
 
     let rec elementToSpline2 elem =
@@ -241,7 +241,7 @@ type Font(axes: Axes) =
             let ctrlPts = toSpline2ControlPoints pts
             let spline = Spline2(ctrlPts, isClosed)
             spline.solve (axes.max_spline_iter)
-            let types = pts |> List.map (fun (_, ty, _, _) -> ty)
+            let types = pts |> List.map (fun k -> k.ty)
 
             let segs =
                 [ for i in 0 .. ctrlPts.Length - 1 do
@@ -320,13 +320,13 @@ type Font(axes: Axes) =
         | Space -> ([], [], [])
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
 
-    let toDactylSplineControlPoints (pts: list<Point * SpiroPointType * float option * float option>) =
+    let toDactylSplineControlPoints (pts: list<Knot>) =
         [| for i in 0 .. pts.Length - 1 do
-               let p, spiroType, tangent_in, tangent_out = pts.[i]
-               assert (spiroType <> SpiroPointType.Anchor && spiroType <> SpiroPointType.Handle)
+               let k = pts.[i]
+               assert (k.ty <> SpiroPointType.Anchor && k.ty <> SpiroPointType.Handle)
 
                let ty =
-                   match spiroType with
+                   match k.ty with
                    | SpiroPointType.Corner
                    | SpiroPointType.OpenContour
                    | SpiroPointType.EndOpenContour
@@ -347,12 +347,12 @@ type Font(axes: Axes) =
                            SplinePointType.LineToCurve
                    | SpiroPointType.G2
                    | SpiroPointType.G4 -> SplinePointType.Smooth
-                   | _ -> invalidArg "ty" (sprintf "Unexpected SpiroPointType %A" spiroType)
+                   | _ -> invalidArg "ty" (sprintf "Unexpected SpiroPointType %A" k.ty)
 
-               let x, y = getXY p
+               let x, y = getXY k.pt
 
                let x_opt, y_opt =
-                   match p with
+                   match k.pt with
                    | OYX(_, _, y_fit, x_fit) ->
                        (if x_fit then None else Some(float x)), (if y_fit then None else Some(float y))
                    | _ -> Some(float x), Some(float y)
@@ -361,8 +361,8 @@ type Font(axes: Axes) =
                    { ty = ty
                      x = x_opt
                      y = y_opt
-                     th_in = tangent_in
-                     th_out = tangent_out } |]
+                     th_in = k.th_in
+                     th_out = k.th_out } |]
 
     let rec elementToDactylSvg (elem: Element) =
         if axes.debug then
@@ -421,17 +421,17 @@ type Font(axes: Axes) =
             elif y = dummy then x
             else mm x y
 
-        let bound minmax fstsnd pts =
-            List.fold minmax dummy (List.map (fst >> getXY >> fstsnd) pts)
+        let bound minmax fstsnd (pts: Knot list) =
+            List.fold minmax dummy (List.map (fun k -> getXY k.pt |> fstsnd) pts)
 
-        let bound3 minmax fstsnd pts =
-            List.fold minmax dummy (List.map ((fun (pt, _, _, _) -> (getXY pt)) >> fstsnd) pts)
+        let bound3 minmax fstsnd (pts: Knot list) =
+            List.fold minmax dummy (List.map (fun k -> getXY k.pt |> fstsnd) pts)
 
         let combineBounds (l1, r1, b1, t1) (l2, r2, b2, t2) =
             safeMinMax min l1 l2, safeMinMax max r1 r2, safeMinMax min b1 b2, safeMinMax max t1 t2
 
         match elem with
-        | Curve(pts, _) ->
+        | Curve(pts: list<Knot>, _) ->
             bound3 (safeMinMax min) fst pts,
             bound3 (safeMinMax max) fst pts,
             bound3 (safeMinMax min) snd pts,
@@ -465,8 +465,8 @@ type Font(axes: Axes) =
         | _ -> _GlyphFsDefs.reduce e
 
     member this.elemWidth e =
-        let maxX2 pts =
-            List.fold max 0 (List.map ((fun (pt, _, _, _) -> (getXY pt)) >> fst) pts)
+        let maxX2 (pts: Knot list) =
+            List.fold max 0 (List.map (fun k -> getXY k.pt |> fst) pts)
 
         match e with
         | Curve(pts, _) -> maxX2 pts
@@ -528,7 +528,7 @@ type Font(axes: Axes) =
         let rec checkElem e =
             match e with
             | Curve(knots, _) ->
-                let ptsTy = knots |> List.map (fun (p, ty, _, _) -> p, ty)
+                let ptsTy = knots |> List.map (fun k -> k.pt, k.ty)
                 checkXYColinearPoints ptsTy
             | Dot(p) -> false
             | EList(elems) -> List.fold (||) false (List.map checkElem elems)
@@ -559,33 +559,33 @@ type Font(axes: Axes) =
             //make serif on endcap
             let serifDist, serifAng = toPolar (serif + fthickness) fthickness
 
-            [ (addPolarContrast X Y (thetaAligned + PI * 0.75) (fthickness * sqrt 2.0), Corner, firstThIn, firstThOut)
-              (addPolarContrast X Y (thetaAligned + PI * 0.5 + serifAng) serifDist, Corner, nnIn, nnOut)
-              (addPolarContrast X Y (thetaAligned + PI * 0.5 - serifAng) serifDist, Corner, nnIn, nnOut)
-              (addPolarContrast X Y (thetaAligned - PI * 0.5 + serifAng) serifDist, Corner, nnIn, nnOut)
-              (addPolarContrast X Y (thetaAligned - PI * 0.5 - serifAng) serifDist, Corner, nnIn, nnOut)
-              (addPolarContrast X Y (thetaAligned - PI * 0.75) (fthickness * sqrt 2.0), ty, lastThIn, lastThOut) ]
+            [ { pt = addPolarContrast X Y (thetaAligned + PI * 0.75) (fthickness * sqrt 2.0); ty = Corner; th_in = firstThIn; th_out = firstThOut }
+              { pt = addPolarContrast X Y (thetaAligned + PI * 0.5 + serifAng) serifDist; ty = Corner; th_in = nnIn; th_out = nnOut }
+              { pt = addPolarContrast X Y (thetaAligned + PI * 0.5 - serifAng) serifDist; ty = Corner; th_in = nnIn; th_out = nnOut }
+              { pt = addPolarContrast X Y (thetaAligned - PI * 0.5 + serifAng) serifDist; ty = Corner; th_in = nnIn; th_out = nnOut }
+              { pt = addPolarContrast X Y (thetaAligned - PI * 0.5 - serifAng) serifDist; ty = Corner; th_in = nnIn; th_out = nnOut }
+              { pt = addPolarContrast X Y (thetaAligned - PI * 0.75) (fthickness * sqrt 2.0); ty = ty; th_in = lastThIn; th_out = lastThOut } ]
         elif this.axes.flare <> 0.0 && not isJoint then
             //make flared endcap
             let preflareDist, preflareAng = toPolar -(fthickness * 0.80) fthickness
             let flareDist, flareAng = toPolar ((this.axes.flare + 1.0) * fthickness) fthickness
 
-            [ (addPolarContrast X Y (theta + PI * 0.75) (fthickness * sqrt 2.0), Corner, firstThIn, firstThOut)
-              (addPolarContrast X Y (theta + preflareAng) preflareDist, LineToCurve, nnIn, nnOut)
-              (addPolarContrast X Y (thetaAligned + PI * 0.5 - flareAng) flareDist, Corner, nnIn, nnOut)
-              (addPolarContrast X Y (thetaAligned - PI * 0.5 + flareAng) flareDist, Corner, nnIn, nnOut)
-              (addPolarContrast X Y (theta - preflareAng) preflareDist, CurveToLine, nnIn, nnOut)
-              (addPolarContrast X Y (theta - PI * 0.75) (fthickness * sqrt 2.0), ty, lastThIn, lastThOut) ]
+            [ { pt = addPolarContrast X Y (theta + PI * 0.75) (fthickness * sqrt 2.0); ty = Corner; th_in = firstThIn; th_out = firstThOut }
+              { pt = addPolarContrast X Y (theta + preflareAng) preflareDist; ty = LineToCurve; th_in = nnIn; th_out = nnOut }
+              { pt = addPolarContrast X Y (thetaAligned + PI * 0.5 - flareAng) flareDist; ty = Corner; th_in = nnIn; th_out = nnOut }
+              { pt = addPolarContrast X Y (thetaAligned - PI * 0.5 + flareAng) flareDist; ty = Corner; th_in = nnIn; th_out = nnOut }
+              { pt = addPolarContrast X Y (theta - preflareAng) preflareDist; ty = CurveToLine; th_in = nnIn; th_out = nnOut }
+              { pt = addPolarContrast X Y (theta - PI * 0.75) (fthickness * sqrt 2.0); ty = ty; th_in = lastThIn; th_out = lastThOut } ]
         elif this.axes.end_bulb <> 0.0 && not isJoint then
-            [ (offsetPointRotated X Y thetaAligned (fthickness * (1. - this.axes.end_bulb)) fthickness, Corner, firstThIn, firstThOut)
-              (offsetPointRotated X Y thetaAligned fthickness 0., G2, nnIn, nnOut)
-              (offsetPointRotated X Y thetaAligned (fthickness * (1. - this.axes.end_bulb)) -fthickness, ty, lastThIn, lastThOut) ]
+            [ { pt = offsetPointRotated X Y thetaAligned (fthickness * (1. - this.axes.end_bulb)) fthickness; ty = Corner; th_in = firstThIn; th_out = firstThOut }
+              { pt = offsetPointRotated X Y thetaAligned fthickness 0.; ty = G2; th_in = nnIn; th_out = nnOut }
+              { pt = offsetPointRotated X Y thetaAligned (fthickness * (1. - this.axes.end_bulb)) -fthickness; ty = ty; th_in = lastThIn; th_out = lastThOut } ]
         elif isJoint then // try forcing alignment
-            [ (offsetPointRotated X Y (align theta) fthickness fthickness, Corner, firstThIn, firstThOut)
-              (offsetPointRotated X Y (align theta) fthickness -fthickness, ty, lastThIn, lastThOut) ]
+            [ { pt = offsetPointRotated X Y (align theta) fthickness fthickness; ty = Corner; th_in = firstThIn; th_out = firstThOut }
+              { pt = offsetPointRotated X Y (align theta) fthickness -fthickness; ty = ty; th_in = lastThIn; th_out = lastThOut } ]
         else
-            [ (offsetPointRotated X Y thetaAligned fthickness fthickness, Corner, firstThIn, firstThOut)
-              (offsetPointRotated X Y thetaAligned fthickness -fthickness, ty, lastThIn, lastThOut) ]
+            [ { pt = offsetPointRotated X Y thetaAligned fthickness fthickness; ty = Corner; th_in = firstThIn; th_out = firstThOut }
+              { pt = offsetPointRotated X Y thetaAligned fthickness -fthickness; ty = ty; th_in = lastThIn; th_out = lastThOut } ]
 
     /// Start-cap knots: points at the beginning of an open stroke.
     /// Outline path: ... revOffset → startCap[first] → ... → startCap[last] → fwdOffset ...
@@ -594,7 +594,7 @@ type Font(axes: Axes) =
         let bt = seg.tangentStart
         this.cap seg.X seg.Y (seg.tangentStart + PI) (this.isJoint elem (int seg.X) (int seg.Y)) ty (Some(norm (bt + PI))) None None (Some bt)
 
-    /// End-cap knots: points at the end of an open stroke.
+    /// End-cap knots: points at the beginning of an open stroke.
     /// Outline path: ... fwdOffset → endCap[first] → ... → endCap[last] → revOffset ...
     /// First point faces forward offset, last faces reversed offset (tangent flipped).
     member this.endCap (seg: Segment) (lastSeg: Segment) elem ty =
@@ -635,26 +635,26 @@ type Font(axes: Axes) =
             if (not reverse && bend < -PI / 8.0) || (reverse && bend > PI / 8.0) then
                 // TODO: check why triggers on right angle in 'e'
                 //two points on sharp outer bend
-                [ (segmentAddPolar seg (this.maybeAlign th1 - angle / 2.) (dist * sqrt 2.0), newType, None, None)
-                  (segmentAddPolar seg (this.maybeAlign th2 + angle / 2.) (dist * sqrt 2.0), newType, None, None) ]
+                [ { pt = segmentAddPolar seg (this.maybeAlign th1 - angle / 2.) (dist * sqrt 2.0); ty = newType; th_in = None; th_out = None }
+                  { pt = segmentAddPolar seg (this.maybeAlign th2 + angle / 2.) (dist * sqrt 2.0); ty = newType; th_in = None; th_out = None } ]
             else //single point for right angle or more on outer bend or any inner bend
                 let offset = min (min (dist / cos (bend / 2.0)) seg.seg_ch) lastSeg.seg_ch
-                [ (addPolarContrast seg.X seg.Y (th1 + bend / 2.0) offset, newType, None, None) ]
+                [ { pt = addPolarContrast seg.X seg.Y (th1 + bend / 2.0) offset; ty = newType; th_in = None; th_out = None } ]
         | SpiroPointType.Right ->
             let t = Some seg.tangentStart
-            [ (segmentAddPolar seg (norm (lastSeg.tangentEnd + angle)) dist, newType, t, t) ]
+            [ { pt = segmentAddPolar seg (norm (lastSeg.tangentEnd + angle)) dist; ty = newType; th_in = t; th_out = t } ]
         | SpiroPointType.Left ->
             let t = Some seg.tangentStart
-            [ (segmentAddPolar seg (norm (seg.tangentStart + angle)) dist, newType, t, t) ]
+            [ { pt = segmentAddPolar seg (norm (seg.tangentStart + angle)) dist; ty = newType; th_in = t; th_out = t } ]
         | SpiroPointType.Anchor when reverse -> [] //reverse both points in Handle, er, handler
         | SpiroPointType.Handle when reverse ->
             let oldAnchor = segmentAddPolar lastSeg (lastSeg.tangentStart + angle) dist
             let oldHandle = segmentAddPolar seg (seg.tangentStart + angle) dist
             let newHandle = oldAnchor + (oldAnchor - oldHandle)
-            [ (newHandle, SpiroPointType.Handle, None, None); (oldAnchor, SpiroPointType.Anchor, None, None) ]
+            [ { pt = newHandle; ty = SpiroPointType.Handle; th_in = None; th_out = None }; { pt = oldAnchor; ty = SpiroPointType.Anchor; th_in = None; th_out = None } ]
         | _ ->
             let t = Some seg.tangentStart
-            [ (segmentAddPolar seg (seg.tangentStart + angle) dist, newType, t, t) ]
+            [ { pt = segmentAddPolar seg (seg.tangentStart + angle) dist; ty = newType; th_in = t; th_out = t } ]
 
     member this.offsetSegments (segments: list<Segment>) start endP reverse closed dist =
         [ for i in start..endP do
@@ -666,24 +666,24 @@ type Font(axes: Axes) =
                       let lastSeg = segments.[segments.Length - 1]
                       yield! this.offsetSegment seg lastSeg reverse dist
                   else
-                      yield (segmentAddPolar seg (seg.tangentStart + angle) dist, seg.Type, Some seg.tangentStart, Some seg.tangentStart)
+                      yield { pt = segmentAddPolar seg (seg.tangentStart + angle) dist; ty = seg.Type; th_in = Some seg.tangentStart; th_out = Some seg.tangentStart }
               elif i = segments.Length - 1 && not closed then
                   let lastSeg = segments.[i - 1]
-                  yield (segmentAddPolar seg (lastSeg.tangentEnd + angle) dist, seg.Type, Some lastSeg.tangentEnd, Some lastSeg.tangentEnd)
+                  yield { pt = segmentAddPolar seg (lastSeg.tangentEnd + angle) dist; ty = seg.Type; th_in = Some lastSeg.tangentEnd; th_out = Some lastSeg.tangentEnd }
               else
                   let lastSeg = segments.[i - 1]
                   yield! this.offsetSegment seg lastSeg reverse dist ]
 
     /// Flip tangent by PI for reversed-path points (path direction reversal).
     /// Also swaps th_in and th_out since path direction reverses.
-    static member flipTangent (pt, ty, th_in, th_out) =
-        (pt, ty, th_out |> Option.map (fun t -> norm (t + PI)), th_in |> Option.map (fun t -> norm (t + PI)))
+    static member flipTangent (k: Knot) =
+        { k with th_in = k.th_out |> Option.map (fun t -> norm (t + PI)); th_out = k.th_in |> Option.map (fun t -> norm (t + PI)) }
 
     member this.strokeSegments
         (segs: Segment list)
         (fthickness: float)
-        (startCapFn: Segment -> (Point * SpiroPointType * float option * float option) list)
-        (endCapFn: Segment -> Segment -> (Point * SpiroPointType * float option * float option) list)
+        (startCapFn: Segment -> Knot list)
+        (endCapFn: Segment -> Segment -> Knot list)
         (closed: bool)
         =
         if not closed then
@@ -788,12 +788,12 @@ type Font(axes: Axes) =
 
             let startCap (seg: Segment) =
                 let t = Some seg.tangentStart
-                [ (segmentAddPolar seg (seg.tangentStart - PI * 0.90) (thicknessby3 * 3.0), Corner, t, t)
-                  (offsetPointCap seg.X seg.Y (seg.tangentStart + PI * 0.75), Corner, t, t) ]
+                [ { pt = segmentAddPolar seg (seg.tangentStart - PI * 0.90) (thicknessby3 * 3.0); ty = Corner; th_in = t; th_out = t }
+                  { pt = offsetPointCap seg.X seg.Y (seg.tangentStart + PI * 0.75); ty = Corner; th_in = t; th_out = t } ]
 
             let endCap (seg: Segment) (lastSeg: Segment) =
                 let t = Some lastSeg.tangentEnd
-                [ (offsetPointCap seg.X seg.Y lastSeg.tangentEnd, Corner, t, t) ]
+                [ { pt = offsetPointCap seg.X seg.Y lastSeg.tangentEnd; ty = Corner; th_in = t; th_out = t } ]
 
             match spiro with
             | SpiroOpenCurve(segments) ->
@@ -885,7 +885,7 @@ type Font(axes: Axes) =
             | SplinePointType.LineToCurve -> LineToCurve
             | _ -> SpiroPointType.G2
 
-        let solveCurveSegs (pts: (Point * SpiroPointType * float option * float option) list) isClosed =
+        let solveCurveSegs (pts: Knot list) isClosed =
             if axes.debug then
                 printfn "solveCurveSegs pts: %A" pts
 
@@ -989,8 +989,9 @@ type Font(axes: Axes) =
                 None
 
         let constrainSegment (segment: SpiroSegment) =
-            let tangent = tangentAngle segment.Point segment.Type segment.tangent1
-            (segment.Point, segment.Type, tangent, tangent)
+            let pt = segment.Point
+            let tangent = tangentAngle pt segment.Type segment.tangent1
+            { pt = pt; ty = segment.Type; th_in = tangent; th_out = tangent }
 
         let spiroConstrain spiro =
             match spiro with
@@ -1119,7 +1120,7 @@ type Font(axes: Axes) =
 
             match elem2 with
             | Curve(pts, _) ->
-                let svgKnotTangent (p, ty, _, _) = svgKnot (p, ty)
+                let svgKnotTangent k = svgKnot (k.pt, k.ty)
                 List.collect svgKnotTangent pts
             | Dot(p) -> svgKnot (p, G2)
             | EList(elems) -> List.collect toSvgPoints elems

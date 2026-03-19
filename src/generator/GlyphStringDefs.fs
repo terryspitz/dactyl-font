@@ -285,7 +285,7 @@ let parse_curve (glyph: GlyphFsDefs) raw_def debug =
         Curve(
             [ for i in 0 .. pts.Length - 1 do
                   let (thIn, thOut) = tangents.[i]
-                  (pts.[i], lines.[i], thIn, thOut) ],
+                  { pt = pts.[i]; ty = lines.[i]; th_in = thIn; th_out = thOut } ],
             true
         )
     else // Open curve
@@ -297,7 +297,7 @@ let parse_curve (glyph: GlyphFsDefs) raw_def debug =
         Curve(
             [ for i in 0 .. pts.Length - 1 do
                   let (thIn, thOut) = tangents.[i]
-                  (pts.[i], lines.[i], thIn, thOut) ],
+                  { pt = pts.[i]; ty = lines.[i]; th_in = thIn; th_out = thOut } ],
             false
         )
 
