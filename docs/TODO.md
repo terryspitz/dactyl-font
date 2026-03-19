@@ -1,6 +1,8 @@
 
 **TODOs**
 - add proper interactive spline editor (tab)
+- fix P/R '.' joins
+- add 'filled' checkbox to splines tab, default off
 - tidy up UI
 - add documentation tooltips, links
 - flare with tangents wrong way round
