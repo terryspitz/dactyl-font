@@ -47,7 +47,7 @@ let main argv =
 
         if dactylSplineVisualTests then
             VisualTests.splineStaticPage ()
-            |> toHtmlDocument 0 0 10 12
+            |> toHtmlDocument 0.0 0.0 10.0 12.0
             |> writeFile @"output\visualTests.html"
 
         let debugSingleChar = true
@@ -61,7 +61,7 @@ let main argv =
                         debug = true }
                 )
 
-            for svg in font.charToSvg 'o' 0 0 black do
+            for svg in font.charToSvg 'o' 0.0 0.0 black do
                 printfn "%s" svg
 
         let fonts =
@@ -122,9 +122,9 @@ let main argv =
             let rowHeights =
                 List.scan
                     (+)
-                    0
+                    0.0
                     [ for i in 0 .. fonts.Length - 1 do
-                          let _, _, font = fonts.[i] in (200 + font.charHeight * 2) ]
+                          let _, _, font = fonts.[i] in (200.0 + font.charHeight * 2.0) ]
             // let text = ["THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789"
             //             """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./"""]
             let text =
@@ -136,10 +136,10 @@ let main argv =
                   printfn "\n%s\n" name
                   yield sprintf "<g id='%s%d'>" name i
                   let y = rowHeights.[i]
-                  yield svgText 0 (y + 200) name
-                  yield! font.stringToSvgLines text 0 (y + 400) black
+                  yield svgText 0.0 (y + 200.0) name
+                  yield! font.stringToSvgLines text 0.0 (y + 400.0) black
                   yield "</g>" ]
-            |> toHtmlDocument 0 0 (Axes.DefaultAxes.width * 70) (List.max rowHeights)
+            |> toHtmlDocument 0.0 0.0 (float (Axes.DefaultAxes.width * 70)) (List.max rowHeights)
             |> writeFile @"output\allGlyphs.html"
 
 
@@ -182,7 +182,7 @@ let main argv =
 
                 printfn "\n%s\n" name
 
-                font.stringToSvg lines 0 0 true black None
+                font.stringToSvg lines 0.0 0.0 true black None
                 |> writeFile (sprintf @"output\proofs %s lower.svg" name)
 
         // FontForge output
@@ -225,7 +225,7 @@ let main argv =
                                   thickness = r * 6 }
                           )
 
-                      yield! font.stringToSvg [ str ] 0 0 true black None ]
+                      yield! font.stringToSvg [ str ] 0.0 0.0 true black None ]
             |> writeFile @"output\interp.svg"
 
     0 // return code

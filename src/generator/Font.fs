@@ -490,6 +490,8 @@ type Font(axes: Axes) =
         else -PI / 2.
 
     //MEMBERS
+ 
+    member this.metrics = _metrics
 
     member this.axes = axes
 

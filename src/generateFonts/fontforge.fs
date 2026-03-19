@@ -34,13 +34,13 @@ let charToFontForge (font: Font) (ch: char) =
         List.collect bezierString svg
         @ if addSpiro then
               let rec toSpiroString elem =
-                  let ptToString (p, t) =
-                      let x, y = font.GlyphFsDefs._getXY p in sprintf "%d %d %c" x y (SpiroPointType.ToChar t)
+                  let ptToString (p: Point, t) =
+                      let x, y = int p.x, int p.y in sprintf "%d %d %c" x y (SpiroPointType.ToChar t)
 
                   match elem with
-                  | Curve(knots, _) -> List.map (fun (p, t, _) -> ptToString (p, t)) knots
+                  | Curve(knots, _) -> List.map (fun k -> ptToString (k.pt, k.ty)) knots
                   | EList(elems) -> List.collect toSpiroString elems
-                  | Dot(p) -> let x, y = font.GlyphFsDefs._getXY p in spiroCircle x y thickness
+                  | Dot(p) -> let x, y = int p.x, int p.y in spiroCircle x y thickness
                   | Space -> []
                   | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
 
@@ -65,7 +65,7 @@ let charToFontForge (font: Font) (ch: char) =
 
     [ sprintf "StartChar: %c\n" ch
       sprintf "Encoding: %d %d 0\n" (int ch) (int ch)
-      sprintf "Width: %d\n" (font.charWidth ch + thickness)
+      sprintf "Width: %d\n" (int (font.charWidth ch) + thickness)
       """
         InSpiro: 1
         Flags: H

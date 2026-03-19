@@ -52,7 +52,7 @@ type FontTests() =
             )
 
         // Should not throw
-        let svg = font.charToSvg 'o' 0 0 "black"
+        let svg = font.charToSvg 'o' 0.0 0.0 "black"
 
         // Should produce non-empty SVG output containing path data
         Assert.That(svg, Is.Not.Empty, "SVG output should not be empty")
@@ -77,7 +77,7 @@ type FontTests() =
 
         // Render 'v' and capture the SVG; just verify it doesn't throw and produces
         // a path with enough points to form a closed outline.
-        let svg = font.charToSvg 'v' 0 0 "black"
+        let svg = font.charToSvg 'v' 0.0 0.0 "black"
         let svgStr = String.concat " " svg
         Assert.That(svgStr, Does.Contain("M "), "SVG should contain a moveto")
         printfn "SVG for 'v': %s" svgStr
@@ -105,7 +105,7 @@ type FontTests() =
             )
 
         // Should not throw
-        let svg = font.charToSvg '□' 0 0 "black"
+        let svg = font.charToSvg '□' 0.0 0.0 "black"
 
         // Should produce non-empty SVG output containing path data
         Assert.That(svg, Is.Not.Empty, "SVG output should not be empty")
