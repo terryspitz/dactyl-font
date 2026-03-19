@@ -7,7 +7,6 @@ open DactylSpline
 open Axes
 open GeneratorTypes
 open Font
-open GlyphFsDefs
 
 let dcp = DactylSpline.dcp
 
@@ -49,8 +48,7 @@ type FontTests() =
             Font(
                 { Axes.DefaultAxes with
                     dactyl_spline = true
-                    outline = true
-                    new_definitions = true }
+                    outline = true }
             )
 
         // Should not throw
@@ -74,8 +72,7 @@ type FontTests() =
             Font(
                 { Axes.DefaultAxes with
                     dactyl_spline = true
-                    outline = true
-                    new_definitions = false } // use GlyphFsDefs path
+                    outline = true }
             )
 
         // Render 'v' and capture the SVG; just verify it doesn't throw and produces
@@ -104,8 +101,7 @@ type FontTests() =
             Font(
                 { Axes.DefaultAxes with
                     dactyl_spline = true
-                    outline = true
-                    new_definitions = true }
+                    outline = true }
             )
 
         // Should not throw

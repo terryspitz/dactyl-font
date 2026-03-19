@@ -20,10 +20,10 @@ let splineToSpiroPointType ty =
 let SPLINE2SCALE = 10.
 let dcp = DactylSpline.dcp
 
-let spline2PtsToSvg (spline2Font: Font) ctrlPts =
+let spline2PtsToSvg (spline2Font: Font) (ctrlPts: DControlPoint seq) =
     let spline2CtrlPts =
-        [ for pt in ctrlPts do
-              (YX(int (SPLINE2SCALE * pt.y.Value), int (SPLINE2SCALE * pt.x.Value)), splineToSpiroPointType pt.ty) ]
+        [ for (pt: DControlPoint) in ctrlPts do
+              ({ y = (SPLINE2SCALE * pt.y.Value); x = (SPLINE2SCALE * pt.x.Value); y_fit = false; x_fit = false }, splineToSpiroPointType pt.ty) ]
 
     let (svg, _, _) = spline2Font.Spline2PtsToSvg spline2CtrlPts false
     svg

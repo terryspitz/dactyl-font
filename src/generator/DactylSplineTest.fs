@@ -5,7 +5,6 @@ open NUnit.Framework
 open Curves
 open DactylSpline
 open GlyphStringDefs
-open GlyphFsDefs
 open GeneratorTypes
 open Axes
 
@@ -14,12 +13,8 @@ let max_iter = 500
 let dcp = DactylSpline.dcp
 
 let pointToDcp (p: Point) =
-    let x, y = p.GetXY
-
-    let x_opt, y_opt =
-        match p with
-        | OYX(_, _, y_fit, x_fit) -> (if x_fit then None else Some(float x)), (if y_fit then None else Some(float y))
-        | _ -> Some(float x), Some(float y)
+    let x_opt = if p.x_fit then None else Some p.x
+    let y_opt = if p.y_fit then None else Some p.y
 
     { ty = SplinePointType.Smooth
       x = x_opt
@@ -538,7 +533,7 @@ type IntegrationTests() =
                 width = 1000
                 height = 1000 }
 
-        let glyphDefs = GlyphFsDefs(axes)
+        let glyphDefs = FontMetrics(axes)
 
         // Define V shape: TL -> B(L) -> TR
         // TL=(0,1000), TR=(1000,1000), BL= (0,0) (nominal) with y=0
@@ -554,11 +549,9 @@ type IntegrationTests() =
         let cp3 = pointToDcp p3
 
         // Verify parsing result for p2 flags
-        match p2 with
-        | OYX(_, _, yfit, xfit) ->
-            Assert.That(yfit, Is.False, "Parser should not set y_fit for b")
-            Assert.That(xfit, Is.True, "Parser should set x_fit for (l)")
-        | _ -> Assert.Fail("Parser should return OYX for b(l)")
+        let yfit, xfit = p2.y_fit, p2.x_fit
+        Assert.That(yfit, Is.False, "Parser should not set y_fit for b")
+        Assert.That(xfit, Is.True, "Parser should set x_fit for (l)")
 
         // Verify DControlPoint conversion (x should be None)
         Assert.That(cp2.x, Is.EqualTo(None), "DControlPoint x should be None")
@@ -586,7 +579,7 @@ type IntegrationTests() =
                 width = 1000
                 height = 1000 }
 
-        let glyphDefs = GlyphFsDefs(axes)
+        let glyphDefs = FontMetrics(axes)
 
         let p1, _, _ = parse_point glyphDefs "tl"
         let p2, _, _ = parse_point glyphDefs "hl" // (0, 500)
@@ -640,7 +633,7 @@ type IntegrationTests() =
                 width = 1000
                 height = 1000 }
 
-        let glyphDefs = GlyphFsDefs(axes)
+        let glyphDefs = FontMetrics(axes)
 
         let p1, _, _ = parse_point glyphDefs "tl"
         let p2, _, _ = parse_point glyphDefs "tbbl"

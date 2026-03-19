@@ -2,7 +2,7 @@ module GlyphStringDefs
 
 open System.Text.RegularExpressions
 open GeneratorTypes
-open GlyphFsDefs
+open GeneratorTypes
 open SpiroPointType
 
 let PI = System.Math.PI
@@ -141,7 +141,7 @@ let glyphMap =
           'z', "xl-xr-bl-br" ]
 
 // parse
-let parse_point (glyph: GlyphFsDefs) def_raw =
+let parse_point (glyph: FontMetrics) def_raw =
     let mutable def = def_raw
     // y_coord
     let match_ = Regex.Match(def, "^" + y_re)
@@ -158,16 +158,16 @@ let parse_point (glyph: GlyphFsDefs) def_raw =
                   yield
                       Some(
                           match c with
-                          | 't' -> glyph._T
-                          | 'x' -> glyph._X
-                          | 'h' -> glyph._H
-                          | 'b' -> glyph._B
-                          | 'd' -> glyph._D
+                          | 't' -> glyph.T
+                          | 'x' -> glyph.X
+                          | 'h' -> glyph.H
+                          | 'b' -> glyph.B
+                          | 'd' -> glyph.D
                           | _ -> invalidArg "y" (sprintf "Invalid Y coord %A (should be in %A)" c y_re)
                       ) ]
         |> List.choose id
 
-    let mutable y_coord = List.averageBy float y_coords |> int
+    let mutable y_coord = List.averageBy float y_coords
     def <- def.[match_.Length ..]
     // printfn "post-ycoord %A" def_left
     // offset
@@ -177,10 +177,10 @@ let parse_point (glyph: GlyphFsDefs) def_raw =
         def <- def.[matchOffset.Length ..]
 
         let isExtended = matchOffset.Value = "e"
-        let offsetAmount = if isExtended then glyph._thickness else -glyph._offset
+        let offsetAmount = if isExtended then glyph.thickness else -glyph.offset
 
         y_coord <-
-            if y_coord >= glyph._X || y_coord >= glyph._H then
+            if y_coord >= glyph.X || y_coord >= glyph.H then
                 y_coord + offsetAmount
             else
                 y_coord - offsetAmount
@@ -200,15 +200,15 @@ let parse_point (glyph: GlyphFsDefs) def_raw =
                   yield
                       Some(
                           match c with
-                          | 'l' -> glyph._L
-                          | 'c' -> glyph._C
-                          | 'r' -> glyph._R
-                          | 'w' -> glyph._R * 3 / 2
+                          | 'l' -> glyph.L
+                          | 'c' -> glyph.C
+                          | 'r' -> glyph.R
+                          | 'w' -> glyph.W
                           | _ -> invalidArg "x" (sprintf "Invalid X coord %A  (should be in %A)" c x_re)
                       ) ]
         |> List.choose id
 
-    let x_coord = List.averageBy float x_coords |> int
+    let x_coord = List.averageBy float x_coords
     def <- def.[match_.Length ..]
     // printfn "%A" def_left
 
@@ -229,12 +229,9 @@ let parse_point (glyph: GlyphFsDefs) def_raw =
         else
             None
 
-    if x_fit || y_fit then
-        OYX(y_coord, x_coord, y_fit, x_fit), tangent, def
-    else
-        YX(y_coord, x_coord), tangent, def
+    { y = y_coord; x = x_coord; y_fit = y_fit; x_fit = x_fit }, tangent, def
 
-let parse_curve (glyph: GlyphFsDefs) raw_def debug =
+let parse_curve (glyph: FontMetrics) raw_def debug =
     let mutable pts, lines, tangents = [], [], []
     let mutable def: string = raw_def
     let mutable last_line = ""
@@ -301,9 +298,9 @@ let parse_curve (glyph: GlyphFsDefs) raw_def debug =
             false
         )
 
-let private parse_curves (glyph: GlyphFsDefs) (def: string) debug =
+let private parse_curves (glyph: FontMetrics) (def: string) debug =
     if System.String.IsNullOrEmpty(def) then
-        Dot(HC)
+        Dot({ y = glyph.H; x = glyph.C; y_fit = false; x_fit = false })
     elif def = " " then
         Space
     else
@@ -313,7 +310,7 @@ let private parse_curves (glyph: GlyphFsDefs) (def: string) debug =
                       parse_curve glyph d debug ]
         )
 
-let stringDefsToElem (glyph: GlyphFsDefs) e debug =
+let stringDefsToElem (glyph: FontMetrics) e debug =
     let def = glyphMap.[e]
     assert Regex.IsMatch(def, glyph_re)
 
@@ -322,8 +319,8 @@ let stringDefsToElem (glyph: GlyphFsDefs) e debug =
 
     parse_curves glyph def debug
 
-let rawDefToElem (glyph: GlyphFsDefs) (rawDef: string) debug =
+let rawDefToElem (glyph: FontMetrics) (rawDef: string) debug =
     try
         parse_curves glyph rawDef debug
     with _ ->
-        Dot(HC)
+        Dot({ y = glyph.H; x = glyph.C; y_fit = false; x_fit = false })

@@ -2,7 +2,6 @@ module ParserTests
 
 open NUnit.Framework
 open Axes
-open GlyphFsDefs
 open GlyphStringDefs
 open GeneratorTypes
 open SpiroPointType
@@ -17,55 +16,45 @@ type ParserTests() =
             x_height = 0.5
             debug = true }
 
-    let glyph = GlyphFsDefs(axes)
+    let glyph = FontMetrics(axes)
 
     [<Test>]
     member this.TestBasic() =
         // "tl" -> y="t", x="l"
         let pt, _, _ = parse_point glyph "tl"
 
-        match pt with
-        | YX(y, x) ->
-            Assert.That(y, Is.EqualTo(glyph._T))
-            Assert.That(x, Is.EqualTo(glyph._L))
-        | _ -> Assert.Fail("Expected YX")
+        Assert.That(pt.y, Is.EqualTo(glyph.T))
+        Assert.That(pt.x, Is.EqualTo(glyph.L))
+        Assert.That(pt.y_fit, Is.False)
+        Assert.That(pt.x_fit, Is.False)
 
     [<Test>]
     member this.TestOptionalY() =
         // "(t)l" -> y="t" optional, x="l" fixed
         let pt, _, _ = parse_point glyph "(t)l"
 
-        match pt with
-        | OYX(y, x, yfit, xfit) ->
-            Assert.That(y, Is.EqualTo(glyph._T))
-            Assert.That(x, Is.EqualTo(glyph._L))
-            Assert.That(yfit, Is.True, "y should be fit")
-            Assert.That(xfit, Is.False, "x should not be fit")
-        | _ -> Assert.Fail("Expected OYX")
+        Assert.That(pt.y, Is.EqualTo(glyph.T))
+        Assert.That(pt.x, Is.EqualTo(glyph.L))
+        Assert.That(pt.y_fit, Is.True, "y should be fit")
+        Assert.That(pt.x_fit, Is.False, "x should not be fit")
 
     [<Test>]
     member this.TestOptionalX() =
         // "t(l)" -> y="t" fixed, x="l" optional
         let pt, _, _ = parse_point glyph "t(l)"
 
-        match pt with
-        | OYX(y, x, yfit, xfit) ->
-            Assert.That(y, Is.EqualTo(glyph._T))
-            Assert.That(x, Is.EqualTo(glyph._L))
-            Assert.That(yfit, Is.False, "y should not be fit")
-            Assert.That(xfit, Is.True, "x should be fit")
-        | _ -> Assert.Fail("Expected OYX for t(l)")
+        Assert.That(pt.y, Is.EqualTo(glyph.T))
+        Assert.That(pt.x, Is.EqualTo(glyph.L))
+        Assert.That(pt.y_fit, Is.False, "y should not be fit")
+        Assert.That(pt.x_fit, Is.True, "x should be fit")
 
     [<Test>]
     member this.TestBothOptional() =
         // "(t)(l)" -> both optional
         let pt, _, _ = parse_point glyph "(t)(l)"
 
-        match pt with
-        | OYX(y, x, yfit, xfit) ->
-            Assert.That(yfit, Is.True)
-            Assert.That(xfit, Is.True)
-        | _ -> Assert.Fail("Expected OYX")
+        Assert.That(pt.y_fit, Is.True)
+        Assert.That(pt.x_fit, Is.True)
 
     [<Test>]
     member this.TestDotSeparator() =

@@ -8,8 +8,7 @@ type Controls =
 
 // Variable which define the font characteristics (named after Variable Font terminology)
 type Axes =
-    { new_definitions: bool //use new string based glyph definitions, vs. older code ones
-      dactyl_spline: bool //use new dactyl splines with new glyph definitions
+    { dactyl_spline: bool //use new dactyl splines with new glyph definitions
       spline2: bool //use Raph Levian's new spline-research splines, vs. his original spiro splines
       constraints: bool //constrain tangents to within borders
       width: int //width of normal glyph
@@ -43,8 +42,7 @@ type Axes =
       debug: bool } //show debug info in console
 
     static member DefaultAxes =
-        { new_definitions = true
-          dactyl_spline = true
+        { dactyl_spline = true
           spline2 = false
           width = 300
           height = 600
@@ -76,8 +74,7 @@ type Axes =
           debug = false }
 
     static member controls =
-        [ "new_definitions", Checkbox, "experimental"
-          "dactyl_spline", Checkbox, "experimental"
+        [ "dactyl_spline", Checkbox, "experimental"
           "spline2", Checkbox, "experimental"
           "width", Range(100, 1000), "default"
           "height", Range(100, 1000), "default"

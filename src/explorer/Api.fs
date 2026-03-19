@@ -5,7 +5,6 @@ open Axes
 open Font
 open GeneratorTypes
 open GlyphStringDefs
-open GlyphFsDefs
 open SvgHelpers
 
 // Helper to convert the union type Controls to a JS-friendly object
@@ -37,7 +36,14 @@ let controlDefinitions = Axes.controls |> List.map getControlDetails |> Array.of
 
 let defaultAxes = Axes.DefaultAxes
 
-let allChars = GlyphFsDefs.allChars
+let allChars =
+    "abcdefghijklm
+nopqrstuvwxyz
+0123456789
+ABCDEFGHIJKLM
+NOPQRSTUVWXYZ
+!\"#£$%&'()*+,-./:;
+<=>?@[\\]^_`{|}~"
 
 let generateSvg (text: string) (axes: Axes) (progress: (float -> unit) option) =
     let font = Font axes
@@ -50,7 +56,7 @@ let generateSvg (text: string) (axes: Axes) (progress: (float -> unit) option) =
 
     // Using the same parameters as explorer.fs: 0 0 false black
     // You might want to make these configurable later
-    font.stringToSvg lines 0 0 false "black" progress |> String.concat "\n"
+    font.stringToSvg lines 0.0 0.0 false "black" progress |> String.concat "\n"
 
 let generateTweenSvg (text: string) (axes: Axes) =
     let font = Font axes
@@ -63,9 +69,9 @@ let generateTweenSvg (text: string) (axes: Axes) =
 
     // Manually construct SVG to crop tighter
     // Use smaller margin and height based on cap height + thickness, ignoring leading
-    let margin = 10
-    let svg, lineWidths = font.stringToSvgLineInternal lines 0 0 "black" None
-    let width = (List.max lineWidths) + margin * 2
+    let margin = 10.0
+    let svg, lineWidths = font.stringToSvgLineInternal lines 0.0 0.0 "black" None
+    let width = (List.max lineWidths) + margin * 2.0
 
     // Calculate vertical bounds to crop leading and alignment space
     // Visual Top of glyph is roughly at: thickness + leading
@@ -74,11 +80,14 @@ let generateTweenSvg (text: string) (axes: Axes) =
     // Top is roughly 'leading' pixels down from 0 if we ignore ascenders going above T.
     // Actually, based on analysis: Visual Top = thickness + leading.
     // So we start viewBox there.
-    let gdf = GlyphFsDefs(axes)
+    let metrics = FontMetrics(axes)
     // Add extra padding to minY to prevent top cropping, especially for bold text
-    let minY = axes.thickness + axes.leading - (margin * 2)
+    let minY = float axes.thickness + float axes.leading - (margin * 2.0)
     // Increase height to compensate for the lower start point (more height needed)
-    let height = axes.height - gdf._D + axes.thickness * 2 + (margin * 3)
+    let height =
+        float axes.height - float metrics.D
+        + float axes.thickness * 2.0
+        + (margin * 3.0)
 
     // Use toSvgDocument logic but with our custom bounds
     // We want to center the glyph vertically-ish, or just crop.
@@ -131,12 +140,12 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
         defsText.Split([| '\n'; '\r' |], System.StringSplitOptions.RemoveEmptyEntries)
 
     let totalChars = lines.Length
-    let mutable charIndex = 0
-    let mutable xOffset = 0
+    let mutable charIndex = 0.0
+    let mutable xOffset = 0.0
 
     let elements =
         [ for line in lines do
-              charIndex <- charIndex + 1
+              charIndex <- charIndex + 1.0
 
               match progress with
               | Some p -> p (float charIndex / float totalChars)
@@ -152,24 +161,29 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
 
               if not (System.String.IsNullOrWhiteSpace(def)) then
                   let elem =
-                      GlyphStringDefs.rawDefToElem (GlyphFsDefs(fontSpline2.axes)) def fontSpline2.axes.debug
+                      GlyphStringDefs.rawDefToElem (FontMetrics(fontSpline2.axes)) def fontSpline2.axes.debug
 
                   let width = fontSpline2.width elem
-                  let translated = fontSpline2.translateBy xOffset 0 elem
+                  let translated = fontSpline2.translateBy xOffset 0.0 elem
                   xOffset <- xOffset + width
 
                   yield translated ]
 
     let combinedElement =
         if List.isEmpty elements then
-            Dot(YX(axes.thickness, axes.thickness))
+            Dot(
+                { y = axes.thickness
+                  x = axes.thickness
+                  y_fit = false
+                  x_fit = false }
+            )
         else
             EList(elements) |> fontSpline2.translateByThickness
 
     let spline = combinedElement
     let spiro = combinedElement
 
-    let offsetX, offsetY = 0, fontSpline2.charHeight + axes.thickness
+    let offsetX, offsetY = 0.0, fontSpline2.charHeight + float axes.thickness
     let grey = "#e0e0e0"
     let blue = "blue"
     let green = "green"
@@ -276,9 +290,9 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
 
             guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer
 
-    let svgWidth = max 1000 (xOffset + 100)
+    let svgWidth = max 1000.0 (xOffset + 100.0)
 
-    toSvgDocument -50 fontSpline2.yBaselineOffset svgWidth fontSpline2.charHeight svgElements
+    toSvgDocument -50.0 fontSpline2.yBaselineOffset svgWidth fontSpline2.charHeight svgElements
     |> String.concat "\n"
 
 let getGlyphDefs (text: string) =
@@ -302,13 +316,14 @@ let generateVisualTestsSvg () =
     |> fun s -> s.Replace("svg ", "svg style='height: 95vh;' ")
 
 let generateVisualDiffsSvg (text: string) (axes: Axes) (progress: (float -> unit) option) =
-    let fontOff = Font { axes with new_definitions = false }
+    let fontOff = Font axes
 
     let fontOn =
         Font
             { axes with
-                new_definitions = true
-                debug = false }
+                debug = false
+                dactyl_spline = false
+                spline2 = true }
 
     let chars =
         if System.String.IsNullOrEmpty(text) then
@@ -323,14 +338,14 @@ let generateVisualDiffsSvg (text: string) (axes: Axes) (progress: (float -> unit
 
     let cols = 5
     let cellWidth = (axes.width + marginX) * 3 + marginX
-    let cellHeight = fontOn.charHeight + marginY * 2
+    let cellHeight = fontOn.charHeight + float (marginY * 2)
 
     let keyFontSize = (axes.width / 3) |> string
 
     let keySvg =
         [ sprintf
-              "<text x='0' y='%d' font-size='%s' fill='black'>Key: Left = Old, Middle = New, Right = Overlaid Diff (Red=Old, Blue=New)</text>"
-              (cellHeight / 2)
+              "<text x='0' y='%f' font-size='%s' fill='black'>Key: Left = Old, Middle = New, Right = Overlaid Diff (Red=Old, Blue=New)</text>"
+              (cellHeight / 2.0)
               keyFontSize ]
 
     let svgs =
@@ -344,17 +359,18 @@ let generateVisualDiffsSvg (text: string) (axes: Axes) (progress: (float -> unit
                let row = i / cols
                let col = i % cols
 
-               let xOffset = col * cellWidth
-               let yOffset = (row + 1) * cellHeight
+               let xOffset = float col * float cellWidth
+               let yOffset = float (row + 1) * cellHeight
 
                // Col 1: off
                let svgOff = fontOff.charToSvg ch xOffset yOffset "black"
 
                // Col 2: on
-               let svgOn = fontOn.charToSvg ch (xOffset + axes.width + marginX) yOffset "black"
+               let svgOn =
+                   fontOn.charToSvg ch (xOffset + float axes.width + float marginX) yOffset "black"
 
                // Col 3: overlaid
-               let overlayX = xOffset + (axes.width + marginX) * 2
+               let overlayX = xOffset + (float axes.width + float marginX) * 2.0
                let svgOffRed = fontOff.charToSvg ch overlayX yOffset "rgba(255, 0, 0, 0.5)"
                let svgOnBlue = fontOn.charToSvg ch overlayX yOffset "rgba(0, 0, 255, 0.5)"
 
@@ -363,17 +379,17 @@ let generateVisualDiffsSvg (text: string) (axes: Axes) (progress: (float -> unit
 
                let labels =
                    [ sprintf
-                         "<text x='%d' y='%d' font-size='%s' fill='gray'>%c</text>"
+                         "<text x='%f' y='%f' font-size='%s' fill='gray'>%c</text>"
                          xOffset
-                         (yOffset - axes.thickness)
+                         (yOffset - float axes.thickness)
                          fontSize
                          ch ]
 
                labels @ svgOff @ svgOn @ svgOffRed @ svgOnBlue)
            |> List.concat)
 
-    let totalWidth = cols * cellWidth
-    let totalHeight = ((chars.Length + cols - 1) / cols + 1) * cellHeight
+    let totalWidth = float cols * float cellWidth
+    let totalHeight = float ((chars.Length + cols - 1) / cols + 1) * cellHeight
 
-    toSvgDocument -marginX -marginY totalWidth totalHeight svgs
+    toSvgDocument (float -marginX) (float -marginY) totalWidth totalHeight svgs
     |> String.concat "\n"
