@@ -64,8 +64,6 @@ type SCP = SpiroControlPoint
 
 type Element =
     | Glyph of c: char
-    | Line of p1: Point * p2: Point
-    | PolyLine of list<Point>
     // Curve with optional incoming/outgoing tangent pair per knot and open/closed flag
     | Curve of knots: list<Knot> * isClosed: bool
     | Dot of Point
@@ -87,8 +85,6 @@ let rec movePoints fn (e: Element) =
                   { k with pt = fn k.pt } ],
             isClosed
         )
-    | Line(p1, p2) -> Line(fn p1, fn p2)
-    | PolyLine(pts) -> PolyLine(List.map fn pts)
     | Dot(p) -> Dot(fn p)
     | EList(elems) -> EList(List.map (movePoints fn) elems)
     | Space -> Space
@@ -117,9 +113,6 @@ let CurveToLine = SpiroPointType.Left
 let LineToCurve = SpiroPointType.Right
 let G2 = SpiroPointType.G2
 let G4 = SpiroPointType.G4
-let Start = SpiroPointType.OpenContour
 let Corner = SpiroPointType.Corner
-let End = SpiroPointType.EndOpenContour
-let EndClosed = SpiroPointType.End
 let Anchor = SpiroPointType.Anchor
 let Handle = SpiroPointType.Handle

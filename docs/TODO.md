@@ -1,7 +1,6 @@
 
 **TODOs**
 - can getSvgKnots be moved to SvgHelpers
-- Delete PolyLine/other types not needed
 - add proper interactive spline editor (tab)
 - fix italics e.g. a
 - fix P/R '.' joins

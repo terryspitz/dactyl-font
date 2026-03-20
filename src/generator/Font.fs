@@ -507,30 +507,6 @@ type Font(axes: Axes) =
                       y_fit = false
                       x_fit = false }
                 )
-        | Line(p1, p2) ->
-            Curve(
-                [ { pt = p1
-                    ty = Start
-                    th_in = None
-                    th_out = None }
-                  { pt = p2
-                    ty = End
-                    th_in = None
-                    th_out = None } ],
-                false
-            )
-        | PolyLine(points) ->
-            let a = Array.ofList points
-
-            Curve(
-                [ for i in 0 .. a.Length - 1 do
-                      yield
-                          { pt = a.[i]
-                            ty = (if i = (a.Length - 1) then End else Corner)
-                            th_in = None
-                            th_out = None } ],
-                false
-            )
         | Curve(pts, isClosed) -> e
         | Dot(p) -> e
         | EList(elems) -> EList(List.map this.reduce elems)
