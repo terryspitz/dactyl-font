@@ -1,6 +1,8 @@
 module SvgHelpers
 
 open System
+open SpiroPointType
+open GeneratorTypes
 
 let black = "#000000"
 let red = "#e00000"
@@ -62,3 +64,34 @@ let toHtmlDocument (left: float) (bottom: float) (width: float) (height: float) 
       "<div data-zoom-on-wheel='' data-pan-on-drag=''>" ]
     @ toSvgDocument left bottom width height svg
     @ [ "</div>"; "</body>" ]
+
+///circles highlighting the knots (defined points on the spiro curves)
+let getSvgKnots (offsetX: float) (offsetY: float) (size: float) (colour: string) (isJoint: Element -> float -> float -> bool) (elem: Element) =
+    let l, r, b, t = bounds elem
+
+    let rec toSvgPoints (elem2: Element) =
+        let svgKnot (p: Point, ty: SpiroPointType) =
+            let x, y = p.x, p.y
+            let radius = if ty = Handle then 1.0 else size
+
+            if isJoint elem x y then svgDiamond x y radius
+            elif x = l then svgSemiCircle x y radius 'r'
+            elif x = r then svgSemiCircle x y radius 'l'
+            elif y = b then svgSemiCircle x y radius 'u'
+            elif y = t then svgSemiCircle x y radius 'd'
+            else svgCircle x y radius
+
+        match elem2 with
+        | Curve(pts, _) ->
+            let svgKnotTangent (k: Knot) = svgKnot (k.pt, k.ty)
+            List.collect svgKnotTangent pts
+        | Dot(p) -> svgKnot (p, G2)
+        | EList(elems) -> List.collect toSvgPoints elems
+        | Space -> []
+        | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
+    // small red circles
+    [ "<!-- knots -->"; "<path d='" ]
+    @ toSvgPoints elem
+    @ [ "'"
+        sprintf "transform='translate(%f,%f) scale(1,-1)'" offsetX offsetY
+        sprintf "style='fill:none;stroke:%s;stroke-width:%f'/>" colour 10.0 ]

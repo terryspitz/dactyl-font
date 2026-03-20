@@ -452,33 +452,6 @@ type Font(axes: Axes) =
                 cache.Add(x, v)
                 v)
 
-    let rec bounds elem =
-        let dummy = -999.0
-
-        let safeMinMax mm x y =
-            if x = dummy then y
-            elif y = dummy then x
-            else mm x y
-
-        let bound minmax fstsnd (pts: Knot list) =
-            List.fold minmax dummy (List.map (fun k -> fstsnd (k.pt.x, k.pt.y)) pts)
-
-        let bound3 minmax fstsnd (pts: Knot list) =
-            List.fold minmax dummy (List.map (fun k -> fstsnd (k.pt.x, k.pt.y)) pts)
-
-        let combineBounds (l1, r1, b1, t1) (l2, r2, b2, t2) =
-            safeMinMax min l1 l2, safeMinMax max r1 r2, safeMinMax min b1 b2, safeMinMax max t1 t2
-
-        match elem with
-        | Curve(pts: list<Knot>, _) ->
-            bound3 (safeMinMax min) fst pts,
-            bound3 (safeMinMax max) fst pts,
-            bound3 (safeMinMax min) snd pts,
-            bound3 (safeMinMax max) snd pts
-        | Dot(p) -> p.x, p.x, p.y, p.y
-        | EList(elems) -> List.fold combineBounds (dummy, dummy, dummy, dummy) (List.map bounds elems)
-        | Space -> 0.0, 0.0, 0.0, 0.0
-        | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
 
     ///align an angle to horizontal or vertical axis
     let align angle =
@@ -1301,47 +1274,8 @@ type Font(axes: Axes) =
                   "/>"
                   "</g>" ]
 
-    ///circles highlighting the knots (defined points on the spiro curves)
-    member this.getSvgKnots (offsetX: float) (offsetY: float) (size: float) (colour: string) (elem: Element) =
-        let l, r, b, t = bounds elem
 
-        let rec toSvgPoints (elem2: Element) =
-            let svgKnot (p: Point, ty: SpiroPointType) =
-                let x, y = p.x, p.y
-                let radius = if ty = Handle then 1.0 else size
-
-                if this.isJoint elem x y then svgDiamond x y radius
-                elif x = l then svgSemiCircle x y radius 'r'
-                elif x = r then svgSemiCircle x y radius 'l'
-                elif y = b then svgSemiCircle x y radius 'u'
-                elif y = t then svgSemiCircle x y radius 'd'
-                else svgCircle x y radius
-
-            match elem2 with
-            | Curve(pts, _) ->
-                let svgKnotTangent (k: Knot) = svgKnot (k.pt, k.ty)
-                List.collect svgKnotTangent pts
-            | Dot(p) -> svgKnot (p, G2)
-            | EList(elems) -> List.collect toSvgPoints elems
-            | Space -> []
-            | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
-        // small red circles
-        [ "<!-- knots -->"; "<path d='" ]
-        @ toSvgPoints elem
-        @ [ "'"
-            sprintf "transform='translate(%f,%f) scale(1,-1)'" offsetX offsetY
-            sprintf "style='fill:none;stroke:%s;stroke-width:%f'/>" colour 10.0 ]
-
-    member this.translateBy dx dy =
-        let shift (p: Point) =
-            { y = p.y + dy
-              x = p.x + dx
-              y_fit = false
-              x_fit = false }
-
-        movePoints shift
-
-    member this.translateByThickness = this.translateBy thickness thickness
+    member this.translateByThickness = translateBy thickness thickness
 
     member this.charToElem ch =
         Glyph(ch)
@@ -1368,7 +1302,7 @@ type Font(axes: Axes) =
 
                (this.elementToSvgPath outline offsetX offsetY 5.0 colour)
                @ (if this.axes.show_knots && this.axes.outline then
-                      outline |> this.getSvgKnots offsetX offsetY knotSize knotColour
+                      outline |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour this.isJoint
                   else
                       [])
            with _ ->
@@ -1386,7 +1320,7 @@ type Font(axes: Axes) =
            @ (if this.axes.show_knots then
                   backbone
                   |> this.italicise
-                  |> this.getSvgKnots offsetX offsetY knotSize knotColour
+                  |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour this.isJoint
               else
                   [])
 

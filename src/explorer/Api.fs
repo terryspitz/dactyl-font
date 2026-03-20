@@ -164,7 +164,7 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
                       GlyphStringDefs.rawDefToElem (FontMetrics(fontSpline2.axes)) def fontSpline2.axes.debug
 
                   let width = fontSpline2.width elem
-                  let translated = fontSpline2.translateBy xOffset 0.0 elem
+                  let translated = translateBy xOffset 0.0 elem
                   xOffset <- xOffset + width
 
                   yield translated ]
@@ -215,13 +215,13 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
                 wrapClass "dspline-layer" (fontDactylSpline.elementToSvgPath spline offsetX offsetY 10 orange)
 
             let knotsLayer =
-                (wrapClass "spiro-layer knots-layer" (spiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue))
+                (wrapClass "spiro-layer knots-layer" (spiro |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightBlue fontSpiro.isJoint))
                 @ (wrapClass
                     "spline2-layer knots-layer"
-                    (spline |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen))
+                    (spline |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightGreen fontSpline2.isJoint))
                 @ (wrapClass
                     "dspline-layer knots-layer"
-                    (spline |> fontDactylSpline.getSvgKnots offsetX offsetY 5 lightOrange))
+                    (spline |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightOrange fontDactylSpline.isJoint))
 
             guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer
         else
@@ -270,23 +270,23 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
                      @ outlineDactylSplineSvg)
 
             let knotsLayer =
-                (wrapClass "spiro-layer knots-layer" (spiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue))
+                (wrapClass "spiro-layer knots-layer" (spiro |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightBlue fontSpiro.isJoint))
                 @ (wrapClass
                     "spiro-layer knots-layer"
-                    (outlineSpiro |> fontSpiro.getSvgKnots offsetX offsetY 5 lightBlue))
+                    (outlineSpiro |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightBlue fontSpiro.isJoint))
                 @ (wrapClass
                     "spline2-layer knots-layer"
-                    (spline |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen))
+                    (spline |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightGreen fontSpline2.isJoint))
                 @ (wrapClass
                     "spline2-layer knots-layer"
-                    (outlineSpline2 |> fontSpline2.getSvgKnots offsetX offsetY 5 lightGreen))
+                    (outlineSpline2 |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightGreen fontSpline2.isJoint))
                 @ (wrapClass
                     "dspline-layer knots-layer"
-                    (spline |> fontDactylSpline.getSvgKnots offsetX offsetY 5 lightOrange))
+                    (spline |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightOrange fontDactylSpline.isJoint))
                 @ (wrapClass
                     "dspline-layer knots-layer"
                     (outlineDactylSpline
-                     |> fontDactylSpline.getSvgKnots offsetX offsetY 5 lightOrange))
+                     |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightOrange fontDactylSpline.isJoint))
 
             guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer
 
