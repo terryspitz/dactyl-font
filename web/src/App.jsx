@@ -336,42 +336,27 @@ function App() {
                       </label>
                       <div className="control-input">
                         <div className="slider-container">
-                          <div className="slider-center-line"></div>
                           {ctrl.type_ === 'range' ? (
-                            <input
-                              type="range"
-                              min={ctrl.min}
-                              max={ctrl.max}
-                              step={ctrl.step}
-                              value={axes[ctrl.name]}
-                              onChange={e => handleControlChange(ctrl.name, parseFloat(e.target.value))}
-                              className="slider-input neutral-slider"
-                              style={{
-                                transform: (() => {
-                                  let defaultVal = 0.5
-                                  if (defaultAxes && defaultAxes[ctrl.name] !== undefined) {
-                                    defaultVal = defaultAxes[ctrl.name]
-                                  } else {
-                                    defaultVal = (ctrl.min + ctrl.max) / 2
-                                  }
-
-                                  const range = ctrl.max - ctrl.min
-                                  const fraction = range === 0 ? 0.5 : (defaultVal - ctrl.min) / range
-                                  // Account for 16px thumb width (8px radius)
-                                  // Left = 100 - (8 + fraction * (100 - 16))
-                                  // But here we use translateX from left:100
-                                  // so translateX = - (8 + fraction * 84) px
-                                  return `translateX(${24 - fraction * 84}px)`
-                                })(),
-                              }}
-                            />
+                            <div className="range-wrapper">
+                               <input
+                                 type="range"
+                                 min={ctrl.min}
+                                 max={ctrl.max}
+                                 step={ctrl.step}
+                                 value={axes[ctrl.name]}
+                                 onChange={e => handleControlChange(ctrl.name, parseFloat(e.target.value))}
+                                 className="modern-slider"
+                               />
+                               <div className="slider-track-fill" style={{ width: `${((axes[ctrl.name] || 0) - ctrl.min) / (ctrl.max - ctrl.min) * 100}%` }}></div>
+                            </div>
                           ) : (
-                            <input
-                              type="checkbox"
-                              checked={axes[ctrl.name]}
-                              onChange={e => handleControlChange(ctrl.name, e.target.checked)}
-                              style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', margin: 0, zIndex: 1 }}
-                            />
+                            <label className="toggle-switch">
+                              <input
+                                type="checkbox"
+                                checked={axes[ctrl.name]}
+                                onChange={e => handleControlChange(ctrl.name, e.target.checked)}
+                              />
+                            </label>
                           )}
                         </div>
                         {ctrl.type_ === 'range' && <span className="value-display" style={{ marginLeft: '10px' }}>{Number(axes[ctrl.name]).toFixed(2)}</span>}

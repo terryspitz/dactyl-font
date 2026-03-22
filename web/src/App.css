@@ -5,7 +5,6 @@
     padding: 0;
     text-align: center;
     overflow: hidden;
-    /* Prevent body scroll, handle in sidebar/main */
 }
 
 .container {
@@ -14,126 +13,217 @@
     height: 100%;
     width: 100%;
     gap: 0;
-    /* Remove gap, handle padding in children if needed */
+    background-color: var(--bg-color);
 }
 
 .sidebar {
     flex: 0 0 auto;
-    /* Fit content */
     width: auto;
-    min-width: 250px;
+    min-width: 280px;
     max-width: 400px;
-    /* reasonable limits */
-    border-right: 1px solid #ccc;
-    padding: 20px;
+    border-right: 1px solid var(--border-color);
+    padding: 24px;
     overflow-y: auto;
     text-align: left;
     height: 100%;
-    background: #1a1a1a;
-    /* Dark sidebar */
-    color: #e0e0e0;
+    background: var(--sidebar-bg);
+    color: var(--text-primary);
 }
 
 .sidebar-title {
     width: 100%;
     margin-bottom: -10px;
-    /* Pull controls up slightly */
     filter: invert(1);
+    opacity: 0.9;
 }
 
 .sidebar h2 {
     margin-top: 0;
-    margin-bottom: 20px;
+    margin-bottom: 24px;
+    font-weight: 600;
+    font-size: 1.25rem;
+    color: var(--text-primary);
 }
 
 .controls-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 16px;
+}
+
+.category-group {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    border: 1px solid var(--border-color);
+}
+
+.category-header {
+    cursor: pointer;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    color: var(--text-primary);
+    transition: color 0.2s;
+    user-select: none;
+}
+
+.category-header:hover {
+    color: var(--accent-hover);
+}
+
+.category-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
 .control-group {
     display: flex;
     flex-direction: column;
-    font-size: 0.9em;
-    align-items: center;
-    /* Center label and content */
+    font-size: 0.85rem;
+    align-items: flex-start;
 }
 
 .control-group label {
-    font-weight: bold;
-    margin-bottom: 2px;
+    font-weight: 500;
+    margin-bottom: 6px;
     width: 100%;
-    text-align: center;
-    /* Center label text */
+    text-align: left;
+    color: var(--text-secondary);
 }
 
 .control-input {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     width: 100%;
-    /* Ensure full width for centering */
-    justify-content: center;
+    justify-content: space-between;
 }
 
 .value-display {
-    font-size: 0.8em;
-    color: #aaa;
-    /* Lighter text for dark mode */
-    width: 40px;
+    font-size: 0.85em;
+    color: var(--text-muted);
+    width: 36px;
     text-align: right;
-    margin-left: auto;
-    /* Push to right if needed, but in center alignment it might look weird. Let's keep it next to slider */
     flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
 }
 
-/* Slider Alignment Styles */
+/* Modern Range Slider */
 .slider-container {
-    position: relative;
-    width: 200px;
-    /* 2x Slider width to contain full range */
-    height: 20px;
+    width: 100%;
     display: flex;
     align-items: center;
-    flex-shrink: 0;
+    flex-shrink: 1;
 }
 
-.slider-center-line {
-    position: absolute;
-    left: 131px;
-    /* Center of 200px */
-    top: 0;
-    bottom: 0;
-    width: 1px;
-    background: #444;
-    z-index: 0;
+.range-wrapper {
+    position: relative;
+    width: 100%;
+    height: 24px;
+    display: flex;
+    align-items: center;
 }
 
-.slider-input {
-    width: 100px;
-    position: absolute;
-    left: 100px;
-    /* Start at center */
+.modern-slider {
+    -webkit-appearance: none;
+    width: 100%;
+    background: transparent;
+    z-index: 2;
+    position: relative;
+    cursor: pointer;
     margin: 0;
-    padding: 0;
-    height: 20px;
+}
+
+.modern-slider:focus {
+    outline: none;
+}
+
+.modern-slider::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 6px;
+    background: var(--panel-bg-hover);
+    border-radius: 3px;
+    border: none;
+}
+
+.modern-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    background: #fff;
+    margin-top: -5px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    border: 2px solid var(--accent-color);
+    transition: transform 0.1s;
+}
+
+.modern-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+}
+
+.slider-track-fill {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 6px;
+    background: var(--accent-color);
+    border-radius: 3px;
     z-index: 1;
+    pointer-events: none;
+}
+
+/* Modern Toggle Switch */
+.toggle-switch {
+    display: inline-block;
     cursor: pointer;
 }
 
-/* Neutral Style */
-.slider-input.neutral-slider {
-    accent-color: #888;
-    /* Grey instead of default blue */
+.toggle-switch input {
+    appearance: none;
+    width: 36px;
+    height: 20px;
+    background: var(--panel-bg-hover);
+    border-radius: 20px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.3s;
+    outline: none;
+    margin: 0;
 }
 
+.toggle-switch input:checked {
+    background: var(--success-color);
+}
+
+.toggle-switch input::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s cubic-bezier(0.4, 0.0, 0.2, 1);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.toggle-switch input:checked::after {
+    transform: translateX(16px);
+}
+
+/* Main Area */
 .main {
     flex: 1;
     display: flex;
     flex-direction: column;
     gap: 20px;
-    padding: 20px;
+    padding: 24px;
     height: 100%;
     overflow-y: auto;
     scrollbar-gutter: stable;
@@ -142,7 +232,7 @@
 .input-area {
     position: relative;
     display: flex;
-    gap: 10px;
+    gap: 16px;
     align-items: stretch;
 }
 
@@ -160,75 +250,79 @@
     width: 100%;
     height: 100%;
     box-sizing: border-box;
-    /* Fix width overflow */
     font-size: 2em;
-    padding: 10px;
-    border-radius: 8px;
-    border: 1px solid #ccc;
-    background: #1a1a1a;
-    /* Dark input */
-    color: #fff;
+    padding: 16px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--panel-bg);
+    color: var(--text-primary);
     resize: vertical;
-    /* Allow vertical resize only */
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input-area textarea:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 .glyph-defs-panel {
     width: 50%;
-    background: #1a1a1a;
-    border: 1px solid #333;
-    border-radius: 8px;
-    padding: 10px;
-    color: #d4d4d4;
-    font-family: monospace;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    color: var(--text-secondary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 0.9em;
     overflow-y: auto;
     box-sizing: border-box;
     white-space: pre-wrap;
     height: auto;
-    /* textarea height will control row height due to flex stretch? No, textarea height is determined by rows. flex stretch will make panel same height. */
     max-height: 200px;
-    /* Optional cap */
 }
 
 .glyph-defs-panel h3 {
     margin-top: 0;
-    margin-bottom: 0.5em;
+    margin-bottom: 0.75em;
     font-size: 1em;
-    color: #fff;
-    border-bottom: 1px solid #444;
-    padding-bottom: 5px;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-light);
+    padding-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
 }
 
 .text-reset-button {
     position: absolute;
-    top: 5px;
-    right: 5px;
-    background: rgba(0, 0, 0, 0.5);
+    top: 8px;
+    right: 8px;
+    background: rgba(0, 0, 0, 0.4);
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     color: #fff;
-    padding: 4px;
+    padding: 6px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+    backdrop-filter: blur(4px);
 }
 
 .text-reset-button:hover {
-    background: rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.6);
 }
 
 .preview {
     flex: 1;
-    border: 1px solid #444;
-    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
     overflow: hidden;
-    background: #ffffff;
-    /* White preview for black font */
+    background: #ffffff; /* Contrast background for drawings */
     position: relative;
-    /* Anchor for floating controls */
     display: flex;
     flex-direction: column;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 .preview-content {
@@ -239,26 +333,27 @@
 }
 
 .zoom-controls {
-    position: sticky;
-    float: right;
-    /* Keep it on the right side */
-    top: 10px;
-    right: 10px;
+    position: absolute;
+    top: 16px;
+    right: 16px;
     display: flex;
-    gap: 5px;
-    background: rgba(0, 0, 0, 0.1);
-    padding: 5px;
-    border-radius: 8px;
+    gap: 4px;
+    background: rgba(30, 41, 59, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 6px;
+    border-radius: var(--radius-lg);
     z-index: 10;
-    /* Ensure above content */
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
 
 .zoom-controls button {
-    background: #1a1a1a;
+    background: transparent;
     border: none;
-    border-radius: 4px;
-    color: #fff;
-    padding: 5px;
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    padding: 6px;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -266,109 +361,96 @@
 }
 
 .zoom-controls button:hover {
-    background: #333;
+    background: rgba(255,255,255,0.1);
 }
 
 .svg-container {
     width: 100%;
     min-height: 100%;
-    /* Ensure it fills at least the visible area */
     display: flex;
-    /* Helps center if needed, or just contain */
     justify-content: center;
-    /* Center horizontally */
 }
 
 .svg-container svg {
     width: 100%;
     height: auto;
-    /* max-height removed to allow scrolling */
     display: block;
-    /* Remove inline spacing */
 }
 
-/* Top Bar */
+/* Top Bar & Segmented Tabs */
 .top-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 0;
 }
 
-/* Tabs */
 .tabs {
     display: flex;
-    /* margin-bottom: 20px; Removed, handled by top-bar */
-    border-bottom: none;
-    /* No container outline */
+    background: var(--sidebar-bg);
+    border-radius: var(--radius-lg);
+    padding: 4px;
+    border: 1px solid var(--border-color);
 }
 
-/* ... tab-button styles ... */
-
 .tab-button {
-    padding: 10px 20px;
-    background: none;
-    border: 2px solid transparent;
-    /* Full border, transparent by default */
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
     cursor: pointer;
-    font-size: 1rem;
-    border-radius: 4px;
-    /* Slight rounded corners */
-    color: #ccc;
-    /* Inactive tab color */
-    transition: color 0.2s, border-color 0.2s;
+    font-size: 0.95rem;
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    transition: all 0.2s;
+    font-weight: 500;
 }
 
 .tab-button:hover {
-    color: #fff;
-    border-color: rgba(255, 255, 255, 0.3);
+    color: var(--text-primary);
 }
 
 .tab-button.active {
-    border-color: #fff;
-    /* Stark white full border */
-    color: #fff;
-    font-weight: bold;
+    background: var(--panel-bg);
+    color: var(--text-primary);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
 /* Toolbar */
 .toolbar {
     display: flex;
-    justify-content: flex-end;
-    /* Align right */
-    gap: 10px;
-    /* margin-bottom: 10px; Removed */
+    gap: 8px;
 }
 
 .icon-button {
-    background: none;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    padding: 5px;
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 6px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #ccc;
+    color: var(--text-secondary);
+    transition: all 0.2s;
 }
 
 .icon-button:hover {
-    background-color: #333;
+    background-color: var(--panel-bg);
+    color: var(--text-primary);
+    border-color: var(--border-light);
 }
 
 .material-symbols-outlined {
-    font-size: 24px;
+    font-size: 20px;
 }
 
 /* Tweens Grid */
-/* Tweens Layout */
 .tweens-grid {
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    padding: 10px;
+    gap: 24px;
+    padding: 16px;
     overflow-x: auto;
-    /* Single horizontal scrollbar */
     width: 100%;
 }
 
@@ -376,38 +458,38 @@
     color: #000;
     position: sticky;
     left: 0;
+    font-weight: 600;
+    font-size: 1.1em;
 }
 
 .tween-variations {
-    /* Removed scrollbar-width and overflow-x */
     display: flex;
-    gap: 10px;
+    gap: 16px;
     width: max-content;
-    /* Force width to expand content */
 }
 
-/* Scrollbar styling for Webkit - apply to grid now */
 .tweens-grid::-webkit-scrollbar {
-    height: 8px;
+    height: 10px;
 }
 
 .tweens-grid::-webkit-scrollbar-track {
-    background: #1a1a1a;
+    background: var(--bg-color);
 }
 
 .tweens-grid::-webkit-scrollbar-thumb {
-    background-color: #666;
-    border-radius: 4px;
+    background-color: var(--border-color);
+    border-radius: 5px;
 }
 
 .tween-item {
-    border: 1px solid #444;
-    padding: 5px;
-    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+    padding: 12px;
+    border-radius: var(--radius-md);
     text-align: center;
-    background: #2a2a2a;
-    min-width: 150px;
-    /* Ensure generic width */
+    background: #ffffff;
+    min-width: 160px;
+    color: #000;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
 .tween-item svg {
@@ -415,91 +497,84 @@
     height: auto;
 }
 
-/* Actually, svg inside tween-item is transparent bg with black text? */
-/* Wait, earlier we set .preview bg to white. BUT tweens are not in .preview div? */
-/* They are in .main. .main matches body (#242424). So black text is invisible. */
-/* We need tween-item to have white background OR invert the SVG. */
-/* Let's set tween-item background to white to match the Font preview. */
-
-.tween-item {
-    border: 1px solid #444;
-    padding: 5px;
-    border-radius: 4px;
-    text-align: center;
-    background: #ffffff;
-    min-width: 150px;
-    color: #000;
-    /* Ensure text inside is black */
-}
-
 /* Spline Legend */
 .spline-legend {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: rgba(0, 0, 0, 0.8);
-    padding: 15px;
-    border-radius: 8px;
+    bottom: 24px;
+    right: 24px;
+    background: rgba(30, 41, 59, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    padding: 16px;
+    border-radius: var(--radius-md);
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
     z-index: 1000;
     text-align: left;
-    color: white;
+    color: var(--text-primary);
     font-size: 0.9em;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
 .legend-item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
+}
+
+.legend-item input[type="checkbox"] {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 2px solid var(--border-light);
+    background: var(--sidebar-bg);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    margin: 0;
+}
+
+.legend-item input[type="checkbox"]:checked {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+}
+
+.legend-item input[type="checkbox"]:checked::after {
+    content: "✓";
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
 }
 
 .swatch {
-    width: 12px;
-    height: 12px;
-    border-radius: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
     display: inline-block;
 }
 
-.swatch.blue {
-    background-color: blue;
-}
-
-.swatch.green {
-    background-color: green;
-}
-
-.swatch.orange {
-    background-color: orange;
-}
-
-.swatch.grey {
-    background-color: #e0e0e0;
-}
-
-.swatch.lightBlue {
-    background-color: lightBlue;
-}
-
-.swatch.lightGreen {
-    background-color: lightGreen;
-}
-
-.swatch.circle {
-    border-radius: 50%;
-}
+.swatch.blue { background-color: #3b82f6; }
+.swatch.green { background-color: #10b981; }
+.swatch.orange { background-color: #f59e0b; }
+.swatch.grey { background-color: #94a3b8; }
+.swatch.lightBlue { background-color: #7dd3fc; }
+.swatch.lightGreen { background-color: #6ee7b7; }
+.swatch.circle { border-radius: 50%; }
 
 /* Visibility toggles */
 .hide-spiro .spiro-layer,
 .hide-spline2 .spline2-layer,
 .hide-dspline .dspline-layer,
 .hide-guides .guides-layer,
-    .hide-knots .knots-layer,
-    .hide-comb .comb-layer,
-    .hide-tangents .tangent-layer,
-    .hide-labels .labels-layer {
+.hide-knots .knots-layer,
+.hide-comb .comb-layer,
+.hide-tangents .tangent-layer,
+.hide-labels .labels-layer {
     display: none;
 }
 
@@ -509,8 +584,8 @@
     top: 0;
     left: 0;
     width: 100%;
-    height: 4px;
-    background-color: #f0f0f0;
+    height: 3px;
+    background-color: transparent;
     z-index: 1000;
     overflow: hidden;
 }
@@ -518,27 +593,20 @@
 .progress-bar-indeterminate {
     width: 100%;
     height: 100%;
-    background-color: #4CAF50;
-    animation: indeterminate 1.5s infinite linear;
+    background-color: var(--accent-color);
+    animation: indeterminate 1.5s infinite ease-in-out;
     transform-origin: 0% 50%;
+    opacity: 0.8;
 }
 
 .progress-bar-determinate {
     height: 100%;
-    background-color: #4CAF50;
+    background-color: var(--accent-color);
     transition: width 0.1s linear;
 }
 
 @keyframes indeterminate {
-    0% {
-        transform: translateX(-100%) scaleX(0.2);
-    }
-
-    50% {
-        transform: translateX(0%) scaleX(0.5);
-    }
-
-    100% {
-        transform: translateX(100%) scaleX(0.2);
-    }
+    0% { transform: translateX(-100%) scaleX(0.2); }
+    50% { transform: translateX(0%) scaleX(0.5); }
+    100% { transform: translateX(100%) scaleX(0.2); }
 }
