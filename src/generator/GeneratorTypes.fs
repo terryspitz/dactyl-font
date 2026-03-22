@@ -77,6 +77,18 @@ let withNoTangents pts =
 let openCurve pts = Curve(withNoTangents pts, false)
 let closedCurve pts = Curve(withNoTangents pts, true)
 
+let mergeConsecutive keyFn mergeFn list =
+    let rec loop =
+        function
+        | x :: y :: rest ->
+            if keyFn x = keyFn y then
+                loop ((mergeFn x y) :: rest)
+            else
+                x :: loop (y :: rest)
+        | other -> other
+
+    loop list
+
 let rec movePoints fn (e: Element) =
     match e with
     | Curve(pts, isClosed) ->

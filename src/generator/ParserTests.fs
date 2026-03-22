@@ -57,32 +57,24 @@ type ParserTests() =
         Assert.That(pt.x_fit, Is.True)
 
     [<Test>]
-    member this.TestDotSeparator() =
-        // "tl.tl" -> should result in TWO points at tl, separated by corner
-        let elem = parse_curve glyph "tl.tl" false
+    member this.TestTangentLineToCurveCorner() =
+        // "tl-blE~hr" -> Curve to line with explicit tangent E.
+        // Should have a point at bl with ty = Corner, th_in = None, th_out = E
+        let elem = parse_curve glyph "tl-blE~hr" false
 
         match elem with
-        | Curve(pts, isClosed) ->
-            Assert.That(pts.Length, Is.EqualTo(2), "Should have 2 points")
-            let k1 = pts.[0]
-            let k2 = pts.[1]
-            Assert.That(k1.pt, Is.EqualTo(k2.pt), "Points should be coincident")
-            Assert.That(k1.ty, Is.EqualTo(SpiroPointType.Corner), "First point should be Corner")
+        | Curve(knots, isClosed) ->
+            Assert.That(knots.Length, Is.EqualTo(3), "Should have 3 points")
+            let k = knots.[1]
+            Assert.That(k.pt.y, Is.EqualTo(glyph.B))
+            Assert.That(k.ty, Is.EqualTo(SpiroPointType.Corner), "Point should be Corner due to explicit tangent")
+            Assert.That(k.th_out, Is.EqualTo(Some 0.0), "Point should have the East tangent on th_out")
+            Assert.That(k.th_in, Is.EqualTo(None), "Point should have no tangent on th_in")
         | _ -> Assert.Fail("Expected Curve")
 
     [<Test>]
-    member this.TestTangentDot() =
-        // "blE.bl" -> Coincident points. First has Tangent E. Second has None.
-        let elem = parse_curve glyph "blE.bl" false
-
-        match elem with
-        | Curve(pts, isClosed) ->
-            Assert.That(pts.Length, Is.EqualTo(2))
-            let k1 = pts.[0]
-            let k2 = pts.[1]
-            Assert.That(k1.pt, Is.EqualTo(k2.pt))
-            Assert.That(k1.th_in, Is.Not.Null, "First point should have th_in tangent")
-            Assert.That(k1.th_out, Is.Not.Null, "First point should have th_out tangent")
-            Assert.That(k2.th_in, Is.EqualTo(None))
-            Assert.That(k2.th_out, Is.EqualTo(None))
-        | _ -> Assert.Fail("Expected Curve")
+    member this.TestTangentThrowsOnStraightLine() =
+        // "tlE-bl" -> Tangent on a point connected only to a line. Should throw.
+        Assert.Throws<System.ArgumentException>(fun () -> parse_curve glyph "tlE-bl" false |> ignore) |> ignore
+        // "tl-blE" -> Tangent on end of line. Should throw.
+        Assert.Throws<System.ArgumentException>(fun () -> parse_curve glyph "tl-blE" false |> ignore) |> ignore

@@ -1305,18 +1305,19 @@ type Font(axes: Axes) =
                       outline |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour this.isJoint
                   else
                       [])
-           with _ ->
-               this.elementToSvgPath
-                   (Dot(
-                       { y = _metrics.H
-                         x = _metrics.C
-                         y_fit = false
-                         x_fit = false }
-                   ))
-                   offsetX
-                   offsetY
-                   5.0
-                   red
+           with ex ->
+            printfn "EXCEPTION IN charToSvg: %O\nFallback backbone only" ex
+            this.elementToSvgPath
+                (Dot(
+                    { y = _metrics.H
+                      x = _metrics.C
+                      y_fit = false
+                      x_fit = false }
+                ))
+                offsetX
+                offsetY
+                5.0
+                red
            @ (if this.axes.show_knots then
                   backbone
                   |> this.italicise

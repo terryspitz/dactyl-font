@@ -3,6 +3,7 @@
 - fix P/R '.' joins
 - add proper interactive spline editor (tab)
 - fix italics e.g. a
+- do we still need mergeConsecutive?
 - add 'filled' checkbox to splines tab, default off
 - tidy up UI
 - add documentation tooltips, links

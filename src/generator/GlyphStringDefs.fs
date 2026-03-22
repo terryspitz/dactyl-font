@@ -19,7 +19,6 @@ let PI = System.Math.PI
 /// brackets mean coordinates are adjusted (by the DactylSpline only) to be smoother
 /// optional tangent direction (N)orth (S)outh (E)ast (W)est
 /// lines/curves: (-) straight line, (~) curve, note: lines join curves smoothly
-/// (.) for a corner (which requires a repeated point on both sides)
 /// ( ) terminates a curve, a preceeding (- or ~) means closed curve (last point rejoins first point)
 /// Solo points become dots
 /// Regex for the language
@@ -27,7 +26,7 @@ let y_re = "[txhbd]+|\([txhbd]+\)"
 let offset_re = "[oe]"
 let x_re = "[lrcw]+|\([lrcw]+\)"
 let direction_re = "[NSEW]"
-let line_re = "[-~.]"
+let line_re = "[-~]"
 let separator_re = " "
 let optional_re x = x + "?"
 let point_re = y_re + optional_re offset_re + x_re + optional_re direction_re
@@ -41,7 +40,7 @@ let glyphMap =
           '!', "tl-hbl bl"
           '"', "tellr-tthllr telrr-tthlrr"
           '#', "ttbl-ttbr tbbl-tbbr tllr-bllr tlrr-blrr"
-          '£', "tor~tc~txl~xllc~bl.bl-br xl-xcr"
+          '£', "tor~tc~txl~xllc~blS-br xl-xcr"
           '$', "thr~tc~ttbl~hc~tbbr~bc~bhl tec-bec"
           '%', "tllc~tthllc~tthlc~ brrc~bbhrrc~bbhrc~ ter-bel"
           '&', "hbrS~bc~hbl~thcr~tlcc~thl-br"
@@ -89,14 +88,14 @@ let glyphMap =
 
           'A', "bl-tc-br bhlc-bhrc"
           'a', "xr-br xor~x(c)~xbl~bc~bor"
-          'B', "hlE~(bh)r~blE.bl-tl.tlE~(th)r~hlE"
+          'B', "hlE~(bh)r~blW-tlE~(th)r~hlE"
           'b', "tl-bl bol~bc~xbr~xc~xol"
           'C', "tor~tc~hl~bc~bor"
           'c', "xor~xc~xbl~bc~bor"
-          'D', "tl-bl.bl~hr~tl"
+          'D', "tl-blE~hr~tl"
           'd', "tr-br xor~xc~xbl~bc~bor"
           'E', "tr-tl-bl-br hl-hr"
-          'e', "xbl-xbr xbrN~xcW~xblS~b(c)~bor"
+          'e', "xbl-xbrN~xcW~xblS~b(c)~bor"
           'F', "bl-tl-tr hl-hrc"
           'f', "bllc-xtllc~tcrW xl-xc"
           'G', "tor~tc~hl~bc~bhr-hr-hc"
@@ -117,11 +116,11 @@ let glyphMap =
           'n', "xl-bl xol~x(c)E~xbr-br"
           'O', "hl~tc~hr~bc~"
           'o', "xbl~xc~xbr~bc~"
-          'P', "bl-tl.tlE~(th)rS~hlE"
+          'P', "bl-tlE~(th)rS~hlE"
           'p', "xl-dl bol~bc~xbr~xc~xol"
           'Q', "hl~tc~hr~bc~ br-hbc"
           'q', "xr-dr xor~xc~xbl~bc~bor"
-          'R', "bl-tlE.tlE~thr~hcl-hl hc-br"
+          'R', "bl-tlE~thr~hcl-hl hc-br"
           'r', "xl-bl xol~xlcc~xoccr"
           'S', "thr~tc~ttbl~hc~tbbr~bc~bhl"
           's', "xor~x(c)W~xxbl~xbcE~xbbr~bcW~bol"
@@ -232,71 +231,84 @@ let parse_point (glyph: FontMetrics) def_raw =
     { y = y_coord; x = x_coord; y_fit = y_fit; x_fit = x_fit }, tangent, def
 
 let parse_curve (glyph: FontMetrics) raw_def debug =
-    let mutable pts, lines, tangents = [], [], []
+    let mutable pts = []
+    let mutable explicit_tangents = []
+    let mutable seps_out = []
     let mutable def: string = raw_def
-    let mutable last_line = ""
 
     while def.Length > 0 do
         let pt, tangent, new_def = parse_point glyph def
         def <- new_def
 
-        if last_line = "." && pt <> pts.[pts.Length - 1] then
-            invalidArg "string" "'.' must separate points at the same location"
-
         pts <- pts @ [ pt ]
-        tangents <- tangents @ [ (tangent, tangent) ]
+        explicit_tangents <- explicit_tangents @ [ tangent ]
         // line_re
         let match_ = Regex.Match(def, "^" + line_re)
 
         if match_.Success then
-            // printfn "line match %A" match_
-            if match_.Value = "-" then
-                if last_line = "~" then
-                    lines <- lines @ [ CurveToLine ]
-                else
-                    lines <- lines @ [ Corner ]
-            elif match_.Value = "~" then
-                if last_line = "-" then lines <- lines @ [ LineToCurve ]
-                elif last_line = "." then lines <- lines @ [ Corner ]
-                else lines <- lines @ [ G2 ]
-            elif match_.Value = "." then
-                lines <- lines @ [ Corner ]
-            else
-                invalidArg "match_" (sprintf "Unrecognised line separator %A" match_.Value)
-
-            last_line <- match_.Value
+            seps_out <- seps_out @ [ match_.Value ]
             def <- def.[match_.Length ..]
         else
+            seps_out <- seps_out @ [ "" ]
             assert (def.Length = 0)
     // printfn "post-line %A" def
 
-    if debug then
-        printfn "post-parse curve %A left: %A" (List.zip3 pts lines tangents) def
-
     if pts.Length = 1 then
         Dot(pts.[0])
-    elif pts.Length = lines.Length || last_line = "." then // Closed curve
-        if last_line = "." then
-            lines <- lines @ [ Corner ]
-
-        Curve(
+    else
+        let isClosed = (seps_out.[pts.Length - 1] = "-" || seps_out.[pts.Length - 1] = "~")
+        
+        let knots =
             [ for i in 0 .. pts.Length - 1 do
-                  let (thIn, thOut) = tangents.[i]
-                  { pt = pts.[i]; ty = lines.[i]; th_in = thIn; th_out = thOut } ],
-            true
-        )
-    else // Open curve
-        if last_line = "~" then
-            lines <- lines @ [ G2 ]
-        else
-            lines <- lines @ [ Corner ]
+                  let in_sep = 
+                      if i = 0 then 
+                          if isClosed then seps_out.[pts.Length - 1] else ""
+                      else seps_out.[i - 1]
+                  let out_sep = 
+                      if i = pts.Length - 1 && not isClosed then ""
+                      else seps_out.[i]
+                  
+                  let has_curve_in = (in_sep = "~")
+                  let has_curve_out = (out_sep = "~")
+                  
+                  let tIn, tOut = 
+                      match explicit_tangents.[i] with
+                      | Some t ->
+                          if not has_curve_in && not has_curve_out then
+                              invalidArg "tangent" "Explicit tangents cannot be applied to points with only straight lines."
+                          elif has_curve_in && has_curve_out then
+                              Some t, Some t
+                          elif has_curve_in then
+                              Some t, None
+                          else
+                              None, Some t
+                      | None -> None, None
+                      
+                  let mutable ty = 
+                      match in_sep, out_sep with
+                      | "-", "~" -> LineToCurve
+                      | "~", "-" -> CurveToLine
+                      | _, "-" -> Corner
+                      | _, "~" -> G2
+                      | "~", "" -> G2
+                      | "-", "" -> Corner
+                      | _, _ -> Corner
 
-        Curve(
-            [ for i in 0 .. pts.Length - 1 do
-                  let (thIn, thOut) = tangents.[i]
-                  { pt = pts.[i]; ty = lines.[i]; th_in = thIn; th_out = thOut } ],
-            false
-        )
+                  if ty = CurveToLine && tIn.IsSome then ty <- Corner
+                  if ty = LineToCurve && tOut.IsSome then ty <- Corner
+
+                  { pt = pts.[i]; ty = ty; th_in = tIn; th_out = tOut } ]
+            |> mergeConsecutive
+                (fun k -> System.Math.Round(k.pt.x, 3), System.Math.Round(k.pt.y, 3))
+                (fun k1 k2 ->
+                    let ty = if k1.ty = Corner || k2.ty = Corner then Corner else k2.ty
+
+                    { k2 with
+                        ty = ty
+                        th_in = Option.orElse k1.th_in k2.th_in
+                        th_out = Option.orElse k2.th_out k1.th_out })
+
+        Curve(knots, isClosed)
 
 let private parse_curves (glyph: FontMetrics) (def: string) debug =
     if System.String.IsNullOrEmpty(def) then

@@ -45,7 +45,7 @@ type FontTests() =
         // End-to-end test: Font.charToSvg 'o' with dactyl_spline + outline enabled
         // previously threw an IndexOutOfRangeException in solveAndGetPoints.
         let font =
-            Font(
+            Font.Font(
                 { Axes.DefaultAxes with
                     dactyl_spline = true
                     outline = true }
@@ -64,27 +64,19 @@ type FontTests() =
         // The 'v' glyph is a V-shape: XL -> BC -> XR.  When outlining, the inner
         // concave side at BC previously used the "two outer points" expansion,
         // pushing both points behind the corner and making them overlap the outer side.
-        //
-        // We test by calling getDactylSansOutlines directly on a simple symmetric V
-        // and checking that the two offset mid-segment points at the corner are on
-        // opposite sides of the stroke centre-line (i.e. they are separated, not coincident).
         let font =
-            Font(
+            Font.Font(
                 { Axes.DefaultAxes with
                     dactyl_spline = true
                     outline = true }
             )
 
-        // Render 'v' and capture the SVG; just verify it doesn't throw and produces
-        // a path with enough points to form a closed outline.
+        // Render 'v' and capture the SVG
         let svg = font.charToSvg 'v' 0.0 0.0 "black"
         let svgStr = String.concat " " svg
         Assert.That(svgStr, Does.Contain("M "), "SVG should contain a moveto")
-        printfn "SVG for 'v': %s" svgStr
 
         // A correct V outline has a closed path. Count 'C' and 'L' commands.
-        // Before the fix the outline collapsed (inner points overlapped the outer),
-        // producing a degenerate tiny path with very few commands.
         let commands = svgStr.Split(' ') |> Array.filter (fun s -> s = "L" || s = "C")
 
         Assert.That(
@@ -96,9 +88,8 @@ type FontTests() =
     [<Test>]
     member this.DactylOutline_Guides_RendersWithoutException() =
         // End-to-end test: Font.charToSvg '□' with dactyl_spline + outline enabled
-        // This is used for the guides feature in the spline tab.
         let font =
-            Font(
+            Font.Font(
                 { Axes.DefaultAxes with
                     dactyl_spline = true
                     outline = true }
@@ -110,10 +101,39 @@ type FontTests() =
         // Should produce non-empty SVG output containing path data
         Assert.That(svg, Is.Not.Empty, "SVG output should not be empty")
         let svgStr = String.concat " " svg
-        printfn "SVG for '□': %s" svgStr
         Assert.That(svgStr, Does.Contain("M "), "SVG should contain a moveto command")
 
         // If outline calculation failed, it falls back to red.
-        // The color "black" was passed, so if it's red, something is wrong.
         Assert.That(svgStr, Does.Not.Contain("stroke:#e00000"), "SVG should not be red (indicates outline failure)")
-        ()
+
+    [<Test>]
+    member this.DactylOutline_P_DotJoint_RendersSingleOutlineWithCorrectSequence() =
+        let font =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true }
+            )
+
+        let svg = font.charToSvg 'P' 0.0 0.0 "black"
+        let svgStr = String.concat " " svg
+        
+        // 1. Single outline check: there should only be one 'M' command.
+        let mCount = svgStr.Split('M').Length - 1
+        Assert.That(mCount, Is.EqualTo(1), "P should have a single outline")
+
+        // 2. Specific sequence check: MLCCCLCCCZ
+        // Extract command letters only
+        let commands = 
+            svgStr.Split(' ') 
+            |> Array.filter (fun s -> s.Length = 1 && "MLCZ".Contains(s))
+            |> String.concat ""
+        
+        Assert.That(commands, Is.EqualTo("MLCCCLCCCZ"), "P outline should have the specific MLCCCLCCCZ command sequence")
+        Assert.That(svgStr, Does.Not.Contain("stroke:#e00000"), "SVG should not be red (indicates outline failure)")
+
+        for ch in ['R'; 'B'] do
+            let svg = font.charToSvg ch 0.0 0.0 "black"
+            Assert.That(String.concat " " svg, Does.Contain("M "))
+
+
