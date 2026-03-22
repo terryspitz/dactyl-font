@@ -1,6 +1,6 @@
 
 **TODOs**
-- fix P/R '.' joins
+- check portrait phone layout
 - add proper interactive spline editor (tab)
 - fix italics e.g. a
 - do we still need mergeConsecutive?

@@ -416,7 +416,16 @@ function App() {
           </div>
           {activeTab === 'splines' && (
             <div className="glyph-defs-panel" style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-              <h3 style={{ margin: 0 }}>Glyph Definitions</h3>
+              <h3 style={{ margin: 0 }}>Glyph Definitions{' '}
+                <a
+                  href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontWeight: 'normal', textDecoration: 'underline' }}
+                >
+                  (docs)
+                </a>
+              </h3>
               <textarea
                 value={splinesDefsText}
                 onChange={e => setSplinesDefsText(e.target.value)}
