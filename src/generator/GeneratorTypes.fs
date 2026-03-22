@@ -58,7 +58,8 @@ type Knot =
     { pt: Point
       ty: SpiroPointType
       th_in: float option
-      th_out: float option }
+      th_out: float option
+      label: string option }
 
 type SCP = SpiroControlPoint
 
@@ -72,7 +73,7 @@ type Element =
 
 // Helpers to create Curve from simpler point lists
 let withNoTangents pts =
-    List.map (fun (p, t) -> { pt = p; ty = t; th_in = None; th_out = None }) pts
+    List.map (fun (p, t) -> { pt = p; ty = t; th_in = None; th_out = None; label = None }) pts
 
 let openCurve pts = Curve(withNoTangents pts, false)
 let closedCurve pts = Curve(withNoTangents pts, true)

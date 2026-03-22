@@ -96,11 +96,11 @@ type Axes =
           "stroked", Checkbox, "default"
           "scratches", Checkbox, "default"
           "max_spline_iter", Range(0, 200), "experimental"
-          "show_knots", Checkbox, "experimental"
-          "show_tangents", Checkbox, "experimental"
-          "show_comb", Checkbox, "experimental"
+          "show_knots", Checkbox, "debug"
+          "show_tangents", Checkbox, "debug"
+          "show_comb", Checkbox, "debug"
           "joints", Checkbox, "default"
           "smooth", Checkbox, "default"
-          "clip_rect", Checkbox, "experimental"
+          "clip_rect", Checkbox, "debug"
           "flatness", FracRange(0.0, 200.0), "experimental"
-          "debug", Checkbox, "experimental" ]
+          "debug", Checkbox, "debug" ]

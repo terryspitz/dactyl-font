@@ -88,7 +88,7 @@ let glyphMap =
 
           'A', "bl-tc-br bhlc-bhrc"
           'a', "xr-br xor~x(c)~xbl~bc~bor"
-          'B', "hlE~(bh)r~blW-tlE~(th)r~hlE"
+          'B', "hlE~(bh)r~blW-tlE~(th)r~hlW"
           'b', "tl-bl bol~bc~xbr~xc~xol"
           'C', "tor~tc~hl~bc~bor"
           'c', "xor~xc~xbl~bc~bor"
@@ -142,10 +142,11 @@ let glyphMap =
 // parse
 let parse_point (glyph: FontMetrics) def_raw =
     let mutable def = def_raw
+    let start_def = def_raw
+
     // y_coord
-    let match_ = Regex.Match(def, "^" + y_re)
-    // printfn "ycoord %A" match_
-    let ys = match_.Value
+    let match_y = Regex.Match(def, "^" + y_re)
+    let ys = match_y.Value
     let y_fit = ys.StartsWith("(")
 
     let y_coords =
@@ -167,8 +168,8 @@ let parse_point (glyph: FontMetrics) def_raw =
         |> List.choose id
 
     let mutable y_coord = List.averageBy float y_coords
-    def <- def.[match_.Length ..]
-    // printfn "post-ycoord %A" def_left
+    def <- def.[match_y.Length ..]
+
     // offset
     let matchOffset = Regex.Match(def, "^" + offset_re)
 
@@ -183,11 +184,10 @@ let parse_point (glyph: FontMetrics) def_raw =
                 y_coord + offsetAmount
             else
                 y_coord - offsetAmount
-    // printfn "post-offset %A" def_left
-    // x_coord-------------------------------------
-    let match_ = Regex.Match(def, "^" + x_re)
-    // printfn "xcoord match %A" match_
-    let xs = match_.Value
+
+    // x_coord
+    let match_x = Regex.Match(def, "^" + x_re)
+    let xs = match_x.Value
     let x_fit = xs.StartsWith("(")
 
     let x_coords =
@@ -208,40 +208,42 @@ let parse_point (glyph: FontMetrics) def_raw =
         |> List.choose id
 
     let x_coord = List.averageBy float x_coords
-    def <- def.[match_.Length ..]
-    // printfn "%A" def_left
+    def <- def.[match_x.Length ..]
 
-    let match_ = Regex.Match(def, "^" + direction_re)
+    let match_dir = Regex.Match(def, "^" + direction_re)
 
     let tangent =
-        if match_.Success then
-            def <- def.[match_.Length ..]
+        if match_dir.Success then
+            def <- def.[match_dir.Length ..]
 
             Some(
-                match match_.Value with
+                match match_dir.Value with
                 | "N" -> PI * 0.5
                 | "S" -> PI * -0.5
                 | "E" -> 0.
                 | "W" -> PI
-                | _ -> invalidArg "d" (sprintf "Invalid direction %A  (should be in %A)" match_.Value direction_re)
+                | _ -> invalidArg "d" (sprintf "Invalid direction %A  (should be in %A)" match_dir.Value direction_re)
             )
         else
             None
-
-    { y = y_coord; x = x_coord; y_fit = y_fit; x_fit = x_fit }, tangent, def
+    
+    let label = start_def.Substring(0, start_def.Length - def.Length)
+    { y = y_coord; x = x_coord; y_fit = y_fit; x_fit = x_fit }, tangent, label, def
 
 let parse_curve (glyph: FontMetrics) raw_def debug =
     let mutable pts = []
     let mutable explicit_tangents = []
+    let mutable labels = []
     let mutable seps_out = []
     let mutable def: string = raw_def
 
     while def.Length > 0 do
-        let pt, tangent, new_def = parse_point glyph def
+        let pt, tangent, label, new_def = parse_point glyph def
         def <- new_def
 
         pts <- pts @ [ pt ]
         explicit_tangents <- explicit_tangents @ [ tangent ]
+        labels <- labels @ [ label ]
         // line_re
         let match_ = Regex.Match(def, "^" + line_re)
 
@@ -297,7 +299,7 @@ let parse_curve (glyph: FontMetrics) raw_def debug =
                   if ty = CurveToLine && tIn.IsSome then ty <- Corner
                   if ty = LineToCurve && tOut.IsSome then ty <- Corner
 
-                  { pt = pts.[i]; ty = ty; th_in = tIn; th_out = tOut } ]
+                  { pt = pts.[i]; ty = ty; th_in = tIn; th_out = tOut; label = Some labels.[i] } ]
             |> mergeConsecutive
                 (fun k -> System.Math.Round(k.pt.x, 3), System.Math.Round(k.pt.y, 3))
                 (fun k1 k2 ->
@@ -306,7 +308,8 @@ let parse_curve (glyph: FontMetrics) raw_def debug =
                     { k2 with
                         ty = ty
                         th_in = Option.orElse k1.th_in k2.th_in
-                        th_out = Option.orElse k2.th_out k1.th_out })
+                        th_out = Option.orElse k2.th_out k1.th_out
+                        label = Option.orElse k1.label k2.label })
 
         Curve(knots, isClosed)
 

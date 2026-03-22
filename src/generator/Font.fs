@@ -176,18 +176,29 @@ type Font(axes: Axes) =
                 let scps =
                     [| for i in 0 .. pts.Length - 1 do
                            let k = pts.[i]
+                           
+                           // Handle incoming tangent: Curve ends here, moving into the point
+                           match k.th_in with
+                           | Some theta -> 
+                               yield makeSCP (offsetHandlePt k.pt (theta + PI), CurveToLine)
+                           | None -> ()
 
+                           // The anchor point itself
+                           // Use Corner for junctions with forced tangents, or k.ty for free points
+                           let ty = 
+                               if k.th_in.IsSome || k.th_out.IsSome then 
+                                   // If G2 and only one tangent is forced, we might be able to use Left/Right
+                                   // but Corner + handles is the most reliable way to force a direction in Spiro.
+                                   Corner 
+                               else k.ty
+                           
+                           yield makeSCP (k.pt, ty)
+
+                           // Handle outgoing tangent: Curve starts here, moving away from the point
                            match k.th_out with
                            | Some theta ->
-                               if i = pts.Length - 1 then
-                                   yield! [ makeSCP (offsetHandlePt k.pt theta, CurveToLine); makeSCP (k.pt, Corner) ]
-                               else
-                                   // yield! [makeSCP (pt, Anchor)
-                                   //         makeSCP(offsetHandlePt pt theta, Handle)]
-                                   yield!
-                                       [ makeSCP (k.pt, if k.ty = G2 then CurveToLine else Corner)
-                                         makeSCP (offsetHandlePt k.pt theta, LineToCurve) ]
-                           | None -> makeSCP (k.pt, k.ty) |]
+                               yield makeSCP (offsetHandlePt k.pt theta, LineToCurve)
+                           | None -> () |]
 
                 match Spiro.SpiroCPsToSegments scps isClosed with
                 | Some segs ->
@@ -577,27 +588,33 @@ type Font(axes: Axes) =
             [ { pt = addPolarContrast X Y (thetaAligned + PI * 0.75) (fthickness * sqrt 2.0)
                 ty = Corner
                 th_in = firstThIn
-                th_out = firstThOut }
+                th_out = firstThOut
+                label = None }
               { pt = addPolarContrast X Y (thetaAligned + PI * 0.5 + serifAng) serifDist
                 ty = Corner
                 th_in = nnIn
-                th_out = nnOut }
+                th_out = nnOut
+                label = None }
               { pt = addPolarContrast X Y (thetaAligned + PI * 0.5 - serifAng) serifDist
                 ty = Corner
                 th_in = nnIn
-                th_out = nnOut }
+                th_out = nnOut
+                label = None }
               { pt = addPolarContrast X Y (thetaAligned - PI * 0.5 + serifAng) serifDist
                 ty = Corner
                 th_in = nnIn
-                th_out = nnOut }
+                th_out = nnOut
+                label = None }
               { pt = addPolarContrast X Y (thetaAligned - PI * 0.5 - serifAng) serifDist
                 ty = Corner
                 th_in = nnIn
-                th_out = nnOut }
+                th_out = nnOut
+                label = None }
               { pt = addPolarContrast X Y (thetaAligned - PI * 0.75) (fthickness * sqrt 2.0)
                 ty = ty
                 th_in = lastThIn
-                th_out = lastThOut } ]
+                th_out = lastThOut
+                label = None } ]
         elif this.axes.flare <> 0.0 && not isJoint then
             //make flared endcap
             let preflareDist, preflareAng = toPolar -(fthickness * 0.80) fthickness
@@ -606,58 +623,71 @@ type Font(axes: Axes) =
             [ { pt = addPolarContrast X Y (theta + PI * 0.75) (fthickness * sqrt 2.0)
                 ty = Corner
                 th_in = firstThIn
-                th_out = firstThOut }
+                th_out = firstThOut
+                label = None }
               { pt = addPolarContrast X Y (theta + preflareAng) preflareDist
                 ty = LineToCurve
                 th_in = nnIn
-                th_out = nnOut }
+                th_out = nnOut
+                label = None }
               { pt = addPolarContrast X Y (thetaAligned + PI * 0.5 - flareAng) flareDist
                 ty = Corner
                 th_in = nnIn
-                th_out = nnOut }
+                th_out = nnOut
+                label = None }
               { pt = addPolarContrast X Y (thetaAligned - PI * 0.5 + flareAng) flareDist
                 ty = Corner
                 th_in = nnIn
-                th_out = nnOut }
+                th_out = nnOut
+                label = None }
               { pt = addPolarContrast X Y (theta - preflareAng) preflareDist
                 ty = CurveToLine
                 th_in = nnIn
-                th_out = nnOut }
+                th_out = nnOut
+                label = None }
               { pt = addPolarContrast X Y (theta - PI * 0.75) (fthickness * sqrt 2.0)
                 ty = ty
                 th_in = lastThIn
-                th_out = lastThOut } ]
+                th_out = lastThOut
+                label = None } ]
         elif this.axes.end_bulb <> 0.0 && not isJoint then
             [ { pt = offsetPointRotated X Y thetaAligned (fthickness * (1. - this.axes.end_bulb)) fthickness
                 ty = Corner
                 th_in = firstThIn
-                th_out = firstThOut }
+                th_out = firstThOut
+                label = None }
               { pt = offsetPointRotated X Y thetaAligned fthickness 0.
                 ty = G2
                 th_in = nnIn
-                th_out = nnOut }
+                th_out = nnOut
+                label = None }
               { pt = offsetPointRotated X Y thetaAligned (fthickness * (1. - this.axes.end_bulb)) -fthickness
                 ty = ty
                 th_in = lastThIn
-                th_out = lastThOut } ]
+                th_out = lastThOut
+                label = None } ]
         elif isJoint then // try forcing alignment
             [ { pt = offsetPointRotated X Y (align theta) fthickness fthickness
                 ty = Corner
                 th_in = firstThIn
-                th_out = firstThOut }
+                th_out = firstThOut
+                label = None }
               { pt = offsetPointRotated X Y (align theta) fthickness -fthickness
                 ty = ty
                 th_in = lastThIn
-                th_out = lastThOut } ]
+                th_out = lastThOut
+                label = None } ]
         else
             [ { pt = offsetPointRotated X Y thetaAligned fthickness fthickness
                 ty = Corner
                 th_in = firstThIn
-                th_out = firstThOut }
+                th_out = firstThOut
+                label = None }
               { pt = offsetPointRotated X Y thetaAligned fthickness -fthickness
                 ty = ty
                 th_in = lastThIn
-                th_out = lastThOut } ]
+                th_out = lastThOut
+                label = None } ]
 
     /// Start-cap knots: points at the beginning of an open stroke.
     /// Outline path: ... revOffset → startCap[first] → ... → startCap[last] → fwdOffset ...
@@ -730,32 +760,37 @@ type Font(axes: Axes) =
                 [ { pt = segmentAddPolar seg (this.maybeAlign th1 - angle / 2.) (dist * sqrt 2.0)
                     ty = newType
                     th_in = None
-                    th_out = None }
+                    th_out = None
+                    label = None }
                   { pt = segmentAddPolar seg (this.maybeAlign th2 + angle / 2.) (dist * sqrt 2.0)
                     ty = newType
                     th_in = None
-                    th_out = None } ]
+                    th_out = None
+                    label = None } ]
             else //single point for right angle or more on outer bend or any inner bend
                 let offset = min (min (dist / cos (bend / 2.0)) seg.seg_ch) lastSeg.seg_ch
 
                 [ { pt = addPolarContrast seg.X seg.Y (th1 + bend / 2.0) offset
                     ty = newType
                     th_in = None
-                    th_out = None } ]
+                    th_out = None
+                    label = None } ]
         | SpiroPointType.Right ->
             let t = Some seg.tangentStart
 
             [ { pt = segmentAddPolar seg (norm (lastSeg.tangentEnd + angle)) dist
                 ty = newType
                 th_in = t
-                th_out = t } ]
+                th_out = t
+                label = None } ]
         | SpiroPointType.Left ->
             let t = Some seg.tangentStart
 
             [ { pt = segmentAddPolar seg (norm (seg.tangentStart + angle)) dist
                 ty = newType
                 th_in = t
-                th_out = t } ]
+                th_out = t
+                label = None } ]
         | SpiroPointType.Anchor when reverse -> [] //reverse both points in Handle, er, handler
         | SpiroPointType.Handle when reverse ->
             let oldAnchor = segmentAddPolar lastSeg (lastSeg.tangentStart + angle) dist
@@ -765,18 +800,21 @@ type Font(axes: Axes) =
             [ { pt = newHandle
                 ty = SpiroPointType.Handle
                 th_in = None
-                th_out = None }
+                th_out = None
+                label = None }
               { pt = oldAnchor
                 ty = SpiroPointType.Anchor
                 th_in = None
-                th_out = None } ]
+                th_out = None
+                label = None } ]
         | _ ->
             let t = Some seg.tangentStart
 
             [ { pt = segmentAddPolar seg (seg.tangentStart + angle) dist
                 ty = newType
                 th_in = t
-                th_out = t } ]
+                th_out = t
+                label = None } ]
 
     member this.offsetSegments (segments: list<Segment>) start endP reverse closed dist =
         [ for i in start..endP do
@@ -792,7 +830,8 @@ type Font(axes: Axes) =
                           { pt = segmentAddPolar seg (seg.tangentStart + angle) dist
                             ty = seg.Type
                             th_in = Some seg.tangentStart
-                            th_out = Some seg.tangentStart }
+                            th_out = Some seg.tangentStart
+                            label = None }
               elif i = segments.Length - 1 && not closed then
                   let lastSeg = segments.[i - 1]
 
@@ -800,7 +839,8 @@ type Font(axes: Axes) =
                       { pt = segmentAddPolar seg (lastSeg.tangentEnd + angle) dist
                         ty = seg.Type
                         th_in = Some lastSeg.tangentEnd
-                        th_out = Some lastSeg.tangentEnd }
+                        th_out = Some lastSeg.tangentEnd
+                        label = None }
               else
                   let lastSeg = segments.[i - 1]
                   yield! this.offsetSegment seg lastSeg reverse dist ]
@@ -926,11 +966,13 @@ type Font(axes: Axes) =
                 [ { pt = segmentAddPolar seg (seg.tangentStart - PI * 0.90) (thicknessby3 * 3.0)
                     ty = Corner
                     th_in = t
-                    th_out = t }
+                    th_out = t
+                    label = None }
                   { pt = offsetPointCap seg.X seg.Y (seg.tangentStart + PI * 0.75)
                     ty = Corner
                     th_in = t
-                    th_out = t } ]
+                    th_out = t
+                    label = None } ]
 
             let endCap (seg: Segment) (lastSeg: Segment) =
                 let t = Some lastSeg.tangentEnd
@@ -938,7 +980,8 @@ type Font(axes: Axes) =
                 [ { pt = offsetPointCap seg.X seg.Y lastSeg.tangentEnd
                     ty = Corner
                     th_in = t
-                    th_out = t } ]
+                    th_out = t
+                    label = None } ]
 
             match spiro with
             | SpiroOpenCurve(segments) ->
@@ -1160,7 +1203,8 @@ type Font(axes: Axes) =
             { pt = pt
               ty = segment.Type
               th_in = tangent
-              th_out = tangent }
+              th_out = tangent
+              label = None }
 
         let spiroConstrain spiro =
             match spiro with

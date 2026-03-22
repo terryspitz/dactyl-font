@@ -36,6 +36,7 @@ function App() {
     knots: true,
     comb: true,
     tangents: true,
+    labels: true,
   })
 
   // Check URL on mount
@@ -515,6 +516,15 @@ function App() {
                 onChange={e => setLayerVisibility(prev => ({ ...prev, guides: e.target.checked }))}
               />
               <span className="swatch grey"></span> Guides
+            </div>
+            <div className="legend-item">
+              <input
+                type="checkbox"
+                checked={layerVisibility.labels}
+                onChange={e => setLayerVisibility(prev => ({ ...prev, labels: e.target.checked }))}
+              />
+              <span style={{ color: 'red', fontSize: '0.8em', fontWeight: 'bold', width: '24px', textAlign: 'center' }}>abc</span>
+              Labels
             </div>
             <div className="legend-item">
               <input

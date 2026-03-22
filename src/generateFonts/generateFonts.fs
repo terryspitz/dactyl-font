@@ -70,52 +70,53 @@ let main argv =
 
         if generateDocsSvgs then
             printfn "\nGenerating Docs SVGs...\n"
+
             let font =
                 Font(
                     { Axes.DefaultAxes with
                         dactyl_spline = true
                         outline = true }
                 )
-            
-            let parseAndRender str labels =
+
+            let parseAndRender str =
                 let elem = GlyphStringDefs.rawDefToElem (FontMetrics(font.axes)) str false
                 let outline = font.getOutline elem
-                let pathCmds = font.elementToSvgPath outline 0.0 font.charHeight 5 black |> String.concat " "
-                
-                let knotsCmds = SvgHelpers.getSvgKnots 0.0 font.charHeight 15.0 red font.isJoint elem |> String.concat " "
-                
-                let mutable labelsSvg = ""
-                match elem with
-                | Curve(knots, _) ->
-                    labelsSvg <- 
-                        knots 
-                        |> List.mapi (fun i k ->
-                            if i < List.length labels && labels.[i] <> "" then
-                                let lx = k.pt.x
-                                let ly = 1100.0 - k.pt.y
-                                sprintf "<text x=\"%f\" y=\"%f\" font-family=\"monospace\" font-size=\"40\" fill=\"red\" font-weight=\"bold\">%s</text>" (lx + 20.0) (ly - 20.0) labels.[i]
-                            else ""
-                        )
-                        |> String.concat "\n"
-                | _ -> ()
+
+                let pathCmds =
+                    font.elementToSvgPath outline 0.0 font.charHeight 5 black |> String.concat " "
+
+                let knotsCmds =
+                    SvgHelpers.getSvgKnots 0.0 font.charHeight 15.0 red font.isJoint elem
+                    |> String.concat " "
+
+                let labelsSvg =
+                    SvgHelpers.getSvgLabels 0.0 font.charHeight elem |> String.concat "\n"
 
                 pathCmds, knotsCmds, labelsSvg
 
-            let rect_str = "tl-bl-br-tr-tl"
+            let rect_str = "tl-bl-br-tr-"
             let circ_str = "tc~hr~bc~hl~"
-            let dcorn_str = "tl-blE~hr~tl"
-            
-            let rectPath, rectKnots, rectLbls = parseAndRender rect_str ["tl"; "bl"; "br"; "tr"; ""]
-            let circPath, circKnots, circLbls = parseAndRender circ_str ["tc"; "hr"; "bc"; "hl"; ""]
-            let dcornPath, dcornKnots, dcornLbls = parseAndRender dcorn_str ["tl"; "blE"; "hr"; "tl"]
-            
-            let wrap title pathCmds knotsCmds labelsSvg = 
-                sprintf "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"-150 -100 1300 1400\"><rect x=\"-150\" y=\"-100\" width=\"1300\" height=\"1400\" fill=\"#f8f9fa\" rx=\"20\"/><text x=\"500\" y=\"0\" font-family=\"monospace\" font-size=\"60\" fill=\"#333\" font-weight=\"bold\" text-anchor=\"middle\">%s</text><g transform=\"scale(1, -1) translate(0, -1100)\">%s\n%s</g>%s</svg>" title pathCmds knotsCmds labelsSvg
-            
+            let dcorn_str = "tlW-blE~hr~"
+
+            let rectPath, rectKnots, rectLbls = parseAndRender rect_str
+            let circPath, circKnots, circLbls = parseAndRender circ_str
+            let dcornPath, dcornKnots, dcornLbls = parseAndRender dcorn_str
+
+            let wrap title pathCmds knotsCmds labelsSvg =
+                sprintf
+                    "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"-150 -100 1300 1400\"><rect x=\"-150\" y=\"-100\" width=\"1300\" height=\"1400\" fill=\"#f8f9fa\" rx=\"20\"/><text x=\"500\" y=\"0\" font-family=\"monospace\" font-size=\"60\" fill=\"#333\" font-weight=\"bold\" text-anchor=\"middle\">%s</text><g>%s\n%s</g>%s</svg>"
+                    title
+                    pathCmds
+                    knotsCmds
+                    labelsSvg
+
             let docsDir = System.IO.Path.Combine(__SOURCE_DIRECTORY__, "..", "..", "docs")
-            writeFile (System.IO.Path.Combine(docsDir, "example1.svg")) [wrap rect_str rectPath rectKnots rectLbls]
-            writeFile (System.IO.Path.Combine(docsDir, "example2.svg")) [wrap circ_str circPath circKnots circLbls]
-            writeFile (System.IO.Path.Combine(docsDir, "example3.svg")) [wrap dcorn_str dcornPath dcornKnots dcornLbls]
+            writeFile (System.IO.Path.Combine(docsDir, "example1.svg")) [ wrap rect_str rectPath rectKnots rectLbls ]
+            writeFile (System.IO.Path.Combine(docsDir, "example2.svg")) [ wrap circ_str circPath circKnots circLbls ]
+
+            writeFile
+                (System.IO.Path.Combine(docsDir, "example3.svg"))
+                [ wrap dcorn_str dcornPath dcornKnots dcornLbls ]
 
         let fonts =
             [

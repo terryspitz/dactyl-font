@@ -89,9 +89,26 @@ let getSvgKnots (offsetX: float) (offsetY: float) (size: float) (colour: string)
         | EList(elems) -> List.collect toSvgPoints elems
         | Space -> []
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
-    // small red circles
     [ "<!-- knots -->"; "<path d='" ]
     @ toSvgPoints elem
     @ [ "'"
         sprintf "transform='translate(%f,%f) scale(1,-1)'" offsetX offsetY
         sprintf "style='fill:none;stroke:%s;stroke-width:%f'/>" colour 10.0 ]
+
+let getSvgLabels (offsetX: float) (offsetY: float) (elem: Element) =
+    let rec collectLabels (e: Element) =
+        match e with
+        | Curve(knots, _) ->
+            knots
+            |> List.choose (fun k ->
+                k.label
+                |> Option.map (fun lbl ->
+                    let x = k.pt.x + offsetX
+                    let y = offsetY - k.pt.y
+                    sprintf "<text x='%f' y='%f' font-family='monospace' font-size='40' fill='red' font-weight='bold'>%s</text>" (x + 15.0) (y - 15.0) lbl))
+        | Dot(p) -> [] // Dots usually don't have labels in this context
+        | EList(elems) -> List.collect collectLabels elems
+        | Space -> []
+        | _ -> []
+
+    [ "<!-- labels -->" ] @ collectLabels elem

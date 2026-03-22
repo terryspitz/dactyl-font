@@ -498,7 +498,8 @@
 .hide-guides .guides-layer,
     .hide-knots .knots-layer,
     .hide-comb .comb-layer,
-    .hide-tangents .tangent-layer {
+    .hide-tangents .tangent-layer,
+    .hide-labels .labels-layer {
     display: none;
 }
 

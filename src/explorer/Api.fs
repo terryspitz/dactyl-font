@@ -223,7 +223,9 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
                     "dspline-layer knots-layer"
                     (spline |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightOrange fontDactylSpline.isJoint))
 
-            guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer
+            let labelsLayer = wrapClass "labels-layer" (SvgHelpers.getSvgLabels offsetX offsetY spline)
+
+            guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer @ labelsLayer
         else
             let getOutline (font: Font) shape =
                 try
@@ -288,7 +290,9 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
                     (outlineDactylSpline
                      |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightOrange fontDactylSpline.isJoint))
 
-            guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer
+            let labelsLayer = wrapClass "labels-layer" (SvgHelpers.getSvgLabels offsetX offsetY spline)
+
+            guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer @ labelsLayer
 
     let svgWidth = max 1000.0 (xOffset + 100.0)
 
