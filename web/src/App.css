@@ -130,6 +130,7 @@
 
 .modern-slider {
     -webkit-appearance: none;
+    appearance: none;
     width: 100%;
     background: transparent;
     z-index: 2;
@@ -511,12 +512,13 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    z-index: 1000;
+    z-index: 2000;
     text-align: left;
     color: var(--text-primary);
     font-size: 0.9em;
     border: 1px solid rgba(255,255,255,0.1);
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    touch-action: none; /* Crucial for mobile dragging */
 }
 
 .legend-item {
@@ -713,7 +715,6 @@
         right: 16px;
         padding: 10px;
         font-size: 0.8em;
-        max-width: 140px;
     }
 
     .preview-content {

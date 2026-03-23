@@ -126,27 +126,53 @@ function App() {
     e.preventDefault()
   }
 
+  const handleLegendTouchStart = (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'A') return
+    const touch = e.touches[0]
+    isDraggingRef.current = true
+    dragStartRef.current = { x: touch.clientX - legendPos.x, y: touch.clientY - legendPos.y }
+    // Don't preventDefault here so checkboxes still work
+  }
+
   useEffect(() => {
     const handleMouseMove = (e) => {
       if (!isDraggingRef.current) return
-      setLegendPos({
+      setLegendPos(prev => ({
         x: e.clientX - dragStartRef.current.x,
         y: e.clientY - dragStartRef.current.y
-      })
+      }))
     }
 
     const handleMouseUp = () => {
       isDraggingRef.current = false
     }
 
+    const handleTouchMove = (e) => {
+      if (!isDraggingRef.current) return
+      const touch = e.touches[0]
+      setLegendPos(prev => ({
+        x: touch.clientX - dragStartRef.current.x,
+        y: touch.clientY - dragStartRef.current.y
+      }))
+      if (e.cancelable) e.preventDefault() // prevent page scroll while dragging legend
+    }
+
+    const handleTouchEnd = () => {
+      isDraggingRef.current = false
+    }
+
     if (activeTab === 'glyphs') {
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
+      document.addEventListener('touchmove', handleTouchMove, { passive: false })
+      document.addEventListener('touchend', handleTouchEnd)
     }
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
+      document.removeEventListener('touchmove', handleTouchMove)
+      document.removeEventListener('touchend', handleTouchEnd)
     }
   }, [activeTab, legendPos.x, legendPos.y])
 
@@ -511,6 +537,7 @@ function App() {
           <div 
             className="glyph-legend" 
             onMouseDown={handleLegendMouseDown}
+            onTouchStart={handleLegendTouchStart}
             style={{ 
               transform: `translate(${legendPos.x}px, ${legendPos.y}px)`,
               cursor: 'move',
