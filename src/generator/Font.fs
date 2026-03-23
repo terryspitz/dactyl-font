@@ -230,26 +230,21 @@ type Font(axes: Axes) =
                 let scps =
                     [| for i in 0 .. pts.Length - 1 do
                            let k = pts.[i]
-                           
+
                            // Handle incoming tangent: Curve ends here, moving into the point
                            match k.th_in with
-                           | Some theta -> 
-                               yield makeSCP (offsetHandlePt k.pt (theta), CurveToLine)
+                           | Some theta -> yield makeSCP (offsetHandlePt k.pt (theta), CurveToLine)
                            | None -> ()
 
                            // The anchor point itself
                            // Use Corner for junctions with forced tangents, or k.ty for free points
-                           let ty = 
-                               if k.th_in.IsSome || k.th_out.IsSome then 
-                                   Corner 
-                               else k.ty
-                           
+                           let ty = if k.th_in.IsSome || k.th_out.IsSome then Corner else k.ty
+
                            yield makeSCP (k.pt, ty)
 
                            // Handle outgoing tangent: Curve starts here, moving away from the point
                            match k.th_out with
-                           | Some theta ->
-                               yield makeSCP (offsetHandlePt k.pt theta, LineToCurve)
+                           | Some theta -> yield makeSCP (offsetHandlePt k.pt theta, LineToCurve)
                            | None -> () |]
 
                 match Spiro.SpiroCPsToSegments scps isClosed with
@@ -530,7 +525,7 @@ type Font(axes: Axes) =
         else -PI / 2.
 
     //MEMBERS
- 
+
     member this.metrics = _metrics
 
     member this.axes = axes
@@ -573,7 +568,7 @@ type Font(axes: Axes) =
                 let x_scale = (1.0 - axes.monospace) + axes.monospace * full_scale
                 { p with x = p.x * x_scale }
 
-            movePoints monoFn e
+            movePoints monoFn None e
 
         applyIf (axes.monospace > 0.0) mono
 
@@ -1056,6 +1051,16 @@ type Font(axes: Axes) =
         { p with
             x = p.x + this.axes.italic * p.y }
 
+    member this.italiciseTan th =
+        let italic = this.axes.italic
+
+        if italic = 0.0 then
+            th
+        else
+            let dx = cos th + italic * sin th
+            let dy = sin th
+            atan2 dy dx
+
     /// Italicising the outlines leads to strange curves.  Attempt to subdivide the original curves so the
     /// italicised versions are closer to a shear. Note: there is a performance cost for more detailed curves.
     member this.subdivide e =
@@ -1131,9 +1136,9 @@ type Font(axes: Axes) =
 
     member this.italicise =
         applyIf
-            (this.axes.italic > 0.0)
-            ((applyIf (not this.axes.spline2) this.subdivide)
-             >> (movePoints this.italicisePt))
+            (this.axes.italic <> 0.0)
+            ((applyIf (not (this.axes.spline2 || this.axes.dactyl_spline)) this.subdivide)
+             >> (movePoints this.italicisePt (Some this.italiciseTan)))
 
     member this.getDactylSansOutlines e =
         let fthickness = float thickness
@@ -1212,7 +1217,6 @@ type Font(axes: Axes) =
             >> applyIf axes.constraints this.constrainTangents
         else
             id
-        >> this.italicise
 
     ///Ensure tangents fall within bounds of glpyh. Note we need the pre-constrained tangents in order
     /// to do this reliably.
@@ -1371,6 +1375,17 @@ type Font(axes: Axes) =
                   "</g>" ]
 
 
+    member this.elementToSvgPathItalic(element, offsetX, offsetY, strokeWidth, fillColour) =
+        this.elementToSvgPath element offsetX offsetY strokeWidth fillColour
+
+    member this.getSvgKnotsItalic(offsetX, offsetY, size, colour, element) =
+        element
+        |> SvgHelpers.getSvgKnots offsetX offsetY size colour this.isJoint
+
+    member this.getSvgLabelsItalic(offsetX, offsetY, element) =
+        element |> SvgHelpers.getSvgLabels offsetX offsetY
+
+
     member this.translateByThickness = translateBy thickness thickness
 
     member this.charToElem ch =
@@ -1379,6 +1394,7 @@ type Font(axes: Axes) =
         |> applyIf axes.constraints this.constrainTangents
         |> this.monospace
         |> this.translateByThickness
+        |> this.italicise
 
     member this.charToSvg ch offsetX offsetY colour =
         if axes.debug then
@@ -1398,28 +1414,28 @@ type Font(axes: Axes) =
 
                (this.elementToSvgPath outline offsetX offsetY 5.0 colour)
                @ (if this.axes.show_knots && this.axes.outline then
-                      outline |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour this.isJoint
+                      outline
+                      |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour this.isJoint
                   else
                       [])
            with ex ->
-            printfn "EXCEPTION IN getOutline: %O\nFallback backbone only" ex
-            this.elementToSvgPath
-                (Dot(
-                    { y = _metrics.H
-                      x = _metrics.C
-                      y_fit = false
-                      x_fit = false }
-                ))
-                offsetX
-                offsetY
-                5.0
-                red
-           @ (if this.axes.show_knots then
-                  backbone
-                  |> this.italicise
-                  |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour this.isJoint
-              else
-                  [])
+               printfn "EXCEPTION IN getOutline: %O\nFallback backbone only" ex
+
+               this.elementToSvgPath
+                   (Dot(
+                       { y = _metrics.H
+                         x = _metrics.C
+                         y_fit = false
+                         x_fit = false }
+                   ))
+                   offsetX
+                   offsetY
+                   5.0
+                   red
+               @ (if this.axes.show_knots then
+                      this.getSvgKnotsItalic (offsetX, offsetY, knotSize, knotColour, backbone)
+                  else
+                      [])
 
     member this.width e =
         (e |> this.reduce |> this.monospace |> this.elemWidth)

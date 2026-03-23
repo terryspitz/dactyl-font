@@ -179,6 +179,7 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
             )
         else
             EList(elements) |> fontSpline2.translateByThickness
+        |> fontSpline2.italicise
 
     let spline = combinedElement
     let spiro = combinedElement
@@ -215,17 +216,27 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
                 wrapClass "dspline-layer" (fontDactylSpline.elementToSvgPath spline offsetX offsetY 10 orange)
 
             let knotsLayer =
-                (wrapClass "spiro-layer knots-layer" (spiro |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightBlue fontSpiro.isJoint))
+                (wrapClass
+                    "spiro-layer knots-layer"
+                    (spiro |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightBlue fontSpiro.isJoint))
                 @ (wrapClass
                     "spline2-layer knots-layer"
-                    (spline |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightGreen fontSpline2.isJoint))
+                    (spline
+                     |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightGreen fontSpline2.isJoint))
                 @ (wrapClass
                     "dspline-layer knots-layer"
-                    (spline |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightOrange fontDactylSpline.isJoint))
+                    (spline
+                     |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightOrange fontDactylSpline.isJoint))
 
-            let labelsLayer = wrapClass "labels-layer" (SvgHelpers.getSvgLabels offsetX offsetY spline)
+            let labelsLayer =
+                wrapClass "labels-layer" (SvgHelpers.getSvgLabels offsetX offsetY spline)
 
-            guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer @ labelsLayer
+            guidesLayer
+            @ spiroLayer
+            @ spline2Layer
+            @ dsplineLayer
+            @ knotsLayer
+            @ labelsLayer
         else
             let getOutline (font: Font) shape =
                 try
@@ -272,27 +283,39 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
                      @ outlineDactylSplineSvg)
 
             let knotsLayer =
-                (wrapClass "spiro-layer knots-layer" (spiro |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightBlue fontSpiro.isJoint))
+                (wrapClass
+                    "spiro-layer knots-layer"
+                    (spiro |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightBlue fontSpiro.isJoint))
                 @ (wrapClass
                     "spiro-layer knots-layer"
-                    (outlineSpiro |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightBlue fontSpiro.isJoint))
+                    (outlineSpiro
+                     |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightBlue fontSpiro.isJoint))
                 @ (wrapClass
                     "spline2-layer knots-layer"
-                    (spline |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightGreen fontSpline2.isJoint))
+                    (spline
+                     |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightGreen fontSpline2.isJoint))
                 @ (wrapClass
                     "spline2-layer knots-layer"
-                    (outlineSpline2 |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightGreen fontSpline2.isJoint))
+                    (outlineSpline2
+                     |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightGreen fontSpline2.isJoint))
                 @ (wrapClass
                     "dspline-layer knots-layer"
-                    (spline |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightOrange fontDactylSpline.isJoint))
+                    (spline
+                     |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightOrange fontDactylSpline.isJoint))
                 @ (wrapClass
                     "dspline-layer knots-layer"
                     (outlineDactylSpline
                      |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightOrange fontDactylSpline.isJoint))
 
-            let labelsLayer = wrapClass "labels-layer" (SvgHelpers.getSvgLabels offsetX offsetY spline)
+            let labelsLayer =
+                wrapClass "labels-layer" (SvgHelpers.getSvgLabels offsetX offsetY spline)
 
-            guidesLayer @ spiroLayer @ spline2Layer @ dsplineLayer @ knotsLayer @ labelsLayer
+            guidesLayer
+            @ spiroLayer
+            @ spline2Layer
+            @ dsplineLayer
+            @ knotsLayer
+            @ labelsLayer
 
     let svgWidth = max 1000.0 (xOffset + 100.0)
 

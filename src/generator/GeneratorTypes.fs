@@ -90,16 +90,19 @@ let mergeConsecutive keyFn mergeFn list =
 
     loop list
 
-let rec movePoints fn (e: Element) =
+let rec movePoints fn (fnTan: (float -> float) option) (e: Element) =
     match e with
     | Curve(pts, isClosed) ->
         Curve(
             [ for k in pts do
-                  { k with pt = fn k.pt } ],
+                  { k with
+                      pt = fn k.pt
+                      th_in = k.th_in |> Option.map (fun t -> match fnTan with Some f -> f t | None -> t)
+                      th_out = k.th_out |> Option.map (fun t -> match fnTan with Some f -> f t | None -> t) } ],
             isClosed
         )
     | Dot(p) -> Dot(fn p)
-    | EList(elems) -> EList(List.map (movePoints fn) elems)
+    | EList(elems) -> EList(List.map (movePoints fn fnTan) elems)
     | Space -> Space
     | Glyph(_) -> e // Cannot move points of an unreduced glyph without font metrics
 
@@ -162,4 +165,4 @@ let translateBy dx dy =
           y_fit = false
           x_fit = false }
 
-    movePoints shift
+    movePoints shift None
