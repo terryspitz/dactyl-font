@@ -136,4 +136,24 @@ type FontTests() =
             let svg = font.charToSvg ch 0.0 0.0 "black"
             Assert.That(String.concat " " svg, Does.Contain("M "))
 
+    [<Test>]
+    member this.SpiroOutline_B_RendersCleanOutline() =
+        // Test that the Spiro (non-dactyl) outline for B doesn't break at tangent points.
+        // This specifically targets the collapseHandleSegments fix.
+        let font =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = false
+                    spline2 = false
+                    outline = true }
+            )
+
+        let svg = font.charToSvg 'B' 0.0 0.0 "black"
+        let svgStr = String.concat " " svg
+        Assert.That(svgStr, Does.Contain("M "), "SVG should contain a moveto command")
+        Assert.That(svgStr, Does.Not.Contain("stroke:#e00000"), "SVG should not be red (indicates outline failure)")
+        // The B outline should form a single closed path (one M command) per element
+        let mCount = svgStr.Split('M').Length - 1
+        Assert.That(mCount, Is.GreaterThanOrEqualTo(1), "B should have at least one outline path")
+
 

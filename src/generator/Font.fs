@@ -114,6 +114,60 @@ type Font(axes: Axes) =
           seg_ch = seg.seg_ch
           Type = seg.Type }
 
+    /// Collapse CurveToLine→Corner→LineToCurve handle triplets (inserted by
+    /// elementToSpiros for tangent enforcement) back into single Corner segments.
+    /// The handles are only ~1 unit from the anchor and create micro-segments
+    /// that break the outline offset geometry. By collapsing them and recalculating
+    /// the chord length (seg_ch), we restore the correct geometry
+    /// while preserving the forced tangents.
+    let collapseHandleSegments (segs: Segment list) =
+        let arr = Array.ofList segs
+        let n = arr.Length
+        let result = System.Collections.Generic.List<Segment>()
+        let mutable i = 0
+
+        while i < n - 1 do
+            let curr = arr.[i]
+            let next = arr.[i + 1]
+            let next2 = if i + 2 < n then Some arr.[i + 2] else None
+
+            // Rule 1: Arriving curve (curr) followed by Handle_in micro-segment (next: Left -> Corner)
+            // Merge next into curr so the segment ends at the Anchor (next.End = next2.Start)
+            if
+                next.Type = SpiroPointType.Left
+                && next2.IsSome
+                && next2.Value.Type = SpiroPointType.Corner
+            then
+                let anchor = next2.Value
+                let dx, dy = anchor.X - curr.X, anchor.Y - curr.Y
+
+                let s =
+                    { curr with
+                        seg_ch = hypot dx dy
+                        tangentEnd = next.tangentEnd }
+
+                result.Add(s)
+                i <- i + 2
+
+            // Rule 2: Anchor segment (curr: Corner -> Right) followed by Handle_out micro-segment (next: Right -> Next)
+            // Merge next into curr so the segment starts at Anchor and ends at Next knot (next.End = next2.Start)
+            elif curr.Type = SpiroPointType.Corner && next.Type = SpiroPointType.Right then
+                let dest = if i + 2 < n then arr.[i + 2] else arr.[0]
+                let dx, dy = dest.X - curr.X, dest.Y - curr.Y
+
+                let s =
+                    { curr with
+                        seg_ch = hypot dx dy
+                        tangentEnd = next.tangentEnd }
+
+                result.Add(s)
+                i <- i + 2
+            else
+                result.Add(curr)
+                i <- i + 1
+
+        List.ofSeq result
+
     let rec elementToSpiros elem =
         let makeSCP (pt: Point, ty) = { SCP.X = pt.x; Y = pt.y; Type = ty }
 
@@ -180,15 +234,13 @@ type Font(axes: Axes) =
                            // Handle incoming tangent: Curve ends here, moving into the point
                            match k.th_in with
                            | Some theta -> 
-                               yield makeSCP (offsetHandlePt k.pt (theta + PI), CurveToLine)
+                               yield makeSCP (offsetHandlePt k.pt (theta), CurveToLine)
                            | None -> ()
 
                            // The anchor point itself
                            // Use Corner for junctions with forced tangents, or k.ty for free points
                            let ty = 
                                if k.th_in.IsSome || k.th_out.IsSome then 
-                                   // If G2 and only one tangent is forced, we might be able to use Left/Right
-                                   // but Corner + handles is the most reliable way to force a direction in Spiro.
                                    Corner 
                                else k.ty
                            
@@ -202,11 +254,15 @@ type Font(axes: Axes) =
 
                 match Spiro.SpiroCPsToSegments scps isClosed with
                 | Some segs ->
+                    // Return all segments including the final point-only segment.
+                    // collapseHandleSegments will use the final point to recalculate geometry.
+                    let segments = Array.toList segs
+
                     if isClosed then
                         // assert not (segs.[0].X = segs.[segs.Length-2].X && segs.[0].Y = segs.[segs.Length-2].Y)
-                        [ SpiroClosedCurve(Array.toList segs.[0 .. segs.Length - 2]) ]
+                        [ SpiroClosedCurve(segments) ]
                     else
-                        [ SpiroOpenCurve(Array.toList segs) ]
+                        [ SpiroOpenCurve(segments) ]
                 | None ->
                     [ SpiroDot(
                           { y = _metrics.H
@@ -903,21 +959,17 @@ type Font(axes: Axes) =
         let spiroToOutline spiro =
             match spiro with
             | SpiroOpenCurve(segments) ->
-                let segs = List.map toSegment segments
-
-                if axes.debug then
-                    printfn "spiroToOutline opencurve: %A" segs
+                let segs = List.map toSegment segments |> collapseHandleSegments
 
                 this.strokeSegments segs fthickness startCap endCap false
                 |> List.map clearElemTangents
             | SpiroClosedCurve(segments) ->
-                let segs = List.map toSegment segments
-
-                if axes.debug then
-                    printfn "spiroToOutline closedcurve: %A" segs
+                let segs = List.map toSegment segments |> collapseHandleSegments
 
                 this.strokeSegments segs fthickness startCap endCap true
                 |> List.map clearElemTangents
+
+
             | SpiroDot(p) -> [ dotToClosedCurve p.x p.y (thickness + 5.0) ]
             | SpiroSpace -> [ Space ]
 
@@ -1350,7 +1402,7 @@ type Font(axes: Axes) =
                   else
                       [])
            with ex ->
-            printfn "EXCEPTION IN charToSvg: %O\nFallback backbone only" ex
+            printfn "EXCEPTION IN getOutline: %O\nFallback backbone only" ex
             this.elementToSvgPath
                 (Dot(
                     { y = _metrics.H

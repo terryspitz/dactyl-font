@@ -88,7 +88,7 @@ let glyphMap =
 
           'A', "bl-tc-br bhlc-bhrc"
           'a', "xr-br xor~x(c)~xbl~bc~bor"
-          'B', "hlE~(bh)r~blW-tlE~(th)r~hlW"
+          'B', "hlE~(bh)r~blW-tlE~(th)r~hlE"
           'b', "tl-bl bol~bc~xbr~xc~xol"
           'C', "tor~tc~hl~bc~bor"
           'c', "xor~xc~xbl~bc~bor"
