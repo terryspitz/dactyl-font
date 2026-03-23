@@ -3,7 +3,7 @@
 - add proper interactive spline editor (tab)
 - fix italics e.g. a
 - do we still need mergeConsecutive?
-- add 'filled' checkbox to splines tab, default off
+- add 'filled' checkbox to glyphs tab, default off
 - add documentation tooltips, links
 - flare with tangents wrong way round
 - move outline point inward only

@@ -5,25 +5,25 @@ import './App.css'
 
 function App() {
   const [tabTexts, setTabTexts] = useState(() => {
-    const savedSplines = localStorage.getItem('splineText')
+    const savedGlyphs = localStorage.getItem('glyphText') || localStorage.getItem('splineText')
 
     return {
       font: allChars,
-      splines: savedSplines !== null ? savedSplines : 'font',
+      glyphs: savedGlyphs !== null ? savedGlyphs : 'font',
       tweens: 'a',
       visualTests: '',
       visualDiffs: allChars
     }
   })
-  const [splinesDefsText, setSplinesDefsText] = useState(() => {
-    const initialText = tabTexts['splines'] || 'a'
+  const [glyphsDefsText, setGlyphsDefsText] = useState(() => {
+    const initialText = tabTexts['glyphs'] || 'a'
     return getGlyphDefs(initialText)
   })
   const [axes, setAxes] = useState({ ...defaultAxes })
   const [activeTab, setActiveTab] = useState('font')
   const [tabZooms, setTabZooms] = useState({
     font: 1.0,
-    splines: 1.0,
+    glyphs: 1.0,
     tweens: 1.0,
     visualTests: 1.0,
     visualDiffs: 1.0,
@@ -42,8 +42,8 @@ function App() {
   // Check URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const view = params.get('view')
-    if (view && ['font', 'splines', 'tweens', 'visualTests', 'visualDiffs'].includes(view)) {
+    let view = params.get('view')
+    if (view && ['font', 'glyphs', 'tweens', 'visualTests', 'visualDiffs'].includes(view)) {
       setActiveTab(view)
     }
   }, [])
@@ -73,9 +73,9 @@ function App() {
   const text = tabTexts[activeTab]
   const setText = (newVal) => {
     setTabTexts(prev => ({ ...prev, [activeTab]: newVal }))
-    if (activeTab === 'splines') {
-      localStorage.setItem('splineText', newVal)
-      setSplinesDefsText(getGlyphDefs(newVal || 'a'))
+    if (activeTab === 'glyphs') {
+      localStorage.setItem('glyphText', newVal)
+      setGlyphsDefsText(getGlyphDefs(newVal || 'a'))
     }
   }
 
@@ -172,9 +172,9 @@ function App() {
       }
       typeReq = 'font'
       args = [text, axes]
-    } else if (activeTab === 'splines') {
-      typeReq = 'splinesFromDefs'
-      args = [splinesDefsText, axes]
+    } else if (activeTab === 'glyphs') {
+      typeReq = 'glyphsFromDefs'
+      args = [glyphsDefsText, axes]
     } else if (activeTab === 'tweens') {
       const char = text.length > 0 ? text[0] : 'a'
       typeReq = 'tweens'
@@ -195,7 +195,7 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, splinesDefsText])
+  }, [text, axes, activeTab, glyphsDefsText])
 
   const renderContent = () => {
     if (error) return <div style={{ color: 'red' }}>Error: {error}</div>
@@ -216,7 +216,7 @@ function App() {
           className="svg-container"
           dangerouslySetInnerHTML={{ __html: content }}
         />
-      } else if (activeTab === 'splines') {
+      } else if (activeTab === 'glyphs') {
         if (typeof content !== 'string') return null
         const visibilityClasses = Object.entries(layerVisibility)
           .filter(([_, visible]) => !visible)
@@ -224,7 +224,7 @@ function App() {
           .join(' ')
 
         return (
-          <div className={`splines-container ${visibilityClasses}`}>
+          <div className={`glyphs-container ${visibilityClasses}`}>
             <div
               className="svg-container"
               dangerouslySetInnerHTML={{ __html: content }}
@@ -387,14 +387,14 @@ function App() {
         <div className="top-bar">
           <div className="tabs">
             <button className={`tab-button ${activeTab === 'font' ? 'active' : ''}`} onClick={() => setTabWithUrl('font')}>Font</button>
-            <button className={`tab-button ${activeTab === 'splines' ? 'active' : ''}`} onClick={() => setTabWithUrl('splines')}>Splines</button>
+            <button className={`tab-button ${activeTab === 'glyphs' ? 'active' : ''}`} onClick={() => setTabWithUrl('glyphs')}>Glyphs</button>
             <button className={`tab-button ${activeTab === 'tweens' ? 'active' : ''}`} onClick={() => setTabWithUrl('tweens')}>Tweens</button>
             <button className={`tab-button ${activeTab === 'visualDiffs' ? 'active' : ''}`} onClick={() => setTabWithUrl('visualDiffs')}>Visual Diffs</button>
           </div>
 
         </div>
 
-        <div className={`input-area ${activeTab === 'splines' ? 'with-defs' : ''}`}>
+        <div className={`input-area ${activeTab === 'glyphs' ? 'with-defs' : ''}`}>
           <div className="input-wrapper">
             <textarea
               value={text}
@@ -405,7 +405,7 @@ function App() {
             <button
               className="text-reset-button"
               onClick={() => {
-                const defaults = { font: allChars, splines: 'font', tweens: 'a', visualTests: '', visualDiffs: allChars }
+                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualTests: '', visualDiffs: allChars }
                 setText(defaults[activeTab])
               }}
               title="Reset Text to Default"
@@ -413,7 +413,7 @@ function App() {
               <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>restart_alt</span>
             </button>
           </div>
-          {activeTab === 'splines' && (
+          {activeTab === 'glyphs' && (
             <div className="glyph-defs-panel" style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
               <h3 style={{ margin: 0 }}>Glyph Definitions{' '}
                 <a
@@ -426,8 +426,8 @@ function App() {
                 </a>
               </h3>
               <textarea
-                value={splinesDefsText}
-                onChange={e => setSplinesDefsText(e.target.value)}
+                value={glyphsDefsText}
+                onChange={e => setGlyphsDefsText(e.target.value)}
                 style={{ width: '100%', flex: '1', minHeight: '100px', fontFamily: 'monospace', resize: 'vertical' }}
                 spellCheck="false"
               />
@@ -470,8 +470,8 @@ function App() {
           </div>
         </div>
 
-        {activeTab === 'splines' && (
-          <div className="spline-legend">
+        {activeTab === 'glyphs' && (
+          <div className="glyph-legend">
             <div className="legend-item">
               <input
                 type="checkbox"

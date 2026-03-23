@@ -10,7 +10,7 @@ self.onmessage = (e) => {
                     self.postMessage({ id, type: 'progress', value: p });
                 })
                 break
-            case 'splinesFromDefs':
+            case 'glyphsFromDefs':
                 result = generateSplineDebugSvgFromDefs(...args, (p) => {
                     self.postMessage({ id, type: 'progress', value: p });
                 })

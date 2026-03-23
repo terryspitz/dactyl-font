@@ -2,7 +2,7 @@
 
 **Dactyl Glyphs** is a concise, text-based declarative language used within the Dactyl Font generator system to specify glyph outlines. Rather than placing control points on a Cartesian coordinate plane manually, Dactyl Glyphs use proportional letters relative to font metrics, intelligently routing smooth curves or sharp lines based on simple separators. 
 
-This guide introduces the basics of writing a Dactyl Glyph string and using the **Spline Browser** to test and debug your designs.
+This guide introduces the basics of writing a Dactyl Glyph string and using the **Glyphs** tab to test and debug your designs.
 
 ## Quick Examples
 Before diving into the detailed syntax rules, here is what Dactyl Glyphs look like in practice:
@@ -92,9 +92,9 @@ Dactyl Glyphs interpret topologies smartly depending on the combination of line/
 
 ---
 
-## 4. The Spline Browser
+## 4. The Glyphs Tab
 
-The generator UI features a **Spline Browser** tab, an invaluable tool for creating and debugging your Dactyl Glyphs definitions in real time.
+The generator UI features a **Glyphs** tab, an invaluable tool for creating and debugging your Dactyl Glyphs definitions in real time.
 
 ### How to Use It
 1. **Live Preview:** Enter your Dactyl Glyphs string into the definition editor. The browser instantly renders the resulting glyph geometry on screen.
@@ -105,4 +105,4 @@ The generator UI features a **Spline Browser** tab, an invaluable tool for creat
 3. **Toggle `dactyl_spline` / `Spiro`:** Use the checkboxes to view how your string behaves under the newer robust Dactyl solver vs. the legacy Spiro solver.
    - *Note on Spiro Limitations:* The legacy `Spiro` matrix solver may struggle or throw exceptions on tightly packed closed loops containing only three points (such as `tl-blE~hr~`). Using the robust `DactylSpline` backend handles these topologies elegantly.
 
-By iterating within the Spline Browser, you can visually tune specific coordinate points and explicit tangents until your glyph achieves a flawless, production-ready continuous outline!
+By iterating within the Glyphs tab, you can visually tune specific coordinate points and explicit tangents until your glyph achieves a flawless, production-ready continuous outline!

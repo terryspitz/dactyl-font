@@ -4,7 +4,7 @@ NOTE: This README is best viewed at https://terryspitz.github.io/dactyl-font/REA
 
 ## tl;dr
 
-Play with the [Dactyl Live explorer](https://terryspitz.github.io/dactyl-font) — explore fonts interactively, or switch to the **Splines** tab to see how Dactyl's glyph string definitions convert to different letters.
+Play with the [Dactyl Live explorer](https://terryspitz.github.io/dactyl-font) — explore fonts interactively, or switch to the **Glyphs** tab to see how Dactyl's glyph string definitions convert to different letters.
 
 See some of the chequered development history at [Dactyl Font Gallery](gallery.html), and some sample fonts at [Sample fonts](allGlyphs.html)
 

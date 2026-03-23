@@ -498,8 +498,8 @@
     height: auto;
 }
 
-/* Spline Legend */
-.spline-legend {
+/* Glyph Legend */
+.glyph-legend {
     position: fixed;
     bottom: 24px;
     right: 24px;
@@ -708,7 +708,7 @@
         padding: 8px 12px;
     }
 
-    .spline-legend {
+    .glyph-legend {
         bottom: 16px;
         right: 16px;
         padding: 10px;
