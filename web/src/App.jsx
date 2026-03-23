@@ -89,6 +89,13 @@ function App() {
     })
     return groups
   }, [])
+  
+  const categoryIcons = {
+    default: 'settings',
+    experimental: 'science',
+    debug: 'pest_control'
+  }
+
 
   // State for collapsible sections
   // experimental closed by default, others open
@@ -321,10 +328,17 @@ function App() {
               <div
                 className="category-header"
                 onClick={() => toggleCategory(category)}
-                style={{ cursor: 'pointer', fontWeight: 'bold', marginBottom: '10px', display: 'flex', alignItems: 'center' }}
+                style={{ cursor: 'pointer', fontWeight: 'bold', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}
               >
-                <span style={{ marginRight: '5px' }}>{openCategories[category] ? '▼' : '▶'}</span>
-                {category.charAt(0).toUpperCase() + category.slice(1)}
+                <span className="material-symbols-outlined" style={{ opacity: 0.7 }}>
+                  {categoryIcons[category] || 'settings'}
+                </span>
+                <span className="category-title" style={{ flex: 1 }}>
+                  {category.charAt(0).toUpperCase() + category.slice(1)}
+                </span>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px', opacity: 0.5 }}>
+                  {openCategories[category] ? 'expand_more' : 'chevron_right'}
+                </span>
               </div>
 
               {openCategories[category] && (

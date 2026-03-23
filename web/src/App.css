@@ -14,6 +14,7 @@
     width: 100%;
     gap: 0;
     background-color: var(--bg-color);
+    position: relative; /* For absolutely positioned sidebar on mobile */
 }
 
 .sidebar {
@@ -609,4 +610,118 @@
     0% { transform: translateX(-100%) scaleX(0.2); }
     50% { transform: translateX(0%) scaleX(0.5); }
     100% { transform: translateX(100%) scaleX(0.2); }
+}
+
+/* Mobile Portrait Overrides */
+@media (max-width: 768px) {
+    .sidebar {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 64px;
+        min-width: 64px;
+        z-index: 1000;
+        padding: 24px 12px;
+        transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+        overflow-x: hidden;
+        border-right: 1px solid var(--border-color);
+        background: var(--sidebar-bg);
+    }
+
+    .sidebar:hover, .sidebar:focus-within {
+        width: 300px;
+        box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Hide text labels in shrunken sidebar */
+    .sidebar h2, 
+    .sidebar .sidebar-title,
+    .sidebar .category-header .category-title, 
+    .sidebar .control-group label,
+    .sidebar .value-display,
+    .sidebar .category-header span:not(.material-symbols-outlined) {
+        opacity: 0;
+        white-space: nowrap;
+        transition: opacity 0.2s ease;
+        pointer-events: none;
+    }
+
+    .sidebar:hover h2,
+    .sidebar:hover .sidebar-title,
+    .sidebar:hover .category-header .category-title,
+    .sidebar:hover .control-group label,
+    .sidebar:hover .value-display,
+    .sidebar:hover .category-header span {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    /* Keep icons visible and centered */
+    .sidebar .category-header {
+        justify-content: center;
+        padding: 0;
+    }
+
+    .sidebar:hover .category-header {
+        justify-content: flex-start;
+        padding-left: 0;
+    }
+
+    .sidebar .material-symbols-outlined {
+        font-size: 24px;
+    }
+
+    .main {
+        margin-left: 64px;
+        padding: 16px;
+    }
+
+    .input-area {
+        flex-direction: column;
+    }
+
+    .input-area.with-defs .input-wrapper,
+    .glyph-defs-panel {
+        width: 100%;
+        flex: 1 1 auto;
+    }
+
+    .glyph-defs-panel {
+        max-height: 300px;
+    }
+
+    .top-bar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .tabs {
+        width: 100%;
+        overflow-x: auto;
+        padding-bottom: 4px;
+    }
+
+    .tab-button {
+        white-space: nowrap;
+        padding: 8px 12px;
+    }
+
+    .spline-legend {
+        bottom: 16px;
+        right: 16px;
+        padding: 10px;
+        font-size: 0.8em;
+        max-width: 140px;
+    }
+
+    .preview-content {
+        padding: 5px;
+    }
+
+    .zoom-controls {
+        top: 8px;
+        right: 8px;
+    }
 }
