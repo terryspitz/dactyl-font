@@ -38,6 +38,10 @@ function App() {
     tangents: true,
     labels: true,
   })
+  const [legendPos, setLegendPos] = useState({ x: 0, y: 0 })
+  const isDraggingRef = useRef(false)
+  const dragStartRef = useRef({ x: 0, y: 0 })
+
 
   // Check URL on mount
   useEffect(() => {
@@ -112,6 +116,39 @@ function App() {
   const toggleCategory = (cat) => {
     setOpenCategories(prev => ({ ...prev, [cat]: !prev[cat] }))
   }
+  
+  const handleLegendMouseDown = (e) => {
+    // Only drag on left click and not on interactive elements inside
+    if (e.button !== 0 || e.target.tagName === 'INPUT' || e.target.tagName === 'A') return
+    
+    isDraggingRef.current = true
+    dragStartRef.current = { x: e.clientX - legendPos.x, y: e.clientY - legendPos.y }
+    e.preventDefault()
+  }
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isDraggingRef.current) return
+      setLegendPos({
+        x: e.clientX - dragStartRef.current.x,
+        y: e.clientY - dragStartRef.current.y
+      })
+    }
+
+    const handleMouseUp = () => {
+      isDraggingRef.current = false
+    }
+
+    if (activeTab === 'glyphs') {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [activeTab, legendPos.x, legendPos.y])
 
   // Worker state is now handled within the effect directly
 
@@ -471,7 +508,15 @@ function App() {
         </div>
 
         {activeTab === 'glyphs' && (
-          <div className="glyph-legend">
+          <div 
+            className="glyph-legend" 
+            onMouseDown={handleLegendMouseDown}
+            style={{ 
+              transform: `translate(${legendPos.x}px, ${legendPos.y}px)`,
+              cursor: 'move',
+              userSelect: 'none'
+            }}
+          >
             <div className="legend-item">
               <input
                 type="checkbox"
