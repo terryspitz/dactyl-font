@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, allChars, generateVisualTestsSvg } from './lib/fable/Api' // Adjust path if needed
+import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, allChars } from './lib/fable/Api' // Adjust path if needed
 import './App.css'
 
 
@@ -11,8 +11,8 @@ function App() {
       font: allChars,
       glyphs: savedGlyphs !== null ? savedGlyphs : 'font',
       tweens: 'a',
-      visualTests: '',
-      visualDiffs: allChars
+      visualDiffs: allChars,
+      splines: ''
     }
   })
   const [glyphsDefsText, setGlyphsDefsText] = useState(() => {
@@ -25,8 +25,8 @@ function App() {
     font: 1.0,
     glyphs: 1.0,
     tweens: 1.0,
-    visualTests: 1.0,
     visualDiffs: 1.0,
+    splines: 1.0,
   })
   const [layerVisibility, setLayerVisibility] = useState({
     spiro: true,
@@ -47,7 +47,7 @@ function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     let view = params.get('view')
-    if (view && ['font', 'glyphs', 'tweens', 'visualTests', 'visualDiffs'].includes(view)) {
+    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines'].includes(view)) {
       setActiveTab(view)
     }
   }, [])
@@ -60,10 +60,6 @@ function App() {
     window.history.pushState({}, '', url)
   }
 
-  const setVisualTestsMode = (e) => {
-    e.preventDefault()
-    setTabWithUrl('visualTests')
-  }
 
   const zoom = tabZooms[activeTab]
   const setZoom = (newValFunc) => {
@@ -93,7 +89,7 @@ function App() {
     })
     return groups
   }, [])
-  
+
   const categoryIcons = {
     default: 'settings',
     experimental: 'science',
@@ -116,11 +112,11 @@ function App() {
   const toggleCategory = (cat) => {
     setOpenCategories(prev => ({ ...prev, [cat]: !prev[cat] }))
   }
-  
+
   const handleLegendMouseDown = (e) => {
     // Only drag on left click and not on interactive elements inside
     if (e.button !== 0 || e.target.tagName === 'INPUT' || e.target.tagName === 'A') return
-    
+
     isDraggingRef.current = true
     dragStartRef.current = { x: e.clientX - legendPos.x, y: e.clientY - legendPos.y }
     e.preventDefault()
@@ -189,7 +185,7 @@ function App() {
   // Trigger generation
   useEffect(() => {
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
-    
+
     worker.onmessage = (e) => {
       const { id, result, error, type, value } = e.data
       if (id !== renderIdRef.current) return
@@ -242,12 +238,12 @@ function App() {
       const char = text.length > 0 ? text[0] : 'a'
       typeReq = 'tweens'
       args = [char, axes]
-    } else if (activeTab === 'visualTests') {
-      typeReq = 'visualTests'
-      args = []
     } else if (activeTab === 'visualDiffs') {
       typeReq = 'visualDiffs'
       args = [text || allChars, axes]
+    } else if (activeTab === 'splines') {
+      typeReq = 'splineViewer'
+      args = []
     }
 
     if (typeReq) {
@@ -330,7 +326,13 @@ function App() {
             })()}
           </div>
         )
-      } else if (activeTab === 'visualTests' || activeTab === 'visualDiffs') {
+      } else if (activeTab === 'visualDiffs') {
+        if (typeof content !== 'string') return null
+        return <div
+          className="svg-container"
+          dangerouslySetInnerHTML={{ __html: content }}
+        />
+      } else if (activeTab === 'splines') {
         if (typeof content !== 'string') return null
         return <div
           className="svg-container"
@@ -415,16 +417,16 @@ function App() {
                         <div className="slider-container">
                           {ctrl.type_ === 'range' ? (
                             <div className="range-wrapper">
-                               <input
-                                 type="range"
-                                 min={ctrl.min}
-                                 max={ctrl.max}
-                                 step={ctrl.step}
-                                 value={axes[ctrl.name]}
-                                 onChange={e => handleControlChange(ctrl.name, parseFloat(e.target.value))}
-                                 className="modern-slider"
-                               />
-                               <div className="slider-track-fill" style={{ width: `${((axes[ctrl.name] || 0) - ctrl.min) / (ctrl.max - ctrl.min) * 100}%` }}></div>
+                              <input
+                                type="range"
+                                min={ctrl.min}
+                                max={ctrl.max}
+                                step={ctrl.step}
+                                value={axes[ctrl.name]}
+                                onChange={e => handleControlChange(ctrl.name, parseFloat(e.target.value))}
+                                className="modern-slider"
+                              />
+                              <div className="slider-track-fill" style={{ width: `${((axes[ctrl.name] || 0) - ctrl.min) / (ctrl.max - ctrl.min) * 100}%` }}></div>
                             </div>
                           ) : (
                             <label className="toggle-switch">
@@ -453,6 +455,7 @@ function App() {
             <button className={`tab-button ${activeTab === 'glyphs' ? 'active' : ''}`} onClick={() => setTabWithUrl('glyphs')}>Glyphs</button>
             <button className={`tab-button ${activeTab === 'tweens' ? 'active' : ''}`} onClick={() => setTabWithUrl('tweens')}>Tweens</button>
             <button className={`tab-button ${activeTab === 'visualDiffs' ? 'active' : ''}`} onClick={() => setTabWithUrl('visualDiffs')}>Visual Diffs</button>
+            <button className={`tab-button ${activeTab === 'splines' ? 'active' : ''}`} onClick={() => setTabWithUrl('splines')}>Splines</button>
           </div>
 
         </div>
@@ -468,7 +471,7 @@ function App() {
             <button
               className="text-reset-button"
               onClick={() => {
-                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualTests: '', visualDiffs: allChars }
+                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '' }
                 setText(defaults[activeTab])
               }}
               title="Reset Text to Default"
@@ -495,8 +498,8 @@ function App() {
                 spellCheck="false"
               />
               <div className="helper-key" style={{ fontSize: '0.85em', color: '#666' }}>
-                <strong>Key:</strong> y: (t)op, (x)-height, (h)alf, (b)ottom, (d)escender, (o)ffset, (e)xtended. <br/>
-                x: (l)eft, (c)enter, (r)ight, (w)ide. <br/>
+                <strong>Key:</strong> y: (t)op, (x)-height, (h)alf, (b)ottom, (d)escender, (o)ffset, (e)xtended. <br />
+                x: (l)eft, (c)enter, (r)ight, (w)ide. <br />
                 Dirs: N,S,E,W. Lines: (-) straight, (~) curve, (.) corner. Brackets mean 'fit this coordinate instead'
               </div>
             </div>
@@ -534,11 +537,11 @@ function App() {
         </div>
 
         {activeTab === 'glyphs' && (
-          <div 
-            className="glyph-legend" 
+          <div
+            className="glyph-legend"
             onMouseDown={handleLegendMouseDown}
             onTouchStart={handleLegendTouchStart}
-            style={{ 
+            style={{
               transform: `translate(${legendPos.x}px, ${legendPos.y}px)`,
               cursor: 'move',
               userSelect: 'none'
@@ -569,8 +572,8 @@ function App() {
                 onChange={e => setLayerVisibility(prev => ({ ...prev, dspline: e.target.checked }))}
               />
               <span className="swatch orange"></span>
-              <span onClick={setVisualTestsMode} style={{ cursor: 'pointer', textDecoration: 'dotted underline' }} title="Visual Tests">
-                DactylSpline
+              <span>
+                <a href="#" onClick={(e) => { e.preventDefault(); setTabWithUrl('splines'); }} style={{ color: 'inherit', textDecoration: 'underline' }}>DactylSpline</a>
               </span>
             </div>
             <div className="legend-item">

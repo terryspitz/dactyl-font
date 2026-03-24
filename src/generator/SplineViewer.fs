@@ -1,4 +1,4 @@
-module VisualTests
+module SplineViewer
 
 open Curves
 open Axes
@@ -67,7 +67,6 @@ let splineStaticPage () =
                 []
 
         [ for i in 0..curves do
-              printfn "one_example %d" i
 
               // left point theta rotates 0-180
               let ctrlPts =
@@ -100,7 +99,6 @@ let splineStaticPage () =
 
     let show_iterations =
         [ for i in 0..curves do
-              printfn "show_iterations %d" i
 
               let splineOf (spline: DactylSpline) x =
                   let spline2Font = Font({ Axes.DefaultAxes with spline2 = true })
@@ -130,7 +128,6 @@ let splineStaticPage () =
                            else
                                [])
                   with ex ->
-                      printfn "ERROR in splineOf (i=%d, x=%d): %s" i x ex.Message
                       []
 
               // U-shape

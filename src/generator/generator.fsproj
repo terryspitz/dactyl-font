@@ -4,7 +4,9 @@
     <OtherFlags>
       --define:FABLE_COMPILER_XX
     </OtherFlags>
-    <IsTestProject>true</IsTestProject>
+    <FSharpParallelReferenceResolution>true</FSharpParallelReferenceResolution>
+    <FSharpTestParallelOptimization>true</FSharpTestParallelOptimization>
+    <IsTestProject>false</IsTestProject>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\SpiroFs\SpiroFs.fsproj">
@@ -13,9 +15,6 @@
     <ProjectReference Include="..\spline-research\spline-research.fsproj">
       <Name>spline-research.fsproj</Name>
     </ProjectReference>
-  </ItemGroup>
-  <ItemGroup Condition="'$(Configuration)' == 'Release'">
-    <Compile Remove="**\*Test.fs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="../../README.md" />
@@ -26,16 +25,10 @@
     <Compile Include="GlyphStringDefs.fs" />
     <Compile Include="SvgHelpers.fs" />
     <Compile Include="Font.fs" />
-    <Compile Include="DactylSplineTest.fs" />
-    <Compile Include="FontTest.fs" />
-    <Compile Include="ParserTests.fs" />
-    <Compile Include="VisualTests.fs" />
+    <Compile Include="SplineViewer.fs" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' != 'Release'">
     <PackageReference Include="Fable.Core" Version="4.3.0" />
-    <PackageReference Include="NUnit" Version="4.3.2" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
-    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />

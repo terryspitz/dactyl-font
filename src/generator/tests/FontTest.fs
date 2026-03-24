@@ -156,4 +156,37 @@ type FontTests() =
         let mCount = svgStr.Split('M').Length - 1
         Assert.That(mCount, Is.GreaterThanOrEqualTo(1), "B should have at least one outline path")
 
+    [<Test>]
+    member this.TopLeftOfP_OutlinePreservesTangents() =
+        let axes =
+            { Axes.DefaultAxes with
+                dactyl_spline = true
+                outline = true
+                thickness = 30 }
+
+        let font = Font.Font(axes)
+
+        // 'P' is defined as "bl-tlE~(th)rS~hlE"
+        // tlE has an explicit East tangent (0.0 rad) and it's a transition from line to curve.
+        let backbone = font.charToElem 'P'
+        let outline = font.getOutline backbone
+
+        // Find the outline Curve that corresponds to the exterior
+        match outline with
+        | Curve(pts, true) ->
+            // In the 'P' glyph, tl is one of the top-most points.
+            // Let's look for points with th_out or th_in set.
+            let pointsWithTangents =
+                pts |> List.filter (fun k -> k.th_in.IsSome || k.th_out.IsSome)
+
+            let hasEastTangent =
+                pointsWithTangents
+                |> List.exists (fun k ->
+                    match k.th_out with
+                    | Some t -> abs (t - 0.0) < 0.001
+                    | None -> false)
+
+            Assert.That(hasEastTangent, Is.True, "Outline should have an East tangent where the P loop starts")
+        | _ -> Assert.Fail("Could not find exterior curve in P outline")
+
 

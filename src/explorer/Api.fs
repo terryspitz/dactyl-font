@@ -336,21 +336,29 @@ let getGlyphDefs (text: string) =
             | None -> sprintf "'%c': (no definition)" c)
         |> String.concat "\n"
 
-let generateVisualTestsSvg () =
-    VisualTests.splineStaticPage ()
-    |> toSvgDocument 0 0 10 12
+
+let generateSplineViewerSvg () =
+    SplineViewer.splineStaticPage ()
+    |> SvgHelpers.toSvgDocument 0. 0. 10. 12.
     |> String.concat "\n"
-    |> fun s -> s.Replace("svg ", "svg style='height: 95vh;' ")
+
 
 let generateVisualDiffsSvg (text: string) (axes: Axes) (progress: (float -> unit) option) =
-    let fontOff = Font axes
 
-    let fontOn =
+    let fontOff =
         Font
             { axes with
                 debug = false
                 dactyl_spline = false
                 spline2 = true }
+
+    let fontOn =
+        Font
+            { axes with
+                debug = false
+                dactyl_spline = true
+                spline2 = false }
+
 
     let chars =
         if System.String.IsNullOrEmpty(text) then
@@ -371,7 +379,7 @@ let generateVisualDiffsSvg (text: string) (axes: Axes) (progress: (float -> unit
 
     let keySvg =
         [ sprintf
-              "<text x='0' y='%f' font-size='%s' fill='black'>Key: Left = Old, Middle = New, Right = Overlaid Diff (Red=Old, Blue=New)</text>"
+              "<text x='0' y='%f' font-size='%s' fill='black'>Key:\nLeft = Old Spline, Middle = New Spline, Right = Overlaid Diff (Red=Old, Blue=New)</text>"
               (cellHeight / 2.0)
               keyFontSize ]
 

@@ -86,3 +86,7 @@ type ParserTests() =
         Assert.Throws<System.ArgumentException>(fun () -> parse_curve metrics "tlE-bl" false |> ignore) |> ignore
         // "tl-blE" -> Tangent on end of line. Should throw.
         Assert.Throws<System.ArgumentException>(fun () -> parse_curve metrics "tl-blE" false |> ignore) |> ignore
+
+[<EntryPoint>]
+let main argv =
+    0 // Return an integer exit code

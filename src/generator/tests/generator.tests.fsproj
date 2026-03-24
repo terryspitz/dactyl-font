@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsTestProject>true</IsTestProject>
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <FSharpParallelReferenceResolution>true</FSharpParallelReferenceResolution>
+    <FSharpTestParallelOptimization>true</FSharpTestParallelOptimization>
+    <FSharpTestParallelIlxGen>true</FSharpTestParallelIlxGen>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="DactylSplineTest.fs" />
+    <Compile Include="FontTest.fs" />
+    <Compile Include="ParserTests.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NUnit" Version="4.3.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\SpiroFs\SpiroFs.fsproj" />
+    <ProjectReference Include="..\..\spline-research\spline-research.fsproj" />
+    <ProjectReference Include="..\generator.fsproj" />
+  </ItemGroup>
+</Project>

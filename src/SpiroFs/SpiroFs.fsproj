@@ -1,7 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <IsTestProject>true</IsTestProject>
+    <IsTestProject>false</IsTestProject>
+    <FSharpParallelReferenceResolution>true</FSharpParallelReferenceResolution>
+    <FSharpTestParallelOptimization>true</FSharpTestParallelOptimization>
+    <FSharpTestParallelIlxGen>true</FSharpTestParallelIlxGen>
+    <OtherFlags>
+    </OtherFlags>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="SpiroPointType.fs" />
@@ -13,11 +18,7 @@
     <Compile Include="Arrays.fs" />
     <Compile Include="SpiroImpl.fs" />
     <Compile Include="Spiro.fs" />
-    <Compile Include="SpiroTest.fs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="NUnit" Version="4.3.2" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0"/>
-    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
   </ItemGroup>
 </Project>

@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29519.87
@@ -12,6 +12,12 @@ EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "generateFonts", "src\generateFonts\generateFonts.fsproj", "{B1C924AC-5CD1-4770-A2C2-396D33AAC3A6}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "spline-research", "src\spline-research\spline-research.fsproj", "{45342C0E-B361-4806-B523-0D3EB17689F1}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{B8514F5F-FFC5-44FA-82ED-E5F8DF044751}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "generator.tests", "src\generator\tests\generator.tests.fsproj", "{DFFA3D41-D962-46E0-8E0E-CA94BC02B31E}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "SpiroFs.tests", "src\SpiroFs\tests\SpiroFs.tests.fsproj", "{E834C6CA-8C3B-4F49-8086-24849ACC476C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -39,7 +45,17 @@ Global
 		{45342C0E-B361-4806-B523-0D3EB17689F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{45342C0E-B361-4806-B523-0D3EB17689F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{45342C0E-B361-4806-B523-0D3EB17689F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DFFA3D41-D962-46E0-8E0E-CA94BC02B31E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DFFA3D41-D962-46E0-8E0E-CA94BC02B31E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DFFA3D41-D962-46E0-8E0E-CA94BC02B31E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DFFA3D41-D962-46E0-8E0E-CA94BC02B31E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E834C6CA-8C3B-4F49-8086-24849ACC476C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E834C6CA-8C3B-4F49-8086-24849ACC476C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E834C6CA-8C3B-4F49-8086-24849ACC476C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E834C6CA-8C3B-4F49-8086-24849ACC476C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
+		{DFFA3D41-D962-46E0-8E0E-CA94BC02B31E} = {B8514F5F-FFC5-44FA-82ED-E5F8DF044751}
+		{E834C6CA-8C3B-4F49-8086-24849ACC476C} = {B8514F5F-FFC5-44FA-82ED-E5F8DF044751}
 	EndGlobalSection
 EndGlobal
