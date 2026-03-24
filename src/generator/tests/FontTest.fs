@@ -179,14 +179,17 @@ type FontTests() =
             let pointsWithTangents =
                 pts |> List.filter (fun k -> k.th_in.IsSome || k.th_out.IsSome)
 
-            let hasEastTangent =
+            let hasEastTangentAtTopLeft =
                 pointsWithTangents
                 |> List.exists (fun k ->
                     match k.th_out with
-                    | Some t -> abs (t - 0.0) < 0.001
+                    | Some t -> 
+                        let isEast = abs (t - 0.0) < 0.001
+                        let isTopLeft = k.pt.y > 500.0 && k.pt.x < 100.0 // Adjusted for typical FontMetrics
+                        isEast && isTopLeft
                     | None -> false)
 
-            Assert.That(hasEastTangent, Is.True, "Outline should have an East tangent where the P loop starts")
+            Assert.That(hasEastTangentAtTopLeft, Is.True, "Outline should have an East tangent at the top-left corner area")
         | _ -> Assert.Fail("Could not find exterior curve in P outline")
 
 

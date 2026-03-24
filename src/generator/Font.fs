@@ -804,27 +804,32 @@ type Font(axes: Axes) =
         | SpiroPointType.Corner ->
             let th1, th2 = norm (lastSeg.tangentEnd + angle), norm (seg.tangentStart + angle)
             let bend = norm (th2 - th1)
+            let alpha = bend / 2.0
 
-            if (not reverse && bend < -PI / 8.0) || (reverse && bend > PI / 8.0) then
-                // TODO: check why triggers on right angle in 'e'
-                //two points on sharp outer bend
-                [ { pt = segmentAddPolar seg (this.maybeAlign th1 - angle / 2.) (dist * sqrt 2.0)
+            let isSharperThanRight = abs bend >= 2.0 // Approx 115 degrees. 90 deg is 1.57.
+            let isOuterBend = (not reverse && bend < -PI / 8.0) || (reverse && bend > PI / 8.0)
+
+            if isOuterBend && isSharperThanRight then
+                // REVERT: Use two points at the same location (the miter point) for sharp corners
+                [ { pt = segmentAddPolar seg (this.maybeAlign th1 - angle / 2.0) (dist * sqrt 2.0)
                     ty = newType
-                    th_in = None
+                    th_in = Some lastSeg.tangentEnd
                     th_out = None
                     label = None }
-                  { pt = segmentAddPolar seg (this.maybeAlign th2 + angle / 2.) (dist * sqrt 2.0)
+                  { pt = segmentAddPolar seg (this.maybeAlign th2 + angle / 2.0) (dist * sqrt 2.0)
                     ty = newType
                     th_in = None
-                    th_out = None
+                    th_out = Some seg.tangentStart
                     label = None } ]
-            else //single point for right angle or more on outer bend or any inner bend
-                let offset = min (min (dist / cos (bend / 2.0)) seg.seg_ch) lastSeg.seg_ch
+            else
+                // 90 degree corners (and shallower/inner) are sharp miters (single knot)
+                let offset = min (min (dist / cos alpha) seg.seg_ch) lastSeg.seg_ch
+                let sharpPt = addPolarContrast seg.X seg.Y (th1 + alpha) offset
 
-                [ { pt = addPolarContrast seg.X seg.Y (th1 + bend / 2.0) offset
+                [ { pt = sharpPt
                     ty = newType
-                    th_in = None
-                    th_out = None
+                    th_in = Some lastSeg.tangentEnd
+                    th_out = Some seg.tangentStart
                     label = None } ]
         | SpiroPointType.Right ->
             let t = Some seg.tangentStart
@@ -1379,8 +1384,7 @@ type Font(axes: Axes) =
         this.elementToSvgPath element offsetX offsetY strokeWidth fillColour
 
     member this.getSvgKnotsItalic(offsetX, offsetY, size, colour, element) =
-        element
-        |> SvgHelpers.getSvgKnots offsetX offsetY size colour this.isJoint
+        element |> SvgHelpers.getSvgKnots offsetX offsetY size colour this.isJoint
 
     member this.getSvgLabelsItalic(offsetX, offsetY, element) =
         element |> SvgHelpers.getSvgLabels offsetX offsetY

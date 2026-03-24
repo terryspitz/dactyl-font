@@ -1,7 +1,7 @@
 
 **TODOs**
 - add proper interactive spline editor (tab)
-- fix italics e.g. a
+- soft corners
 - do we still need mergeConsecutive?
 - add 'filled' checkbox to glyphs tab, default off
 - add documentation tooltips, links
