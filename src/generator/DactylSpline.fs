@@ -576,10 +576,20 @@ type DactylSpline(ctrlPts, isClosed) =
 
     /// Predicate: true when segment i→i+1 is a straight line (no solver needed).
     member this.isLineSegment(ptI: DControlPoint, ptI1: DControlPoint) =
+        let isColinear th =
+            match th with
+            | Some angle ->
+                match ptI.x, ptI.y, ptI1.x, ptI1.y with
+                | Some x0, Some y0, Some x1, Some y1 ->
+                    let lineAngle = atan2 (y1 - y0) (x1 - x0)
+                    abs (norm (angle - lineAngle)) < 1e-4
+                | _ -> false
+            | None -> true
+
         (ptI.ty = SplinePointType.Corner
          && ptI1.ty = SplinePointType.Corner
-         && ptI.th_out.IsNone
-         && ptI1.th_in.IsNone)
+         && isColinear ptI.th_out
+         && isColinear ptI1.th_in)
         || ptI.ty = SplinePointType.CurveToLine
         || ptI1.ty = SplinePointType.LineToCurve
 
@@ -661,15 +671,20 @@ type DactylSpline(ctrlPts, isClosed) =
                 // Line segment — tangents point along the line
                 let lineAngle = atan2 (ptI1.y.Value - ptI.y.Value) (ptI1.x.Value - ptI.x.Value)
                 let nextIdx = (i + 1) % result.Length
+                let dist = sqrt ((ptI1.x.Value - ptI.x.Value) ** 2.0 + (ptI1.y.Value - ptI.y.Value) ** 2.0)
 
                 if Double.IsNaN result.[i].th_out then
                     result.[i].th_out <- lineAngle
+                result.[i].rd <- dist / 3.0
 
                 // For start of open curve, initialize th_in to lineAngle too
                 if i = 0 && not isClosed && Double.IsNaN result.[i].th_in then
                     result.[i].th_in <- lineAngle
 
                 result.[nextIdx].th_in <- lineAngle
+                result.[nextIdx].ld <- dist / 3.0
+
+                // For end of open curve, initialize th_out to lineAngle too
 
                 // For end of open curve, initialize th_out to lineAngle too
                 if

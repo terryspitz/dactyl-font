@@ -129,7 +129,7 @@ type FontTests() =
             |> Array.filter (fun s -> s.Length = 1 && "MLCZ".Contains(s))
             |> String.concat ""
         
-        Assert.That(commands, Is.EqualTo("MLCCCLCCCZ"), "P outline should have the specific MLCCCLCCCZ command sequence")
+        Assert.That(commands, Is.EqualTo("MLLCCLCCLZ"), "P outline should have the updated MLLCCLCCLZ command sequence")
         Assert.That(svgStr, Does.Not.Contain("stroke:#e00000"), "SVG should not be red (indicates outline failure)")
 
         for ch in ['R'; 'B'] do
@@ -155,6 +155,44 @@ type FontTests() =
         // The B outline should form a single closed path (one M command) per element
         let mCount = svgStr.Split('M').Length - 1
         Assert.That(mCount, Is.GreaterThanOrEqualTo(1), "B should have at least one outline path")
+
+    [<Test>]
+    member this.EGlyph_BackboneIsStraight() =
+        // The 'e' glyph has a horizontal crossbar: xbl-xbrN.
+        // It should be rendered as a straight line in the outline.
+        let font =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true }
+            )
+
+        let svg = font.charToSvg 'e' 0.0 0.0 "black"
+        let svgStr = String.concat " " svg
+        printfn "SVG for 'e': %s" svgStr
+        
+        // Find the line command that corresponds to the crossbar.
+        // The crossbar is horizontal at y = (X+B)/2.
+        // In the outline, it should be two parallel lines.
+        let commands = svgStr.Split(' ') |> Array.filter (fun s -> s = "L" || s = "C")
+        let lCount = commands |> Array.filter (fun s -> s = "L") |> Array.length
+        
+        // If it's being treated as a curve, there will be fewer 'L' commands.
+        // A typical 'e' outline should have at least 2 'L' commands (top and bottom of the bar)
+        // if they are properly detected as lines.
+        Assert.That(lCount, Is.GreaterThanOrEqualTo(2), 
+            sprintf "Expected at least 2 'L' commands for 'e' backbone, got %d. SVG: %s" lCount svgStr)
+
+    [<Test>]
+    member this.DactylSpline_IsLineSegment_HandlesColinearTangents() =
+        // Test that DactylSpline.isLineSegment returns true for segments
+        // where forced tangents are colinear with the chord.
+        let pt0 = { ty = SplinePointType.Corner; x = Some 0.; y = Some 0.; th_in = None; th_out = Some 0. }
+        // th_in = 0 is colinear with chord from (0,0) to (100,0)
+        let pt1 = { ty = SplinePointType.Corner; x = Some 100.; y = Some 0.; th_in = Some 0.; th_out = Some 1.57 }
+        
+        let spline = DactylSpline([| pt0; pt1 |], false)
+        Assert.That(spline.isLineSegment(pt0, pt1), Is.True, "Segment should be a line if tangents are colinear")
 
     [<Test>]
     member this.TopLeftOfP_OutlinePreservesTangents() =
