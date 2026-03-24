@@ -123,13 +123,7 @@ let main argv =
               // ("Dactyl Knots", "Extra Light", Font({Axes.DefaultAxes with show_knots = true}))
               // ("Dactyl Spiro", "Extra Light", Font({Axes.DefaultAxes with spline2 = false}))
               ("Dactyl Sans Extra Light", "Extra Light", Font({ Axes.DefaultAxes with thickness = 3 }))
-              ("Dactyl Sans",
-               "Regular",
-               Font(
-                   { Axes.DefaultAxes with
-                       thickness = 30
-                       show_knots = true }
-               ))
+              ("Dactyl Sans", "Regular", Font({ Axes.DefaultAxes with thickness = 30 }))
               ("Dactyl Sans Italic", "Italic", Font({ Axes.DefaultAxes with italic = 0.15 }))
               ("Dactyl Sans Bold", "Bold", Font({ Axes.DefaultAxes with thickness = 60 }))
               ("Dactyl Round",
