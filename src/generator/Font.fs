@@ -156,7 +156,6 @@ type Font(axes: Axes) =
 
         if i < n then
             result.Add(arr.[i])
-
         List.ofSeq result
 
     let rec elementToSpiros elem =
@@ -272,7 +271,6 @@ type Font(axes: Axes) =
             let segs =
                 [ for i in 0 .. ctrlPts.Length - 1 do
                       let pt = spline.ctrlPts.[i]
-
                       let pt1 =
                           if not isClosed && i = ctrlPts.Length - 1 then
                               pt // endpoint stub: last point of open curve (matches Spiro's EndOpenContour)
