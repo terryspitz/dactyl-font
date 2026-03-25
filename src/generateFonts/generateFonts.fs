@@ -5,6 +5,7 @@ module Main
 
 open System
 open System.IO
+open System.Diagnostics
 
 open Axes
 open Font
@@ -24,6 +25,7 @@ let writeFile filename text =
 
 [<EntryPoint>]
 let main argv =
+    let sw = Stopwatch.StartNew()
 
     if not (Directory.Exists @"output") then
         Directory.CreateDirectory @"output" |> printfn "%A"
@@ -45,6 +47,7 @@ let main argv =
     let generateDocsSvgs = true
 
     if generateDocsSvgs then
+        let swDocs = Stopwatch.StartNew()
         printfn "\nGenerating Docs SVGs...\n"
 
         let font =
@@ -94,6 +97,8 @@ let main argv =
             (System.IO.Path.Combine(docsDir, "example3.svg"))
             [ wrap dcorn_str dcornPath dcornKnots dcornLbls ]
 
+        printfn "Docs SVGs generated in %O" swDocs.Elapsed
+
     let fonts =
         [
             // ("Dactyl Knots", "Extra Light", Font({Axes.DefaultAxes with show_knots = true}))
@@ -142,6 +147,7 @@ let main argv =
     let allGlyphs = true
 
     if allGlyphs then
+        let swAll = Stopwatch.StartNew()
         // SVG output, side by side
         let rowHeights =
             List.scan
@@ -165,6 +171,8 @@ let main argv =
               yield "</g>" ]
         |> toHtmlDocument 0.0 0.0 (float (Axes.DefaultAxes.width * 70)) (List.max rowHeights)
         |> writeFile @"output\allGlyphs.html"
+
+        printfn "All Glyphs generated in %O" swAll.Elapsed
 
 
     // Proofs output using https://www.typography.com/blog/text-for-proofing-fonts
@@ -252,4 +260,5 @@ let main argv =
                     yield! font.stringToSvg [ str ] 0.0 0.0 true black None ]
         |> writeFile @"output\interp.svg"
 
+    printfn "\nTotal execution time: %O" sw.Elapsed
     0 // return code
