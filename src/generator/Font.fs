@@ -152,13 +152,14 @@ type Font(axes: Axes) =
             // Rule 2: Anchor segment (curr: Corner -> Right) followed by Handle_out micro-segment (next: Right -> Next)
             // Merge next into curr so the segment starts at Anchor and ends at Next knot (next.End = next2.Start)
             elif curr.Type = SpiroPointType.Corner && next.Type = SpiroPointType.Right then
-                let dest = if i + 2 < n then arr.[i + 2] else arr.[0]
-                let dx, dy = dest.X - curr.X, dest.Y - curr.Y
+                let dx, dy = next.X - curr.X, next.Y - curr.Y
 
                 let s =
-                    { curr with
-                        seg_ch = hypot dx dy
-                        tangentEnd = next.tangentEnd }
+                    { next with
+                        X = curr.X
+                        Y = curr.Y
+                        Type = curr.Type // Preserve the original knot type (Corner)
+                        seg_ch = next.seg_ch + hypot dx dy }
 
                 result.Add(s)
                 i <- i + 2
@@ -173,103 +174,30 @@ type Font(axes: Axes) =
 
         match elem with
         | Curve(pts, isClosed) ->
-            let simple = false
-
-            if simple then
-                let makeSeg (k: Knot) =
-                    let getVal v =
-                        match v with
-                        | Some value -> value
-                        | None -> Double.NaN
-
-                    { SpiroSegment.X = k.pt.x
-                      Y = k.pt.y
-                      Type = k.ty
-                      bend_th = Double.NaN
-                      ks = [| 0.; 0.; 0.; 0. |]
-                      seg_ch = Double.NaN
-                      seg_th = Double.NaN
-                      tangent1 = getVal k.th_out
-                      tangent2 = Double.NaN }
-
+            // Revert to simpler logic that doesn't add handle points for tangents,
+            // as this was breaking legacy Spiro path for some glyphs.
+            let scps = 
+                [| for k in pts do
+                       yield makeSCP (k.pt, k.ty) |]
+            
+            match Spiro.SpiroCPsToSegments scps isClosed with
+            | Some segs ->
+                let segments = Array.toList segs
                 if isClosed then
-                    [ SpiroClosedCurve(List.map makeSeg pts) ]
+                    [ SpiroClosedCurve(segments) ]
                 else
-                    [ SpiroOpenCurve(List.map makeSeg pts) ]
-            else
-                let offsetHandlePt (pt: Point) theta =
-                    let fthickness = 1. //minimum increment
-
-                    { y = pt.y + fthickness * sin (theta)
-                      x = pt.x + fthickness * cos (theta)
-                      y_fit = false
-                      x_fit = false }
-
-                let pts =
-                    mergeConsecutive
-                        (fun k -> k.pt.x, k.pt.y)
-                        (fun k1 k2 ->
-                            // if either tangent is None (e.g. blE.bl -> E, None), result should be None to allow Corner
-                            let th_in =
-                                if Option.isNone k1.th_in || Option.isNone k2.th_in then
-                                    None
-                                else
-                                    k1.th_in
-
-                            let th_out =
-                                if Option.isNone k1.th_out || Option.isNone k2.th_out then
-                                    None
-                                else
-                                    k1.th_out
-                            // prefer the second point's type (e.g. Corner from '.')
-                            { k2 with
-                                th_in = th_in
-                                th_out = th_out })
-                        pts
-
-                let scps =
-                    [| for i in 0 .. pts.Length - 1 do
-                           let k = pts.[i]
-
-                           // Handle incoming tangent: Curve ends here, moving into the point
-                           match k.th_in with
-                           | Some theta -> yield makeSCP (offsetHandlePt k.pt (theta), CurveToLine)
-                           | None -> ()
-
-                           // The anchor point itself
-                           // Use Corner for junctions with forced tangents, or k.ty for free points
-                           let ty = if k.th_in.IsSome || k.th_out.IsSome then Corner else k.ty
-
-                           yield makeSCP (k.pt, ty)
-
-                           // Handle outgoing tangent: Curve starts here, moving away from the point
-                           match k.th_out with
-                           | Some theta -> yield makeSCP (offsetHandlePt k.pt theta, LineToCurve)
-                           | None -> () |]
-
-                match Spiro.SpiroCPsToSegments scps isClosed with
-                | Some segs ->
-                    // Return all segments including the final point-only segment.
-                    // collapseHandleSegments will use the final point to recalculate geometry.
-                    let segments = Array.toList segs
-
-                    if isClosed then
-                        // assert not (segs.[0].X = segs.[segs.Length-2].X && segs.[0].Y = segs.[segs.Length-2].Y)
-                        [ SpiroClosedCurve(segments) ]
-                    else
-                        [ SpiroOpenCurve(segments) ]
-                | None ->
-                    [ SpiroDot(
-                          { y = _metrics.H
-                            x = _metrics.C
-                            y_fit = false
-                            x_fit = false }
-                      ) ]
+                    [ SpiroOpenCurve(segments) ]
+            | None ->
+                [ SpiroDot(
+                      { y = _metrics.H
+                        x = _metrics.C
+                        y_fit = false
+                        x_fit = false }
+                  ) ]
         | Dot(p) -> [ SpiroDot(p) ]
         | EList(elems) -> List.collect elementToSpiros elems
         | Space -> [ SpiroSpace ]
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
-
     let toSpline2ControlPoints (pts: list<Knot>) =
         let pts =
             mergeConsecutive
