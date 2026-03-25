@@ -179,29 +179,51 @@ let averageAngles rth lth =
         (lth + rth) / 2.
 
 
-let linear_regression xs ys =
-    if Array.length xs <> Array.length ys then
-        failwith "linear_regression: arrays must be of same length"
+let linear_regression (xs: float array) (ys: float array) count =
+    if count = 0 then
+        0.0, 0.0, 0.0
+    else
+        let n = float count
+        let mutable sum_x = 0.
+        let mutable sum_y = 0.
 
-    let n = float (Array.length xs)
-    let mean_x = (Array.sum xs) / n
-    let sum_y = Array.sum ys
-    let mean_y = sum_y / n
-    // best fit k_i = m * dist_i + c using https://en.wikipedia.org/wiki/Simple_linear_regression
-    let m =
-        (Array.sumBy (fun (x, y) -> (y - mean_y) * (x - mean_x)) (Array.zip xs ys))
-        / (Array.sumBy (fun x -> (x - mean_x) * (x - mean_x)) xs)
+        for i in 0 .. count - 1 do
+            sum_x <- sum_x + xs.[i]
+            sum_y <- sum_y + ys.[i]
 
-    let c = (mean_y - m * mean_x)
+        let mean_x = sum_x / n
+        let mean_y = sum_y / n
 
-    let residuals =
-        (Array.zip ys xs
-         |> Array.sumBy (fun (k, d) -> let err = k - (m * d + c) in err * err))
+        let mutable num = 0.
+        let mutable den = 0.
 
-    m, c, residuals
+        for i in 0 .. count - 1 do
+            let dx = xs.[i] - mean_x
+            let dy = ys.[i] - mean_y
+            num <- num + dx * dy
+            den <- den + dx * dx
+
+        let m = num / den
+        let c = mean_y - m * mean_x
+
+        let mutable residuals = 0.
+
+        for i in 0 .. count - 1 do
+            let err = ys.[i] - (m * xs.[i] + c)
+            residuals <- residuals + err * err
+
+        m, c, residuals
 
 type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug: bool) =
     let _points: BezierPoint array = Array.init ctrlPts.Length (fun _ -> BezierPoint())
+    let STEPS = 8
+    let _ks = Array.create (STEPS + 1) 0.0
+    let _dists = Array.create (STEPS + 1) 0.0
+    let _segmentStartK = Array.create ctrlPts.Length 0.0
+    let _segmentEndK = Array.create ctrlPts.Length 0.0
+    let _segmentStartIdx = Array.create ctrlPts.Length 0
+    let _segmentEndIdx = Array.create ctrlPts.Length 0
+
     member this.ctrlPts = ctrlPts
     member this.isClosed = isClosed
     member val startTh: float option = None with get, set
@@ -331,10 +353,7 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
         // Then enforce continuity of k between segments.
 
         let mutable totalErr = 0.
-        let mutable previousEndK = None
-        let STEPS = 8
-
-        let segmentFits = ResizeArray()
+        let mutable segmentCount = 0
 
         for i in 0 .. _points.Length - 2 do
             let point1 = _points.[i]
@@ -342,7 +361,9 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
 
             // Skip zero-length segments to avoid NaN/Inf errors
             // Use a small epsilon
-            if (point1.vec - point2.vec).norm () > 1e-4 then
+            let chordLen = (point1.vec - point2.vec).norm ()
+
+            if chordLen > 1e-4 then
                 let bez =
                     CubicBez(
                         [| point1.x
@@ -355,29 +376,31 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                            point2.y |]
                     )
 
-                let curveSamples =
-                    [ for j in 0..STEPS do
-                          let t0 = (-0.5 + float j) / (float STEPS)
-                          let t1 = (float j) / (float STEPS)
-                          let t2 = (0.5 + float j) / (float STEPS)
-                          (10000. * bez.curvature t1, (bez.eval t2 - bez.eval t0).norm ()) ]
+                let mutable cumm_dist = 0.
 
-                let ks, segmentLengths = curveSamples |> List.toArray |> Array.unzip
+                for j in 0 .. STEPS do
+                    let t0 = (float j - 0.5) / float STEPS
+                    let t1 = float j / float STEPS
+                    let t2 = (float j + 0.5) / float STEPS
 
-                let cumm_dists, max_dist =
-                    Array.mapFold (fun sum dist -> let acc = sum + dist in (acc, acc)) 0. segmentLengths
+                    let k = 10000. * bez.curvature t1
+                    // Sample segment length around t1
+                    let segLen =
+                        if j = 0 then
+                            (bez.eval (0.5 / float STEPS) - bez.eval 0.).norm ()
+                        else
+                            (bez.eval t2 - bez.eval t0).norm ()
+
+                    _ks.[j] <- k
+                    _dists.[j] <- cumm_dist
+                    cumm_dist <- cumm_dist + segLen
+
+                let max_dist = cumm_dist
 
                 // Fit line to this segment's curvature
-                let m, c, residuals = linear_regression cumm_dists ks
+                let m, c, residuals = linear_regression _dists _ks (STEPS + 1)
 
-                if
-                    Double.IsNaN m
-                    || Double.IsNaN c
-                    || Double.IsNaN residuals
-                    || Double.IsInfinity m
-                    || Double.IsInfinity c
-                    || Double.IsInfinity residuals
-                then
+                if Double.IsNaN m || Double.IsNaN c || Double.IsNaN residuals || Double.IsInfinity m || Double.IsInfinity c || Double.IsInfinity residuals then
                     totalErr <- totalErr + 1e9 // Penalty for invalid
                 else
                     // 1. Residuals from being an Euler spiral
@@ -392,23 +415,25 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     let endK = m * max_dist + c
 
                     // Store start/end indices for continuity check
-                    segmentFits.Add(startK, endK, i, i + 1)
+                    _segmentStartK.[segmentCount] <- startK
+                    _segmentEndK.[segmentCount] <- endK
+                    _segmentStartIdx.[segmentCount] <- i
+                    _segmentEndIdx.[segmentCount] <- i + 1
+                    segmentCount <- segmentCount + 1
 
         // 3. Continuity Penalties
         // Penalize jumps in curvature between segments
-        for i in 0 .. segmentFits.Count - 1 do
-            let startK, endK, startIdx, endIdx = segmentFits.[i]
-
+        for i in 0 .. segmentCount - 1 do
             if i > 0 then
-                let _, prevEndK, _, prevEndIdx = segmentFits.[i - 1]
+                let startK = _segmentStartK.[i]
+                let prevEndK = _segmentEndK.[i - 1]
+                let startIdx = _segmentStartIdx.[i]
+                let prevEndIdx = _segmentEndIdx.[i - 1]
 
                 // Check if the connection point(s) allow discontinuity (Corner)
-                // We check all points from prevEndIdx to startIdx (inclusive of boundary points logic)
-                // Usually prevEndIdx == startIdx, but if we skipped segments, there might be a gap.
-                // If ANY point in the gap (including ends) is a Corner, we break continuity.
                 let mutable isJoinSmooth = true
 
-                for k in prevEndIdx..startIdx do
+                for k in prevEndIdx .. startIdx do
                     let ty = ctrlPts.[k].ty
 
                     if ty = SplinePointType.Corner then
@@ -419,15 +444,15 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     // Weight this heavily so segments join smoothly in curvature
                     totalErr <- totalErr + gap * gap * 10.0
 
-        if isClosed && segmentFits.Count > 0 then
+        if isClosed && segmentCount > 0 then
             // Continuity between last and first
-            let _, lastEndK, _, lastEndIdx = segmentFits.[segmentFits.Count - 1]
-            let firstStartK, _, firstStartIdx, _ = segmentFits.[0]
+            let lastEndK = _segmentEndK.[segmentCount - 1]
+            let lastEndIdx = _segmentEndIdx.[segmentCount - 1]
+            let firstStartK = _segmentStartK.[0]
+            let firstStartIdx = _segmentStartIdx.[0]
 
-            // Check boundary points for Corner (from lastEndIdx to end of array, and 0 to firstStartIdx)
+            // Check boundary points for Corner
             let mutable isJoinSmooth = true
-            // Check wrap-around gap: lastEndIdx -> end, 0 -> firstStartIdx
-            // Actually, logical path is lastEndIdx -> ... -> Length-1 -> loop -> 0 -> ... -> firstStartIdx
 
             for k in lastEndIdx .. _points.Length - 1 do
                 let ty = ctrlPts.[k].ty
@@ -435,7 +460,7 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 if ty = SplinePointType.Corner then
                     isJoinSmooth <- false
 
-            for k in 0..firstStartIdx do
+            for k in 0 .. firstStartIdx do
                 let ty = ctrlPts.[k].ty
 
                 if ty = SplinePointType.Corner then
