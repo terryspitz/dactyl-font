@@ -157,6 +157,46 @@ type FontTests() =
         Assert.That(mCount, Is.GreaterThanOrEqualTo(1), "B should have at least one outline path")
 
     [<Test>]
+    member this.SpiroOutline_SimpleGlyphs_RendersWithoutException() =
+        // Spiro outlines for simple glyphs that have 2-knot open strokes ('i', 'l', '1').
+        // These previously crashed in collapseHandleSegments dropping the last segment,
+        // leaving only 1 segment and causing IndexOutOfRangeException in strokeSegments.
+        let font =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = false
+                    spline2 = false
+                    outline = true }
+            )
+
+        for ch in [ 'i'; 'l'; '1'; '-' ] do
+            let svg = font.charToSvg ch 0.0 0.0 "black"
+            let svgStr = String.concat " " svg
+            Assert.That(svgStr, Does.Contain("M "), sprintf "Spiro outline for '%c' should contain a moveto" ch)
+            Assert.That(svgStr, Does.Not.Contain("stroke:#e00000"), sprintf "Spiro outline for '%c' should not indicate failure" ch)
+
+    [<Test>]
+    member this.Spline2Outline_SimpleGlyphs_RendersWithoutException() =
+        // Spline2 outlines for simple glyphs with open strokes.
+        // Two bugs previously caused crashes: collapseHandleSegments dropping the last
+        // segment, and elementToSpline2 creating a garbage wraparound segment for open curves.
+        // Note: spline2 mode always emits a tangent layer with stroke:#e00000, so we check
+        // for valid path output and absence of NaN coordinates instead.
+        let font =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = false
+                    spline2 = true
+                    outline = true }
+            )
+
+        for ch in [ 'i'; 'l'; '1'; 'B'; 'o' ] do
+            let svg = font.charToSvg ch 0.0 0.0 "black"
+            let svgStr = String.concat " " svg
+            Assert.That(svgStr, Does.Contain("M "), sprintf "Spline2 outline for '%c' should contain a moveto" ch)
+            Assert.That(svgStr, Does.Not.Contain("NaN"), sprintf "Spline2 outline for '%c' should not contain NaN coordinates" ch)
+
+    [<Test>]
     member this.EGlyph_BackboneIsStraight_Dactyl() = this.verifyEGlyphBackbone (true, false)
 
     [<Test>]
