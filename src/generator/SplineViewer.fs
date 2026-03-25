@@ -44,28 +44,29 @@ let splineStaticPage () =
                 let spline = DactylSpline(ctrlPts, false)
                 let debug: bool = false
                 let spline2Font = Font({ Axes.DefaultAxes with spline2 = true })
+                let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, debug, false, false)
 
                 [ sprintf "<g id='%d'>" i
-                  sprintf "<text x='%.1f' y='%d' font-size='0.2'>%d</text>" 0.5 (i + 1) i
+                  sprintf "<text x='%f' y='%d' font-size='0.2'>%d</text>" 0.5 (i + 1) i
+                  "</g>"
+                  sprintf "<g id='%d'><!--DactylSpline-->" (i + 100)
                   sprintf "<path d='" ]
-                @ let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, debug, false, false) in
-
-                  svg
-                  @ [ sprintf "' transform='translate(%d,%d) scale(0.9, 0.9)'" x (i + 1)
-                      "style='fill:none;stroke:#000000;stroke-width:0.1'/>"
-                      "</g>"
-                      sprintf "<g id='%d'>" (i + 1000)
-                      sprintf "<path d='" ]
-                  @ spline2PtsToSvg spline2Font spline.ctrlPts
-                  @ [ sprintf "'"
-                      sprintf
-                          "transform='translate(%d,%d) scale(%.0f, %.0f)'"
-                          x
-                          (i + 1)
-                          (0.9 / SPLINE2SCALE)
-                          (0.9 / SPLINE2SCALE)
-                      "style='fill:none;stroke:#40000060;stroke-width:1'/>"
-                      "</g>" ]
+                @ svg
+                @ [ sprintf "' transform='translate(%d,%d) scale(0.0009, 0.0009)'" x (i + 1)
+                    "style='fill:none;stroke:#000000;stroke-width:50'/>"
+                    "</g>" ]
+                @ [ sprintf "<g id='%d'><!--spline2-->" (i + 200) 
+                    sprintf "<path d='" ]
+                @ spline2PtsToSvg spline2Font spline.ctrlPts
+                @ [ sprintf "'"
+                    sprintf
+                        "transform='translate(%d,%d) scale(%f, %f)'"
+                        x
+                        (i + 1)
+                        (0.0009 / SPLINE2SCALE)
+                        (0.0009 / SPLINE2SCALE)
+                    "style='fill:none;stroke:#40000060;stroke-width:10'/>"
+                    "</g>" ]
             with ex ->
                 printfn "ERROR in one_example (i=%d, x=%d): %s" i x ex.Message
                 []
@@ -75,29 +76,29 @@ let splineStaticPage () =
               // left point theta rotates 0-180
               let ctrlPts =
                   [| dcp SplinePointType.Corner 0. 0. (Some(PI * float (i) / float (curves)))
-                     dcp SplinePointType.Corner 1. 0. None |]
+                     dcp SplinePointType.Corner 1000. 0. None |]
 
               yield! one_example ctrlPts i 1
 
               // both points theta rotate 0-180
               let ctrlPts2 =
                   [| dcp SplinePointType.Corner 0. 0. (Some(PI * float (i) / float (curves)))
-                     dcp SplinePointType.Corner 1. 0. (Some(PI * float (i) / float (curves))) |]
+                     dcp SplinePointType.Corner 1000. 0. (Some(PI * float (i) / float (curves))) |]
 
               yield! one_example ctrlPts2 i 2
 
               // left point theta rotates 0-180, right point theta rotates 0 to -180
               let ctrlPts3 =
                   [| dcp SplinePointType.Corner 0. 0. (Some(PI * float (i) / float (curves)))
-                     dcp SplinePointType.Corner 1. 0. (Some(PI * float (-i) / float (curves))) |]
+                     dcp SplinePointType.Corner 1000. 0. (Some(PI * float (-i) / float (curves))) |]
 
               yield! one_example ctrlPts3 i 3
 
               // f-shape
               let ctrlPts4 =
                   [| dcp SplinePointType.Corner 0. 0. None
-                     dcp SplinePointType.LineToCurve 0.2 0. None
-                     dcp SplinePointType.Corner 1. (float (i) / float (curves)) None |]
+                     dcp SplinePointType.LineToCurve 200. 0. None
+                     dcp SplinePointType.Corner 1000. (float (i) / float (curves)) None |]
 
               yield! one_example ctrlPts4 i 4 ]
 
