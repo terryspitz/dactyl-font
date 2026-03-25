@@ -214,6 +214,44 @@ let linear_regression (xs: float array) (ys: float array) count =
 
         m, c, residuals
 
+
+let getCurvature (p0x, p0y) (p1x, p1y) (p2x, p2y) (p3x, p3y) t =
+    let t1 = 1.0 - t
+    // First derivative
+    let c0 = 3.0 * t1 * t1
+    let c1 = 6.0 * t1 * t
+    let c2 = 3.0 * t * t
+    let dx = c0 * (p1x - p0x) + c1 * (p2x - p1x) + c2 * (p3x - p2x)
+    let dy = c0 * (p1y - p0y) + c1 * (p2y - p1y) + c2 * (p3y - p2y)
+
+    // Second derivative
+    let c0_2 = 6.0 * t1
+    let c1_2 = 6.0 * t
+    let d2x = c0_2 * (p2x - 2.0 * p1x + p0x) + c1_2 * (p3x - 2.0 * p2x + p1x)
+    let d2y = c0_2 * (p2y - 2.0 * p1y + p0y) + c1_2 * (p3y - 2.0 * p2y + p1y)
+
+    let den = dx * dx + dy * dy
+    if den < 1e-9 then 0.0
+    else (dx * d2y - dy * d2x) / (den ** 1.5)
+
+
+let getHandleHeuristic th0 th1 chordLen =
+    // Inspired by Raph Levien's Spiro / Spline2 heuristics
+    let offset = 0.3 * sin (th1 * 2. - 0.4 * sin (th1 * 2.))
+    let scale = 1.0 / (3. * 0.8)
+    let len = scale * (cos (th0 - offset) - 0.2 * cos (3. * (th0 - offset)))
+    len * chordLen
+
+
+let getBezPt (p0x, p0y) (p1x, p1y) (p2x, p2y) (p3x, p3y) t =
+    let t1 = 1.0 - t
+    let c0 = t1 * t1 * t1
+    let c1 = 3.0 * t1 * t1 * t
+    let c2 = 3.0 * t1 * t * t
+    let c3 = t * t * t
+    { x = c0 * p0x + c1 * p1x + c2 * p2x + c3 * p3x
+      y = c0 * p0y + c1 * p1y + c2 * p2y + c3 * p3y }
+
 type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug: bool) =
     let _points: BezierPoint array = Array.init ctrlPts.Length (fun _ -> BezierPoint())
     let STEPS = 8
@@ -273,8 +311,8 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
         for i in 0 .. ctrlPts.Length - 1 do
             let point = _points.[i]
             let ctrlPt = ctrlPts.[i]
-            let mutable dpl = point.vec - _points.[max (i - 1) 0].vec //pointing from previous point to this
-            let mutable dpr = _points.[min (i + 1) (_points.Length - 1)].vec - point.vec
+            let dpl = point.vec - _points.[max (i - 1) 0].vec //pointing from previous point to this
+            let dpr = _points.[min (i + 1) (_points.Length - 1)].vec - point.vec
 
             match ctrlPt.th_in, ctrlPt.th_out with
             | Some th_i, Some th_o ->
@@ -303,12 +341,9 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 let new_th =
                     if i = 0 then
                         if isClosed then
-                            // For closed splines, the 'previous' point for the first point (i=0)
-                            // is the point before the final duplicate point (at Length-2).
-                            // e.g. [p0; p1; p2; p0] has Length=4, p3 is at index 2 (Length-2).
-                            dpl <- point.vec - _points.[_points.Length - 2].vec
-                            let lth = dpl.atan2 ()
-                            averageAngles rth lth
+                            let dpl_closed = point.vec - _points.[_points.Length - 2].vec
+                            let lth_closed = dpl_closed.atan2 ()
+                            averageAngles rth lth_closed
                         elif ctrlPts.Length > 2 then
                             // Extrapolate tangent from first two segments
                             let dpr2 = _points.[2].vec - _points.[1].vec
@@ -318,9 +353,9 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                             rth
                     elif i = ctrlPts.Length - 1 then
                         if isClosed then
-                            dpr <- _points.[1].vec - _points.[0].vec
-                            let rth = dpr.atan2 ()
-                            averageAngles rth lth
+                            let dpr_closed = _points.[1].vec - _points.[0].vec
+                            let rth_closed = dpr_closed.atan2 ()
+                            averageAngles rth_closed lth
                         elif ctrlPts.Length > 2 then
                             let dpl2 = _points.[i - 1].vec - _points.[i - 2].vec
                             let lth2 = dpl2.atan2 ()
@@ -333,8 +368,25 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 point.th_in <- new_th
                 point.th_out <- new_th
 
-            point.ld <- dpl.norm () / 3.
-            point.rd <- dpr.norm () / 3.
+        // Initialise handle lengths
+        for i in 0 .. _points.Length - 2 do
+            let p1 = _points.[i]
+            let p2 = _points.[i + 1]
+            let chord = p2.vec - p1.vec
+            let chordLen = chord.norm ()
+
+            if chordLen > 1e-4 then
+                let chordAngle = chord.atan2 ()
+                let th0 = norm (p1.th_out - chordAngle)
+                let th1 = norm (p2.th_in - chordAngle)
+                p1.rd <- getHandleHeuristic th0 th1 chordLen
+                p2.ld <- getHandleHeuristic th1 th0 chordLen
+            else
+                p1.rd <- chordLen / 3.0
+                p2.ld <- chordLen / 3.0
+
+        for i in 0 .. ctrlPts.Length - 1 do
+            let point = _points.[i]
 
             if i = 0 then
                 point.fit_ld <- false
@@ -364,17 +416,10 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             let chordLen = (point1.vec - point2.vec).norm ()
 
             if chordLen > 1e-4 then
-                let bez =
-                    CubicBez(
-                        [| point1.x
-                           point1.y
-                           point1.rpt().x
-                           point1.rpt().y
-                           point2.lpt().x
-                           point2.lpt().y
-                           point2.x
-                           point2.y |]
-                    )
+                let p0 = (point1.x, point1.y)
+                let p1 = (point1.rpt().x, point1.rpt().y)
+                let p2 = (point2.lpt().x, point2.lpt().y)
+                let p3 = (point2.x, point2.y)
 
                 let mutable cumm_dist = 0.
 
@@ -383,13 +428,22 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     let t1 = float j / float STEPS
                     let t2 = (float j + 0.5) / float STEPS
 
-                    let k = 10000. * bez.curvature t1
+                    let k = 10000. * getCurvature p0 p1 p2 p3 t1
+
                     // Sample segment length around t1
                     let segLen =
                         if j = 0 then
-                            (bez.eval (0.5 / float STEPS) - bez.eval 0.).norm ()
+                            let p_start = getBezPt p0 p1 p2 p3 0.
+                            let p_half = getBezPt p0 p1 p2 p3 (0.5 / float STEPS)
+                            let dx = p_half.x - p_start.x
+                            let dy = p_half.y - p_start.y
+                            sqrt (dx * dx + dy * dy)
                         else
-                            (bez.eval t2 - bez.eval t0).norm ()
+                            let p_low = getBezPt p0 p1 p2 p3 t0
+                            let p_high = getBezPt p0 p1 p2 p3 t2
+                            let dx = p_high.x - p_low.x
+                            let dy = p_high.y - p_low.y
+                            sqrt (dx * dx + dy * dy)
 
                     _ks.[j] <- k
                     _dists.[j] <- cumm_dist

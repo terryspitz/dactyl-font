@@ -23,7 +23,11 @@ let dcp = DactylSpline.dcp
 let spline2PtsToSvg (spline2Font: Font) (ctrlPts: DControlPoint seq) =
     let spline2CtrlPts =
         [ for (pt: DControlPoint) in ctrlPts do
-              ({ y = (SPLINE2SCALE * pt.y.Value); x = (SPLINE2SCALE * pt.x.Value); y_fit = false; x_fit = false }, splineToSpiroPointType pt.ty) ]
+              ({ y = (SPLINE2SCALE * pt.y.Value)
+                 x = (SPLINE2SCALE * pt.x.Value)
+                 y_fit = false
+                 x_fit = false },
+               splineToSpiroPointType pt.ty) ]
 
     let (svg, _, _) = spline2Font.Spline2PtsToSvg spline2CtrlPts false
     svg
@@ -106,17 +110,17 @@ let splineStaticPage () =
 
                   try
                       let debug: bool = false // (i = 0)
-                      let iter = i * 3
-                      let scale = if x >= 6 then 0.0009 else 0.9
-                      let strokeWidth = if x >= 6 then 50.0 else 0.05
+                      let iter = i * 30
+                      let scale = 0.0009
+                      let strokeWidth = 50.
                       // let iter = if x >= 7 then max 1 (i * 50) else max 1 (i * 3)
 
                       [ sprintf "<g id='%d'>" i; sprintf "<path d='" ]
                       @ let svg, _, _ = spline.solveAndRenderSvg (iter, 1.0, debug, false, false) in
 
                         svg
-                        @ [ sprintf "' transform='translate(%d,%d) scale(%.0f, %.0f)'" x (i + 1) scale scale
-                            sprintf "style='fill:none;stroke:#000000;stroke-width:%.0f'/>" strokeWidth
+                        @ [ sprintf "' transform='translate(%d,%d) scale(%f, %f)'" x (i + 1) scale scale
+                            sprintf "style='fill:none;stroke:#000000;stroke-width:%f'/>" strokeWidth
                             "</g>" ]
                         @ (if SHOW_LEGACY_SPLINE then
                                [ sprintf "<g id='%d'>" (i + 1000); sprintf "<path d='" ]
@@ -135,8 +139,8 @@ let splineStaticPage () =
                   splineOf
                       (DactylSpline(
                           [| dcp SplinePointType.Corner 0. 0. None
-                             dcp SplinePointType.Smooth 0.5 0.8 None
-                             dcp SplinePointType.Corner 1. 0. None |],
+                             dcp SplinePointType.Smooth 500. 800. None
+                             dcp SplinePointType.Corner 1000. 0. None |],
                           false
                       ))
                       5
