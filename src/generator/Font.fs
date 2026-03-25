@@ -1336,7 +1336,7 @@ type Font(axes: Axes) =
               let margin = thickness * 2.0 // Changed to float multiplication
 
               sprintf
-                  "<rect x='%f' y='%f' width='%f' height='%f'/>"
+                  "<rect x='%.0f' y='%.0f' width='%.0f' height='%.0f'/>"
                   (-margin)
                   (_metrics.D - margin)
                   (float (this.width element) + margin)
@@ -1347,9 +1347,9 @@ type Font(axes: Axes) =
           "d='" ]
         @ svg
         @ [ "'"
-            sprintf "transform='translate(%f,%f) scale(1,-1)'" (float offsetX) (float offsetY)
+            sprintf "transform='translate(%.0f,%.0f) scale(1,-1)'" (float offsetX) (float offsetY)
             sprintf
-                "style='fill:%s;fill-rule:%s;stroke:%s;stroke-width:%f'"
+                "style='fill:%s;fill-rule:%s;stroke:%s;stroke-width:%.0f'"
                 fillStyle
                 fillrule
                 fillColour
@@ -1363,7 +1363,7 @@ type Font(axes: Axes) =
               [ "<g class='comb-layer'>"; "<path "; "d='" ]
               @ combSvg
               @ [ "'"
-                  sprintf "transform='translate(%f,%f) scale(1,-1)'" (float offsetX) (float offsetY)
+                  sprintf "transform='translate(%.0f,%.0f) scale(1,-1)'" (float offsetX) (float offsetY)
                   sprintf "style='fill:none;stroke:#000000;stroke-width:1'" // Black, min thickness (1px)
                   "/>"
                   "</g>" ]
@@ -1374,7 +1374,7 @@ type Font(axes: Axes) =
               [ "<g class='tangent-layer'>"; "<path "; "d='" ]
               @ tangentSvg
               @ [ "'"
-                  sprintf "transform='translate(%f,%f) scale(1,-1)'" (float offsetX) (float offsetY)
+                  sprintf "transform='translate(%.0f,%.0f) scale(1,-1)'" (float offsetX) (float offsetY)
                   sprintf "style='fill:none;stroke:#e00000;stroke-width:2'" // Red
                   "/>"
                   "</g>" ]

@@ -379,7 +379,7 @@ let generateVisualDiffsSvg (text: string) (axes: Axes) (progress: (float -> unit
 
     let keySvg =
         [ sprintf
-              "<text x='0' y='%f' font-size='%s' fill='black'>Key:\nLeft = Old Spline, Middle = New Spline, Right = Overlaid Diff (Red=Old, Blue=New)</text>"
+              "<text x='0' y='%.0f' font-size='%s' fill='black'>Key:\nLeft = Old Spline, Middle = New Spline, Right = Overlaid Diff (Red=Old, Blue=New)</text>"
               (cellHeight / 2.0)
               keyFontSize ]
 

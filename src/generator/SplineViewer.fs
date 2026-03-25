@@ -42,7 +42,7 @@ let splineStaticPage () =
                 let spline2Font = Font({ Axes.DefaultAxes with spline2 = true })
 
                 [ sprintf "<g id='%d'>" i
-                  sprintf "<text x='%f' y='%d' font-size='0.2'>%d</text>" 0.5 (i + 1) i
+                  sprintf "<text x='%.1f' y='%d' font-size='0.2'>%d</text>" 0.5 (i + 1) i
                   sprintf "<path d='" ]
                 @ let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, debug, false, false) in
 
@@ -55,7 +55,7 @@ let splineStaticPage () =
                   @ spline2PtsToSvg spline2Font spline.ctrlPts
                   @ [ sprintf "'"
                       sprintf
-                          "transform='translate(%d,%d) scale(%f, %f)'"
+                          "transform='translate(%d,%d) scale(%.0f, %.0f)'"
                           x
                           (i + 1)
                           (0.9 / SPLINE2SCALE)
@@ -115,8 +115,8 @@ let splineStaticPage () =
                       @ let svg, _, _ = spline.solveAndRenderSvg (iter, 1.0, debug, false, false) in
 
                         svg
-                        @ [ sprintf "' transform='translate(%d,%d) scale(%f, %f)'" x (i + 1) scale scale
-                            sprintf "style='fill:none;stroke:#000000;stroke-width:%f'/>" strokeWidth
+                        @ [ sprintf "' transform='translate(%d,%d) scale(%.0f, %.0f)'" x (i + 1) scale scale
+                            sprintf "style='fill:none;stroke:#000000;stroke-width:%.0f'/>" strokeWidth
                             "</g>" ]
                         @ (if SHOW_LEGACY_SPLINE then
                                [ sprintf "<g id='%d'>" (i + 1000); sprintf "<path d='" ]

@@ -1,4 +1,4 @@
-﻿// /*
+// /*
 // SpiroNet.Editor
 // Copyright (C) 2019 Wiesław Šoltés
 
@@ -37,10 +37,7 @@ open IBezierContext
 /// <param name="value"></param>
 /// <returns></returns>
 let Format (value : float) =
-    // value.ToString("F1", ToStringCulture)
-    // value.ToString("F1")
-    // sprintf "%d" (int value)
-    (int value).ToString()
+    (Math.Round value).ToString("F0")
 
 /// <summary>
 /// Bezier context implementation that handles the creation of Path data representation of bézier splines.
