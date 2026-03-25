@@ -235,14 +235,6 @@ let getCurvature (p0x, p0y) (p1x, p1y) (p2x, p2y) (p3x, p3y) t =
     else (dx * d2y - dy * d2x) / (den ** 1.5)
 
 
-let getHandleHeuristic th0 th1 chordLen =
-    // Inspired by Raph Levien's Spiro / Spline2 heuristics
-    let offset = 0.3 * sin (th1 * 2. - 0.4 * sin (th1 * 2.))
-    let scale = 1.0 / (3. * 0.8)
-    let len = scale * (cos (th0 - offset) - 0.2 * cos (3. * (th0 - offset)))
-    len * chordLen
-
-
 let getBezPt (p0x, p0y) (p1x, p1y) (p2x, p2y) (p3x, p3y) t =
     let t1 = 1.0 - t
     let c0 = t1 * t1 * t1
@@ -368,22 +360,13 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 point.th_in <- new_th
                 point.th_out <- new_th
 
-        // Initialise handle lengths
+        // Initialise handle lengths to chord/3 (simple, always positive, good convergence)
         for i in 0 .. _points.Length - 2 do
             let p1 = _points.[i]
             let p2 = _points.[i + 1]
-            let chord = p2.vec - p1.vec
-            let chordLen = chord.norm ()
-
-            if chordLen > 1e-4 then
-                let chordAngle = chord.atan2 ()
-                let th0 = norm (p1.th_out - chordAngle)
-                let th1 = norm (p2.th_in - chordAngle)
-                p1.rd <- getHandleHeuristic th0 th1 chordLen
-                p2.ld <- getHandleHeuristic th1 th0 chordLen
-            else
-                p1.rd <- chordLen / 3.0
-                p2.ld <- chordLen / 3.0
+            let chordLen = (p2.vec - p1.vec).norm ()
+            p1.rd <- chordLen / 3.0
+            p2.ld <- chordLen / 3.0
 
         for i in 0 .. ctrlPts.Length - 1 do
             let point = _points.[i]
