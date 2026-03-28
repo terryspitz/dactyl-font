@@ -38,6 +38,7 @@ function App() {
     tangents: true,
     labels: true,
   })
+  const [glyphsFilled, setGlyphsFilled] = useState(false)
   const [legendPos, setLegendPos] = useState({ x: 0, y: 0 })
   const isDraggingRef = useRef(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
@@ -233,7 +234,7 @@ function App() {
       args = [text, axes]
     } else if (activeTab === 'glyphs') {
       typeReq = 'glyphsFromDefs'
-      args = [glyphsDefsText, axes]
+      args = [glyphsDefsText, { ...axes, filled: glyphsFilled }]
     } else if (activeTab === 'tweens') {
       const char = text.length > 0 ? text[0] : 'a'
       typeReq = 'tweens'
@@ -254,7 +255,7 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, glyphsDefsText])
+  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled])
 
   const renderContent = () => {
     if (error) return <div style={{ color: 'red' }}>Error: {error}</div>
@@ -618,6 +619,14 @@ function App() {
               <span className="swatch lightBlue circle"></span>
               <span className="swatch lightGreen circle"></span>
               Knots
+            </div>
+            <div className="legend-item">
+              <input
+                type="checkbox"
+                checked={glyphsFilled}
+                onChange={e => setGlyphsFilled(e.target.checked)}
+              />
+              Filled
             </div>
           </div>
         )}
