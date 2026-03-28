@@ -808,9 +808,8 @@ type DactylSpline(ctrlPts, isClosed) =
 
         result
 
-    member this.solveAndRenderSvg(maxIter, flatness, debug, showComb, showTangents) =
+    member this.renderFromPoints(bezPts: BezierPoint[], showComb, showTangents) =
         let length = ctrlPts.Length - if isClosed then 0 else 1
-        let bezPts = this.solveAndGetPoints (maxIter, flatness, debug)
 
         let path = BezPath()
         let combPath = BezPath()
@@ -858,7 +857,7 @@ type DactylSpline(ctrlPts, isClosed) =
                         // Render curvature comb
                         let bez = CubicBez([| p1.x; p1.y; cp1x; cp1y; cp2x; cp2y; p2.x; p2.y |])
                         let COMB_STEPS = 20
-                        let SCALE = 2000.0
+                        let SCALE = 10000.0
 
                         for s in 0..COMB_STEPS do
                             let t = float s / float COMB_STEPS
@@ -902,48 +901,12 @@ type DactylSpline(ctrlPts, isClosed) =
 
         (path.tostringlist (), combPath.tostringlist (), tangentPath.tostringlist ())
 
+    member this.solveAndRenderSvg(maxIter, flatness, debug, showComb, showTangents) =
+        let bezPts = this.solveAndGetPoints (maxIter, flatness, debug)
+        this.renderFromPoints(bezPts, showComb, showTangents)
 
-// member this.renderSvg show_tangents =
-//     let path = BezPath()
-//     if ctrlPts.Length = 0 then "" else
-//     let pt0 = ctrlPts.[0] in path.moveto(pt0.pt.x, pt0.pt.y)
-//     let length = ctrlPts.Length - if this.isClosed then 0 else 1
-//     for i in 0..length-1 do
-//         path.mark i
-//         let ptI = this.pt(i, 0)
-//         let ptI1 = this.pt(i + 1, 0)
-//         let dx = ptI1.pt.x - ptI.pt.x
-//         let dy = ptI1.pt.y - ptI.pt.y
-//         let chth = atan2 dy dx
-//         let chord = hypot(dy, dx)
-//         let th0 = mod2pi(ptI.rTh - chth)
-//         let th1 = mod2pi(chth - ptI1.lTh)
-//         // Apply curvature blending
-//         let k0 = Option.map (fun k->k*chord) ptI.kBlend
-//         let k1 = Option.map (fun k->k*chord) ptI1.kBlend
-//         let render = this.curve.render4(th0, th1, k0, k1)
-//         let c =
-//             [|
-//                 for j in 0..render.Length-1 do
-//                     let pt = render.[j]
-//                     yield ptI.pt.x + dx * pt.x - dy * pt.y
-//                     yield ptI.pt.y + dy * pt.x + dx * pt.y
-//                 yield ptI1.pt.x
-//                 yield ptI1.pt.y
-//             |]
-//         for j in 0..6..c.Length-1 do
-//             path.curveto(c.[j], c.[j + 1], c.[j + 2], c.[j + 3], c.[j + 4], c.[j + 5])
-//     if this.isClosed then
-//         path.closepath()
+    member this.solveAndRenderFull(maxIter, flatness, debug, showComb, showTangents) =
+        let bezPts = this.solveAndGetPoints (maxIter, flatness, debug)
+        let pathSvg, combSvg, tangentSvg = this.renderFromPoints(bezPts, showComb, showTangents)
+        (bezPts, pathSvg, combSvg, tangentSvg)
 
-//     //terryspitz: also render tangents in SVG
-//     if show_tangents then
-//         for i in 1..length-1 do
-//             path.mark i
-//             let ptI = this.pt(i, 0)
-//             let offset = 100.
-//             // path.moveto(ptI.pt.x, ptI.pt.y)
-//             // path.lineto(ptI.pt.x + offset*cos(-ptI1.lTh), ptI.pt.y + offset*sin(-ptI1.lTh))
-//             path.moveto(ptI.pt.x, ptI.pt.y)
-//             path.lineto(ptI.pt.x + offset*cos(ptI.lTh), ptI.pt.y + offset*sin(ptI.lTh))
-//     path.tostring()
