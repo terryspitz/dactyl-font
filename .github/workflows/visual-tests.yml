@@ -46,16 +46,8 @@ jobs:
       - name: Build web app
         run: cd web && npm run build
 
-      - name: Run visual tests (generate baselines if missing, compare otherwise)
-        run: |
-          cd web
-          SNAPSHOTS_DIR="tests/__snapshots__/visual.spec.js-snapshots"
-          if [ ! -d "$SNAPSHOTS_DIR" ] || [ -z "$(ls -A "$SNAPSHOTS_DIR" 2>/dev/null)" ]; then
-            echo "No baselines found — generating initial snapshots"
-            npm run test:visual:update
-          else
-            npm run test:visual
-          fi
+      - name: Run visual tests
+        run: cd web && npm run test:visual:update
 
       - name: Commit new baselines to branch
         if: github.event_name == 'push'
