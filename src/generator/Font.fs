@@ -885,11 +885,11 @@ type Font(axes: Axes) =
                                           x = k.pt.x + r * dxNext / distNext
                                           y_fit = false; x_fit = false }
                             result.Add({ k with pt = inPt; ty = CurveToLine
-                                                 th_out = k.th_in })
+                                                th_out = k.th_in })
                             result.Add({ k with ty = G2
-                                                 th_in = None; th_out = None })
+                                                th_in = None; th_out = None })
                             result.Add({ k with pt = outPt; ty = LineToCurve
-                                                 th_in = k.th_out })
+                                                th_in = k.th_out })
             List.ofSeq result
 
     /// Apply roundCorners to an Element (Curve or EList of Curves).
