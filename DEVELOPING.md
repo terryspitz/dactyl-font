@@ -42,6 +42,8 @@ and compare against saved baseline PNGs.
 # Build first (tests run against the production build via vite preview)
 dotnet fable src/explorer --outDir web/src/lib/fable
 cd web
+npm ci
+npx playwright install chromium
 npm run build
 
 # Run tests (compare against baselines)
