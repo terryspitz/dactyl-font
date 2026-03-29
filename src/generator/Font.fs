@@ -101,62 +101,6 @@ type Font(axes: Axes) =
           seg_ch = seg.seg_ch
           Type = seg.Type }
 
-    /// Collapse CurveToLine→Corner→LineToCurve handle triplets (inserted by
-    /// elementToSpiros for tangent enforcement) back into single Corner segments.
-    /// The handles are only ~1 unit from the anchor and create micro-segments
-    /// that break the outline offset geometry. By collapsing them and recalculating
-    /// the chord length (seg_ch), we restore the correct geometry
-    /// while preserving the forced tangents.
-    let collapseHandleSegments (segs: Segment list) =
-        let arr = Array.ofList segs
-        let n = arr.Length
-        let result = System.Collections.Generic.List<Segment>()
-        let mutable i = 0
-
-        while i < n - 1 do
-            let curr = arr.[i]
-            let next = arr.[i + 1]
-            let next2 = if i + 2 < n then Some arr.[i + 2] else None
-
-            // Rule 1: Arriving curve (curr) followed by Handle_in micro-segment (next: Left -> Corner)
-            // Merge next into curr so the segment ends at the Anchor (next.End = next2.Start)
-            if
-                next.Type = SpiroPointType.Left
-                && next2.IsSome
-                && next2.Value.Type = SpiroPointType.Corner
-            then
-                let anchor = next2.Value
-                let dx, dy = anchor.X - curr.X, anchor.Y - curr.Y
-
-                let s =
-                    { curr with
-                        seg_ch = hypot dx dy
-                        tangentEnd = next.tangentEnd }
-
-                result.Add(s)
-                i <- i + 2
-
-            // Rule 2: Anchor segment (curr: Corner -> Right) followed by Handle_out micro-segment (next: Right -> Next)
-            // Merge next into curr so the segment starts at Anchor and ends at Next knot (next.End = next2.Start)
-            elif curr.Type = SpiroPointType.Corner && next.Type = SpiroPointType.Right then
-                let dx, dy = next.X - curr.X, next.Y - curr.Y
-
-                let s =
-                    { next with
-                        X = curr.X
-                        Y = curr.Y
-                        Type = curr.Type // Preserve the original knot type (Corner)
-                        seg_ch = next.seg_ch + hypot dx dy }
-
-                result.Add(s)
-                i <- i + 2
-            else
-                result.Add(curr)
-                i <- i + 1
-
-        if i < n then result.Add(arr.[i])
-        List.ofSeq result
-
     let rec elementToSpiros elem =
         let makeSCP (pt: Point, ty) = { SCP.X = pt.x; Y = pt.y; Type = ty }
 
@@ -755,22 +699,6 @@ type Font(axes: Axes) =
                 th_in = t
                 th_out = t
                 label = None } ]
-        | SpiroPointType.Anchor when reverse -> [] //reverse both points in Handle, er, handler
-        | SpiroPointType.Handle when reverse ->
-            let oldAnchor = segmentAddPolar lastSeg (lastSeg.tangentStart + angle) dist
-            let oldHandle = segmentAddPolar seg (seg.tangentStart + angle) dist
-            let newHandle = oldAnchor + (oldAnchor - oldHandle)
-
-            [ { pt = newHandle
-                ty = SpiroPointType.Handle
-                th_in = None
-                th_out = None
-                label = None }
-              { pt = oldAnchor
-                ty = SpiroPointType.Anchor
-                th_in = None
-                th_out = None
-                label = None } ]
         | _ ->
             let t = Some seg.tangentStart
 
@@ -867,12 +795,12 @@ type Font(axes: Axes) =
         let spiroToOutline spiro =
             match spiro with
             | SpiroOpenCurve(segments) ->
-                let segs = List.map toSegment segments |> collapseHandleSegments
+                let segs = List.map toSegment segments
 
                 this.strokeSegments segs fthickness startCap endCap false
                 |> List.map clearElemTangents
             | SpiroClosedCurve(segments) ->
-                let segs = List.map toSegment segments |> collapseHandleSegments
+                let segs = List.map toSegment segments
 
                 this.strokeSegments segs fthickness startCap endCap true
                 |> List.map clearElemTangents
