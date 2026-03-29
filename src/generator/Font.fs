@@ -884,9 +884,13 @@ type Font(axes: Axes) =
                             let outPt = { y = k.pt.y + r * dyNext / distNext
                                           x = k.pt.x + r * dxNext / distNext
                                           y_fit = false; x_fit = false }
-                            result.Add({ k with pt = inPt; ty = LineToCurve
+                            // Use LineToCurve/CurveToLine when neighbor is a Corner
+                            // (preserves straight line), G2 otherwise (preserves curve)
+                            let inType = if prev.ty = Corner then LineToCurve else G2
+                            let outType = if next.ty = Corner then CurveToLine else G2
+                            result.Add({ k with pt = inPt; ty = inType
                                                  th_in = None; th_out = None })
-                            result.Add({ k with pt = outPt; ty = CurveToLine
+                            result.Add({ k with pt = outPt; ty = outType
                                                  th_in = None; th_out = None })
             List.ofSeq result
 
