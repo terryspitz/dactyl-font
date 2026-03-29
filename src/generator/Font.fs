@@ -889,38 +889,18 @@ type Font(axes: Axes) =
                             result.Add(k)
                         else
                             // Pull-back points along incoming and outgoing directions
-                            let inPt =
-                                { y = k.pt.y + r * dyPrev / distPrev
-                                  x = k.pt.x + r * dxPrev / distPrev
-                                  y_fit = false
-                                  x_fit = false }
-
-                            let outPt =
-                                { y = k.pt.y + r * dyNext / distNext
-                                  x = k.pt.x + r * dxNext / distNext
-                                  y_fit = false
-                                  x_fit = false }
-                            // Use LineToCurve/CurveToLine when neighbor is a Corner
-                            // (preserves straight line), G2 otherwise (preserves curve)
-                            let inType = if prev.ty = Corner then LineToCurve else G2
-                            let outType = if next.ty = Corner then CurveToLine else G2
-                            // Preserve incoming tangent on inPt, outgoing tangent on outPt
-                            result.Add(
-                                { k with
-                                    pt = inPt
-                                    ty = inType 
-                                    th_in = k.th_in
-                                    th_out = None }
-                            )
-
-                            result.Add(
-                                { k with
-                                    pt = outPt
-                                    ty = outType
-                                    th_in = None
-                                    th_out = k.th_out }
-                            )
-
+                            let inPt = { y = k.pt.y + r * dyPrev / distPrev
+                                         x = k.pt.x + r * dxPrev / distPrev
+                                         y_fit = false; x_fit = false }
+                            let outPt = { y = k.pt.y + r * dyNext / distNext
+                                          x = k.pt.x + r * dxNext / distNext
+                                          y_fit = false; x_fit = false }
+                            result.Add({ k with pt = inPt; ty = CurveToLine
+                                                th_out = k.th_in })
+                            result.Add({ k with ty = G2
+                                                th_in = None; th_out = None })
+                            result.Add({ k with pt = outPt; ty = LineToCurve
+                                                th_in = k.th_out })
             List.ofSeq result
 
     /// Apply roundCorners to an Element (Curve or EList of Curves).
