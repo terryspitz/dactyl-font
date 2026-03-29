@@ -47,18 +47,6 @@ let clearElemTangents elem =
     | Curve(pts, isClosed) -> Curve(List.map (fun k -> { k with th_in = None; th_out = None }) pts, isClosed)
     | other -> other
 
-let mergeConsecutive keyFn mergeFn list =
-    let rec loop =
-        function
-        | x :: y :: rest ->
-            if keyFn x = keyFn y then
-                loop ((mergeFn x y) :: rest)
-            else
-                x :: loop (y :: rest)
-        | other -> other
-
-    loop list
-
 let dotToClosedCurve x y r =
     closedCurve
         [ ({ y = y - r
@@ -88,7 +76,6 @@ let dotToClosedCurve x y r =
 type Font(axes: Axes) =
     //basic manipulation using class variables
 
-    let _axes = axes
     let _metrics = FontMetrics(axes)
     let thickness = _metrics.thickness
 
@@ -96,7 +83,7 @@ type Font(axes: Axes) =
     /// Constrast axis makes verticals thicker (tweaks the X coord)
     let addPolarContrast X Y theta dist =
         { y = Y + dist * sin (theta)
-          x = X + (dist + _axes.contrast * thickness) * cos (theta)
+          x = X + (dist + axes.contrast * thickness) * cos (theta)
           y_fit = false
           x_fit = false }
 
@@ -342,20 +329,17 @@ type Font(axes: Axes) =
     let spline2ptsToSvg pts isClosed =
         spline2ctrlPtsToSvg (pts |> withNoTangents |> toSpline2ControlPoints) isClosed
 
+    let combineSvgResults results =
+        List.fold
+            (fun (accSvg, accComb, accTan) (svg, comb, tan) -> (accSvg @ svg, accComb @ comb, accTan @ tan))
+            ([], [], [])
+            results
+
     let rec elementToSpline2Svg elem =
         match elem with
         | Curve(pts, isClosed) -> spline2ctrlPtsToSvg (toSpline2ControlPoints pts) isClosed
         | Dot(p) -> (svgCircle p.x p.y thickness, [], [])
-        | EList(elems) ->
-            let results = List.map elementToSpline2Svg elems
-
-            let svgs, combs, tangents =
-                List.fold
-                    (fun (accSvg, accComb, accTan) (svg, comb, tan) -> (accSvg @ svg, accComb @ comb, accTan @ tan))
-                    ([], [], [])
-                    results
-
-            (svgs, combs, tangents)
+        | EList(elems) -> combineSvgResults (List.map elementToSpline2Svg elems)
         | Space -> ([], [], [])
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
 
@@ -416,16 +400,7 @@ type Font(axes: Axes) =
         match elem with
         | Curve(pts, isClosed) -> ctrlPtsToSvg (toDactylSplineControlPoints pts) isClosed
         | Dot(p) -> (svgCircle p.x p.y thickness, [], [])
-        | EList(elems) ->
-            let results = List.map elementToDactylSvg elems
-
-            let svgs, combs, tangents =
-                List.fold
-                    (fun (accSvg, accComb, accTan) (svg, comb, tan) -> (accSvg @ svg, accComb @ comb, accTan @ tan))
-                    ([], [], [])
-                    results
-
-            (svgs, combs, tangents)
+        | EList(elems) -> combineSvgResults (List.map elementToDactylSvg elems)
         | Space -> ([], [], [])
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
 
@@ -1313,16 +1288,6 @@ type Font(axes: Axes) =
                   "</g>" ]
 
 
-    member this.elementToSvgPathItalic(element, offsetX, offsetY, strokeWidth, fillColour) =
-        this.elementToSvgPath element offsetX offsetY strokeWidth fillColour
-
-    member this.getSvgKnotsItalic(offsetX, offsetY, size, colour, element) =
-        element |> SvgHelpers.getSvgKnots offsetX offsetY size colour this.isJoint
-
-    member this.getSvgLabelsItalic(offsetX, offsetY, element) =
-        element |> SvgHelpers.getSvgLabels offsetX offsetY
-
-
     member this.translateByThickness = translateBy thickness thickness
 
     member this.charToElem ch =
@@ -1370,7 +1335,7 @@ type Font(axes: Axes) =
                    5.0
                    red
                @ (if this.axes.show_knots then
-                      this.getSvgKnotsItalic (offsetX, offsetY, knotSize, knotColour, backbone)
+                      backbone |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour this.isJoint
                   else
                       [])
 
