@@ -841,7 +841,7 @@ type Font(axes: Axes) =
             th_in = k.th_out |> Option.map (fun t -> norm (t + PI))
             th_out = k.th_in |> Option.map (fun t -> norm (t + PI)) }
 
-    /// Replace sharp Corner knots with small arcs (CurveToLine → G2 → LineToCurve)
+    /// Replace sharp Corner knots with small arcs (LineToCurve → CurveToLine)
     /// to produce rounded corners. The radius is proportional to soft_corners * thickness.
     /// Short segments (like end caps) are protected by clamping the radius.
     member this.roundCorners (pts: Knot list) (isClosed: bool) : Knot list =
@@ -884,12 +884,10 @@ type Font(axes: Axes) =
                             let outPt = { y = k.pt.y + r * dyNext / distNext
                                           x = k.pt.x + r * dxNext / distNext
                                           y_fit = false; x_fit = false }
-                            result.Add({ k with pt = inPt; ty = CurveToLine
-                                                 th_out = k.th_in })
-                            result.Add({ k with ty = G2
+                            result.Add({ k with pt = inPt; ty = LineToCurve
                                                  th_in = None; th_out = None })
-                            result.Add({ k with pt = outPt; ty = LineToCurve
-                                                 th_in = k.th_out })
+                            result.Add({ k with pt = outPt; ty = CurveToLine
+                                                 th_in = None; th_out = None })
             List.ofSeq result
 
     /// Apply roundCorners to an Element (Curve or EList of Curves).
