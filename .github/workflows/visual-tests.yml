@@ -2,21 +2,26 @@ name: Visual Tests
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, 'claude/**' ]
   pull_request:
     branches: [ master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to push baseline PNGs back to the branch
 
 jobs:
   visual-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           submodules: 'recursive'
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup .NET Core
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.*
 
@@ -29,7 +34,7 @@ jobs:
         run: dotnet fable src/explorer --outDir web/src/lib/fable
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 22
 
@@ -43,12 +48,25 @@ jobs:
         run: cd web && npm run build
 
       - name: Run visual tests
-        run: cd web && npm run test:visual
+        run: cd web && npm run test:visual:update
 
-      - name: Upload screenshots on failure
-        if: failure()
+      - name: Commit new baselines to branch
+        if: github.event_name == 'push'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add web/tests/__snapshots__/
+          if ! git diff --staged --quiet; then
+            git commit -m "Update visual test baselines [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+          else
+            echo "No baseline changes to commit"
+          fi
+
+      - name: Upload snapshots as artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-screenshots
+          name: visual-test-snapshots
           path: web/tests/__snapshots__/
-          retention-days: 7
+          retention-days: 30
