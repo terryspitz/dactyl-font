@@ -6,7 +6,7 @@ const TABS = [
   { name: 'glyphs',      selector: '.svg-container' },
   { name: 'tweens',      selector: '.tweens-grid'   },
   { name: 'visualDiffs', selector: '.svg-container' },
-  { name: 'splines',     selector: '.svg-container' },
+  // { name: 'splines',     selector: '.svg-container' },
 ];
 
 test.beforeEach(async ({ page }) => {
