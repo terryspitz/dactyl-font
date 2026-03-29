@@ -6,9 +6,14 @@ on:
   pull_request:
     branches: [ master ]
   workflow_dispatch:
+    inputs:
+      update_baselines:
+        description: 'Regenerate baseline screenshots and commit them'
+        type: boolean
+        default: false
 
 permissions:
-  contents: write   # needed to push baseline PNGs back to the branch
+  contents: write
 
 jobs:
   visual-test:
@@ -47,11 +52,16 @@ jobs:
       - name: Build web app
         run: cd web && npm run build
 
-      - name: Run visual tests
+      - name: Run visual tests (compare)
+        if: inputs.update_baselines != true
+        run: cd web && npm run test:visual
+
+      - name: Update baseline screenshots
+        if: inputs.update_baselines == true
         run: cd web && npm run test:visual:update
 
-      - name: Commit new baselines to branch
-        if: github.event_name == 'push'
+      - name: Commit updated baselines
+        if: inputs.update_baselines == true
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -63,10 +73,10 @@ jobs:
             echo "No baseline changes to commit"
           fi
 
-      - name: Upload snapshots as artifact
+      - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: visual-test-snapshots
-          path: web/tests/visual.spec.js-snapshots/
+          name: playwright-report
+          path: web/playwright-report/
           retention-days: 30
