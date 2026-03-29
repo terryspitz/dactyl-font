@@ -2,9 +2,13 @@ name: Visual Tests
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, 'claude/**' ]
   pull_request:
     branches: [ master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to push baseline PNGs back to the branch
 
 jobs:
   visual-test:
@@ -42,13 +46,34 @@ jobs:
       - name: Build web app
         run: cd web && npm run build
 
-      - name: Run visual tests
-        run: cd web && npm run test:visual
+      - name: Run visual tests (generate baselines if missing, compare otherwise)
+        run: |
+          cd web
+          SNAPSHOTS_DIR="tests/__snapshots__/visual.spec.js-snapshots"
+          if [ ! -d "$SNAPSHOTS_DIR" ] || [ -z "$(ls -A "$SNAPSHOTS_DIR" 2>/dev/null)" ]; then
+            echo "No baselines found — generating initial snapshots"
+            npm run test:visual:update
+          else
+            npm run test:visual
+          fi
+
+      - name: Commit new baselines to branch
+        if: github.event_name == 'push'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add web/tests/__snapshots__/
+          if ! git diff --staged --quiet; then
+            git commit -m "Update visual test baselines [skip ci]"
+            git push
+          else
+            echo "No baseline changes to commit"
+          fi
 
       - name: Upload screenshots on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-screenshots
-          path: web/tests/__snapshots__/
+          name: playwright-report
+          path: web/playwright-report/
           retention-days: 7
