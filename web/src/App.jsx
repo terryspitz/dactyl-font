@@ -208,6 +208,7 @@ function App() {
     }
 
     const id = ++renderIdRef.current
+    setWorkerResult(null)
     setLoading(true)
     loadingRef.current = true
     setProgressValue(0)
