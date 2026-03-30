@@ -293,6 +293,9 @@ function App() {
       } else if (activeTab === 'tweens') {
         if (typeof content !== 'object') return null
         // content is { [ctrlName]: [ { val, svg } ] }
+        // Optional URL param ?tween=axisName to show only one axis
+        const params = new URLSearchParams(window.location.search)
+        const tweenFilter = params.get('tween')
 
         return (
           <div className="tweens-grid">
@@ -300,6 +303,7 @@ function App() {
               const EXCLUDED_TWEEN_AXES = ['tracking', 'leading']
               return controlDefinitions
                 .filter(c => c.type_ !== 'checkbox' && !EXCLUDED_TWEEN_AXES.includes(c.name))
+                .filter(c => !tweenFilter || c.name === tweenFilter)
                 .map(ctrl => {
                   const variations = content[ctrl.name]
                   if (!variations) return null

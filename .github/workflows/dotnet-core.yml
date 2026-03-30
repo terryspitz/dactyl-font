@@ -27,3 +27,28 @@ jobs:
       run: dotnet fable src/explorer --outDir web/src/lib/fable
     - name: Test
       run: dotnet test --no-restore --verbosity normal
+
+    - name: Setup Node
+      uses: actions/setup-node@v6
+      with:
+        node-version: 22
+    - name: Build Web
+      run: |
+        cd web
+        npm ci
+        npm run build
+    - name: Install Playwright
+      run: |
+        cd web
+        npx playwright install --with-deps chromium
+    - name: Run Tween screenshot tests
+      run: |
+        cd web
+        npx playwright test
+    - name: Upload tween screenshots
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: tween-screenshots
+        path: web/screenshots/
+        retention-days: 30
