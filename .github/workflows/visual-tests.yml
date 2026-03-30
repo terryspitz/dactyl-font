@@ -2,9 +2,9 @@ name: Visual Tests
 
 on:
   push:
-    branches: [ master, 'claude/**' ]
+    branches: [ main, 'claude/**' ]
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
   workflow_dispatch:
     inputs:
       update_baselines:
