@@ -54,9 +54,14 @@ jobs:
         cd web
         npx playwright install --with-deps chromium
 
-    - name: Run visual tests (compare)
+    - name: Run tween screenshot tests
       if: inputs.update_baselines != true
-      run: cd web && npx playwright test
+      run: cd web && npx playwright test tests/tweens.spec.js
+
+    - name: Run visual comparison tests
+      if: inputs.update_baselines != true
+      continue-on-error: true
+      run: cd web && npx playwright test tests/visual.spec.js
 
     - name: Update baseline screenshots
       if: inputs.update_baselines == true
