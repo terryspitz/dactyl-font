@@ -8,8 +8,9 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "playwright test",
-    "test:screenshots": "playwright test e2e/tweens.spec.js"
+    "test:visual": "playwright test",
+    "test:visual:update": "playwright test --update-snapshots",
+    "test:tweens": "playwright test tests/tweens.spec.js"
   },
   "dependencies": {
     "react": "^19.2.3",

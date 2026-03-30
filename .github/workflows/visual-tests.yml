@@ -1,0 +1,54 @@
+name: Visual Tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  visual-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: 'recursive'
+
+      - name: Setup .NET Core
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.*
+
+      - name: Install .NET dependencies
+        run: |
+          dotnet restore
+          dotnet tool restore
+
+      - name: Build Fable
+        run: dotnet fable src/explorer --outDir web/src/lib/fable
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install Node dependencies
+        run: cd web && npm ci
+
+      - name: Install Playwright browsers
+        run: cd web && npx playwright install --with-deps chromium
+
+      - name: Build web app
+        run: cd web && npm run build
+
+      - name: Run visual tests
+        run: cd web && npm run test:visual
+
+      - name: Upload screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-screenshots
+          path: web/tests/__snapshots__/
+          retention-days: 7
