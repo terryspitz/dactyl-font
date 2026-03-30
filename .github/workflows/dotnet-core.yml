@@ -5,12 +5,6 @@ on:
     branches: [ main, 'claude/**' ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:
-    inputs:
-      update_baselines:
-        description: 'Regenerate baseline screenshots and commit them'
-        type: boolean
-        default: false
 
 permissions:
   contents: write
@@ -54,28 +48,18 @@ jobs:
         cd web
         npx playwright install --with-deps chromium
 
-    - name: Run tween screenshot tests
-      if: inputs.update_baselines != true
-      run: cd web && npx playwright test tests/tweens.spec.js
-
-    - name: Run visual comparison tests
-      if: inputs.update_baselines != true
-      continue-on-error: true
-      run: cd web && npx playwright test tests/visual.spec.js
-
-    - name: Update baseline screenshots
-      if: inputs.update_baselines == true
-      run: cd web && npm run test:visual:update
+    - name: Run all Playwright tests (update snapshots)
+      run: cd web && npx playwright test --update-snapshots
 
     - name: Commit updated baselines
-      if: inputs.update_baselines == true
+      if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main')
       run: |
         git config user.name  "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add web/tests/visual.spec.js-snapshots/
+        git add web/tests/visual.spec.js-snapshots/ web/screenshots/
         if ! git diff --staged --quiet; then
-          git commit -m "Update visual test baselines [skip ci]"
-          git push origin HEAD:${{ github.ref_name }}
+          git commit -m "Update visual test baselines and tween screenshots"
+          git push origin HEAD:${{ github.head_ref || github.ref_name }}
         else
           echo "No baseline changes to commit"
         fi
