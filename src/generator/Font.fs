@@ -167,7 +167,9 @@ type Font(axes: Axes) =
                 result.Add(curr)
                 i <- i + 1
 
-        if i < n then result.Add(arr.[i])
+        if i < n then
+            result.Add(arr.[i])
+
         List.ofSeq result
 
     let rec elementToSpiros elem =
@@ -177,13 +179,14 @@ type Font(axes: Axes) =
         | Curve(pts, isClosed) ->
             // Revert to simpler logic that doesn't add handle points for tangents,
             // as this was breaking legacy Spiro path for some glyphs.
-            let scps = 
+            let scps =
                 [| for k in pts do
                        yield makeSCP (k.pt, k.ty) |]
-            
+
             match Spiro.SpiroCPsToSegments scps isClosed with
             | Some segs ->
                 let segments = Array.toList segs
+
                 if isClosed then
                     [ SpiroClosedCurve(segments) ]
                 else
@@ -199,6 +202,7 @@ type Font(axes: Axes) =
         | EList(elems) -> List.collect elementToSpiros elems
         | Space -> [ SpiroSpace ]
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
+
     let toSpline2ControlPoints (pts: list<Knot>) =
         let pts =
             mergeConsecutive
@@ -281,6 +285,7 @@ type Font(axes: Axes) =
             let segs =
                 [ for i in 0 .. ctrlPts.Length - 1 do
                       let pt = spline.ctrlPts.[i]
+
                       let pt1 =
                           if not isClosed && i = ctrlPts.Length - 1 then
                               pt // endpoint stub: last point of open curve (matches Spiro's EndOpenContour)
@@ -841,6 +846,76 @@ type Font(axes: Axes) =
             th_in = k.th_out |> Option.map (fun t -> norm (t + PI))
             th_out = k.th_in |> Option.map (fun t -> norm (t + PI)) }
 
+    /// Replace sharp Corner knots with small arcs (LineToCurve → CurveToLine)
+    /// to produce rounded corners. The radius is proportional to soft_corners * thickness.
+    /// Short segments (like end caps) are protected by clamping the radius.
+    member this.roundCorners (pts: Knot list) (isClosed: bool) : Knot list =
+        let radius = axes.soft_corners * thickness
+
+        if radius < 1.0 || pts.Length < 3 then
+            pts
+        else
+            let n = pts.Length
+            let arr = Array.ofList pts
+            let result = System.Collections.Generic.List<Knot>()
+
+            for i in 0 .. n - 1 do
+                let k = arr.[i]
+
+                if k.ty <> Corner then
+                    result.Add(k)
+                else
+                    // Get prev/next indices, wrapping for closed curves
+                    let hasPrev = i > 0 || isClosed
+                    let hasNext = i < n - 1 || isClosed
+
+                    if not hasPrev || not hasNext then
+                        result.Add(k)
+                    else
+                        let prevIdx = if i > 0 then i - 1 else n - 1
+                        let nextIdx = if i < n - 1 then i + 1 else 0
+                        let prev = arr.[prevIdx]
+                        let next = arr.[nextIdx]
+                        let dxPrev = prev.pt.x - k.pt.x
+                        let dyPrev = prev.pt.y - k.pt.y
+                        let dxNext = next.pt.x - k.pt.x
+                        let dyNext = next.pt.y - k.pt.y
+                        let distPrev = hypot dxPrev dyPrev
+                        let distNext = hypot dxNext dyNext
+                        // Clamp radius so we don't consume more than 40% of either adjacent segment
+                        let r = min radius (min (distPrev * 0.4) (distNext * 0.4))
+
+                        if r < 1.0 then
+                            result.Add(k)
+                        else
+                            // Pull-back points along incoming and outgoing directions
+                            let inPt = { y = k.pt.y + r * dyPrev / distPrev
+                                         x = k.pt.x + r * dxPrev / distPrev
+                                         y_fit = false; x_fit = false }
+                            let outPt = { y = k.pt.y + r * dyNext / distNext
+                                          x = k.pt.x + r * dxNext / distNext
+                                          y_fit = false; x_fit = false }
+                            result.Add({ k with pt = inPt; ty = CurveToLine
+                                                th_out = k.th_in })
+                            result.Add({ k with ty = G2
+                                                th_in = None; th_out = None })
+                            result.Add({ k with pt = outPt; ty = LineToCurve
+                                                th_in = k.th_out })
+            List.ofSeq result
+
+    /// Apply roundCorners to an Element (Curve or EList of Curves).
+    member this.applySoftCorners elem =
+        if axes.soft_corners <= 0.0 then
+            elem
+        else
+            let rec apply e =
+                match e with
+                | Curve(pts, isClosed) -> Curve(this.roundCorners pts isClosed, isClosed)
+                | EList(elems) -> EList(List.map apply elems)
+                | other -> other
+
+            apply elem
+
     member this.strokeSegments
         (segs: Segment list)
         (fthickness: float)
@@ -896,11 +971,13 @@ type Font(axes: Axes) =
 
                 this.strokeSegments segs fthickness startCap endCap false
                 |> List.map clearElemTangents
+                |> List.map this.applySoftCorners
             | SpiroClosedCurve(segments) ->
                 let segs = List.map toSegment segments |> collapseHandleSegments
 
                 this.strokeSegments segs fthickness startCap endCap true
                 |> List.map clearElemTangents
+                |> List.map this.applySoftCorners
 
 
             | SpiroDot(p) -> [ dotToClosedCurve p.x p.y (thickness + 5.0) ]
@@ -1134,6 +1211,7 @@ type Font(axes: Axes) =
                     printfn "dactylToOutline curve: %A" segs
 
                 this.strokeSegments segs fthickness startCap endCap isClosed
+                |> List.map this.applySoftCorners
             | Dot(p) -> [ dotToClosedCurve p.x p.y (thickness + 5.0) ]
             | EList(elems) -> List.collect dactylToOutline elems
             | Space -> [ Space ]

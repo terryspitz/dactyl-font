@@ -726,3 +726,10 @@
         right: 8px;
     }
 }
+
+/* Spline editor mode: let the editor fill the preview area */
+.preview-content.spline-mode {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}

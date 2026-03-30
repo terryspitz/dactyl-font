@@ -316,6 +316,85 @@ type FontTests() =
         Assert.That(unfilledSvg, Does.Contain("fill:none"), "filled=false should produce fill:none")
 
     [<Test>]
+    member this.SoftCorners_V_Glyph_ProducesRoundedCorners() =
+        // The 'V' glyph (bl-tc-br) has sharp corners at tc and at the miter points.
+        // With soft_corners > 0, corners should be replaced with arcs (CurveToLine→G2→LineToCurve).
+        // End caps should remain intact (not distorted by rounding).
+        let fontSharp =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true
+                    soft_corners = 0.0 }
+            )
+
+        let fontRound =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true
+                    soft_corners = 0.5 }
+            )
+
+        let svgSharp = fontSharp.charToSvg 'V' 0.0 0.0 "black" |> String.concat " "
+        let svgRound = fontRound.charToSvg 'V' 0.0 0.0 "black" |> String.concat " "
+
+        // Both should produce valid SVG
+        Assert.That(svgSharp, Does.Contain("M "), "Sharp V should contain moveto")
+        Assert.That(svgRound, Does.Contain("M "), "Rounded V should contain moveto")
+        Assert.That(svgRound, Does.Not.Contain("NaN"), "Rounded V should not contain NaN")
+
+        // The rounded version should have more curve commands (C) than the sharp one,
+        // since corners are replaced with arcs.
+        let countC (svg: string) =
+            svg.Split(' ') |> Array.filter (fun s -> s = "C") |> Array.length
+        Assert.That(countC svgRound, Is.GreaterThan(countC svgSharp),
+            "Rounded V should have more curve commands than sharp V")
+
+    [<Test>]
+    member this.SoftCorners_Zero_MatchesDefault() =
+        // With soft_corners = 0, output should be identical to default (no rounding).
+        let fontDefault =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true }
+            )
+
+        let fontZero =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true
+                    soft_corners = 0.0 }
+            )
+
+        for ch in [ 'A'; 'V'; 'M'; 'o' ] do
+            let svgDefault = fontDefault.charToSvg ch 0.0 0.0 "black" |> String.concat " "
+            let svgZero = fontZero.charToSvg ch 0.0 0.0 "black" |> String.concat " "
+            Assert.That(svgZero, Is.EqualTo(svgDefault),
+                sprintf "soft_corners=0 should match default for '%c'" ch)
+
+    [<Test>]
+    member this.SoftCorners_AllGlyphs_RenderWithoutException() =
+        // Smoke test: every glyph should render without crashing with soft_corners enabled.
+        let font =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true
+                    soft_corners = 0.8 }
+            )
+
+        for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" do
+            let svg = font.charToSvg ch 0.0 0.0 "black"
+            let svgStr = String.concat " " svg
+            Assert.That(svgStr, Does.Contain("M "),
+                sprintf "Soft corners glyph '%c' should render a moveto" ch)
+            Assert.That(svgStr, Does.Not.Contain("NaN"),
+                sprintf "Soft corners glyph '%c' should not contain NaN" ch)
+
+    [<Test>]
     member this.DactylSpline_IsLineSegment_HandlesColinearTangents() =
         // Test that DactylSpline.isLineSegment returns true for segments
         // where forced tangents are colinear with the chord.
