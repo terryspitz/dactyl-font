@@ -307,7 +307,7 @@ function App() {
             {(() => {
               const EXCLUDED_TWEEN_AXES = ['tracking', 'leading']
               return controlDefinitions
-                .filter(c => c.type_ !== 'checkbox' && !EXCLUDED_TWEEN_AXES.includes(c.name))
+                .filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name))
                 .filter(c => !tweenFilter || c.name === tweenFilter)
                 .map(ctrl => {
                   const variations = content[ctrl.name]

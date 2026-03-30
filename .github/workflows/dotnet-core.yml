@@ -19,6 +19,7 @@ jobs:
       with:
         submodules: 'recursive'
         token: ${{ secrets.GITHUB_TOKEN }}
+        ref: ${{ github.head_ref || github.ref }}
     - name: Setup .NET Core
       uses: actions/setup-dotnet@v5
       with:
@@ -53,16 +54,13 @@ jobs:
 
     - name: Commit updated baselines
       if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main')
-      env:
-        BRANCH: ${{ github.head_ref || github.ref_name }}
       run: |
         git config user.name  "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git checkout "$BRANCH"
         git add web/tests/visual.spec.js-snapshots/ web/screenshots/ || true
         if ! git diff --staged --quiet; then
           git commit -m "Update visual test baselines and tween screenshots"
-          git push origin "$BRANCH"
+          git push origin HEAD
         else
           echo "No baseline changes to commit"
         fi
