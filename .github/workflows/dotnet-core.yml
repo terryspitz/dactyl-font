@@ -59,7 +59,7 @@ jobs:
       run: |
         git config user.name  "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add web/tests/visual.spec.js-snapshots/ web/screenshots/ || true
+        git add web/tests/tabs.spec.js-snapshots/ web/screenshots/ || true
         if ! git diff --staged --quiet; then
           git commit -m "Update visual test baselines and tween screenshots"
           git push origin "HEAD:refs/heads/$BRANCH"

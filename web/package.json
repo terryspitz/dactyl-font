@@ -8,8 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:visual": "playwright test",
-    "test:visual:update": "playwright test --update-snapshots",
+    "test:tabs": "playwright test tests/tabs.spec.js",
+    "test:tabs:update": "playwright test tests/tabs.spec.js --update-snapshots",
     "test:tweens": "playwright test tests/tweens.spec.js"
   },
   "dependencies": {
