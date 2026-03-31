@@ -33,10 +33,10 @@ npm run dev
 
 The app will be available at `http://localhost:5173/dactyl-font/`.
 
-## Visual regression tests
+## Screenshot tests
 
-Tests use [Playwright](https://playwright.dev/) to screenshot each of the five tabs
-and compare against saved baseline PNGs.
+Tests use [Playwright](https://playwright.dev/) to screenshot each tab and
+each tween axis, comparing against saved baseline PNGs.
 
 ```bash
 # Build first (tests run against the production build via vite preview)
@@ -46,17 +46,20 @@ npm ci
 npx playwright install chromium
 npm run build
 
-# Run tests (compare against baselines)
-npm run test:visual
+# Run tab screenshot tests (compare against baselines)
+npm run test:tabs
 
-# Regenerate baselines after an intentional visual change
-npm run test:visual:update
-git add tests/__snapshots__/
-git commit -m "Update visual test baselines"
+# Run tween screenshot tests (generates per-axis screenshots)
+npm run test:tweens
+
+# Regenerate tab baselines after an intentional visual change
+npm run test:tabs:update
+git add tests/tabs.spec.js-snapshots/
+git commit -m "Update tab test baselines"
 ```
 
-Baselines are stored in `web/tests/__snapshots__/` and committed to the repo.
-CI generates them automatically on the first run for a new branch.
+Tab baselines are stored in `web/tests/tabs.spec.js-snapshots/` and committed to the repo.
+CI regenerates them automatically and commits any changes back to the branch.
 
 ## New worktree
 

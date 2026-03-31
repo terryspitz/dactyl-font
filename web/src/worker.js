@@ -20,10 +20,12 @@ self.onmessage = (e) => {
                 const [char, axes] = args
                 const steps = 9
                 const data = {}
-                const totalVariations = controlDefinitions.filter(c => c.type_ !== 'checkbox').length * steps
+                const EXCLUDED_TWEEN_AXES = ['tracking', 'leading']
+                const tweenControls = controlDefinitions.filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name))
+                const totalVariations = tweenControls.length * steps
                 let completed = 0
 
-                controlDefinitions.filter(c => c.type_ !== 'checkbox').forEach(ctrl => {
+                tweenControls.forEach(ctrl => {
                     const variations = []
                     const min = ctrl.min
                     const max = ctrl.max
