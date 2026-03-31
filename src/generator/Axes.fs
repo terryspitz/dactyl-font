@@ -17,6 +17,7 @@ type Axes =
       thickness: int //stroke width
       contrast: float //make vertical lines thicker
       roundedness: int //roundedness
+      soft_corners: float //radius of rounding applied at angled corners (0=sharp, 1=max)
       // overshoot : int          //curves are larger by this amount to compensate for looking smaller
       tracking: int //gap between glyphs
       leading: int //gap between lines
@@ -50,6 +51,7 @@ type Axes =
           thickness = 30
           contrast = 0.05
           roundedness = 60
+          soft_corners = 0.0
           tracking = 40
           leading = 50
           monospace = 0.0
@@ -82,6 +84,7 @@ type Axes =
           "thickness", Range(1, 200), "default"
           "contrast", FracRange(-0.5, 0.5), "default"
           "roundedness", Range(0, 100), "default"
+          "soft_corners", FracRange(0.0, 1.0), "default"
           "tracking", Range(0, 200), "default"
           "leading", Range(-100, 200), "default"
           "monospace", FracRange(0.0, 1.0), "default"

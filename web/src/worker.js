@@ -1,4 +1,5 @@
-import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateVisualDiffsSvg, generateSplineViewerSvg, controlDefinitions } from './lib/fable/Api'
+import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateVisualDiffsSvg, generateSplineViewerSvg, controlDefinitions, solveSplineEditor, getGuidePositions, getGlyphList, parseGlyphToControlPoints } from './lib/fable/Api'
+import { DControlPoint } from './lib/fable/generator/DactylSpline'
 
 self.onmessage = (e) => {
     const { id, type, args } = e.data
@@ -19,10 +20,12 @@ self.onmessage = (e) => {
                 const [char, axes] = args
                 const steps = 9
                 const data = {}
-                const totalVariations = controlDefinitions.filter(c => c.type_ !== 'checkbox').length * steps
+                const EXCLUDED_TWEEN_AXES = ['tracking', 'leading']
+                const tweenControls = controlDefinitions.filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name))
+                const totalVariations = tweenControls.length * steps
                 let completed = 0
 
-                controlDefinitions.filter(c => c.type_ !== 'checkbox').forEach(ctrl => {
+                tweenControls.forEach(ctrl => {
                     const variations = []
                     const min = ctrl.min
                     const max = ctrl.max
@@ -50,6 +53,26 @@ self.onmessage = (e) => {
                     self.postMessage({ id, type: 'progress', value: p });
                 })
                 break
+            case 'solveSpline': {
+                const [ctrlPtsRaw, isClosed, maxIter] = args
+                const ctrlPts = ctrlPtsRaw.map(p => new DControlPoint(p.ty, p.x, p.y, p.th_in, p.th_out))
+                result = solveSplineEditor(ctrlPts, isClosed, maxIter)
+                break
+            }
+            case 'parseGlyph': {
+                const [char, glyphAxes] = args
+                result = parseGlyphToControlPoints(char, glyphAxes)
+                break
+            }
+            case 'getGuides': {
+                const [guideAxes] = args
+                result = getGuidePositions(guideAxes)
+                break
+            }
+            case 'getGlyphList': {
+                result = getGlyphList()
+                break
+            }
             default:
                 throw new Error(`Unknown generation type: ${type}`)
         }
