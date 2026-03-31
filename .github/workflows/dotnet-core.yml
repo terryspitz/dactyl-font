@@ -5,6 +5,12 @@ on:
     branches: [ main, 'claude/**' ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      update_snapshots:
+        description: 'Update and commit visual test snapshots'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -49,11 +55,16 @@ jobs:
         cd web
         npx playwright install --with-deps chromium
 
-    - name: Run all Playwright tests (update snapshots)
+    - name: Run Playwright tests (update snapshots)
+      if: github.event_name == 'workflow_dispatch' && inputs.update_snapshots
       run: cd web && npx playwright test --update-snapshots
 
+    - name: Run Playwright tests
+      if: github.event_name != 'workflow_dispatch' || !inputs.update_snapshots
+      run: cd web && npx playwright test
+
     - name: Commit updated baselines
-      if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main')
+      if: github.event_name == 'workflow_dispatch' && inputs.update_snapshots
       env:
         BRANCH: ${{ github.head_ref || github.ref_name }}
       run: |
