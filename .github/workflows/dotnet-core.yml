@@ -54,13 +54,15 @@ jobs:
 
     - name: Commit updated baselines
       if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main')
+      env:
+        BRANCH: ${{ github.head_ref || github.ref_name }}
       run: |
         git config user.name  "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git add web/tests/visual.spec.js-snapshots/ web/screenshots/ || true
         if ! git diff --staged --quiet; then
           git commit -m "Update visual test baselines and tween screenshots"
-          git push origin HEAD
+          git push origin "HEAD:refs/heads/$BRANCH"
         else
           echo "No baseline changes to commit"
         fi
