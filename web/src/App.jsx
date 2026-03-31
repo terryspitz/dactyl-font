@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, allChars } from './lib/fable/Api' // Adjust path if needed
+import SplineEditor from './SplineEditor'
 import './App.css'
 
 
@@ -208,6 +209,7 @@ function App() {
     }
 
     const id = ++renderIdRef.current
+    setWorkerResult(null)
     setLoading(true)
     loadingRef.current = true
     setProgressValue(0)
@@ -242,8 +244,11 @@ function App() {
       typeReq = 'visualDiffs'
       args = [text || allChars, axes]
     } else if (activeTab === 'splines') {
-      typeReq = 'splineViewer'
-      args = []
+      // SplineEditor has its own worker — skip
+      setLoading(false)
+      clearTimeout(timer)
+      worker.terminate()
+      return
     }
 
     if (typeReq) {
@@ -293,13 +298,17 @@ function App() {
       } else if (activeTab === 'tweens') {
         if (typeof content !== 'object') return null
         // content is { [ctrlName]: [ { val, svg } ] }
+        // Optional URL param ?tween=axisName to show only one axis
+        const params = new URLSearchParams(window.location.search)
+        const tweenFilter = params.get('tween')
 
         return (
           <div className="tweens-grid">
             {(() => {
               const EXCLUDED_TWEEN_AXES = ['tracking', 'leading']
               return controlDefinitions
-                .filter(c => c.type_ !== 'checkbox' && !EXCLUDED_TWEEN_AXES.includes(c.name))
+                .filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name))
+                .filter(c => !tweenFilter || c.name === tweenFilter)
                 .map(ctrl => {
                   const variations = content[ctrl.name]
                   if (!variations) return null
@@ -333,11 +342,7 @@ function App() {
           dangerouslySetInnerHTML={{ __html: content }}
         />
       } else if (activeTab === 'splines') {
-        if (typeof content !== 'string') return null
-        return <div
-          className="svg-container"
-          dangerouslySetInnerHTML={{ __html: content }}
-        />
+        return <SplineEditor axes={axes} />
       }
       return null
     } catch (e) {
@@ -460,7 +465,7 @@ function App() {
 
         </div>
 
-        <div className={`input-area ${activeTab === 'glyphs' ? 'with-defs' : ''}`}>
+        <div className={`input-area ${activeTab === 'glyphs' ? 'with-defs' : ''}`} style={activeTab === 'splines' ? { display: 'none' } : undefined}>
           <div className="input-wrapper">
             <textarea
               value={text}
@@ -518,19 +523,21 @@ function App() {
               )}
             </div>
           )}
-          <div className="preview-content">
-            <div className="zoom-controls">
-              <button onClick={() => setZoom(z => Math.min(z + 0.1, 5.0))} title="Zoom In">
-                <span className="material-symbols-outlined">add</span>
-              </button>
-              <button onClick={() => setZoom(1.0)} title="Reset Zoom">
-                <span className="material-symbols-outlined">restart_alt</span>
-              </button>
-              <button onClick={() => setZoom(z => Math.max(z - 0.1, 0.1))} title="Zoom Out">
-                <span className="material-symbols-outlined">remove</span>
-              </button>
-            </div>
-            <div style={{ transform: activeTab === 'tweens' ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
+          <div className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`}>
+            {activeTab !== 'splines' && (
+              <div className="zoom-controls">
+                <button onClick={() => setZoom(z => Math.min(z + 0.1, 5.0))} title="Zoom In">
+                  <span className="material-symbols-outlined">add</span>
+                </button>
+                <button onClick={() => setZoom(1.0)} title="Reset Zoom">
+                  <span className="material-symbols-outlined">restart_alt</span>
+                </button>
+                <button onClick={() => setZoom(z => Math.max(z - 0.1, 0.1))} title="Zoom Out">
+                  <span className="material-symbols-outlined">remove</span>
+                </button>
+              </div>
+            )}
+            <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: activeTab === 'tweens' ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
               {renderContent()}
             </div>
           </div>

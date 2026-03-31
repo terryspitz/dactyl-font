@@ -2,6 +2,7 @@ module Api
 
 open Fable.Core
 open Axes
+open SpiroPointType
 open Font
 open GeneratorTypes
 open GlyphStringDefs
@@ -103,7 +104,6 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
     let axes =
         { inputAxes with
             clip_rect = false
-            filled = false
             show_comb = true
             show_tangents = true }
 
@@ -341,6 +341,82 @@ let generateSplineViewerSvg () =
     SplineViewer.splineStaticPage ()
     |> SvgHelpers.toSvgDocument 0. 0. 10. 12.
     |> String.concat "\n"
+
+
+let spiroToSplinePointType (ty: SpiroPointType) =
+    match ty with
+    | SpiroPointType.Corner -> Curves.SplinePointType.Corner
+    | SpiroPointType.G4 | SpiroPointType.G2 -> Curves.SplinePointType.Smooth
+    | SpiroPointType.Right -> Curves.SplinePointType.LineToCurve
+    | SpiroPointType.Left -> Curves.SplinePointType.CurveToLine
+    | _ -> Curves.SplinePointType.Corner
+
+let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (maxIter: int) =
+    let spline = DactylSpline.DactylSpline(ctrlPts, isClosed)
+    let bezPts, pathSvg, combSvg, tangentSvg = spline.solveAndRenderFull(maxIter, 1.0, false, true, true)
+    {| pathSvg = pathSvg |> String.concat ""
+       combSvg = combSvg |> String.concat ""
+       tangentSvg = tangentSvg |> String.concat ""
+       bezierPoints =
+           bezPts |> Array.map (fun (bp: DactylSpline.BezierPoint) ->
+               {| x = bp.x; y = bp.y
+                  th_in = bp.th_in; th_out = bp.th_out
+                  ld = bp.ld; rd = bp.rd |}) |}
+
+let getGuidePositions (axes: Axes) =
+    let m = FontMetrics(axes)
+    let xg =
+        [| {| name = "L"; value = m.L |}
+           {| name = "C"; value = m.C |}
+           {| name = "N"; value = m.N |}
+           {| name = "R"; value = m.R |}
+           {| name = "W"; value = m.W |} |]
+    let yg =
+        [| {| name = "B"; value = m.B |}
+           {| name = "M"; value = m.M |}
+           {| name = "X"; value = m.X |}
+           {| name = "H"; value = m.H |}
+           {| name = "T"; value = m.T |}
+           {| name = "D"; value = m.D |} |]
+    {| xGuides = xg; yGuides = yg |}
+
+let getGlyphList () =
+    GlyphStringDefs.glyphMap
+    |> Map.toArray
+    |> Array.map (fun (c, def) -> {| char = string c; def = def |})
+
+let private knotToObj (k: Knot) : obj =
+    {| ty = int (spiroToSplinePointType k.ty)
+       x = k.pt.x
+       y = k.pt.y
+       x_fit = k.pt.x_fit
+       y_fit = k.pt.y_fit
+       th_in = k.th_in |> Option.toNullable
+       th_out = k.th_out |> Option.toNullable
+       label = k.label |> Option.defaultValue "" |} :> obj
+
+let parseGlyphToControlPoints (char: string) (axes: Axes) =
+    let c = char.[0]
+    match GlyphStringDefs.glyphMap.TryFind c with
+    | None -> [||]
+    | Some def ->
+        let glyph = FontMetrics(axes)
+        let elem = GlyphStringDefs.stringDefsToElem glyph c false
+        let rec extractCurves (e: Element) =
+            match e with
+            | Curve(knots, isClosed) ->
+                let pts = knots |> List.toArray |> Array.map knotToObj
+                [| {| isClosed = isClosed; points = pts |} |]
+            | Dot(p) ->
+                let pt =
+                    {| ty = 0; x = p.x; y = p.y; x_fit = p.x_fit; y_fit = p.y_fit
+                       th_in = System.Nullable<float>(); th_out = System.Nullable<float>()
+                       label = "" |} :> obj
+                [| {| isClosed = false; points = [| pt |] |} |]
+            | EList(elems) -> elems |> List.toArray |> Array.collect extractCurves
+            | Space -> [||]
+            | Glyph _ -> [||]
+        extractCurves elem
 
 
 let generateVisualDiffsSvg (text: string) (axes: Axes) (progress: (float -> unit) option) =
