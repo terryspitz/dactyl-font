@@ -266,20 +266,25 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
             let outlineDactylSplineSvg =
                 safeElementToSvgPath fontDactylSpline outlineDactylSpline orange
 
+            // Spine fonts: never fill the thin centerline paths
+            let fontSpiroSpine = Font { fontSpiro.axes with filled=false }
+            let fontSpline2Spine = Font { fontSpline2.axes with filled=false }
+            let fontDactylSplineSpine = Font { fontDactylSpline.axes with filled=false }
+
             let guidesLayer = wrapClass "guides-layer" guidesSvg
 
             let spiroLayer =
-                wrapClass "spiro-layer" (fontSpiro.elementToSvgPath spiro offsetX offsetY 3 blue @ outlineSpiroSvg)
+                wrapClass "spiro-layer" (fontSpiroSpine.elementToSvgPath spiro offsetX offsetY 3 blue @ outlineSpiroSvg)
 
             let spline2Layer =
                 wrapClass
                     "spline2-layer"
-                    (fontSpline2.elementToSvgPath spline offsetX offsetY 3 green @ outlineSpline2Svg)
+                    (fontSpline2Spine.elementToSvgPath spline offsetX offsetY 3 green @ outlineSpline2Svg)
 
             let dsplineLayer =
                 wrapClass
                     "dspline-layer"
-                    (fontDactylSpline.elementToSvgPath spline offsetX offsetY 3 orange
+                    (fontDactylSplineSpine.elementToSvgPath spline offsetX offsetY 3 orange
                      @ outlineDactylSplineSvg)
 
             let knotsLayer =
