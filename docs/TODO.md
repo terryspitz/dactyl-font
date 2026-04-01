@@ -3,6 +3,9 @@
 - add proper interactive spline editor (tab)
 - soft corners
 - do we still need mergeConsecutive?
+- fix filled checkbox
+- fix spiro outlines
+- merge all branches
 - add 'filled' checkbox to glyphs tab, default off
 - add documentation tooltips, links
 - flare with tangents wrong way round
