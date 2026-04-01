@@ -173,7 +173,12 @@ type FontTests() =
             let svg = font.charToSvg ch 0.0 0.0 "black"
             let svgStr = String.concat " " svg
             Assert.That(svgStr, Does.Contain("M "), sprintf "Spiro outline for '%c' should contain a moveto" ch)
-            Assert.That(svgStr, Does.Not.Contain("stroke:#e00000"), sprintf "Spiro outline for '%c' should not indicate failure" ch)
+
+            Assert.That(
+                svgStr,
+                Does.Not.Contain("stroke:#e00000"),
+                sprintf "Spiro outline for '%c' should not indicate failure" ch
+            )
 
     [<Test>]
     member this.Spline2Outline_SimpleGlyphs_RendersWithoutException() =
@@ -194,7 +199,12 @@ type FontTests() =
             let svg = font.charToSvg ch 0.0 0.0 "black"
             let svgStr = String.concat " " svg
             Assert.That(svgStr, Does.Contain("M "), sprintf "Spline2 outline for '%c' should contain a moveto" ch)
-            Assert.That(svgStr, Does.Not.Contain("NaN"), sprintf "Spline2 outline for '%c' should not contain NaN coordinates" ch)
+
+            Assert.That(
+                svgStr,
+                Does.Not.Contain("NaN"),
+                sprintf "Spline2 outline for '%c' should not contain NaN coordinates" ch
+            )
 
     [<Test>]
     member this.EGlyph_BackboneIsStraight_Dactyl() = this.verifyEGlyphBackbone (true, false)
@@ -324,8 +334,12 @@ type FontTests() =
         // since corners are replaced with arcs.
         let countC (svg: string) =
             svg.Split(' ') |> Array.filter (fun s -> s = "C") |> Array.length
-        Assert.That(countC svgRound, Is.GreaterThan(countC svgSharp),
-            "Rounded V should have more curve commands than sharp V")
+
+        Assert.That(
+            countC svgRound,
+            Is.GreaterThan(countC svgSharp),
+            "Rounded V should have more curve commands than sharp V"
+        )
 
     [<Test>]
     member this.SoftCorners_Zero_MatchesDefault() =
@@ -348,8 +362,7 @@ type FontTests() =
         for ch in [ 'A'; 'V'; 'M'; 'o' ] do
             let svgDefault = fontDefault.charToSvg ch 0.0 0.0 "black" |> String.concat " "
             let svgZero = fontZero.charToSvg ch 0.0 0.0 "black" |> String.concat " "
-            Assert.That(svgZero, Is.EqualTo(svgDefault),
-                sprintf "soft_corners=0 should match default for '%c'" ch)
+            Assert.That(svgZero, Is.EqualTo(svgDefault), sprintf "soft_corners=0 should match default for '%c'" ch)
 
     [<Test>]
     member this.SoftCorners_AllGlyphs_RenderWithoutException() =
@@ -365,10 +378,31 @@ type FontTests() =
         for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" do
             let svg = font.charToSvg ch 0.0 0.0 "black"
             let svgStr = String.concat " " svg
-            Assert.That(svgStr, Does.Contain("M "),
-                sprintf "Soft corners glyph '%c' should render a moveto" ch)
-            Assert.That(svgStr, Does.Not.Contain("NaN"),
-                sprintf "Soft corners glyph '%c' should not contain NaN" ch)
+            Assert.That(svgStr, Does.Contain("M "), sprintf "Soft corners glyph '%c' should render a moveto" ch)
+            Assert.That(svgStr, Does.Not.Contain("NaN"), sprintf "Soft corners glyph '%c' should not contain NaN" ch)
+
+    member this.FilledAxis_ControlsSvgFillStyle() =
+        // When filled=true (and outline=true), SVG should have fill:black.
+        // When filled=false, SVG should have fill:none regardless of outline setting.
+        let filledFont =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    outline = true
+                    filled = true }
+            )
+
+        let unfilledFont =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    outline = true
+                    filled = false }
+            )
+
+        let filledSvg = String.concat " " (filledFont.charToSvg 'o' 0.0 0.0 "black")
+        let unfilledSvg = String.concat " " (unfilledFont.charToSvg 'o' 0.0 0.0 "black")
+
+        Assert.That(filledSvg, Does.Contain("fill:black"), "filled=true should produce fill:black")
+        Assert.That(unfilledSvg, Does.Contain("fill:none"), "filled=false should produce fill:none")
 
     [<Test>]
     member this.DactylSpline_IsLineSegment_HandlesColinearTangents() =
