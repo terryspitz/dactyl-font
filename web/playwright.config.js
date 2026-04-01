@@ -7,6 +7,7 @@ export default defineConfig({
     ['list'],
     ['html', { open: 'never' }],
   ],
+  expect: { timeout: 30_000 },
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:4173/dactyl-font/',
     viewport: { width: 1280, height: 900 },

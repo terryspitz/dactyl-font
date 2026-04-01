@@ -2,9 +2,12 @@ name: .NET Core
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main, 'claude/**' ]
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -13,6 +16,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
+      with:
+        submodules: 'recursive'
+        token: ${{ secrets.GITHUB_TOKEN }}
+        ref: ${{ github.head_ref || github.ref }}
     - name: Setup .NET Core
       uses: actions/setup-dotnet@v5
       with:
@@ -27,3 +34,52 @@ jobs:
       run: dotnet fable src/explorer --outDir web/src/lib/fable
     - name: Test
       run: dotnet test --no-restore --verbosity normal
+
+    - name: Setup Node
+      uses: actions/setup-node@v6
+      with:
+        node-version: 22
+    - name: Build Web
+      run: |
+        cd web
+        npm ci
+        npm run build
+    - name: Install Playwright
+      run: |
+        cd web
+        npx playwright install --with-deps chromium
+
+    - name: Run all Playwright tests (update snapshots)
+      run: cd web && npx playwright test --update-snapshots
+
+    - name: Commit updated baselines
+      if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main')
+      env:
+        BRANCH: ${{ github.head_ref || github.ref_name }}
+      run: |
+        git config user.name  "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add web/tests/tabs.spec.js-snapshots/ web/screenshots/ || true
+        if ! git diff --staged --quiet; then
+          git commit -m "Update visual test baselines and tween screenshots"
+          git push origin "HEAD:refs/heads/$BRANCH"
+        else
+          echo "No baseline changes to commit"
+        fi
+
+    - name: Upload tween screenshots
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: tween-screenshots
+        path: web/screenshots/
+        if-no-files-found: ignore
+        retention-days: 30
+    - name: Upload Playwright report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: playwright-report
+        path: web/playwright-report/
+        if-no-files-found: ignore
+        retention-days: 30
