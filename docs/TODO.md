@@ -3,7 +3,9 @@
 - add proper interactive spline editor (tab)
 - soft corners
 - do we still need mergeConsecutive?
-- add 'filled' checkbox to glyphs tab, default off
+- fix filled checkbox
+- fix spiro outlines
+- merge all branches
 - add documentation tooltips, links
 - flare with tangents wrong way round
 - move outline point inward only
@@ -39,6 +41,7 @@
 - Constrain tangents to horiz/vertical
 - Italics subdivide splines to ensure better fit
 - Dactyl-smooth which has no corners
+- 'filled' checkbox in glyphs tab legend (default off)
 
 **Document if interesting the following categories**
 - Straights: AEFHIKLMNTVWXYZklvwxyz147/=[]\`|*"'

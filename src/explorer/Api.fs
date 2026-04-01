@@ -104,7 +104,6 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
     let axes =
         { inputAxes with
             clip_rect = false
-            filled = false
             show_comb = true
             show_tangents = true }
 
