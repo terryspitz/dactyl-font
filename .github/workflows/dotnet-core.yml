@@ -94,3 +94,11 @@ jobs:
         path: web/playwright-report/
         if-no-files-found: ignore
         retention-days: 30
+    - name: Upload test results (visual diffs)
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: web/test-results/
+        if-no-files-found: ignore
+        retention-days: 30
