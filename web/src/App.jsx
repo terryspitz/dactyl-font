@@ -270,6 +270,11 @@ function App() {
       // If we return null, it might flash.
     }
 
+    // SplineEditor manages its own state/worker — render immediately
+    if (activeTab === 'splines') {
+      return <SplineEditor axes={axes} />
+    }
+
     // Safety check: ensure result matches expected type for tab
     const content = workerResult
     if (!content) return null
@@ -342,8 +347,6 @@ function App() {
           className="svg-container"
           dangerouslySetInnerHTML={{ __html: content }}
         />
-      } else if (activeTab === 'splines') {
-        return <SplineEditor axes={axes} />
       }
       return null
     } catch (e) {
