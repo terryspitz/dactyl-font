@@ -302,6 +302,30 @@ type FontTests() =
     //     Assert.That(svgS.Length, Is.LessThan(1000), "Spiro should produce a compact SVG")
 
     [<Test>]
+    member this.FilledAxis_ControlsSvgFillStyle() =
+        // When filled=true (and outline=true), SVG should have fill:black.
+        // When filled=false, SVG should have fill:none regardless of outline setting.
+        let filledFont =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    outline = true
+                    filled = true }
+            )
+
+        let unfilledFont =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    outline = true
+                    filled = false }
+            )
+
+        let filledSvg = String.concat " " (filledFont.charToSvg 'o' 0.0 0.0 "black")
+        let unfilledSvg = String.concat " " (unfilledFont.charToSvg 'o' 0.0 0.0 "black")
+
+        Assert.That(filledSvg, Does.Contain("fill:black"), "filled=true should produce fill:black")
+        Assert.That(unfilledSvg, Does.Contain("fill:none"), "filled=false should produce fill:none")
+
+    [<Test>]
     member this.SoftCorners_V_Glyph_ProducesRoundedCorners() =
         // The 'V' glyph (bl-tc-br) has sharp corners at tc and at the miter points.
         // With soft_corners > 0, corners should be replaced with arcs (CurveToLine→G2→LineToCurve).
