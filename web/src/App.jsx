@@ -39,6 +39,7 @@ function App() {
     tangents: true,
     labels: true,
   })
+  const [glyphsFilled, setGlyphsFilled] = useState(false)
   const [legendPos, setLegendPos] = useState({ x: 0, y: 0 })
   const isDraggingRef = useRef(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
@@ -235,7 +236,7 @@ function App() {
       args = [text, axes]
     } else if (activeTab === 'glyphs') {
       typeReq = 'glyphsFromDefs'
-      args = [glyphsDefsText, axes]
+      args = [glyphsDefsText, { ...axes, filled: glyphsFilled }]
     } else if (activeTab === 'tweens') {
       const char = text.length > 0 ? text[0] : 'a'
       typeReq = 'tweens'
@@ -259,7 +260,7 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, glyphsDefsText])
+  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled])
 
   const renderContent = () => {
     if (error) return <div style={{ color: 'red' }}>Error: {error}</div>
@@ -298,13 +299,17 @@ function App() {
       } else if (activeTab === 'tweens') {
         if (typeof content !== 'object') return null
         // content is { [ctrlName]: [ { val, svg } ] }
+        // Optional URL param ?tween=axisName to show only one axis
+        const params = new URLSearchParams(window.location.search)
+        const tweenFilter = params.get('tween')
 
         return (
           <div className="tweens-grid">
             {(() => {
               const EXCLUDED_TWEEN_AXES = ['tracking', 'leading']
               return controlDefinitions
-                .filter(c => c.type_ !== 'checkbox' && !EXCLUDED_TWEEN_AXES.includes(c.name))
+                .filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name))
+                .filter(c => !tweenFilter || c.name === tweenFilter)
                 .map(ctrl => {
                   const variations = content[ctrl.name]
                   if (!variations) return null
@@ -621,6 +626,14 @@ function App() {
               <span className="swatch lightBlue circle"></span>
               <span className="swatch lightGreen circle"></span>
               Knots
+            </div>
+            <div className="legend-item">
+              <input
+                type="checkbox"
+                checked={glyphsFilled}
+                onChange={e => setGlyphsFilled(e.target.checked)}
+              />
+              Filled
             </div>
           </div>
         )}
