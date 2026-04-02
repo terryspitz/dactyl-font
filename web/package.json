@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test": "vitest run",
     "test:tabs": "playwright test tests/tabs.spec.js",
     "test:tabs:update": "playwright test tests/tabs.spec.js --update-snapshots",
     "test:tweens": "playwright test tests/tweens.spec.js"
@@ -26,6 +27,8 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^17.0.0",
-    "vite": "^7.3.1"
+    "opentype.js": "^1.3.4",
+    "vite": "^7.3.1",
+    "vitest": "^4.1.2"
   }
 }

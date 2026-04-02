@@ -390,6 +390,33 @@ let getGlyphList () =
     |> Map.toArray
     |> Array.map (fun (c, def) -> {| char = string c; def = def |})
 
+let generateFontGlyphData (axes: Axes) =
+    let fontAxes = { axes with outline = true; filled = true }
+    let font = Font fontAxes
+    let metrics = FontMetrics(axes)
+    let chars = allChars.Replace("\n", "")
+
+    let glyphs =
+        chars
+        |> Seq.map (fun c ->
+            try
+                let outline = font.CharToOutline c
+                let svg, _, _ = font.elementToSvg outline
+                {| unicode = int c
+                   advanceWidth = font.charWidth c
+                   pathData = String.concat " " svg |}
+            with _ ->
+                {| unicode = int c
+                   advanceWidth = font.charWidth c
+                   pathData = "" |})
+        |> Array.ofSeq
+
+    let thickness = float axes.thickness
+    {| glyphs = glyphs
+       ascender = metrics.T + thickness
+       descender = metrics.D - thickness
+       unitsPerEm = font.charHeight |}
+
 let private knotToObj (k: Knot) : obj =
     {| ty = int (spiroToSplinePointType k.ty)
        x = k.pt.x
