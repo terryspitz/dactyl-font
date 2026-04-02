@@ -246,7 +246,7 @@ let getBezPt (p0x, p0y) (p1x, p1y) (p2x, p2y) (p3x, p3y) t =
 
 type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug: bool) =
     let _points: BezierPoint array = Array.init ctrlPts.Length (fun _ -> BezierPoint())
-    let STEPS = 8
+    let STEPS = 16
     let _ks = Array.create (STEPS + 1) 0.0
     let _dists = Array.create (STEPS + 1) 0.0
     let _segmentStartK = Array.create ctrlPts.Length 0.0
