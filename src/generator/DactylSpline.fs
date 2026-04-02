@@ -453,8 +453,9 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 if Double.IsNaN m || Double.IsNaN c || Double.IsNaN residuals || Double.IsInfinity m || Double.IsInfinity c || Double.IsInfinity residuals then
                     totalErr <- totalErr + 1e9 // Penalty for invalid
                 else
-                    // 1. Residuals from being an Euler spiral
-                    totalErr <- totalErr + residuals
+                    // 1. Residuals from being an Euler spiral, normalised by sample count
+                    // so the error scale is independent of STEPS.
+                    totalErr <- totalErr + residuals / float (STEPS + 1)
 
                     // 2. Penalty for high variation in curvature (flatness)
                     totalErr <- totalErr + abs m * flatness
