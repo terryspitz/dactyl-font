@@ -94,8 +94,8 @@
 }
 
 .se-table-panel {
-  width: 360px;
-  min-width: 280px;
+  width: 420px;
+  min-width: 300px;
   background: var(--panel-bg, #1e1e2e);
   border-left: 1px solid rgba(255,255,255,0.08);
   display: flex;
@@ -285,8 +285,8 @@
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 3px;
   font-size: 0.8em;
-  padding: 0 1px;
-  width: 22px;
+  padding: 0 2px;
+  width: 34px;
   flex-shrink: 0;
   cursor: pointer;
 }
@@ -301,4 +301,45 @@
   padding: 1px 5px;
   width: 100%;
   text-align: center;
+}
+
+/* Label input in the control points table */
+.se-label-input {
+  width: 42px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--text-secondary, #aaa);
+  padding: 1px 3px;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.se-label-input:focus {
+  background: var(--sidebar-bg, #252535);
+  border-color: var(--accent-color, #3b82f6);
+  outline: none;
+  color: var(--text-primary, #eee);
+}
+
+.se-label-input::placeholder {
+  color: var(--text-muted, #555);
+}
+
+/* Undo/redo button pair in the toolbar */
+.se-undo-btns {
+  display: flex;
+  gap: 3px;
+}
+
+.se-undo-btns .se-btn-sm {
+  padding: 3px 7px;
+}
+
+.se-undo-btns .se-btn-sm:disabled {
+  opacity: 0.35;
+  cursor: default;
+  background: var(--sidebar-bg, #252535);
+  color: var(--text-muted, #888);
+  border: 1px solid rgba(255,255,255,0.1);
 }
