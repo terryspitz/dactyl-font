@@ -10,7 +10,6 @@ const POINT_TYPES = [
 
 const HANDLE_LEN = 150 // length of tangent handles in SVG coords
 
-// Fix #1: Use exact Math.PI values instead of approximate decimals
 const CARDINAL_PRESETS = [
   { label: '→', value: 0 },
   { label: '↑', value: Math.PI / 2 },
@@ -22,9 +21,24 @@ const CARDINAL_PRESETS = [
   { label: '↘', value: -Math.PI / 4 },
 ]
 
-// Fix #2: Angle display helpers — store radians internally, display degrees
+// Angles are stored in radians internally but displayed in degrees
 const toDeg = r => Math.round(r * 180 / Math.PI * 10) / 10
 const toRad = d => Math.round(d * Math.PI / 180 * 1000) / 1000
+
+const deepClone = obj => JSON.parse(JSON.stringify(obj))
+
+// Returns sensible default x/y coordinates based on guide midpoints
+const getDefaultCoords = (guides) => {
+  if (!guides) return { cx: 400, cy: 500 }
+  const midIdx = Math.floor(guides.yGuides.length / 2)
+  return {
+    cx: Math.round((guides.xGuides[0].value + guides.xGuides[guides.xGuides.length - 1].value) / 2),
+    cy: Math.round(guides.yGuides[midIdx].value),
+  }
+}
+
+const isEditingInput = (e) =>
+  e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA'
 
 function SplineEditor({ axes }) {
   const [glyphList, setGlyphList] = useState([])
@@ -42,29 +56,29 @@ function SplineEditor({ axes }) {
   const solveIdRef = useRef(0)
   const dragRef = useRef(null) // { type: 'knot'|'th_in'|'th_out', curveIdx, idx }
 
-  // Fix #3: curvesRef always holds latest curves value without stale closures
+  // Always-current snapshot of curves without triggering stale closures in callbacks
   const curvesRef = useRef(curves)
   useEffect(() => { curvesRef.current = curves }, [curves])
 
-  // Fix #3: Undo/redo stacks (refs so mutations don't trigger re-renders)
+  // Undo/redo stacks kept in refs so mutations don't cause re-renders
   const undoStackRef = useRef([])
   const redoStackRef = useRef([])
 
   const pushUndo = useCallback(() => {
-    undoStackRef.current.push(JSON.parse(JSON.stringify(curvesRef.current)))
+    undoStackRef.current.push(deepClone(curvesRef.current))
     if (undoStackRef.current.length > 50) undoStackRef.current.shift()
     redoStackRef.current = []
   }, [])
 
   const undo = useCallback(() => {
     if (!undoStackRef.current.length) return
-    redoStackRef.current.push(JSON.parse(JSON.stringify(curvesRef.current)))
+    redoStackRef.current.push(deepClone(curvesRef.current))
     setCurves(undoStackRef.current.pop())
   }, [])
 
   const redo = useCallback(() => {
     if (!redoStackRef.current.length) return
-    undoStackRef.current.push(JSON.parse(JSON.stringify(curvesRef.current)))
+    undoStackRef.current.push(deepClone(curvesRef.current))
     setCurves(redoStackRef.current.pop())
   }, [])
 
@@ -97,7 +111,6 @@ function SplineEditor({ axes }) {
       if (id === -3 && result) {
         if (result.length > 0) {
           setCurves(result)
-          // Clear history when loading a new glyph
           undoStackRef.current = []
           redoStackRef.current = []
           setActiveCurve(0)
@@ -159,7 +172,7 @@ function SplineEditor({ axes }) {
     return { x: svgPt.x, y: -svgPt.y } // flip Y back to math coords
   }, [])
 
-  // updatePoint does NOT push undo — callers are responsible for calling pushUndo first
+  // updatePoint does NOT push undo — callers must call pushUndo first
   const updatePoint = useCallback((curveIdx, ptIdx, updates) => {
     setCurves(prev => {
       const next = [...prev]
@@ -170,18 +183,17 @@ function SplineEditor({ axes }) {
     })
   }, [])
 
-  // Drag handlers
+  // Drag handlers — undo pushed once at drag start, not on every move
   const handlePointerDown = useCallback((e, type, curveIdx, idx) => {
     e.preventDefault()
     e.stopPropagation()
-    pushUndo() // Fix #7: push undo at drag start, not on every move
+    pushUndo()
     dragRef.current = { type, curveIdx, idx }
     setActiveCurve(curveIdx)
     setSelectedPt(idx)
     svgRef.current?.setPointerCapture(e.pointerId)
   }, [pushUndo])
 
-  // Fix #4: Use curvesRef to avoid stale closure during rapid drag updates
   const handlePointerMove = useCallback((e) => {
     if (!dragRef.current) return
     const { type, curveIdx, idx } = dragRef.current
@@ -198,7 +210,7 @@ function SplineEditor({ axes }) {
       const angle = Math.round(Math.atan2(y - py, x - px) * 100) / 100
       updatePoint(curveIdx, idx, { [type]: angle })
     }
-  }, [svgPoint, updatePoint]) // removed 'curves' dep — use curvesRef instead
+  }, [svgPoint, updatePoint])
 
   const handlePointerUp = useCallback(() => {
     dragRef.current = null
@@ -208,10 +220,9 @@ function SplineEditor({ axes }) {
     if (e.target === svgRef.current || e.target.tagName === 'svg') setSelectedPt(null)
   }, [])
 
-  // Fix #8: Double-click on empty canvas to add a point at that position
   const handleDblClick = useCallback((e) => {
     if (e.target !== svgRef.current && e.target.tagName !== 'svg') return
-    e.preventDefault() // prevent text selection
+    e.preventDefault() // prevent text selection on double-click
     const { x, y } = svgPoint(e.clientX, e.clientY)
     const newIdx = curvesRef.current[activeCurve]?.points.length ?? 0
     pushUndo()
@@ -226,22 +237,21 @@ function SplineEditor({ axes }) {
     setSelectedPt(newIdx)
   }, [pushUndo, svgPoint, activeCurve])
 
-  // Table editing
+  // Table editing — angle inputs receive degrees, stored as radians
   const handleTableChange = useCallback((idx, field, value) => {
-    pushUndo() // Fix #7
+    pushUndo()
     const updates = {}
     if (field === 'ty') {
       updates.ty = parseInt(value)
     } else if (field === 'x' || field === 'y') {
       updates[field] = value === '' ? null : Math.round(parseFloat(value))
     } else if (field === 'th_in' || field === 'th_out') {
-      // Fix #2: input shows degrees, convert to radians for storage
       updates[field] = value === '' ? null : toRad(parseFloat(value))
     }
     updatePoint(activeCurve, idx, updates)
   }, [activeCurve, pushUndo, updatePoint])
 
-  // Label changes are frequent (per keystroke) so don't push undo for each one
+  // Label edits skip undo — pushing an entry per keystroke would flood the stack
   const handleLabelChange = useCallback((idx, value) => {
     updatePoint(activeCurve, idx, { label: value })
   }, [activeCurve, updatePoint])
@@ -249,20 +259,16 @@ function SplineEditor({ axes }) {
   const handleToggleAuto = useCallback((idx, field) => {
     const pt = curves[activeCurve]?.points[idx]
     if (!pt) return
-    pushUndo() // Fix #7
+    pushUndo()
     if (field === 'x') {
       if (pt.x === null) {
-        const def = guides ? Math.round((guides.xGuides[0].value + guides.xGuides[guides.xGuides.length - 1].value) / 2) : 0
-        updatePoint(activeCurve, idx, { x: def })
+        updatePoint(activeCurve, idx, { x: getDefaultCoords(guides).cx })
       } else if (pt.y !== null) {
         updatePoint(activeCurve, idx, { x: null })
       }
     } else if (field === 'y') {
       if (pt.y === null) {
-        // Fix #4: use midpoint index instead of hardcoded index 2
-        const midIdx = guides ? Math.floor(guides.yGuides.length / 2) : 0
-        const def = guides ? Math.round(guides.yGuides[midIdx]?.value ?? 0) : 0
-        updatePoint(activeCurve, idx, { y: def })
+        updatePoint(activeCurve, idx, { y: getDefaultCoords(guides).cy })
       } else if (pt.x !== null) {
         updatePoint(activeCurve, idx, { y: null })
       }
@@ -274,14 +280,11 @@ function SplineEditor({ axes }) {
   }, [activeCurve, curves, guides, pushUndo, updatePoint])
 
   const addPoint = useCallback(() => {
-    pushUndo() // Fix #7
+    pushUndo()
+    const { cx, cy } = getDefaultCoords(guides)
     setCurves(prev => {
       const next = [...prev]
       const curve = { ...next[activeCurve], points: [...next[activeCurve].points] }
-      const cx = guides ? Math.round((guides.xGuides[0].value + guides.xGuides[guides.xGuides.length - 1].value) / 2) : 400
-      // Fix #6: use midpoint index instead of hardcoded index 2
-      const midIdx = guides ? Math.floor(guides.yGuides.length / 2) : 0
-      const cy = guides ? Math.round(guides.yGuides[midIdx].value) : 500
       curve.points.push({ ty: 1, x: cx, y: cy, th_in: null, th_out: null, label: '' })
       next[activeCurve] = curve
       return next
@@ -289,7 +292,7 @@ function SplineEditor({ axes }) {
   }, [activeCurve, guides, pushUndo])
 
   const deletePoint = useCallback((idx) => {
-    pushUndo() // Fix #7
+    pushUndo()
     setCurves(prev => {
       const next = [...prev]
       const curve = { ...next[activeCurve], points: [...next[activeCurve].points] }
@@ -302,7 +305,7 @@ function SplineEditor({ axes }) {
   }, [activeCurve, selectedPt, pushUndo])
 
   const toggleClosed = useCallback(() => {
-    pushUndo() // Fix #7
+    pushUndo()
     setCurves(prev => {
       const next = [...prev]
       next[activeCurve] = { ...next[activeCurve], isClosed: !next[activeCurve].isClosed }
@@ -310,11 +313,10 @@ function SplineEditor({ axes }) {
     })
   }, [activeCurve, pushUndo])
 
-  // Fix #9: Keyboard shortcuts
+  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e) => {
-      // Don't intercept when focus is in an input/select
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return
+      if (isEditingInput(e)) return
 
       if (e.ctrlKey && e.key === 'z') {
         e.preventDefault()
@@ -334,7 +336,8 @@ function SplineEditor({ axes }) {
         const step = e.shiftKey ? 10 : 1
         const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0
         const dy = e.key === 'ArrowUp' ? step : e.key === 'ArrowDown' ? -step : 0
-        pushUndo()
+        // e.repeat is true while a key is held — only push one undo entry per press gesture
+        if (!e.repeat) pushUndo()
         updatePoint(activeCurve, selectedPt, { x: pt.x + dx, y: pt.y + dy })
       }
     }
@@ -381,6 +384,42 @@ function SplineEditor({ axes }) {
     )
   }
 
+  // Angle table cell — shared between th_in and th_out columns
+  const renderAngleCell = (field, value, idx) => {
+    if (value === null) {
+      return (
+        <td className="se-auto-cell">
+          <button className="se-auto-active" onClick={() => handleToggleAuto(idx, field)} title="Click to set value">auto</button>
+        </td>
+      )
+    }
+    return (
+      <td className="se-auto-cell">
+        <input
+          type="number" step="1"
+          value={toDeg(value).toFixed(1)}
+          onChange={e => handleTableChange(idx, field, e.target.value)}
+        />
+        <select
+          className="se-preset-select"
+          value=""
+          onChange={e => {
+            if (e.target.value !== '') {
+              pushUndo()
+              updatePoint(activeCurve, idx, { [field]: parseFloat(e.target.value) })
+            }
+            e.target.value = ''
+          }}
+          title="Cardinal preset"
+        >
+          <option value="">·</option>
+          {CARDINAL_PRESETS.map(pr => <option key={pr.label} value={pr.value}>{pr.label}</option>)}
+        </select>
+        <button className="se-auto-btn" onClick={() => handleToggleAuto(idx, field)} title="Set to auto">↺</button>
+      </td>
+    )
+  }
+
   return (
     <div className="spline-editor">
       <div className="se-toolbar">
@@ -423,26 +462,16 @@ function SplineEditor({ axes }) {
           </label>
           <label className="se-iter">
             Iter:
-            {/* Fix #5: don't fall back to 200 on empty — only update when value is valid */}
             <input
               type="number" min={1} max={2000} value={maxIter}
               onChange={e => { const v = parseInt(e.target.value); if (v > 0) setMaxIter(v) }}
             />
           </label>
-          {/* Fix #3: Undo/redo buttons */}
           <div className="se-undo-btns">
-            <button
-              className="se-btn-sm"
-              onClick={undo}
-              title="Undo (Ctrl+Z)"
-              disabled={undoStackRef.current.length === 0}
-            >↩</button>
-            <button
-              className="se-btn-sm"
-              onClick={redo}
-              title="Redo (Ctrl+Y)"
-              disabled={redoStackRef.current.length === 0}
-            >↪</button>
+            <button className="se-btn-sm" onClick={undo} title="Undo (Ctrl+Z)"
+              disabled={undoStackRef.current.length === 0}>↩</button>
+            <button className="se-btn-sm" onClick={redo} title="Redo (Ctrl+Y)"
+              disabled={redoStackRef.current.length === 0}>↪</button>
           </div>
         </div>
       </div>
@@ -543,7 +572,6 @@ function SplineEditor({ axes }) {
                   <th>Type</th>
                   <th>X</th>
                   <th>Y</th>
-                  {/* Fix #2: column headers now indicate degrees */}
                   <th>&theta;in °</th>
                   <th>&theta;out °</th>
                   <th></th>
@@ -553,7 +581,6 @@ function SplineEditor({ axes }) {
                 {points.map((p, i) => (
                   <tr key={i} className={i === selectedPt ? 'selected' : ''} onClick={() => setSelectedPt(i)}>
                     <td className="se-idx">{i}</td>
-                    {/* Fix #10: label column */}
                     <td>
                       <input
                         type="text"
@@ -576,7 +603,6 @@ function SplineEditor({ axes }) {
                         ? <button className="se-auto-active" onClick={() => handleToggleAuto(i, 'x')} title="Click to set value">auto</button>
                         : <>
                             <input type="number" step="1" value={Math.round(p.x)} onChange={e => handleTableChange(i, 'x', e.target.value)} />
-                            {/* Fix #11: replace cryptic '~' with '↺' */}
                             <button className="se-auto-btn" onClick={() => handleToggleAuto(i, 'x')} disabled={p.y === null} title="Set to auto">↺</button>
                           </>
                       }
@@ -590,64 +616,8 @@ function SplineEditor({ axes }) {
                           </>
                       }
                     </td>
-                    <td className="se-auto-cell">
-                      {p.th_in === null
-                        ? <button className="se-auto-active" onClick={() => handleToggleAuto(i, 'th_in')} title="Click to set value">auto</button>
-                        : <>
-                            {/* Fix #2: display degrees, step by 1° */}
-                            <input
-                              type="number" step="1"
-                              value={toDeg(p.th_in).toFixed(1)}
-                              onChange={e => handleTableChange(i, 'th_in', e.target.value)}
-                            />
-                            {/* Fix #12: preset select calls updatePoint directly with radian values */}
-                            <select
-                              className="se-preset-select"
-                              value=""
-                              onChange={e => {
-                                if (e.target.value !== '') {
-                                  pushUndo()
-                                  updatePoint(activeCurve, i, { th_in: parseFloat(e.target.value) })
-                                }
-                                e.target.value = ''
-                              }}
-                              title="Cardinal preset"
-                            >
-                              <option value="">·</option>
-                              {CARDINAL_PRESETS.map(pr => <option key={pr.label} value={pr.value}>{pr.label}</option>)}
-                            </select>
-                            <button className="se-auto-btn" onClick={() => handleToggleAuto(i, 'th_in')} title="Set to auto">↺</button>
-                          </>
-                      }
-                    </td>
-                    <td className="se-auto-cell">
-                      {p.th_out === null
-                        ? <button className="se-auto-active" onClick={() => handleToggleAuto(i, 'th_out')} title="Click to set value">auto</button>
-                        : <>
-                            <input
-                              type="number" step="1"
-                              value={toDeg(p.th_out).toFixed(1)}
-                              onChange={e => handleTableChange(i, 'th_out', e.target.value)}
-                            />
-                            <select
-                              className="se-preset-select"
-                              value=""
-                              onChange={e => {
-                                if (e.target.value !== '') {
-                                  pushUndo()
-                                  updatePoint(activeCurve, i, { th_out: parseFloat(e.target.value) })
-                                }
-                                e.target.value = ''
-                              }}
-                              title="Cardinal preset"
-                            >
-                              <option value="">·</option>
-                              {CARDINAL_PRESETS.map(pr => <option key={pr.label} value={pr.value}>{pr.label}</option>)}
-                            </select>
-                            <button className="se-auto-btn" onClick={() => handleToggleAuto(i, 'th_out')} title="Set to auto">↺</button>
-                          </>
-                      }
-                    </td>
+                    {renderAngleCell('th_in', p.th_in, i)}
+                    {renderAngleCell('th_out', p.th_out, i)}
                     <td><button className="se-btn-del" onClick={() => deletePoint(i)} title="Delete">&times;</button></td>
                   </tr>
                 ))}
