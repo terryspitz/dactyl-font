@@ -9,6 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:playwright": "playwright test",
+    "test:playwright:update": "playwright test --update-snapshots",
     "test:tabs": "playwright test tests/tabs.spec.js",
     "test:tabs:update": "playwright test tests/tabs.spec.js --update-snapshots",
     "test:tweens": "playwright test tests/tweens.spec.js",
