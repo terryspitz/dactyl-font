@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, allChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
+import { downloadFont } from './fontExport'
 import './App.css'
 
 
@@ -175,6 +176,24 @@ function App() {
   }, [activeTab, legendPos.x, legendPos.y])
 
   // Worker state is now handled within the effect directly
+
+  const [downloadingFont, setDownloadingFont] = useState(false)
+
+  const handleDownloadFont = () => {
+    setDownloadingFont(true)
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    worker.onmessage = (e) => {
+      const { result, error } = e.data
+      worker.terminate()
+      setDownloadingFont(false)
+      if (error) {
+        console.error('Font generation error:', error)
+      } else {
+        downloadFont(result)
+      }
+    }
+    worker.postMessage({ id: 1, type: 'fontData', args: [axes] })
+  }
 
   const renderIdRef = useRef(0)
   const loadingRef = useRef(false)
@@ -466,7 +485,18 @@ function App() {
             <button className={`tab-button ${activeTab === 'visualDiffs' ? 'active' : ''}`} onClick={() => setTabWithUrl('visualDiffs')}>Visual Diffs</button>
             <button className={`tab-button ${activeTab === 'splines' ? 'active' : ''}`} onClick={() => setTabWithUrl('splines')}>Splines</button>
           </div>
-
+          {activeTab === 'font' && (
+            <button
+              className="icon-button"
+              onClick={handleDownloadFont}
+              disabled={downloadingFont}
+              title="Download Font (OTF)"
+            >
+              <span className="material-symbols-outlined">
+                {downloadingFont ? 'hourglass_empty' : 'download'}
+              </span>
+            </button>
+          )}
         </div>
 
         <div className={`input-area ${activeTab === 'glyphs' ? 'with-defs' : ''}`} style={activeTab === 'splines' ? { display: 'none' } : undefined}>
