@@ -114,8 +114,15 @@ type Font(axes: Axes) =
 
             match Spiro.SpiroCPsToSegments scps isClosed with
             | Some segs ->
-                let segments = Array.toList segs
-
+                // SpiroCPsToSegments returns n+1 elements for closed curves: the solver
+                // appends a wrap-around copy of the first point whose ks values are not
+                // solved (all zeroes). SpirosToBezier's comment says callers must strip
+                // this final repeated point. Without stripping, the unsolved segment ends
+                // up in the outline offset pass with a bogus tangent (tangentStart = 0),
+                // offsetting it in the wrong direction and producing a distorted outline.
+                let segments =
+                    if isClosed then Array.toList segs.[0..scps.Length - 1]
+                    else Array.toList segs
                 if isClosed then
                     [ SpiroClosedCurve(segments) ]
                 else

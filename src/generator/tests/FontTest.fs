@@ -157,6 +157,33 @@ type FontTests() =
         Assert.That(mCount, Is.GreaterThanOrEqualTo(1), "B should have at least one outline path")
 
     [<Test>]
+    member this.SpiroOutline_O_RendersCleanClosedContours() =
+        // The Spiro 'o' is a 4-point closed G2 curve.  SpiroCPsToSegments returns n+1
+        // segments for closed curves (a wrap-around copy of segment 0 whose ks values
+        // are all zeroes).  Before the fix, this unsolved segment was stored in
+        // SpiroClosedCurve and ended up in the outline pass with a bogus tangentStart=0,
+        // offsetting it northward instead of westward and producing a kinked outline.
+        //
+        // After the fix the wrap-around is stripped so the outline consists of exactly
+        // two smooth ovals (inner and outer), each with the same number of M commands.
+        let font =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = false
+                    spline2 = false
+                    outline = true }
+            )
+
+        let svg = font.charToSvg 'o' 0.0 0.0 "black"
+        let svgStr = String.concat " " svg
+        Assert.That(svgStr, Does.Contain("M "), "SVG should contain a moveto command")
+        Assert.That(svgStr, Does.Not.Contain("NaN"), "SVG should not contain NaN coordinates")
+        Assert.That(svgStr, Does.Not.Contain("stroke:#e00000"), "SVG should not be red (outline failure)")
+        // A closed 'o' outline has exactly two contours: outer and inner.
+        let mCount = svgStr.Split([| "M " |], System.StringSplitOptions.None).Length - 1
+        Assert.That(mCount, Is.EqualTo(2), sprintf "Spiro 'o' outline should have exactly 2 contours, got %d in: %s" mCount svgStr)
+
+    [<Test>]
     member this.SpiroOutline_SimpleGlyphs_RendersWithoutException() =
         // Spiro outlines for simple glyphs that have 2-knot open strokes ('i', 'l', '1').
         // These previously crashed in collapseHandleSegments dropping the last segment,
