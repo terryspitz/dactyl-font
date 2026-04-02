@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:tabs": "playwright test tests/tabs.spec.js",
     "test:tabs:update": "playwright test tests/tabs.spec.js --update-snapshots",
-    "test:tweens": "playwright test tests/tweens.spec.js"
+    "test:tweens": "playwright test tests/tweens.spec.js",
+    "test:font-download": "playwright test tests/font-download.spec.js",
+    "test:font-download:update": "playwright test tests/font-download.spec.js --update-snapshots"
   },
   "dependencies": {
     "react": "^19.2.3",
