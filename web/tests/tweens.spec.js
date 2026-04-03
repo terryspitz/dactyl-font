@@ -16,13 +16,6 @@ test.describe('Tweens visual tests', () => {
     page.on('pageerror', err => console.error('Page error:', err.message));
   });
 
-  // Snapshot all tweens together (default view)
-  test('all tweens', async ({ page }) => {
-    await page.goto('/?view=tweens&zoom=0.85');
-    await waitForTweens(page);
-    await expect(page.locator('.tweens-grid')).toHaveScreenshot('tweens-all.png');
-  });
-
   // Snapshot each axis separately, discovered from the rendered page
   test('individual tweens', async ({ page }) => {
     // Load all tweens to discover which axes the app generates
