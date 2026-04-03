@@ -23,12 +23,10 @@ function App() {
   })
   const [axes, setAxes] = useState({ ...defaultAxes })
   const [activeTab, setActiveTab] = useState('font')
-  const [tabZooms, setTabZooms] = useState({
-    font: 1.0,
-    glyphs: 1.0,
-    tweens: 1.0,
-    visualDiffs: 1.0,
-    splines: 1.0,
+  const [tabZooms, setTabZooms] = useState(() => {
+    const urlZoom = parseFloat(new URLSearchParams(window.location.search).get('zoom'))
+    const zoom = isNaN(urlZoom) ? 1.0 : urlZoom
+    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom }
   })
   const [layerVisibility, setLayerVisibility] = useState({
     spiro: true,
@@ -197,6 +195,7 @@ function App() {
 
   const renderIdRef = useRef(0)
   const loadingRef = useRef(false)
+  const previewRef = useRef(null)
   const [loading, setLoading] = useState(false)
   const [showProgress, setShowProgress] = useState(false)
   const [progressValue, setProgressValue] = useState(0)
@@ -259,7 +258,10 @@ function App() {
     } else if (activeTab === 'tweens') {
       const char = text.length > 0 ? text[0] : 'a'
       typeReq = 'tweens'
-      args = [char, axes]
+      const boxWidth = 150 * zoom
+      const availableWidth = previewRef.current?.clientWidth ?? window.innerWidth
+      const steps = Math.max(2, Math.floor((availableWidth + 10) / (boxWidth + 10)))
+      args = [char, axes, steps]
     } else if (activeTab === 'visualDiffs') {
       typeReq = 'visualDiffs'
       args = [text || allChars, axes]
@@ -330,7 +332,7 @@ function App() {
         return (
           <div className="tweens-grid">
             {(() => {
-              const EXCLUDED_TWEEN_AXES = ['tracking', 'leading']
+              const EXCLUDED_TWEEN_AXES = ['tracking', 'leading', 'debug']
               return controlDefinitions
                 .filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name))
                 .filter(c => !tweenFilter || c.name === tweenFilter)
@@ -343,7 +345,7 @@ function App() {
                     return (
                       <div key={`${ctrl.name}-${i}`} className="tween-item" style={{ minWidth: boxWidth + 'px', width: boxWidth + 'px' }}>
                         <div dangerouslySetInnerHTML={{ __html: v.svg }} />
-                        <div style={{ fontSize: '0.7em' }}>{v.val.toFixed(2)}</div>
+                        <div style={{ fontSize: '0.7em' }}>{ctrl.type_ === 'checkbox' ? (v.val === 'diff' ? 'diff' : v.val ? 'true' : 'false') : v.val.toFixed(2)}</div>
                       </div>
                     )
                   })
@@ -557,7 +559,7 @@ function App() {
               )}
             </div>
           )}
-          <div className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`}>
+          <div ref={previewRef} className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`}>
             {activeTab !== 'splines' && (
               <div className="zoom-controls">
                 <button onClick={() => setZoom(z => Math.min(z + 0.1, 5.0))} title="Zoom In">
