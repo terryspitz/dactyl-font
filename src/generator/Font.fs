@@ -47,18 +47,6 @@ let clearElemTangents elem =
     | Curve(pts, isClosed) -> Curve(List.map (fun k -> { k with th_in = None; th_out = None }) pts, isClosed)
     | other -> other
 
-let mergeConsecutive keyFn mergeFn list =
-    let rec loop =
-        function
-        | x :: y :: rest ->
-            if keyFn x = keyFn y then
-                loop ((mergeFn x y) :: rest)
-            else
-                x :: loop (y :: rest)
-        | other -> other
-
-    loop list
-
 let dotToClosedCurve x y r =
     closedCurve
         [ ({ y = y - r
@@ -88,7 +76,6 @@ let dotToClosedCurve x y r =
 type Font(axes: Axes) =
     //basic manipulation using class variables
 
-    let _axes = axes
     let _metrics = FontMetrics(axes)
     let thickness = _metrics.thickness
 
@@ -96,7 +83,7 @@ type Font(axes: Axes) =
     /// Constrast axis makes verticals thicker (tweaks the X coord)
     let addPolarContrast X Y theta dist =
         { y = Y + dist * sin (theta)
-          x = X + (dist + _axes.contrast * thickness) * cos (theta)
+          x = X + (dist + axes.contrast * thickness) * cos (theta)
           y_fit = false
           x_fit = false }
 
@@ -114,62 +101,6 @@ type Font(axes: Axes) =
           seg_ch = seg.seg_ch
           Type = seg.Type }
 
-    /// Collapse CurveToLine→Corner→LineToCurve handle triplets (inserted by
-    /// elementToSpiros for tangent enforcement) back into single Corner segments.
-    /// The handles are only ~1 unit from the anchor and create micro-segments
-    /// that break the outline offset geometry. By collapsing them and recalculating
-    /// the chord length (seg_ch), we restore the correct geometry
-    /// while preserving the forced tangents.
-    let collapseHandleSegments (segs: Segment list) =
-        let arr = Array.ofList segs
-        let n = arr.Length
-        let result = System.Collections.Generic.List<Segment>()
-        let mutable i = 0
-
-        while i < n - 1 do
-            let curr = arr.[i]
-            let next = arr.[i + 1]
-            let next2 = if i + 2 < n then Some arr.[i + 2] else None
-
-            // Rule 1: Arriving curve (curr) followed by Handle_in micro-segment (next: Left -> Corner)
-            // Merge next into curr so the segment ends at the Anchor (next.End = next2.Start)
-            if
-                next.Type = SpiroPointType.Left
-                && next2.IsSome
-                && next2.Value.Type = SpiroPointType.Corner
-            then
-                let anchor = next2.Value
-                let dx, dy = anchor.X - curr.X, anchor.Y - curr.Y
-
-                let s =
-                    { curr with
-                        seg_ch = hypot dx dy
-                        tangentEnd = next.tangentEnd }
-
-                result.Add(s)
-                i <- i + 2
-
-            // Rule 2: Anchor segment (curr: Corner -> Right) followed by Handle_out micro-segment (next: Right -> Next)
-            // Merge next into curr so the segment starts at Anchor and ends at Next knot (next.End = next2.Start)
-            elif curr.Type = SpiroPointType.Corner && next.Type = SpiroPointType.Right then
-                let dx, dy = next.X - curr.X, next.Y - curr.Y
-
-                let s =
-                    { next with
-                        X = curr.X
-                        Y = curr.Y
-                        Type = curr.Type // Preserve the original knot type (Corner)
-                        seg_ch = next.seg_ch + hypot dx dy }
-
-                result.Add(s)
-                i <- i + 2
-            else
-                result.Add(curr)
-                i <- i + 1
-
-        if i < n then result.Add(arr.[i])
-        List.ofSeq result
-
     let rec elementToSpiros elem =
         let makeSCP (pt: Point, ty) = { SCP.X = pt.x; Y = pt.y; Type = ty }
 
@@ -177,13 +108,21 @@ type Font(axes: Axes) =
         | Curve(pts, isClosed) ->
             // Revert to simpler logic that doesn't add handle points for tangents,
             // as this was breaking legacy Spiro path for some glyphs.
-            let scps = 
+            let scps =
                 [| for k in pts do
                        yield makeSCP (k.pt, k.ty) |]
-            
+
             match Spiro.SpiroCPsToSegments scps isClosed with
             | Some segs ->
-                let segments = Array.toList segs
+                // SpiroCPsToSegments returns n+1 elements for closed curves: the solver
+                // appends a wrap-around copy of the first point whose ks values are not
+                // solved (all zeroes). SpirosToBezier's comment says callers must strip
+                // this final repeated point. Without stripping, the unsolved segment ends
+                // up in the outline offset pass with a bogus tangent (tangentStart = 0),
+                // offsetting it in the wrong direction and producing a distorted outline.
+                let segments =
+                    if isClosed then Array.toList segs.[0..scps.Length - 1]
+                    else Array.toList segs
                 if isClosed then
                     [ SpiroClosedCurve(segments) ]
                 else
@@ -199,6 +138,7 @@ type Font(axes: Axes) =
         | EList(elems) -> List.collect elementToSpiros elems
         | Space -> [ SpiroSpace ]
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
+
     let toSpline2ControlPoints (pts: list<Knot>) =
         let pts =
             mergeConsecutive
@@ -281,6 +221,7 @@ type Font(axes: Axes) =
             let segs =
                 [ for i in 0 .. ctrlPts.Length - 1 do
                       let pt = spline.ctrlPts.[i]
+
                       let pt1 =
                           if not isClosed && i = ctrlPts.Length - 1 then
                               pt // endpoint stub: last point of open curve (matches Spiro's EndOpenContour)
@@ -342,20 +283,17 @@ type Font(axes: Axes) =
     let spline2ptsToSvg pts isClosed =
         spline2ctrlPtsToSvg (pts |> withNoTangents |> toSpline2ControlPoints) isClosed
 
+    let combineSvgResults results =
+        List.fold
+            (fun (accSvg, accComb, accTan) (svg, comb, tan) -> (accSvg @ svg, accComb @ comb, accTan @ tan))
+            ([], [], [])
+            results
+
     let rec elementToSpline2Svg elem =
         match elem with
         | Curve(pts, isClosed) -> spline2ctrlPtsToSvg (toSpline2ControlPoints pts) isClosed
         | Dot(p) -> (svgCircle p.x p.y thickness, [], [])
-        | EList(elems) ->
-            let results = List.map elementToSpline2Svg elems
-
-            let svgs, combs, tangents =
-                List.fold
-                    (fun (accSvg, accComb, accTan) (svg, comb, tan) -> (accSvg @ svg, accComb @ comb, accTan @ tan))
-                    ([], [], [])
-                    results
-
-            (svgs, combs, tangents)
+        | EList(elems) -> combineSvgResults (List.map elementToSpline2Svg elems)
         | Space -> ([], [], [])
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
 
@@ -416,16 +354,7 @@ type Font(axes: Axes) =
         match elem with
         | Curve(pts, isClosed) -> ctrlPtsToSvg (toDactylSplineControlPoints pts) isClosed
         | Dot(p) -> (svgCircle p.x p.y thickness, [], [])
-        | EList(elems) ->
-            let results = List.map elementToDactylSvg elems
-
-            let svgs, combs, tangents =
-                List.fold
-                    (fun (accSvg, accComb, accTan) (svg, comb, tan) -> (accSvg @ svg, accComb @ comb, accTan @ tan))
-                    ([], [], [])
-                    results
-
-            (svgs, combs, tangents)
+        | EList(elems) -> combineSvgResults (List.map elementToDactylSvg elems)
         | Space -> ([], [], [])
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
 
@@ -780,22 +709,6 @@ type Font(axes: Axes) =
                 th_in = t
                 th_out = t
                 label = None } ]
-        | SpiroPointType.Anchor when reverse -> [] //reverse both points in Handle, er, handler
-        | SpiroPointType.Handle when reverse ->
-            let oldAnchor = segmentAddPolar lastSeg (lastSeg.tangentStart + angle) dist
-            let oldHandle = segmentAddPolar seg (seg.tangentStart + angle) dist
-            let newHandle = oldAnchor + (oldAnchor - oldHandle)
-
-            [ { pt = newHandle
-                ty = SpiroPointType.Handle
-                th_in = None
-                th_out = None
-                label = None }
-              { pt = oldAnchor
-                ty = SpiroPointType.Anchor
-                th_in = None
-                th_out = None
-                label = None } ]
         | _ ->
             let t = Some seg.tangentStart
 
@@ -840,6 +753,76 @@ type Font(axes: Axes) =
         { k with
             th_in = k.th_out |> Option.map (fun t -> norm (t + PI))
             th_out = k.th_in |> Option.map (fun t -> norm (t + PI)) }
+
+    /// Replace sharp Corner knots with small arcs (LineToCurve → CurveToLine)
+    /// to produce rounded corners. The radius is proportional to soft_corners * thickness.
+    /// Short segments (like end caps) are protected by clamping the radius.
+    member this.roundCorners (pts: Knot list) (isClosed: bool) : Knot list =
+        let radius = axes.soft_corners * thickness
+
+        if radius < 1.0 || pts.Length < 3 then
+            pts
+        else
+            let n = pts.Length
+            let arr = Array.ofList pts
+            let result = System.Collections.Generic.List<Knot>()
+
+            for i in 0 .. n - 1 do
+                let k = arr.[i]
+
+                if k.ty <> Corner then
+                    result.Add(k)
+                else
+                    // Get prev/next indices, wrapping for closed curves
+                    let hasPrev = i > 0 || isClosed
+                    let hasNext = i < n - 1 || isClosed
+
+                    if not hasPrev || not hasNext then
+                        result.Add(k)
+                    else
+                        let prevIdx = if i > 0 then i - 1 else n - 1
+                        let nextIdx = if i < n - 1 then i + 1 else 0
+                        let prev = arr.[prevIdx]
+                        let next = arr.[nextIdx]
+                        let dxPrev = prev.pt.x - k.pt.x
+                        let dyPrev = prev.pt.y - k.pt.y
+                        let dxNext = next.pt.x - k.pt.x
+                        let dyNext = next.pt.y - k.pt.y
+                        let distPrev = hypot dxPrev dyPrev
+                        let distNext = hypot dxNext dyNext
+                        // Clamp radius so we don't consume more than 40% of either adjacent segment
+                        let r = min radius (min (distPrev * 0.4) (distNext * 0.4))
+
+                        if r < 1.0 then
+                            result.Add(k)
+                        else
+                            // Pull-back points along incoming and outgoing directions
+                            let inPt = { y = k.pt.y + r * dyPrev / distPrev
+                                         x = k.pt.x + r * dxPrev / distPrev
+                                         y_fit = false; x_fit = false }
+                            let outPt = { y = k.pt.y + r * dyNext / distNext
+                                          x = k.pt.x + r * dxNext / distNext
+                                          y_fit = false; x_fit = false }
+                            result.Add({ k with pt = inPt; ty = CurveToLine
+                                                th_out = k.th_in })
+                            result.Add({ k with ty = G2
+                                                th_in = None; th_out = None })
+                            result.Add({ k with pt = outPt; ty = LineToCurve
+                                                th_in = k.th_out })
+            List.ofSeq result
+
+    /// Apply roundCorners to an Element (Curve or EList of Curves).
+    member this.applySoftCorners elem =
+        if axes.soft_corners <= 0.0 then
+            elem
+        else
+            let rec apply e =
+                match e with
+                | Curve(pts, isClosed) -> Curve(this.roundCorners pts isClosed, isClosed)
+                | EList(elems) -> EList(List.map apply elems)
+                | other -> other
+
+            apply elem
 
     member this.strokeSegments
         (segs: Segment list)
@@ -892,15 +875,17 @@ type Font(axes: Axes) =
         let spiroToOutline spiro =
             match spiro with
             | SpiroOpenCurve(segments) ->
-                let segs = List.map toSegment segments |> collapseHandleSegments
+                let segs = List.map toSegment segments
 
                 this.strokeSegments segs fthickness startCap endCap false
                 |> List.map clearElemTangents
+                |> List.map this.applySoftCorners
             | SpiroClosedCurve(segments) ->
-                let segs = List.map toSegment segments |> collapseHandleSegments
+                let segs = List.map toSegment segments
 
                 this.strokeSegments segs fthickness startCap endCap true
                 |> List.map clearElemTangents
+                |> List.map this.applySoftCorners
 
 
             | SpiroDot(p) -> [ dotToClosedCurve p.x p.y (thickness + 5.0) ]
@@ -1134,6 +1119,7 @@ type Font(axes: Axes) =
                     printfn "dactylToOutline curve: %A" segs
 
                 this.strokeSegments segs fthickness startCap endCap isClosed
+                |> List.map this.applySoftCorners
             | Dot(p) -> [ dotToClosedCurve p.x p.y (thickness + 5.0) ]
             | EList(elems) -> List.collect dactylToOutline elems
             | Space -> [ Space ]
@@ -1313,16 +1299,6 @@ type Font(axes: Axes) =
                   "</g>" ]
 
 
-    member this.elementToSvgPathItalic(element, offsetX, offsetY, strokeWidth, fillColour) =
-        this.elementToSvgPath element offsetX offsetY strokeWidth fillColour
-
-    member this.getSvgKnotsItalic(offsetX, offsetY, size, colour, element) =
-        element |> SvgHelpers.getSvgKnots offsetX offsetY size colour this.isJoint
-
-    member this.getSvgLabelsItalic(offsetX, offsetY, element) =
-        element |> SvgHelpers.getSvgLabels offsetX offsetY
-
-
     member this.translateByThickness = translateBy thickness thickness
 
     member this.charToElem ch =
@@ -1370,7 +1346,7 @@ type Font(axes: Axes) =
                    5.0
                    red
                @ (if this.axes.show_knots then
-                      this.getSvgKnotsItalic (offsetX, offsetY, knotSize, knotColour, backbone)
+                      backbone |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour this.isJoint
                   else
                       [])
 

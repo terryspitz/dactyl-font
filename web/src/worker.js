@@ -1,4 +1,4 @@
-import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateVisualDiffsSvg, generateSplineViewerSvg, controlDefinitions, solveSplineEditor, getGuidePositions, getGlyphList, parseGlyphToControlPoints } from './lib/fable/Api'
+import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, generateSplineViewerSvg, controlDefinitions, solveSplineEditor, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphData } from './lib/fable/Api'
 import { DControlPoint } from './lib/fable/generator/DactylSpline'
 
 self.onmessage = (e) => {
@@ -17,22 +17,23 @@ self.onmessage = (e) => {
                 })
                 break
             case 'tweens': {
-                const [char, axes] = args
-                const steps = 9
+                const [char, axes, steps = 9] = args
                 const data = {}
-                const totalVariations = controlDefinitions.filter(c => c.type_ !== 'checkbox').length * steps
+                const EXCLUDED_TWEEN_AXES = ['tracking', 'leading', 'debug']
+                const tweenControls = controlDefinitions.filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name))
+                const totalVariations = tweenControls.reduce((sum, c) => sum + (c.type_ === 'checkbox' ? 3 : steps), 0)
                 let completed = 0
 
-                controlDefinitions.filter(c => c.type_ !== 'checkbox').forEach(ctrl => {
+                tweenControls.forEach(ctrl => {
                     const variations = []
-                    const min = ctrl.min
-                    const max = ctrl.max
-                    const range = max - min
+                    const vals = ctrl.type_ === 'checkbox'
+                        ? [0, 1, 'diff']
+                        : Array.from({ length: steps }, (_, i) => ctrl.min + (ctrl.max - ctrl.min) * (i / (steps - 1)))
 
-                    for (let i = 0; i < steps; i++) {
-                        const val = min + (range * (i / (steps - 1)))
-                        const tempAxes = { ...axes, [ctrl.name]: val }
-                        const svg = generateTweenSvg(char, tempAxes, null) // Pass null for inner progress
+                    for (const val of vals) {
+                        const svg = val === 'diff'
+                            ? generateTweenDiffSvg(char, { ...axes, [ctrl.name]: 0 }, { ...axes, [ctrl.name]: 1 })
+                            : generateTweenSvg(char, { ...axes, [ctrl.name]: val })
                         variations.push({ val, svg })
 
                         completed++
@@ -69,6 +70,11 @@ self.onmessage = (e) => {
             }
             case 'getGlyphList': {
                 result = getGlyphList()
+                break
+            }
+            case 'fontData': {
+                const [fontAxes] = args
+                result = generateFontGlyphData(fontAxes)
                 break
             }
             default:

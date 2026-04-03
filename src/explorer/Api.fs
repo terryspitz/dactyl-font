@@ -100,11 +100,32 @@ let generateTweenSvg (text: string) (axes: Axes) =
     // Let's set height to exactly what we need.
     toSvgDocument -margin minY width height svg |> String.concat "\n"
 
+let generateTweenDiffSvg (text: string) (axesOff: Axes) (axesOn: Axes) =
+    let fontOff = Font axesOff
+    let fontOn = Font axesOn
+
+    let lines =
+        if System.String.IsNullOrEmpty(text) then []
+        else text.Replace("\r\n", "\n").Split('\n') |> List.ofArray
+
+    let margin = 10.0
+    let svgOff, lineWidthsOff = fontOff.stringToSvgLineInternal lines 0.0 0.0 "rgba(255, 0, 0, 0.5)" None
+    let svgOn,  lineWidthsOn  = fontOn.stringToSvgLineInternal  lines 0.0 0.0 "rgba(0, 0, 255, 0.5)"  None
+    let width = (max (List.max lineWidthsOff) (List.max lineWidthsOn)) + margin * 2.0
+
+    let metrics = FontMetrics(axesOff)
+    let minY = float axesOff.thickness + float axesOff.leading - (margin * 2.0)
+    let height =
+        float axesOff.height - float metrics.D
+        + float axesOff.thickness * 2.0
+        + (margin * 3.0)
+
+    toSvgDocument -margin minY width height (svgOff @ svgOn) |> String.concat "\n"
+
 let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progress: (float -> unit) option) =
     let axes =
         { inputAxes with
             clip_rect = false
-            filled = false
             show_comb = true
             show_tangents = true }
 
@@ -267,20 +288,25 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
             let outlineDactylSplineSvg =
                 safeElementToSvgPath fontDactylSpline outlineDactylSpline orange
 
+            // Spine fonts: never fill the thin centerline paths
+            let fontSpiroSpine = Font { fontSpiro.axes with filled=false }
+            let fontSpline2Spine = Font { fontSpline2.axes with filled=false }
+            let fontDactylSplineSpine = Font { fontDactylSpline.axes with filled=false }
+
             let guidesLayer = wrapClass "guides-layer" guidesSvg
 
             let spiroLayer =
-                wrapClass "spiro-layer" (fontSpiro.elementToSvgPath spiro offsetX offsetY 3 blue @ outlineSpiroSvg)
+                wrapClass "spiro-layer" (fontSpiroSpine.elementToSvgPath spiro offsetX offsetY 3 blue @ outlineSpiroSvg)
 
             let spline2Layer =
                 wrapClass
                     "spline2-layer"
-                    (fontSpline2.elementToSvgPath spline offsetX offsetY 3 green @ outlineSpline2Svg)
+                    (fontSpline2Spine.elementToSvgPath spline offsetX offsetY 3 green @ outlineSpline2Svg)
 
             let dsplineLayer =
                 wrapClass
                     "dspline-layer"
-                    (fontDactylSpline.elementToSvgPath spline offsetX offsetY 3 orange
+                    (fontDactylSplineSpine.elementToSvgPath spline offsetX offsetY 3 orange
                      @ outlineDactylSplineSvg)
 
             let knotsLayer =
@@ -385,6 +411,33 @@ let getGlyphList () =
     GlyphStringDefs.glyphMap
     |> Map.toArray
     |> Array.map (fun (c, def) -> {| char = string c; def = def |})
+
+let generateFontGlyphData (axes: Axes) =
+    let fontAxes = { axes with outline = true; filled = true }
+    let font = Font fontAxes
+    let metrics = FontMetrics(axes)
+    let chars = allChars.Replace("\n", "")
+
+    let glyphs =
+        chars
+        |> Seq.map (fun c ->
+            try
+                let outline = font.CharToOutline c
+                let svg, _, _ = font.elementToSvg outline
+                {| unicode = int c
+                   advanceWidth = font.charWidth c
+                   pathData = String.concat " " svg |}
+            with _ ->
+                {| unicode = int c
+                   advanceWidth = font.charWidth c
+                   pathData = "" |})
+        |> Array.ofSeq
+
+    let thickness = float axes.thickness
+    {| glyphs = glyphs
+       ascender = metrics.T + thickness
+       descender = metrics.D - thickness
+       unitsPerEm = font.charHeight |}
 
 let private knotToObj (k: Knot) : obj =
     {| ty = int (spiroToSplinePointType k.ty)

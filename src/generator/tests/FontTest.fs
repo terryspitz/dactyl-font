@@ -157,6 +157,33 @@ type FontTests() =
         Assert.That(mCount, Is.GreaterThanOrEqualTo(1), "B should have at least one outline path")
 
     [<Test>]
+    member this.SpiroOutline_O_RendersCleanClosedContours() =
+        // The Spiro 'o' is a 4-point closed G2 curve.  SpiroCPsToSegments returns n+1
+        // segments for closed curves (a wrap-around copy of segment 0 whose ks values
+        // are all zeroes).  Before the fix, this unsolved segment was stored in
+        // SpiroClosedCurve and ended up in the outline pass with a bogus tangentStart=0,
+        // offsetting it northward instead of westward and producing a kinked outline.
+        //
+        // After the fix the wrap-around is stripped so the outline consists of exactly
+        // two smooth ovals (inner and outer), each with the same number of M commands.
+        let font =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = false
+                    spline2 = false
+                    outline = true }
+            )
+
+        let svg = font.charToSvg 'o' 0.0 0.0 "black"
+        let svgStr = String.concat " " svg
+        Assert.That(svgStr, Does.Contain("M "), "SVG should contain a moveto command")
+        Assert.That(svgStr, Does.Not.Contain("NaN"), "SVG should not contain NaN coordinates")
+        Assert.That(svgStr, Does.Not.Contain("stroke:#e00000"), "SVG should not be red (outline failure)")
+        // A closed 'o' outline has exactly two contours: outer and inner.
+        let mCount = svgStr.Split([| "M " |], System.StringSplitOptions.None).Length - 1
+        Assert.That(mCount, Is.EqualTo(2), sprintf "Spiro 'o' outline should have exactly 2 contours, got %d in: %s" mCount svgStr)
+
+    [<Test>]
     member this.SpiroOutline_SimpleGlyphs_RendersWithoutException() =
         // Spiro outlines for simple glyphs that have 2-knot open strokes ('i', 'l', '1').
         // These previously crashed in collapseHandleSegments dropping the last segment,
@@ -173,7 +200,12 @@ type FontTests() =
             let svg = font.charToSvg ch 0.0 0.0 "black"
             let svgStr = String.concat " " svg
             Assert.That(svgStr, Does.Contain("M "), sprintf "Spiro outline for '%c' should contain a moveto" ch)
-            Assert.That(svgStr, Does.Not.Contain("stroke:#e00000"), sprintf "Spiro outline for '%c' should not indicate failure" ch)
+
+            Assert.That(
+                svgStr,
+                Does.Not.Contain("stroke:#e00000"),
+                sprintf "Spiro outline for '%c' should not indicate failure" ch
+            )
 
     [<Test>]
     member this.Spline2Outline_SimpleGlyphs_RendersWithoutException() =
@@ -194,7 +226,12 @@ type FontTests() =
             let svg = font.charToSvg ch 0.0 0.0 "black"
             let svgStr = String.concat " " svg
             Assert.That(svgStr, Does.Contain("M "), sprintf "Spline2 outline for '%c' should contain a moveto" ch)
-            Assert.That(svgStr, Does.Not.Contain("NaN"), sprintf "Spline2 outline for '%c' should not contain NaN coordinates" ch)
+
+            Assert.That(
+                svgStr,
+                Does.Not.Contain("NaN"),
+                sprintf "Spline2 outline for '%c' should not contain NaN coordinates" ch
+            )
 
     [<Test>]
     member this.EGlyph_BackboneIsStraight_Dactyl() = this.verifyEGlyphBackbone (true, false)
@@ -290,6 +327,110 @@ type FontTests() =
     //     // If Spiro exploded, coordinates will be huge or contain Dash.
     //     Assert.That(svgS.Contains("-"), Is.False, "Spiro should not have huge negative coordinates")
     //     Assert.That(svgS.Length, Is.LessThan(1000), "Spiro should produce a compact SVG")
+
+    [<Test>]
+    member this.FilledAxis_ControlsSvgFillStyle() =
+        // When filled=true (and outline=true), SVG should have fill:black.
+        // When filled=false, SVG should have fill:none regardless of outline setting.
+        let filledFont =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    outline = true
+                    filled = true }
+            )
+
+        let unfilledFont =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    outline = true
+                    filled = false }
+            )
+
+        let filledSvg = String.concat " " (filledFont.charToSvg 'o' 0.0 0.0 "black")
+        let unfilledSvg = String.concat " " (unfilledFont.charToSvg 'o' 0.0 0.0 "black")
+
+        Assert.That(filledSvg, Does.Contain("fill:black"), "filled=true should produce fill:black")
+        Assert.That(unfilledSvg, Does.Contain("fill:none"), "filled=false should produce fill:none")
+
+    [<Test>]
+    member this.SoftCorners_V_Glyph_ProducesRoundedCorners() =
+        // The 'V' glyph (bl-tc-br) has sharp corners at tc and at the miter points.
+        // With soft_corners > 0, corners should be replaced with arcs (CurveToLine→G2→LineToCurve).
+        // End caps should remain intact (not distorted by rounding).
+        let fontSharp =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true
+                    soft_corners = 0.0 }
+            )
+
+        let fontRound =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true
+                    soft_corners = 0.5 }
+            )
+
+        let svgSharp = fontSharp.charToSvg 'V' 0.0 0.0 "black" |> String.concat " "
+        let svgRound = fontRound.charToSvg 'V' 0.0 0.0 "black" |> String.concat " "
+
+        // Both should produce valid SVG
+        Assert.That(svgSharp, Does.Contain("M "), "Sharp V should contain moveto")
+        Assert.That(svgRound, Does.Contain("M "), "Rounded V should contain moveto")
+        Assert.That(svgRound, Does.Not.Contain("NaN"), "Rounded V should not contain NaN")
+
+        // The rounded version should have more curve commands (C) than the sharp one,
+        // since corners are replaced with arcs.
+        let countC (svg: string) =
+            svg.Split(' ') |> Array.filter (fun s -> s = "C") |> Array.length
+
+        Assert.That(
+            countC svgRound,
+            Is.GreaterThan(countC svgSharp),
+            "Rounded V should have more curve commands than sharp V"
+        )
+
+    [<Test>]
+    member this.SoftCorners_Zero_MatchesDefault() =
+        // With soft_corners = 0, output should be identical to default (no rounding).
+        let fontDefault =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true }
+            )
+
+        let fontZero =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true
+                    soft_corners = 0.0 }
+            )
+
+        for ch in [ 'A'; 'V'; 'M'; 'o' ] do
+            let svgDefault = fontDefault.charToSvg ch 0.0 0.0 "black" |> String.concat " "
+            let svgZero = fontZero.charToSvg ch 0.0 0.0 "black" |> String.concat " "
+            Assert.That(svgZero, Is.EqualTo(svgDefault), sprintf "soft_corners=0 should match default for '%c'" ch)
+
+    [<Test>]
+    member this.SoftCorners_AllGlyphs_RenderWithoutException() =
+        // Smoke test: every glyph should render without crashing with soft_corners enabled.
+        let font =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true
+                    soft_corners = 0.8 }
+            )
+
+        for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" do
+            let svg = font.charToSvg ch 0.0 0.0 "black"
+            let svgStr = String.concat " " svg
+            Assert.That(svgStr, Does.Contain("M "), sprintf "Soft corners glyph '%c' should render a moveto" ch)
+            Assert.That(svgStr, Does.Not.Contain("NaN"), sprintf "Soft corners glyph '%c' should not contain NaN" ch)
 
     [<Test>]
     member this.DactylSpline_IsLineSegment_HandlesColinearTangents() =
