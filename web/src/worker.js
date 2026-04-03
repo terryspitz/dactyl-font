@@ -21,15 +21,17 @@ self.onmessage = (e) => {
                 const steps = 9
                 const data = {}
                 const EXCLUDED_TWEEN_AXES = ['tracking', 'leading']
+                const TWEEN_MIN_OVERRIDES = { x_height: 0.2 }
                 const tweenControls = controlDefinitions.filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name))
                 const totalVariations = tweenControls.reduce((sum, c) => sum + (c.type_ === 'checkbox' ? 2 : steps), 0)
                 let completed = 0
 
                 tweenControls.forEach(ctrl => {
                     const variations = []
+                    const tweenMin = TWEEN_MIN_OVERRIDES[ctrl.name] ?? ctrl.min
                     const vals = ctrl.type_ === 'checkbox'
                         ? [0, 1]
-                        : Array.from({ length: steps }, (_, i) => ctrl.min + (ctrl.max - ctrl.min) * (i / (steps - 1)))
+                        : Array.from({ length: steps }, (_, i) => tweenMin + (ctrl.max - tweenMin) * (i / (steps - 1)))
 
                     for (const val of vals) {
                         const tempAxes = { ...axes, [ctrl.name]: val }
