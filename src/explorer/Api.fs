@@ -100,6 +100,28 @@ let generateTweenSvg (text: string) (axes: Axes) =
     // Let's set height to exactly what we need.
     toSvgDocument -margin minY width height svg |> String.concat "\n"
 
+let generateTweenDiffSvg (text: string) (axesOff: Axes) (axesOn: Axes) =
+    let fontOff = Font axesOff
+    let fontOn = Font axesOn
+
+    let lines =
+        if System.String.IsNullOrEmpty(text) then []
+        else text.Replace("\r\n", "\n").Split('\n') |> List.ofArray
+
+    let margin = 10.0
+    let svgOff, lineWidthsOff = fontOff.stringToSvgLineInternal lines 0.0 0.0 "rgba(255, 0, 0, 0.5)" None
+    let svgOn,  lineWidthsOn  = fontOn.stringToSvgLineInternal  lines 0.0 0.0 "rgba(0, 0, 255, 0.5)"  None
+    let width = (max (List.max lineWidthsOff) (List.max lineWidthsOn)) + margin * 2.0
+
+    let metrics = FontMetrics(axesOff)
+    let minY = float axesOff.thickness + float axesOff.leading - (margin * 2.0)
+    let height =
+        float axesOff.height - float metrics.D
+        + float axesOff.thickness * 2.0
+        + (margin * 3.0)
+
+    toSvgDocument -margin minY width height (svgOff + svgOn) |> String.concat "\n"
+
 let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progress: (float -> unit) option) =
     let axes =
         { inputAxes with

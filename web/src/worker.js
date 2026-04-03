@@ -1,4 +1,4 @@
-import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateVisualDiffsSvg, generateSplineViewerSvg, controlDefinitions, solveSplineEditor, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphData } from './lib/fable/Api'
+import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, generateSplineViewerSvg, controlDefinitions, solveSplineEditor, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphData } from './lib/fable/Api'
 import { DControlPoint } from './lib/fable/generator/DactylSpline'
 
 self.onmessage = (e) => {
@@ -21,18 +21,19 @@ self.onmessage = (e) => {
                 const data = {}
                 const EXCLUDED_TWEEN_AXES = ['tracking', 'leading', 'debug']
                 const tweenControls = controlDefinitions.filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name))
-                const totalVariations = tweenControls.reduce((sum, c) => sum + (c.type_ === 'checkbox' ? 2 : steps), 0)
+                const totalVariations = tweenControls.reduce((sum, c) => sum + (c.type_ === 'checkbox' ? 3 : steps), 0)
                 let completed = 0
 
                 tweenControls.forEach(ctrl => {
                     const variations = []
                     const vals = ctrl.type_ === 'checkbox'
-                        ? [0, 1]
+                        ? [0, 1, 'diff']
                         : Array.from({ length: steps }, (_, i) => ctrl.min + (ctrl.max - ctrl.min) * (i / (steps - 1)))
 
                     for (const val of vals) {
-                        const tempAxes = { ...axes, [ctrl.name]: val }
-                        const svg = generateTweenSvg(char, tempAxes, null) // Pass null for inner progress
+                        const svg = val === 'diff'
+                            ? generateTweenDiffSvg(char, { ...axes, [ctrl.name]: 0 }, { ...axes, [ctrl.name]: 1 })
+                            : generateTweenSvg(char, { ...axes, [ctrl.name]: val })
                         variations.push({ val, svg })
 
                         completed++
