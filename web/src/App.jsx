@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, allChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
+import { downloadFont } from './fontExport'
 import './App.css'
 
 
@@ -22,12 +23,10 @@ function App() {
   })
   const [axes, setAxes] = useState({ ...defaultAxes })
   const [activeTab, setActiveTab] = useState('font')
-  const [tabZooms, setTabZooms] = useState({
-    font: 1.0,
-    glyphs: 1.0,
-    tweens: 1.0,
-    visualDiffs: 1.0,
-    splines: 1.0,
+  const [tabZooms, setTabZooms] = useState(() => {
+    const urlZoom = parseFloat(new URLSearchParams(window.location.search).get('zoom'))
+    const zoom = isNaN(urlZoom) ? 1.0 : urlZoom
+    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom }
   })
   const [layerVisibility, setLayerVisibility] = useState({
     spiro: true,
@@ -39,6 +38,7 @@ function App() {
     tangents: true,
     labels: true,
   })
+  const [glyphsFilled, setGlyphsFilled] = useState(false)
   const [legendPos, setLegendPos] = useState({ x: 0, y: 0 })
   const isDraggingRef = useRef(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
@@ -175,8 +175,27 @@ function App() {
 
   // Worker state is now handled within the effect directly
 
+  const [downloadingFont, setDownloadingFont] = useState(false)
+
+  const handleDownloadFont = () => {
+    setDownloadingFont(true)
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    worker.onmessage = (e) => {
+      const { result, error } = e.data
+      worker.terminate()
+      setDownloadingFont(false)
+      if (error) {
+        console.error('Font generation error:', error)
+      } else {
+        downloadFont(result)
+      }
+    }
+    worker.postMessage({ id: 1, type: 'fontData', args: [axes] })
+  }
+
   const renderIdRef = useRef(0)
   const loadingRef = useRef(false)
+  const previewRef = useRef(null)
   const [loading, setLoading] = useState(false)
   const [showProgress, setShowProgress] = useState(false)
   const [progressValue, setProgressValue] = useState(0)
@@ -209,6 +228,7 @@ function App() {
     }
 
     const id = ++renderIdRef.current
+    setWorkerResult(null)
     setLoading(true)
     loadingRef.current = true
     setProgressValue(0)
@@ -234,11 +254,14 @@ function App() {
       args = [text, axes]
     } else if (activeTab === 'glyphs') {
       typeReq = 'glyphsFromDefs'
-      args = [glyphsDefsText, axes]
+      args = [glyphsDefsText, { ...axes, filled: glyphsFilled }]
     } else if (activeTab === 'tweens') {
       const char = text.length > 0 ? text[0] : 'a'
       typeReq = 'tweens'
-      args = [char, axes]
+      const boxWidth = 150 * zoom
+      const availableWidth = previewRef.current?.clientWidth ?? window.innerWidth
+      const steps = Math.max(2, Math.floor((availableWidth + 10) / (boxWidth + 10)))
+      args = [char, axes, steps]
     } else if (activeTab === 'visualDiffs') {
       typeReq = 'visualDiffs'
       args = [text || allChars, axes]
@@ -258,7 +281,7 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, glyphsDefsText])
+  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled])
 
   const renderContent = () => {
     if (error) return <div style={{ color: 'red' }}>Error: {error}</div>
@@ -266,6 +289,11 @@ function App() {
       // Optional: return <div style={{padding: '20px'}}>Generating...</div> 
       // But user asked for progress bar at top, so maybe leave blank or keep old?
       // If we return null, it might flash.
+    }
+
+    // SplineEditor manages its own state/worker — render immediately
+    if (activeTab === 'splines') {
+      return <SplineEditor axes={axes} />
     }
 
     // Safety check: ensure result matches expected type for tab
@@ -297,13 +325,17 @@ function App() {
       } else if (activeTab === 'tweens') {
         if (typeof content !== 'object') return null
         // content is { [ctrlName]: [ { val, svg } ] }
+        // Optional URL param ?tween=axisName to show only one axis
+        const params = new URLSearchParams(window.location.search)
+        const tweenFilter = params.get('tween')
 
         return (
           <div className="tweens-grid">
             {(() => {
-              const EXCLUDED_TWEEN_AXES = ['tracking', 'leading']
+              const EXCLUDED_TWEEN_AXES = ['tracking', 'leading', 'debug']
               return controlDefinitions
-                .filter(c => c.type_ !== 'checkbox' && !EXCLUDED_TWEEN_AXES.includes(c.name))
+                .filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name))
+                .filter(c => !tweenFilter || c.name === tweenFilter)
                 .map(ctrl => {
                   const variations = content[ctrl.name]
                   if (!variations) return null
@@ -313,7 +345,7 @@ function App() {
                     return (
                       <div key={`${ctrl.name}-${i}`} className="tween-item" style={{ minWidth: boxWidth + 'px', width: boxWidth + 'px' }}>
                         <div dangerouslySetInnerHTML={{ __html: v.svg }} />
-                        <div style={{ fontSize: '0.7em' }}>{v.val.toFixed(2)}</div>
+                        <div style={{ fontSize: '0.7em' }}>{ctrl.type_ === 'checkbox' ? (v.val === 'diff' ? 'diff' : v.val ? 'true' : 'false') : v.val.toFixed(2)}</div>
                       </div>
                     )
                   })
@@ -336,8 +368,6 @@ function App() {
           className="svg-container"
           dangerouslySetInnerHTML={{ __html: content }}
         />
-      } else if (activeTab === 'splines') {
-        return <SplineEditor axes={axes} />
       }
       return null
     } catch (e) {
@@ -457,7 +487,18 @@ function App() {
             <button className={`tab-button ${activeTab === 'visualDiffs' ? 'active' : ''}`} onClick={() => setTabWithUrl('visualDiffs')}>Visual Diffs</button>
             <button className={`tab-button ${activeTab === 'splines' ? 'active' : ''}`} onClick={() => setTabWithUrl('splines')}>Splines</button>
           </div>
-
+          {activeTab === 'font' && (
+            <button
+              className="icon-button"
+              onClick={handleDownloadFont}
+              disabled={downloadingFont}
+              title="Download Font (OTF)"
+            >
+              <span className="material-symbols-outlined">
+                {downloadingFont ? 'hourglass_empty' : 'download'}
+              </span>
+            </button>
+          )}
         </div>
 
         <div className={`input-area ${activeTab === 'glyphs' ? 'with-defs' : ''}`} style={activeTab === 'splines' ? { display: 'none' } : undefined}>
@@ -518,7 +559,7 @@ function App() {
               )}
             </div>
           )}
-          <div className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`}>
+          <div ref={previewRef} className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`}>
             {activeTab !== 'splines' && (
               <div className="zoom-controls">
                 <button onClick={() => setZoom(z => Math.min(z + 0.1, 5.0))} title="Zoom In">
@@ -620,6 +661,14 @@ function App() {
               <span className="swatch lightBlue circle"></span>
               <span className="swatch lightGreen circle"></span>
               Knots
+            </div>
+            <div className="legend-item">
+              <input
+                type="checkbox"
+                checked={glyphsFilled}
+                onChange={e => setGlyphsFilled(e.target.checked)}
+              />
+              Filled
             </div>
           </div>
         )}

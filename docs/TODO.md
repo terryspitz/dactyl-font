@@ -1,9 +1,5 @@
 
 **TODOs**
-- add proper interactive spline editor (tab)
-- soft corners
-- do we still need mergeConsecutive?
-- add 'filled' checkbox to glyphs tab, default off
 - add documentation tooltips, links
 - flare with tangents wrong way round
 - move outline point inward only
@@ -39,6 +35,33 @@
 - Constrain tangents to horiz/vertical
 - Italics subdivide splines to ensure better fit
 - Dactyl-smooth which has no corners
+- Soft corners
+- mergeConsecutive removed (no longer needed)
+- 'filled' checkbox in glyphs tab legend (default off)
+- Interactive spline editor tab with rendering and control point management
+- Playwright visual regression tests for all 5 tabs
+- Performance optimisation: ~70% reduction in font generation time (~8.5s → ~2.5s) by eliminating memory allocations in hot path
+- Round SVG coordinates to ints (matching font software output)
+- Responsive sidebar with hover-to-expand and category icons
+- Draggable legend in Glyphs tab (with mobile touch support)
+- Show Labels option in Glyphs tab legend
+- Renamed Splines tab to Glyphs
+- Split incoming/outgoing tangents for correct cap handling
+- Propagate tangents from backbone to outline
+- Fixed tangents on inner corners and bevels on outer sharp corners
+- Fix lines with colinear tangents as real line segments
+- Major refactoring: removed legacy GlyphFsDefs module, simplified coordinate system
+- Refactored Knot Tuple to Record Type
+- Extracted SVG helpers into SvgHelpers.fs
+- Renamed DSpline→DactylSpline, Generator.fs→Font.fs
+- Renamed OffsetSegment→Segment and related functions
+- Abstracted stroke logic in Font.fs
+- Fixed Dactyl italics rendering
+- Fixed touch dragging on mobile
+- Updated GitHub Actions to support Node.js 24
+- Updated README with consolidated intro, gallery, and fixed formatting
+- Fixed Spiro curve outlines (B, P, D)
+- Merged all branches
 
 **Document if interesting the following categories**
 - Straights: AEFHIKLMNTVWXYZklvwxyz147/=[]\`|*"'
