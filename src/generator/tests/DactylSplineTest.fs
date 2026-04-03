@@ -598,8 +598,8 @@ type IntegrationTests() =
         let solver = Solver([| cp1; cp2; cp3; cp4 |], false, 1.0, false)
         solver.initialise ()
 
-        // Solve
-        solver.Solve(2000)
+        // Solve — use 5000 iterations to match other tests; STEPS=16 needs more exploration.
+        solver.Solve(5000)
         let finalX = solver.points().[2].x
 
         printfn "Final X: %f (Center is 500)" finalX
