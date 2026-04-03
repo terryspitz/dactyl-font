@@ -8,15 +8,22 @@ async function waitForTweens(page) {
 }
 
 test.describe('Tweens visual tests', () => {
-  // Screenshot all tweens together (default view)
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => localStorage.clear());
+    page.on('console', msg => {
+      if (msg.type() === 'error') console.error('Browser error:', msg.text());
+    });
+    page.on('pageerror', err => console.error('Page error:', err.message));
+  });
+
+  // Snapshot all tweens together (default view)
   test('all tweens', async ({ page }) => {
     await page.goto('/?view=tweens');
     await waitForTweens(page);
-    const grid = page.locator('.tweens-grid');
-    await grid.screenshot({ path: 'screenshots/tweens-all.png' });
+    await expect(page.locator('.tweens-grid')).toHaveScreenshot('tweens-all.png');
   });
 
-  // Screenshot each axis separately, discovered from the rendered page
+  // Snapshot each axis separately, discovered from the rendered page
   test('individual tweens', async ({ page }) => {
     // Load all tweens to discover which axes the app generates
     await page.goto('/?view=tweens');
@@ -26,8 +33,7 @@ test.describe('Tweens visual tests', () => {
     for (const axis of axes) {
       await page.goto(`/?view=tweens&tween=${axis}`);
       await waitForTweens(page);
-      const grid = page.locator('.tweens-grid');
-      await grid.screenshot({ path: `screenshots/tween-${axis}.png` });
+      await expect(page.locator('.tweens-grid')).toHaveScreenshot(`tween-${axis}.png`);
     }
   });
 });
