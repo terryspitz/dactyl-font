@@ -120,7 +120,7 @@ let generateTweenDiffSvg (text: string) (axesOff: Axes) (axesOn: Axes) =
         + float axesOff.thickness * 2.0
         + (margin * 3.0)
 
-    toSvgDocument -margin minY width height (svgOff + svgOn) |> String.concat "\n"
+    toSvgDocument -margin minY width height (svgOff @ svgOn) |> String.concat "\n"
 
 let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progress: (float -> unit) option) =
     let axes =
