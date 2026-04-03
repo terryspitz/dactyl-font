@@ -404,8 +404,8 @@ type AdvancedGeometricTests() =
 
         let err = solver.computeErr ()
         // Error is sum of squared residuals of curvature * 10000.
-        // Threshold scales with STEPS (currently 16 samples vs original 8, so ~2x).
-        Assert.That(err, Is.LessThan(2000.0), "Error too high for quarter circle")
+        // 500 ~ 0.05% deviation.
+        Assert.That(err, Is.LessThan(1000.0), "Error too high for quarter circle")
 
         let pts = solver.points ()
         // Tangent is stored in pts.[1].th_in (BezierPoint.th_in is float, not option)
@@ -439,9 +439,8 @@ type AdvancedGeometricTests() =
         solver.Solve(5000)
 
         let err = solver.computeErr ()
-        // S-curve fitting with Beziers is harder, expect higher residual on curvature linearity.
-        // Threshold scales with STEPS (currently 16 samples vs original 8, so ~2x).
-        Assert.That(err, Is.LessThan(4.0e7), "Error too high for S-curve")
+        // S-curve fitting with Beziers is harder, expect higher residual on curvature linearity
+        Assert.That(err, Is.LessThan(2.0e7), "Error too high for S-curve")
 
         let pts = solver.points ()
         let th = pts.[1].th_in
