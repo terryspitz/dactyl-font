@@ -17,8 +17,7 @@ self.onmessage = (e) => {
                 })
                 break
             case 'tweens': {
-                const [char, axes] = args
-                const steps = 9
+                const [char, axes, steps = 9] = args
                 const data = {}
                 const EXCLUDED_TWEEN_AXES = ['tracking', 'leading', 'debug']
                 const tweenControls = controlDefinitions.filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name))

@@ -195,6 +195,7 @@ function App() {
 
   const renderIdRef = useRef(0)
   const loadingRef = useRef(false)
+  const previewRef = useRef(null)
   const [loading, setLoading] = useState(false)
   const [showProgress, setShowProgress] = useState(false)
   const [progressValue, setProgressValue] = useState(0)
@@ -257,7 +258,10 @@ function App() {
     } else if (activeTab === 'tweens') {
       const char = text.length > 0 ? text[0] : 'a'
       typeReq = 'tweens'
-      args = [char, axes]
+      const boxWidth = 150 * zoom
+      const availableWidth = previewRef.current?.clientWidth ?? window.innerWidth
+      const steps = Math.max(2, Math.floor((availableWidth + 10) / (boxWidth + 10)))
+      args = [char, axes, steps]
     } else if (activeTab === 'visualDiffs') {
       typeReq = 'visualDiffs'
       args = [text || allChars, axes]
@@ -555,7 +559,7 @@ function App() {
               )}
             </div>
           )}
-          <div className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`}>
+          <div ref={previewRef} className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`}>
             {activeTab !== 'splines' && (
               <div className="zoom-controls">
                 <button onClick={() => setZoom(z => Math.min(z + 0.1, 5.0))} title="Zoom In">
