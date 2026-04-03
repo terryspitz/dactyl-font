@@ -404,11 +404,6 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 let p2 = (point2.lpt().x, point2.lpt().y)
                 let p3 = (point2.x, point2.y)
 
-                // Penalise negative handle lengths: they flip control points through the
-                // knot, creating self-intersecting segments and nonsensical curvature.
-                if point1.rd < 0. || point2.ld < 0. then
-                    totalErr <- totalErr + 1e8
-
                 let mutable cumm_dist = 0.
 
                 for j in 0 .. STEPS do
