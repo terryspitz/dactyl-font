@@ -80,7 +80,7 @@ type Axes =
           "spline2", Checkbox, "experimental"
           "width", Range(100, 1000), "default"
           "height", Range(100, 1000), "default"
-          "x_height", FracRange(0., 1.1), "default"
+          "x_height", FracRange(0.2, 1.1), "default"
           "thickness", Range(1, 200), "default"
           "contrast", FracRange(-0.5, 0.5), "default"
           "roundedness", Range(0, 100), "default"
