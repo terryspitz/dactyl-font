@@ -23,12 +23,10 @@ function App() {
   })
   const [axes, setAxes] = useState({ ...defaultAxes })
   const [activeTab, setActiveTab] = useState('font')
-  const [tabZooms, setTabZooms] = useState({
-    font: 1.0,
-    glyphs: 1.0,
-    tweens: 1.0,
-    visualDiffs: 1.0,
-    splines: 1.0,
+  const [tabZooms, setTabZooms] = useState(() => {
+    const urlZoom = parseFloat(new URLSearchParams(window.location.search).get('zoom'))
+    const tweensZoom = isNaN(urlZoom) ? 1.0 : urlZoom
+    return { font: 1.0, glyphs: 1.0, tweens: tweensZoom, visualDiffs: 1.0, splines: 1.0 }
   })
   const [layerVisibility, setLayerVisibility] = useState({
     spiro: true,

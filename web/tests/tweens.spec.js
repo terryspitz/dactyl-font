@@ -18,7 +18,7 @@ test.describe('Tweens visual tests', () => {
 
   // Snapshot all tweens together (default view)
   test('all tweens', async ({ page }) => {
-    await page.goto('/?view=tweens');
+    await page.goto('/?view=tweens&zoom=0.85');
     await waitForTweens(page);
     await expect(page.locator('.tweens-grid')).toHaveScreenshot('tweens-all.png');
   });
@@ -26,12 +26,12 @@ test.describe('Tweens visual tests', () => {
   // Snapshot each axis separately, discovered from the rendered page
   test('individual tweens', async ({ page }) => {
     // Load all tweens to discover which axes the app generates
-    await page.goto('/?view=tweens');
+    await page.goto('/?view=tweens&zoom=0.85');
     await waitForTweens(page);
     const axes = await page.$$eval('.tween-row h4', els => els.map(el => el.textContent));
 
     for (const axis of axes) {
-      await page.goto(`/?view=tweens&tween=${axis}`);
+      await page.goto(`/?view=tweens&zoom=0.85&tween=${axis}`);
       await waitForTweens(page);
       await expect(page.locator('.tweens-grid')).toHaveScreenshot(`tween-${axis}.png`);
     }
