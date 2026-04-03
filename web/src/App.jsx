@@ -343,7 +343,7 @@ function App() {
                     return (
                       <div key={`${ctrl.name}-${i}`} className="tween-item" style={{ minWidth: boxWidth + 'px', width: boxWidth + 'px' }}>
                         <div dangerouslySetInnerHTML={{ __html: v.svg }} />
-                        <div style={{ fontSize: '0.7em' }}>{v.val.toFixed(2)}</div>
+                        <div style={{ fontSize: '0.7em' }}>{ctrl.type_ === 'checkbox' ? (v.val ? 'true' : 'false') : v.val.toFixed(2)}</div>
                       </div>
                     )
                   })

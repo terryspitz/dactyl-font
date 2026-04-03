@@ -22,17 +22,16 @@ self.onmessage = (e) => {
                 const data = {}
                 const EXCLUDED_TWEEN_AXES = ['tracking', 'leading']
                 const tweenControls = controlDefinitions.filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name))
-                const totalVariations = tweenControls.length * steps
+                const totalVariations = tweenControls.reduce((sum, c) => sum + (c.type_ === 'checkbox' ? 2 : steps), 0)
                 let completed = 0
 
                 tweenControls.forEach(ctrl => {
                     const variations = []
-                    const min = ctrl.min
-                    const max = ctrl.max
-                    const range = max - min
+                    const vals = ctrl.type_ === 'checkbox'
+                        ? [0, 1]
+                        : Array.from({ length: steps }, (_, i) => ctrl.min + (ctrl.max - ctrl.min) * (i / (steps - 1)))
 
-                    for (let i = 0; i < steps; i++) {
-                        const val = min + (range * (i / (steps - 1)))
+                    for (const val of vals) {
                         const tempAxes = { ...axes, [ctrl.name]: val }
                         const svg = generateTweenSvg(char, tempAxes, null) // Pass null for inner progress
                         variations.push({ val, svg })
