@@ -448,8 +448,10 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
 
                     // 3. Extra flatness at open endpoints: endpoint segments should be
                     //    circular arcs (constant curvature, i.e. m ≈ 0).
+                    //    Use the same linear |m| form as the main flatness term to avoid
+                    //    steep gradients that prevent convergence.
                     if not isClosed && (i = 0 || i = _points.Length - 2) then
-                        totalErr <- totalErr + m * m * flatness * 10.0
+                        totalErr <- totalErr + abs m * flatness * 2.0
 
                     // Calculate start and end curvature for continuity
                     // k(s) = m*s + c. Start is s=0 (c), End is s=max_dist
