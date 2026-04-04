@@ -40,6 +40,15 @@ const getDefaultCoords = (guides) => {
 const isEditingInput = (e) =>
   e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA'
 
+// Snap a value to the nearest guide if within threshold units
+const snapToGuide = (value, guideArray, thresholdUnits) => {
+  if (!guideArray) return value
+  for (const g of guideArray) {
+    if (Math.abs(value - g.value) <= thresholdUnits) return g.value
+  }
+  return value
+}
+
 // --- Curvature graph helpers ---
 
 // Evaluate a cubic bezier at t: returns {x, y}
@@ -176,6 +185,8 @@ function SplineEditor({ axes }) {
   const [showOutline, setShowOutline] = useState(false)
   const [outlinePath, setOutlinePath] = useState(null)
   const [showCurvatureGraph, setShowCurvatureGraph] = useState(false)
+  const [dragRowIdx, setDragRowIdx] = useState(null)    // index of row being dragged to reorder
+  const [dragOverRowIdx, setDragOverRowIdx] = useState(null) // row being hovered over during drag
   const svgRef = useRef(null)
   const workerRef = useRef(null)
   const solveIdRef = useRef(0)
@@ -184,6 +195,11 @@ function SplineEditor({ axes }) {
   // Always-current snapshot of curves without triggering stale closures in callbacks
   const curvesRef = useRef(curves)
   useEffect(() => { curvesRef.current = curves }, [curves])
+
+  // Refs for guides and viewBox — accessed in pointer callbacks without stale closure risk
+  const guidesRef = useRef(guides)
+  useEffect(() => { guidesRef.current = guides }, [guides])
+  const viewBoxRef = useRef(null) // set after viewBox useMemo
 
   // Undo/redo stacks kept in refs so mutations don't cause re-renders
   const undoStackRef = useRef([])
@@ -299,7 +315,9 @@ function SplineEditor({ axes }) {
     const maxX = Math.max(...xs) + 80
     const minY = Math.min(...ys) - 80
     const maxY = Math.max(...ys) + 80
-    return { x: minX, y: -(maxY), w: maxX - minX, h: maxY - minY }
+    const vb = { x: minX, y: -(maxY), w: maxX - minX, h: maxY - minY }
+    viewBoxRef.current = vb
+    return vb
   }, [guides])
 
   const svgPoint = useCallback((clientX, clientY) => {
@@ -344,7 +362,18 @@ function SplineEditor({ axes }) {
     const pt = curve.points[idx]
 
     if (type === 'knot') {
-      updatePoint(curveIdx, idx, { x: Math.round(x), y: Math.round(y) })
+      // Snap to guide lines: compute threshold in viewBox units from SVG pixel size
+      let sx = x, sy = y
+      const svg = svgRef.current
+      const vb = viewBoxRef.current
+      const g = guidesRef.current
+      if (svg && vb && g) {
+        const rect = svg.getBoundingClientRect()
+        const threshold = 12 * vb.w / rect.width // 12px in viewBox units
+        sx = snapToGuide(x, g.xGuides, threshold)
+        sy = snapToGuide(y, g.yGuides, threshold)
+      }
+      updatePoint(curveIdx, idx, { x: Math.round(sx), y: Math.round(sy) })
     } else if (type === 'th_in' || type === 'th_out') {
       const px = pt.x ?? 0
       const py = pt.y ?? 0
@@ -450,6 +479,20 @@ function SplineEditor({ axes }) {
     if (selectedPt === idx) setSelectedPt(null)
     else if (selectedPt > idx) setSelectedPt(selectedPt - 1)
   }, [activeCurve, selectedPt, pushUndo])
+
+  const movePoint = useCallback((fromIdx, toIdx) => {
+    if (fromIdx === toIdx) return
+    pushUndo()
+    setCurves(prev => {
+      const next = [...prev]
+      const curve = { ...next[activeCurve], points: [...next[activeCurve].points] }
+      const [removed] = curve.points.splice(fromIdx, 1)
+      curve.points.splice(toIdx, 0, removed)
+      next[activeCurve] = curve
+      return next
+    })
+    setSelectedPt(toIdx)
+  }, [activeCurve, pushUndo])
 
   const toggleClosed = useCallback(() => {
     pushUndo()
@@ -694,36 +737,57 @@ function SplineEditor({ axes }) {
               </g>
             ))}
 
-            {/* Active curve: tangent handles (drawn under knots) */}
+            {/* Active curve: tangent handles (drawn under knots).
+                Auto angles come from solveResult.bezierPoints; shown as dashed/unfilled. */}
             {points.map((p, i) => {
               if (p.x == null || p.y == null) return null
               const px = p.x
               const py = -p.y
+              const bp = solveResult?.bezierPoints?.[i]
               const handles = []
-              if (p.th_in != null) {
-                const hx = px + HANDLE_LEN * Math.cos(p.th_in + Math.PI)
-                const hy = py - HANDLE_LEN * Math.sin(p.th_in + Math.PI)
+
+              // th_in — explicit value or auto-solved angle
+              const autoIn = p.th_in === null
+              const thIn = autoIn ? (bp && !isNaN(bp.th_in) ? bp.th_in : null) : p.th_in
+              if (thIn != null) {
+                const hx = px + HANDLE_LEN * Math.cos(thIn + Math.PI)
+                const hy = py - HANDLE_LEN * Math.sin(thIn + Math.PI)
                 handles.push(
                   <g key={`h-in-${i}`}>
-                    <line x1={px} y1={py} x2={hx} y2={hy} stroke="#e07020" strokeWidth="2" />
-                    <circle cx={hx} cy={hy} r={14} fill="#e07020" stroke="#fff" strokeWidth="2"
-                      style={{ cursor: 'grab' }}
-                      onPointerDown={e => handlePointerDown(e, 'th_in', activeCurve, i)} />
+                    <line x1={px} y1={py} x2={hx} y2={hy}
+                      stroke="#e07020" strokeWidth={autoIn ? 1 : 2}
+                      strokeDasharray={autoIn ? '5,3' : undefined} opacity={autoIn ? 0.45 : 1} />
+                    {autoIn
+                      ? <circle cx={hx} cy={hy} r={8} fill="none" stroke="#e07020" strokeWidth="1.5" opacity="0.45" />
+                      : <circle cx={hx} cy={hy} r={14} fill="#e07020" stroke="#fff" strokeWidth="2"
+                          style={{ cursor: 'grab' }}
+                          onPointerDown={e => handlePointerDown(e, 'th_in', activeCurve, i)} />
+                    }
                   </g>
                 )
               }
-              if (p.th_out != null) {
-                const hx = px + HANDLE_LEN * Math.cos(p.th_out)
-                const hy = py - HANDLE_LEN * Math.sin(p.th_out)
+
+              // th_out — explicit value or auto-solved angle
+              const autoOut = p.th_out === null
+              const thOut = autoOut ? (bp && !isNaN(bp.th_out) ? bp.th_out : null) : p.th_out
+              if (thOut != null) {
+                const hx = px + HANDLE_LEN * Math.cos(thOut)
+                const hy = py - HANDLE_LEN * Math.sin(thOut)
                 handles.push(
                   <g key={`h-out-${i}`}>
-                    <line x1={px} y1={py} x2={hx} y2={hy} stroke="#2070e0" strokeWidth="2" />
-                    <circle cx={hx} cy={hy} r={14} fill="#2070e0" stroke="#fff" strokeWidth="2"
-                      style={{ cursor: 'grab' }}
-                      onPointerDown={e => handlePointerDown(e, 'th_out', activeCurve, i)} />
+                    <line x1={px} y1={py} x2={hx} y2={hy}
+                      stroke="#2070e0" strokeWidth={autoOut ? 1 : 2}
+                      strokeDasharray={autoOut ? '5,3' : undefined} opacity={autoOut ? 0.45 : 1} />
+                    {autoOut
+                      ? <circle cx={hx} cy={hy} r={8} fill="none" stroke="#2070e0" strokeWidth="1.5" opacity="0.45" />
+                      : <circle cx={hx} cy={hy} r={14} fill="#2070e0" stroke="#fff" strokeWidth="2"
+                          style={{ cursor: 'grab' }}
+                          onPointerDown={e => handlePointerDown(e, 'th_out', activeCurve, i)} />
+                    }
                   </g>
                 )
               }
+
               return <g key={`handles-${i}`}>{handles}</g>
             })}
 
@@ -750,6 +814,7 @@ function SplineEditor({ axes }) {
             <table className="se-table">
               <thead>
                 <tr>
+                  <th className="se-drag-handle-th"></th>
                   <th>#</th>
                   <th>Label</th>
                   <th>Type</th>
@@ -762,7 +827,22 @@ function SplineEditor({ axes }) {
               </thead>
               <tbody>
                 {points.map((p, i) => (
-                  <tr key={i} className={i === selectedPt ? 'selected' : ''} onClick={() => setSelectedPt(i)}>
+                  <tr key={i}
+                    className={[i === selectedPt ? 'selected' : '', i === dragOverRowIdx ? 'se-drag-over' : ''].filter(Boolean).join(' ')}
+                    onClick={() => setSelectedPt(i)}
+                    onDragOver={e => { e.preventDefault(); setDragOverRowIdx(i) }}
+                    onDragLeave={() => setDragOverRowIdx(null)}
+                    onDrop={() => {
+                      if (dragRowIdx !== null) movePoint(dragRowIdx, i)
+                      setDragRowIdx(null); setDragOverRowIdx(null)
+                    }}
+                    onDragEnd={() => { setDragRowIdx(null); setDragOverRowIdx(null) }}
+                  >
+                    <td className="se-drag-handle"
+                      draggable
+                      onDragStart={e => { e.stopPropagation(); setDragRowIdx(i) }}
+                      title="Drag to reorder"
+                    >⠿</td>
                     <td className="se-idx">{i}</td>
                     <td>
                       <input

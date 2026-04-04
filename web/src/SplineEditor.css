@@ -255,6 +255,30 @@
   vector-effect: non-scaling-stroke;
 }
 
+/* Drag-to-reorder handle column */
+.se-drag-handle-th {
+  width: 14px;
+  padding: 0 2px;
+}
+
+.se-drag-handle {
+  cursor: grab;
+  color: var(--text-muted, #666);
+  font-size: 1em;
+  padding: 0 4px;
+  text-align: center;
+  user-select: none;
+}
+
+.se-drag-handle:hover {
+  color: var(--text-primary, #eee);
+}
+
+.se-drag-over {
+  background: rgba(59, 130, 246, 0.25) !important;
+  outline: 1px solid var(--accent-color, #3b82f6);
+}
+
 /* Auto/fitted toggle cells — td is plain, inner div is flex */
 .se-auto-cell-td {
   padding: 1px 2px;
@@ -273,13 +297,13 @@
 }
 
 .se-auto-btn {
-  background: none;
-  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.28);
   border-radius: 3px;
-  color: var(--text-muted, #666);
+  color: var(--text-secondary, #aaa);
   cursor: pointer;
   font-size: 0.75em;
-  padding: 0 3px;
+  padding: 0 4px;
   line-height: 1.4;
   flex-shrink: 0;
 }
@@ -287,17 +311,18 @@
 .se-auto-btn:hover:not(:disabled) {
   color: var(--accent-color, #3b82f6);
   border-color: var(--accent-color, #3b82f6);
+  background: rgba(59,130,246,0.12);
 }
 
 .se-auto-btn:disabled {
-  opacity: 0.3;
+  opacity: 0.25;
   cursor: default;
 }
 
 .se-preset-select {
   background: var(--sidebar-bg, #252535);
   color: var(--text-primary, #eee);
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.28);
   border-radius: 3px;
   font-size: 0.8em;
   padding: 0 2px;
@@ -307,15 +332,22 @@
 }
 
 .se-auto-active {
-  background: rgba(59, 130, 246, 0.15);
-  border: 1px solid var(--accent-color, #3b82f6);
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(99, 160, 255, 0.7);
   border-radius: 3px;
-  color: var(--accent-color, #3b82f6);
+  color: #7eb8ff;
   cursor: pointer;
   font-size: 0.75em;
+  font-weight: 600;
   padding: 1px 5px;
   width: 100%;
   text-align: center;
+}
+
+.se-auto-active:hover {
+  background: rgba(59, 130, 246, 0.35);
+  border-color: var(--accent-color, #3b82f6);
+  color: #fff;
 }
 
 /* Label input in the control points table */
