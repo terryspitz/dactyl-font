@@ -253,9 +253,6 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
     let _segmentEndK = Array.create ctrlPts.Length 0.0
     let _segmentStartIdx = Array.create ctrlPts.Length 0
     let _segmentEndIdx = Array.create ctrlPts.Length 0
-    // Exact curvature at t=0 and t=1 of each segment (not the linear-regression estimate)
-    let _segmentStartActualK = Array.create ctrlPts.Length 0.0
-    let _segmentEndActualK = Array.create ctrlPts.Length 0.0
 
     member this.ctrlPts = ctrlPts
     member this.isClosed = isClosed
@@ -457,8 +454,6 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     // Store start/end indices for continuity check
                     _segmentStartK.[segmentCount] <- startK
                     _segmentEndK.[segmentCount] <- endK
-                    _segmentStartActualK.[segmentCount] <- _ks.[0]
-                    _segmentEndActualK.[segmentCount] <- _ks.[STEPS]
                     _segmentStartIdx.[segmentCount] <- i
                     _segmentEndIdx.[segmentCount] <- i + 1
                     segmentCount <- segmentCount + 1
@@ -511,22 +506,6 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             if isJoinSmooth then
                 let gap = firstStartK - lastEndK
                 totalErr <- totalErr + gap * gap * 10.0
-
-        // 4. Boundary curvature penalties for line-adjacent endpoints.
-        // When a curve section starts at a LineToCurve point or ends at a CurveToLine
-        // point, the adjacent segment is a straight line (curvature=0).  The separate
-        // Solver for the curve section never sees that line, so without an explicit
-        // penalty the optimizer has no incentive to drive end curvature to zero.
-        // Use exact t=0 / t=1 curvature samples rather than the linear-regression
-        // estimate (which extrapolates past the last sample for endK).
-        if segmentCount > 0 then
-            if ctrlPts.[0].ty = SplinePointType.LineToCurve then
-                let startK = _segmentStartActualK.[0]
-                totalErr <- totalErr + startK * startK * 100.0
-
-            if ctrlPts.[ctrlPts.Length - 1].ty = SplinePointType.CurveToLine then
-                let endK = _segmentEndActualK.[segmentCount - 1]
-                totalErr <- totalErr + endK * endK * 100.0
 
         if Double.IsNaN totalErr || Double.IsInfinity totalErr then
             if this.debug then
