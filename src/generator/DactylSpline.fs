@@ -507,6 +507,20 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 let gap = firstStartK - lastEndK
                 totalErr <- totalErr + gap * gap * 10.0
 
+        // 4. Boundary curvature penalties for line-adjacent endpoints.
+        // When a curve section starts at a LineToCurve point or ends at a CurveToLine
+        // point, the adjacent segment is a straight line (curvature=0).  The separate
+        // Solver for the curve section never sees that line, so without an explicit
+        // penalty the optimizer has no incentive to drive end curvature to zero.
+        if segmentCount > 0 then
+            if ctrlPts.[0].ty = SplinePointType.LineToCurve then
+                let startK = _segmentStartK.[0]
+                totalErr <- totalErr + startK * startK * 10.0
+
+            if ctrlPts.[ctrlPts.Length - 1].ty = SplinePointType.CurveToLine then
+                let endK = _segmentEndK.[segmentCount - 1]
+                totalErr <- totalErr + endK * endK * 10.0
+
         if Double.IsNaN totalErr || Double.IsInfinity totalErr then
             if this.debug then
                 printfn "computeErr returning NaN/Inf, replaced with penalty"
