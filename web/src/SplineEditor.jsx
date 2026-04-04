@@ -348,8 +348,14 @@ function SplineEditor({ axes }) {
     } else if (type === 'th_in' || type === 'th_out') {
       const px = pt.x ?? 0
       const py = pt.y ?? 0
-      const angle = Math.round(Math.atan2(y - py, x - px) * 100) / 100
-      updatePoint(curveIdx, idx, { [type]: angle })
+      const angle = Math.atan2(y - py, x - px)
+      // th_in handle is rendered at (th_in + π) from the knot, so dragging the handle
+      // to angle α means th_in = α + π; th_out handle is at th_out, so th_out = α directly.
+      let value = type === 'th_in' ? angle + Math.PI : angle
+      // Normalise to (-π, π]
+      if (value > Math.PI) value -= 2 * Math.PI
+      if (value <= -Math.PI) value += 2 * Math.PI
+      updatePoint(curveIdx, idx, { [type]: Math.round(value * 100) / 100 })
     }
   }, [svgPoint, updatePoint])
 
