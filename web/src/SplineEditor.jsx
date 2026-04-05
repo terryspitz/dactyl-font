@@ -52,93 +52,9 @@ const snapToGuide = (value, guideArray, thresholdUnits) => {
 // --- Curvature graph helpers ---
 
 // Evaluate a cubic bezier at t: returns {x, y}
-const bezierEval = (p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y, t) => {
-  const mt = 1 - t
-  return {
-    x: mt*mt*mt*p0x + 3*mt*mt*t*p1x + 3*mt*t*t*p2x + t*t*t*p3x,
-    y: mt*mt*mt*p0y + 3*mt*mt*t*p1y + 3*mt*t*t*p2y + t*t*t*p3y,
-  }
-}
-
-// First derivative of cubic bezier at t
-const bezierDeriv = (p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y, t) => {
-  const mt = 1 - t
-  return {
-    x: 3*(mt*mt*(p1x-p0x) + 2*mt*t*(p2x-p1x) + t*t*(p3x-p2x)),
-    y: 3*(mt*mt*(p1y-p0y) + 2*mt*t*(p2y-p1y) + t*t*(p3y-p2y)),
-  }
-}
-
-// Second derivative of cubic bezier at t
-const bezierDeriv2 = (p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y, t) => {
-  return {
-    x: 6*((1-t)*(p2x-2*p1x+p0x) + t*(p3x-2*p2x+p1x)),
-    y: 6*((1-t)*(p2y-2*p1y+p0y) + t*(p3y-2*p2y+p1y)),
-  }
-}
-
-// κ(t) = (x'y'' - y'x'') / |B'|^3
-const bezierCurvature = (p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y, t) => {
-  const d1 = bezierDeriv(p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y, t)
-  const d2 = bezierDeriv2(p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y, t)
-  const denom = Math.pow(d1.x*d1.x + d1.y*d1.y, 1.5)
-  if (denom < 1e-10) return 0
-  return (d1.x * d2.y - d1.y * d2.x) / denom
-}
-
-// Arc-length integrand |B'(t)|
-const bezierSpeed = (p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y, t) => {
-  const d = bezierDeriv(p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y, t)
-  return Math.sqrt(d.x*d.x + d.y*d.y)
-}
-
-// Reconstruct control points from BezierPoint pair {x, y, th_out, rd} -> {x, y, th_in, ld}
-const reconstructBezierSegment = (p1, p2) => {
-  const cp1x = p1.x + p1.rd * Math.cos(p1.th_out)
-  const cp1y = p1.y + p1.rd * Math.sin(p1.th_out)
-  const cp2x = p2.x - p2.ld * Math.cos(p2.th_in)
-  const cp2y = p2.y - p2.ld * Math.sin(p2.th_in)
-  return { p0x: p1.x, p0y: p1.y, cp1x, cp1y, cp2x, cp2y, p3x: p2.x, p3y: p2.y }
-}
-
-// Build curvature data: [{arcLen, curvature}] with knot arc-length positions
-const computeCurvatureData = (bezierPoints, isClosed, STEPS = 20) => {
-  if (!bezierPoints || bezierPoints.length < 2) return { samples: [], knotArcs: [] }
-
-  const count = isClosed ? bezierPoints.length : bezierPoints.length - 1
-  const samples = []
-  const knotArcs = []
-  let arcLen = 0
-
-  for (let i = 0; i < count; i++) {
-    const p1 = bezierPoints[i]
-    const p2 = bezierPoints[(i + 1) % bezierPoints.length]
-    const { p0x, p0y, cp1x, cp1y, cp2x, cp2y, p3x, p3y } = reconstructBezierSegment(p1, p2)
-
-    if (i === 0) knotArcs.push(arcLen)
-
-    for (let s = 0; s < STEPS; s++) {
-      const t0 = s / STEPS
-      const t1 = (s + 1) / STEPS
-      const tmid = (t0 + t1) / 2
-      const ds = bezierSpeed(p0x, p0y, cp1x, cp1y, cp2x, cp2y, p3x, p3y, tmid) / STEPS
-      const kappa = bezierCurvature(p0x, p0y, cp1x, cp1y, cp2x, cp2y, p3x, p3y, tmid)
-      samples.push({ arcLen: arcLen + ds * s, curvature: kappa })
-      arcLen += ds
-    }
-
-    knotArcs.push(arcLen)
-  }
-
-  return { samples, knotArcs }
-}
-
-// SVG curvature graph component
-function CurvatureGraph({ bezierPoints, isClosed, width = 400, height = 100 }) {
-  const { samples, knotArcs } = useMemo(
-    () => computeCurvatureData(bezierPoints, isClosed),
-    [bezierPoints, isClosed]
-  )
+// SVG curvature graph component — data comes pre-computed from F# via solveResult.curvatureData
+function CurvatureGraph({ curvatureData, width = 400, height = 100 }) {
+  const { samples, knotArcs } = curvatureData || { samples: [], knotArcs: [] }
 
   if (!samples.length) return null
 
@@ -796,11 +712,8 @@ function SplineEditor({ axes }) {
           </svg>
 
           {/* Curvature graph below the canvas */}
-          {showCurvatureGraph && solveResult?.bezierPoints && (
-            <CurvatureGraph
-              bezierPoints={solveResult.bezierPoints}
-              isClosed={currentCurve?.isClosed ?? false}
-            />
+          {showCurvatureGraph && solveResult?.curvatureData && (
+            <CurvatureGraph curvatureData={solveResult.curvatureData} />
           )}
         </div>
 
