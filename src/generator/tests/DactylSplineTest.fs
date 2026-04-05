@@ -26,7 +26,7 @@ let pointToDcp (p: Point) =
 type TestClass() =
 
     let solve_and_print_spline (spline: DactylSpline) =
-        let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, false, false, false)
+        let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, 0.0, false, false, false)
         let svg = (String.Join(" ", svg))
         printfn "%A" svg
         svg.Trim()
@@ -155,10 +155,10 @@ type TestClass() =
             )
 
         let svgFlat0 =
-            let svg, _, _ = spline.solveAndRenderSvg (5000, 0.0, false, false, false) in svg |> String.concat " "
+            let svg, _, _ = spline.solveAndRenderSvg (5000, 0.0, 0.0, false, false, false) in svg |> String.concat " "
 
         let svgFlat10 =
-            let svg, _, _ = spline.solveAndRenderSvg (5000, 1000.0, false, false, false) in svg |> String.concat " "
+            let svg, _, _ = spline.solveAndRenderSvg (5000, 1000.0, 0.0, false, false, false) in svg |> String.concat " "
 
         printfn "Flatness 0.0: %s" svgFlat0
         printfn "Flatness 10.0: %s" svgFlat10
@@ -176,7 +176,7 @@ type TestClass() =
                dcp SplinePointType.Corner 1. 0. (Some PI) |]
 
         let spline = DactylSpline(ctrlPts, false)
-        let bezPts = spline.solveAndGetPoints(max_iter, 1.0, false)
+        let bezPts = spline.solveAndGetPoints(max_iter, 1.0, 0.0, false)
         
         // check that th_in at the end is 0 (East), after being flipped from PI (West)
         Assert.That(bezPts.[1].th_in, Is.EqualTo(0.0).Within(1e-10))
@@ -192,7 +192,7 @@ type TestClass() =
                dcp SplinePointType.Corner 1. 0. None |]
 
         let splineStart = DactylSpline(ctrlPtsStart, false)
-        let bezPtsStart = splineStart.solveAndGetPoints(max_iter, 1.0, false)
+        let bezPtsStart = splineStart.solveAndGetPoints(max_iter, 1.0, 0.0, false)
         
         Assert.That(bezPtsStart.[0].th_out, Is.EqualTo(0.0).Within(1e-10))
         let rpt = bezPtsStart.[0].rpt()
@@ -209,7 +209,7 @@ type TestClass() =
                dcp SplinePointType.Corner 255. 630. (Some PI) |]
 
         let spline = DactylSpline(ctrlPts, false)
-        let bezPts = spline.solveAndGetPoints(500, 1.0, true)
+        let bezPts = spline.solveAndGetPoints(500, 1.0, 0.0, true)
         
         // Point 0 (xtllc) should NOT be flipped. It should point North.
         Assert.That(bezPts.[0].th_out, Is.EqualTo(PI / 2.0).Within(1e-10), "xtllc should point North")
@@ -226,7 +226,7 @@ type TestClass() =
                dcp SplinePointType.Corner 255. 630. (Some PI) |]
 
         let spline = DactylSpline(ctrlPts, false)
-        let bezPts = spline.solveAndGetPoints(500, 1.0, true)
+        let bezPts = spline.solveAndGetPoints(500, 1.0, 0.0, true)
         
         // xtllc (pt 1) should point North (from stem line)
         Assert.That(bezPts.[1].th_in, Is.EqualTo(PI / 2.0).Within(1e-10), "xtllc in should be North")
@@ -493,7 +493,7 @@ type AdvancedGeometricTests() =
 [<TestFixture>]
 type LineToCurveTests() =
     let solve_and_print_spline (spline: DactylSpline) =
-        let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, false, false, false)
+        let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, 0.0, false, false, false)
         let svg = (String.Join(" ", svg))
         printfn "%A" svg
         svg.Trim()

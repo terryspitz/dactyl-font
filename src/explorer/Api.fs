@@ -380,7 +380,7 @@ let spiroToSplinePointType (ty: SpiroPointType) =
 
 let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (maxIter: int) =
     let spline = DactylSpline.DactylSpline(ctrlPts, isClosed)
-    let bezPts, pathSvg, combSvg, tangentSvg = spline.solveAndRenderFull(maxIter, 1.0, false, true, true)
+    let bezPts, pathSvg, combSvg, tangentSvg = spline.solveAndRenderFull(maxIter, 1.0, 0.0, false, true, true)
     {| pathSvg = pathSvg |> String.concat ""
        combSvg = combSvg |> String.concat ""
        tangentSvg = tangentSvg |> String.concat ""

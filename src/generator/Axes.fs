@@ -40,6 +40,7 @@ type Axes =
       smooth: bool //no corners
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
       flatness: float //weight of flatness (abs m) in objective function
+      m_consistency: float //weight penalising jumps in curvature slope (m) between adjacent segments
       debug: bool } //show debug info in console
 
     static member DefaultAxes =
@@ -73,6 +74,7 @@ type Axes =
           smooth = false
           clip_rect = true
           flatness = 1.0
+          m_consistency = 0.0
           debug = false }
 
     static member controls =
@@ -106,4 +108,5 @@ type Axes =
           "smooth", Checkbox, "default"
           "clip_rect", Checkbox, "debug"
           "flatness", FracRange(0.0, 200.0), "experimental"
+          "m_consistency", FracRange(0.0, 10.0), "experimental"
           "debug", Checkbox, "debug" ]
