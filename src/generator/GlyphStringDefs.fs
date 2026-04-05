@@ -109,7 +109,7 @@ let glyphMap =
           'K', "tl-bl tr-hl hl-br"
           'k', "tl-bl xcr-xbl xbl-bcr"
           'L', "tl-bl-br"
-          'l', "tl-xbl~bc"
+          'l', "tl-xbl~bcW"
           'M', "bl-tl-blw-tw-bw"
           'm', "xl-bl xol~xllw~xblw-blw xxblw~xlwwww~xbw-bw"
           'N', "bl-tl-br-tr"
