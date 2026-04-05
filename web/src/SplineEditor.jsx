@@ -739,7 +739,7 @@ if (id > 0 && id === solveIdRef.current && result) setSolveResult(result)
                       stroke="#e07020" strokeWidth={autoIn ? 1 : 2}
                       strokeDasharray={autoIn ? '5,3' : undefined} opacity={autoIn ? 0.45 : 1} />
                     {autoIn
-                      ? <circle cx={hx} cy={hy} r={10} fill="none" stroke="#e07020" strokeWidth="1.5" opacity="0.55"
+                      ? <circle cx={hx} cy={hy} r={10} fill="transparent" stroke="#e07020" strokeWidth="1.5" opacity="0.55"
                           style={{ cursor: 'grab' }}
                           onPointerDown={e => handleAutoHandlePointerDown(e, 'th_in', activeCurve, i, thIn)} />
                       : <circle cx={hx} cy={hy} r={14} fill="#e07020" stroke="#fff" strokeWidth="2"
@@ -762,7 +762,7 @@ if (id > 0 && id === solveIdRef.current && result) setSolveResult(result)
                       stroke="#2070e0" strokeWidth={autoOut ? 1 : 2}
                       strokeDasharray={autoOut ? '5,3' : undefined} opacity={autoOut ? 0.45 : 1} />
                     {autoOut
-                      ? <circle cx={hx} cy={hy} r={10} fill="none" stroke="#2070e0" strokeWidth="1.5" opacity="0.55"
+                      ? <circle cx={hx} cy={hy} r={10} fill="transparent" stroke="#2070e0" strokeWidth="1.5" opacity="0.55"
                           style={{ cursor: 'grab' }}
                           onPointerDown={e => handleAutoHandlePointerDown(e, 'th_out', activeCurve, i, thOut)} />
                       : <circle cx={hx} cy={hy} r={14} fill="#2070e0" stroke="#fff" strokeWidth="2"
