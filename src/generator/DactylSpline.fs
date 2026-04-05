@@ -450,7 +450,7 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     //    Use the same linear |m| form as the main flatness term to avoid
                     //    steep gradients that prevent convergence.
                     if not isClosed && (i = 0 || i = _points.Length - 2) then
-                        totalErr <- totalErr + abs m * flatness * 2.0
+                        totalErr <- totalErr + abs m * flatness * 0.5
 
                     // Calculate start and end curvature for continuity
                     // k(s) = m*s + c. Start is s=0 (c), End is s=max_dist
