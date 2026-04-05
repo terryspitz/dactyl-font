@@ -44,7 +44,7 @@ let splineStaticPage () =
                 let spline = DactylSpline(ctrlPts, false)
                 let debug: bool = false
                 let spline2Font = Font({ Axes.DefaultAxes with spline2 = true })
-                let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, debug, false, false)
+                let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, 0.0, debug, false, false)
 
                 [ sprintf "<g id='%d'>" i
                   sprintf "<text x='%f' y='%d' font-size='0.2'>%d</text>" 0.5 (i + 1) i
@@ -117,7 +117,7 @@ let splineStaticPage () =
                       // let iter = if x >= 7 then max 1 (i * 50) else max 1 (i * 3)
 
                       [ sprintf "<g id='%d'>" i; sprintf "<path d='" ]
-                      @ let svg, _, _ = spline.solveAndRenderSvg (iter, 1.0, debug, false, false) in
+                      @ let svg, _, _ = spline.solveAndRenderSvg (iter, 1.0, 0.0, debug, false, false) in
 
                         svg
                         @ [ sprintf "' transform='translate(%d,%d) scale(%f, %f)'" x (i + 1) scale scale
