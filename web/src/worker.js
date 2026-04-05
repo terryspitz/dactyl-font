@@ -1,4 +1,4 @@
-import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, generateSplineViewerSvg, controlDefinitions, solveSplineEditor, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphData, getCharOutlinePath } from './lib/fable/Api'
+import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, generateSplineViewerSvg, controlDefinitions, solveSplineEditor, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphData, getCharOutlinePath, getSplineOutlinePath } from './lib/fable/Api'
 import { DControlPoint } from './lib/fable/generator/DactylSpline'
 
 self.onmessage = (e) => {
@@ -80,6 +80,12 @@ self.onmessage = (e) => {
             case 'charOutlinePath': {
                 const [charStr, glyphAxes] = args
                 result = getCharOutlinePath(charStr, glyphAxes)
+                break
+            }
+            case 'splineOutline': {
+                const [ctrlPtsRaw, isClosed, glyphAxes] = args
+                const ctrlPts = ctrlPtsRaw.map(p => new DControlPoint(p.ty, p.x, p.y, p.th_in, p.th_out))
+                result = getSplineOutlinePath(ctrlPts, isClosed, glyphAxes)
                 break
             }
             default:

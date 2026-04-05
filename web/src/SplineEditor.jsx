@@ -99,8 +99,8 @@ function SplineEditor({ axes }) {
   const [selectedPt, setSelectedPt] = useState(null) // index into active curve's points
   const [maxIter, setMaxIter] = useState(1000)
   const [showComb, setShowComb] = useState(false)
-  const [showTangents, setShowTangents] = useState(true)
   const [showOutline, setShowOutline] = useState(false)
+  const [outlinePath, setOutlinePath] = useState(null)
   const [showCurvatureGraph, setShowCurvatureGraph] = useState(false)
   const [dragRowIdx, setDragRowIdx] = useState(null)    // index of row being dragged to reorder
   const [dragOverRowIdx, setDragOverRowIdx] = useState(null) // row being hovered over during drag
@@ -176,7 +176,12 @@ function SplineEditor({ axes }) {
           setSelectedPt(null)
         }
       }
-if (id > 0 && id === solveIdRef.current && result) setSolveResult(result)
+      if (id === -4 && result !== undefined) setOutlinePath(result || null)
+      if (id <= -100) {
+        const ci = -(id + 100)
+        if (result?.pathSvg) setAllCurvePaths(prev => ({ ...prev, [ci]: result.pathSvg }))
+      }
+      if (id > 0 && id === solveIdRef.current && result) setSolveResult(result)
       if (error && id > 0) console.error('Spline solve error:', error)
     }
     w.addEventListener('message', handler)
@@ -190,12 +195,40 @@ if (id > 0 && id === solveIdRef.current && result) setSolveResult(result)
     workerRef.current.postMessage({ id: -3, type: 'parseGlyph', args: [selectedChar, axes] })
   }, [selectedChar, axes])
 
-// Cache solved path per curve index (for inactive curve rendering)
+  // Cache solved path for active curve
   useEffect(() => {
     if (solveResult?.pathSvg) {
       setAllCurvePaths(prev => ({ ...prev, [activeCurve]: solveResult.pathSvg }))
     }
   }, [solveResult, activeCurve])
+
+  // Solve all inactive curves once so their paths show without needing to click them
+  useEffect(() => {
+    if (!workerRef.current) return
+    curves.forEach((curve, ci) => {
+      if (ci === activeCurve || curve.points.length < 2) return
+      const id = -(100 + ci)
+      const ctrlPts = curve.points.map(p => ({
+        ty: p.ty, x: p.x, y: p.y,
+        th_in: p.th_in ?? undefined,
+        th_out: p.th_out ?? undefined,
+      }))
+      workerRef.current.postMessage({ id, type: 'solveSpline', args: [ctrlPts, curve.isClosed, maxIter] })
+    })
+  }, [curves, activeCurve, maxIter])
+
+  // Fetch ink outline via Font.getDactylSansOutlines when showOutline is on
+  useEffect(() => {
+    if (!workerRef.current) return
+    const curve = curves[activeCurve]
+    if (!showOutline || !curve || curve.points.length < 2) { setOutlinePath(null); return }
+    const ctrlPts = curve.points.map(p => ({
+      ty: p.ty, x: p.x, y: p.y,
+      th_in: p.th_in ?? undefined,
+      th_out: p.th_out ?? undefined,
+    }))
+    workerRef.current.postMessage({ id: -4, type: 'splineOutline', args: [ctrlPts, curve.isClosed, axes] })
+  }, [showOutline, curves, activeCurve, axes])
 
   // Solve spline whenever control points change (debounced to avoid queueing solves during drag)
   useEffect(() => {
@@ -302,16 +335,18 @@ if (id > 0 && id === solveIdRef.current && result) setSolveResult(result)
       }
       updatePoint(curveIdx, idx, { x: Math.round(sx), y: Math.round(sy) })
     } else if (type === 'th_in' || type === 'th_out') {
-      const px = pt.x ?? 0
-      const py = pt.y ?? 0
+      const bp = solveResult?.bezierPoints?.[idx]
+      const px = pt.x ?? bp?.x ?? 0
+      const py = pt.y ?? bp?.y ?? 0
       const angle = Math.atan2(y - py, x - px)
-      // th_in handle is rendered at (th_in + π) from the knot, so dragging the handle
-      // to angle α means th_in = α + π; th_out handle is at th_out, so th_out = α directly.
+      // th_in handle is at (th_in + π) from the knot; th_out handle is at th_out directly.
       let value = type === 'th_in' ? angle + Math.PI : angle
-      // Normalise to (-π, π]
       if (value > Math.PI) value -= 2 * Math.PI
       if (value <= -Math.PI) value += 2 * Math.PI
-      updatePoint(curveIdx, idx, { [type]: Math.round(value * 100) / 100 })
+      value = Math.round(value * 100) / 100
+      // Smooth points keep both angles equal
+      const updates = pt.ty === 1 ? { th_in: value, th_out: value } : { [type]: value }
+      updatePoint(curveIdx, idx, updates)
     }
   }, [svgPoint, updatePoint])
 
@@ -475,36 +510,36 @@ if (id > 0 && id === solveIdRef.current && result) setSolveResult(result)
   const currentCurve = curves[activeCurve]
   const points = currentCurve?.points || []
 
-  // Render a knot marker (square=corner, circle=smooth) for any curve
-  const renderKnot = (p, i, curveIdx, isActive) => {
-    if (p.x == null || p.y == null) return null
+  // Render a knot marker (square=corner, circle=smooth).
+  // Fitted knots (x/y=null) use their solved position but can't be position-dragged.
+  const renderKnot = (p, i, curveIdx, isActive, solvedBp) => {
+    const rx = p.x ?? solvedBp?.x
+    const ry = p.y ?? solvedBp?.y
+    if (rx == null || ry == null || isNaN(rx) || isNaN(ry)) return null
+    const isFitted = p.x == null || p.y == null
     const isSelected = isActive && i === selectedPt
     const isCorner = p.ty === 0
     const size = isSelected ? 24 : 18
     const fill = isActive
-      ? (isSelected ? '#ff4444' : (isCorner ? '#4488ff' : '#44cc44'))
+      ? (isSelected ? '#ff4444' : (isFitted ? '#888' : (isCorner ? '#4488ff' : '#44cc44')))
       : '#555'
-    const stroke = isActive ? '#fff' : '#888'
+    const stroke = isActive ? (isFitted ? '#aaa' : '#fff') : '#888'
+    const pointerProps = isFitted ? {} : {
+      style: { cursor: 'grab' },
+      onPointerDown: (e) => handlePointerDown(e, 'knot', curveIdx, i),
+    }
     return (
       <g key={`knot-${curveIdx}-${i}`}>
         {isCorner ? (
-          <rect
-            x={p.x - size / 2} y={-p.y - size / 2} width={size} height={size}
-            fill={fill} stroke={stroke} strokeWidth="1.5"
-            style={{ cursor: 'grab' }}
-            onPointerDown={e => handlePointerDown(e, 'knot', curveIdx, i)}
-          />
+          <rect x={rx - size / 2} y={-ry - size / 2} width={size} height={size}
+            fill={fill} stroke={stroke} strokeWidth={isFitted ? '1' : '1.5'} {...pointerProps} />
         ) : (
-          <circle
-            cx={p.x} cy={-p.y} r={size / 2}
-            fill={fill} stroke={stroke} strokeWidth="1.5"
-            style={{ cursor: 'grab' }}
-            onPointerDown={e => handlePointerDown(e, 'knot', curveIdx, i)}
-          />
+          <circle cx={rx} cy={-ry} r={size / 2}
+            fill={fill} stroke={stroke} strokeWidth={isFitted ? '1' : '1.5'} {...pointerProps} />
         )}
-        {isActive && (
-          <text x={p.x} y={-p.y - size / 2 - 4} textAnchor="middle" fontSize="20" fill="#ccc">
-            {p.label || i}
+        {isActive && p.label && (
+          <text x={rx} y={-ry - size / 2 - 4} textAnchor="middle" fontSize="20" fill="#ccc">
+            {p.label}
           </text>
         )}
       </g>
@@ -619,19 +654,9 @@ if (id > 0 && id === solveIdRef.current && result) setSolveResult(result)
           </div>
         )}
         <div className="se-options">
-          {currentCurve && (
-            <label className="se-toggle">
-              <input type="checkbox" checked={currentCurve.isClosed} onChange={toggleClosed} />
-              Closed
-            </label>
-          )}
           <label className="se-toggle">
             <input type="checkbox" checked={showComb} onChange={e => setShowComb(e.target.checked)} />
             Comb
-          </label>
-          <label className="se-toggle">
-            <input type="checkbox" checked={showTangents} onChange={e => setShowTangents(e.target.checked)} />
-            Tangents
           </label>
           <label className="se-toggle">
             <input type="checkbox" checked={showOutline} onChange={e => setShowOutline(e.target.checked)} />
@@ -688,11 +713,9 @@ if (id > 0 && id === solveIdRef.current && result) setSolveResult(result)
 
             {/* All path data uses Y-up math coords; scale(1,-1) flips to SVG space */}
             <g transform="scale(1,-1)">
-              {/* Outline overlay: current curve path offset by -thickness in x and y */}
-              {showOutline && solveResult?.pathSvg && (
-                <g transform={`translate(${-axes.thickness}, ${-axes.thickness})`}>
-                  <path d={solveResult.pathSvg} fill="none" stroke="rgba(100,180,255,0.6)" strokeWidth="2" strokeDasharray="6,3" />
-                </g>
+              {/* Ink outline via Font.getDactylSansOutlines */}
+              {showOutline && outlinePath && (
+                <path d={outlinePath} fill="rgba(100,180,255,0.12)" stroke="rgba(100,180,255,0.5)" strokeWidth="2" />
               )}
 
               {/* Inactive curve spline paths (greyed out) */}
@@ -706,7 +729,6 @@ if (id > 0 && id === solveIdRef.current && result) setSolveResult(result)
                 <>
                   <path d={solveResult.pathSvg} fill="none" stroke="#4488ff" strokeWidth="2" />
                   {showComb && <path d={solveResult.combSvg} fill="none" stroke="#888" strokeWidth="1" />}
-                  {showTangents && <path d={solveResult.tangentSvg} fill="none" stroke="#e00000" strokeWidth="1" />}
                 </>
               )}
             </g>
@@ -714,70 +736,83 @@ if (id > 0 && id === solveIdRef.current && result) setSolveResult(result)
             {/* Inactive curve knot markers */}
             {curves.map((curve, ci) => ci !== activeCurve && (
               <g key={`ghost-${ci}`} opacity="0.5">
-                {curve.points.map((p, i) => renderKnot(p, i, ci, false))}
+                {curve.points.map((p, i) => renderKnot(p, i, ci, false, null))}
               </g>
             ))}
 
             {/* Active curve: tangent handles (drawn under knots).
-                Auto angles come from solveResult.bezierPoints; shown as dashed/unfilled. */}
+                - Open curves: first point shows only th_out; last point shows only th_in.
+                - Fitted points (x/y=null) use the solved bezier position as anchor.
+                - Auto angles shown dashed/hollow; explicit shown solid. */}
             {points.map((p, i) => {
-              if (p.x == null || p.y == null) return null
-              const px = p.x
-              const py = -p.y
               const bp = solveResult?.bezierPoints?.[i]
+              const rx = p.x ?? bp?.x
+              const ry = p.y ?? bp?.y
+              if (rx == null || ry == null || isNaN(rx) || isNaN(ry)) return null
+              const px = rx
+              const py = -ry
+              const isOpen = !currentCurve?.isClosed
+              const isFirst = isOpen && i === 0
+              const isLast  = isOpen && i === points.length - 1
               const handles = []
 
-              // th_in — explicit value or auto-solved angle
-              const autoIn = p.th_in === null
-              const thIn = autoIn ? (bp && !isNaN(bp.th_in) ? bp.th_in : null) : p.th_in
-              if (thIn != null) {
-                const hx = px + HANDLE_LEN * Math.cos(thIn + Math.PI)
-                const hy = py - HANDLE_LEN * Math.sin(thIn + Math.PI)
-                handles.push(
-                  <g key={`h-in-${i}`}>
-                    <line x1={px} y1={py} x2={hx} y2={hy}
-                      stroke="#e07020" strokeWidth={autoIn ? 1 : 2}
-                      strokeDasharray={autoIn ? '5,3' : undefined} opacity={autoIn ? 0.45 : 1} />
-                    {autoIn
-                      ? <circle cx={hx} cy={hy} r={10} fill="transparent" stroke="#e07020" strokeWidth="1.5" opacity="0.55"
-                          style={{ cursor: 'grab' }}
-                          onPointerDown={e => handleAutoHandlePointerDown(e, 'th_in', activeCurve, i, thIn)} />
-                      : <circle cx={hx} cy={hy} r={14} fill="#e07020" stroke="#fff" strokeWidth="2"
-                          style={{ cursor: 'grab' }}
-                          onPointerDown={e => handlePointerDown(e, 'th_in', activeCurve, i)} />
-                    }
-                  </g>
-                )
+              // th_in — skip at first knot of open curve (no incoming segment)
+              if (!isFirst) {
+                const autoIn = p.th_in === null
+                const thIn = autoIn ? (bp && !isNaN(bp.th_in) ? bp.th_in : null) : p.th_in
+                if (thIn != null) {
+                  const hx = px + HANDLE_LEN * Math.cos(thIn + Math.PI)
+                  const hy = py - HANDLE_LEN * Math.sin(thIn + Math.PI)
+                  handles.push(
+                    <g key={`h-in-${i}`}>
+                      <line x1={px} y1={py} x2={hx} y2={hy}
+                        stroke="#e07020" strokeWidth={autoIn ? 1 : 2}
+                        strokeDasharray={autoIn ? '5,3' : undefined} opacity={autoIn ? 0.45 : 1} />
+                      {autoIn
+                        ? <circle cx={hx} cy={hy} r={10} fill="transparent" stroke="#e07020" strokeWidth="1.5" opacity="0.55"
+                            style={{ cursor: 'grab' }}
+                            onPointerDown={e => handleAutoHandlePointerDown(e, 'th_in', activeCurve, i, thIn)} />
+                        : <circle cx={hx} cy={hy} r={14} fill="#e07020" stroke="#fff" strokeWidth="2"
+                            style={{ cursor: 'grab' }}
+                            onPointerDown={e => handlePointerDown(e, 'th_in', activeCurve, i)} />
+                      }
+                    </g>
+                  )
+                }
               }
 
-              // th_out — explicit value or auto-solved angle
-              const autoOut = p.th_out === null
-              const thOut = autoOut ? (bp && !isNaN(bp.th_out) ? bp.th_out : null) : p.th_out
-              if (thOut != null) {
-                const hx = px + HANDLE_LEN * Math.cos(thOut)
-                const hy = py - HANDLE_LEN * Math.sin(thOut)
-                handles.push(
-                  <g key={`h-out-${i}`}>
-                    <line x1={px} y1={py} x2={hx} y2={hy}
-                      stroke="#2070e0" strokeWidth={autoOut ? 1 : 2}
-                      strokeDasharray={autoOut ? '5,3' : undefined} opacity={autoOut ? 0.45 : 1} />
-                    {autoOut
-                      ? <circle cx={hx} cy={hy} r={10} fill="transparent" stroke="#2070e0" strokeWidth="1.5" opacity="0.55"
-                          style={{ cursor: 'grab' }}
-                          onPointerDown={e => handleAutoHandlePointerDown(e, 'th_out', activeCurve, i, thOut)} />
-                      : <circle cx={hx} cy={hy} r={14} fill="#2070e0" stroke="#fff" strokeWidth="2"
-                          style={{ cursor: 'grab' }}
-                          onPointerDown={e => handlePointerDown(e, 'th_out', activeCurve, i)} />
-                    }
-                  </g>
-                )
+              // th_out — skip at last knot of open curve (no outgoing segment).
+              // DactylSpline stores the last point's outgoing angle reversed in bp.th_out,
+              // so only the th_in handle gives the correct bezier control-point position.
+              if (!isLast) {
+                const autoOut = p.th_out === null
+                const thOut = autoOut ? (bp && !isNaN(bp.th_out) ? bp.th_out : null) : p.th_out
+                if (thOut != null) {
+                  const hx = px + HANDLE_LEN * Math.cos(thOut)
+                  const hy = py - HANDLE_LEN * Math.sin(thOut)
+                  handles.push(
+                    <g key={`h-out-${i}`}>
+                      <line x1={px} y1={py} x2={hx} y2={hy}
+                        stroke="#2070e0" strokeWidth={autoOut ? 1 : 2}
+                        strokeDasharray={autoOut ? '5,3' : undefined} opacity={autoOut ? 0.45 : 1} />
+                      {autoOut
+                        ? <circle cx={hx} cy={hy} r={10} fill="transparent" stroke="#2070e0" strokeWidth="1.5" opacity="0.55"
+                            style={{ cursor: 'grab' }}
+                            onPointerDown={e => handleAutoHandlePointerDown(e, 'th_out', activeCurve, i, thOut)} />
+                        : <circle cx={hx} cy={hy} r={14} fill="#2070e0" stroke="#fff" strokeWidth="2"
+                            style={{ cursor: 'grab' }}
+                            onPointerDown={e => handlePointerDown(e, 'th_out', activeCurve, i)} />
+                      }
+                    </g>
+                  )
+                }
               }
 
               return <g key={`handles-${i}`}>{handles}</g>
             })}
 
             {/* Active curve: knot points (on top) */}
-            {points.map((p, i) => renderKnot(p, i, activeCurve, true))}
+            {points.map((p, i) => renderKnot(p, i, activeCurve, true, solveResult?.bezierPoints?.[i]))}
           </svg>
 
           {/* Curvature graph below the canvas */}
@@ -872,6 +907,18 @@ if (id > 0 && id === solveIdRef.current && result) setSolveResult(result)
                   </tr>
                 ))}
               </tbody>
+              {currentCurve && (
+                <tfoot>
+                  <tr>
+                    <td colSpan={9} style={{ paddingTop: 6, paddingBottom: 4 }}>
+                      <label className="se-toggle">
+                        <input type="checkbox" checked={currentCurve.isClosed} onChange={toggleClosed} />
+                        Closed
+                      </label>
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
 

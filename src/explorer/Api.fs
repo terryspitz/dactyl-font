@@ -422,6 +422,35 @@ let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: boo
                   ld = bp.ld; rd = bp.rd |})
        curvatureData = computeCurvatureData bezPts isClosed |}
 
+/// Generate a proper ink outline for the current spline via Font.getDactylSansOutlines.
+let getSplineOutlinePath (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (inputAxes: Axes) =
+    try
+        let axes = { inputAxes with outline = true; filled = true; dactyl_spline = true }
+        let font = Font axes
+        let splineToSpiro (ty: DactylSpline.SplinePointType) =
+            match ty with
+            | DactylSpline.SplinePointType.CurveToLine -> SpiroPointType.Left
+            | DactylSpline.SplinePointType.LineToCurve -> SpiroPointType.Right
+            | DactylSpline.SplinePointType.Smooth      -> SpiroPointType.G2
+            | _                                        -> SpiroPointType.Corner
+        let knots =
+            ctrlPts
+            |> Array.map (fun cp ->
+                { pt = { x = cp.x |> Option.defaultValue 0.0
+                         y = cp.y |> Option.defaultValue 0.0
+                         x_fit = cp.x.IsNone
+                         y_fit = cp.y.IsNone }
+                  ty = splineToSpiro cp.ty
+                  th_in = cp.th_in
+                  th_out = cp.th_out
+                  label = None })
+            |> Array.toList
+        let curve = Curve(knots, isClosed)
+        let outline = font.getDactylSansOutlines curve
+        let svg, _, _ = font.elementToSvg outline
+        String.concat " " svg
+    with _ -> ""
+
 let getGuidePositions (axes: Axes) =
     let m = FontMetrics(axes)
     let xg =

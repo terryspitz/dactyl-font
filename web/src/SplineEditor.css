@@ -104,8 +104,8 @@
 }
 
 .se-table-panel {
-  width: 420px;
-  min-width: 300px;
+  width: 480px;
+  min-width: 340px;
   background: var(--panel-bg, #1e1e2e);
   border-left: 1px solid rgba(255,255,255,0.08);
   display: flex;
@@ -292,8 +292,9 @@
 }
 
 .se-auto-cell input[type="number"] {
-  width: 44px;
+  width: 58px;
   flex: 1;
+  min-width: 50px;
 }
 
 .se-auto-btn {
