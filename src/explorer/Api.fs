@@ -486,11 +486,13 @@ let getCharOutlinePath (charStr: string) (inputAxes: Axes) =
         with _ -> ""
 
 let private knotToObj (k: Knot) : obj =
+    // When x_fit/y_fit is true the solver treats the coordinate as a free variable (None).
+    // Pass null (JS) / None (F#) so the spline editor matches the full font pipeline.
+    let x_opt = if k.pt.x_fit then System.Nullable<float>() else System.Nullable<float>(k.pt.x)
+    let y_opt = if k.pt.y_fit then System.Nullable<float>() else System.Nullable<float>(k.pt.y)
     {| ty = int (spiroToSplinePointType k.ty)
-       x = k.pt.x
-       y = k.pt.y
-       x_fit = k.pt.x_fit
-       y_fit = k.pt.y_fit
+       x = x_opt
+       y = y_opt
        th_in = k.th_in |> Option.toNullable
        th_out = k.th_out |> Option.toNullable
        label = k.label |> Option.defaultValue "" |} :> obj
