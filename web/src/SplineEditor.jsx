@@ -88,7 +88,9 @@ function CurvatureGraph({ curvatureData, width = 400, height = 100 }) {
 
 function SplineEditor({ axes }) {
   const [glyphList, setGlyphList] = useState([])
-  const [selectedChar, setSelectedChar] = useState('a')
+  const [selectedChar, setSelectedChar] = useState(
+    () => localStorage.getItem('splineSelectedChar') || 'a'
+  )
   const [curves, setCurves] = useState([]) // array of { isClosed, points[] }
   const [activeCurve, setActiveCurve] = useState(0)
   const [guides, setGuides] = useState(null)
@@ -99,7 +101,6 @@ function SplineEditor({ axes }) {
   const [showComb, setShowComb] = useState(false)
   const [showTangents, setShowTangents] = useState(true)
   const [showOutline, setShowOutline] = useState(false)
-  const [outlinePath, setOutlinePath] = useState(null)
   const [showCurvatureGraph, setShowCurvatureGraph] = useState(false)
   const [dragRowIdx, setDragRowIdx] = useState(null)    // index of row being dragged to reorder
   const [dragOverRowIdx, setDragOverRowIdx] = useState(null) // row being hovered over during drag
@@ -175,28 +176,21 @@ function SplineEditor({ axes }) {
           setSelectedPt(null)
         }
       }
-      if (id === -4 && result !== undefined) setOutlinePath(result || null)
-      if (id > 0 && id === solveIdRef.current && result) setSolveResult(result)
+if (id > 0 && id === solveIdRef.current && result) setSolveResult(result)
       if (error && id > 0) console.error('Spline solve error:', error)
     }
     w.addEventListener('message', handler)
     return () => w.removeEventListener('message', handler)
   }, [])
 
-  // Parse glyph when char or axes change
+  // Parse glyph when char or axes change; persist selection across tab switches
   useEffect(() => {
     if (!workerRef.current || !selectedChar) return
+    localStorage.setItem('splineSelectedChar', selectedChar)
     workerRef.current.postMessage({ id: -3, type: 'parseGlyph', args: [selectedChar, axes] })
   }, [selectedChar, axes])
 
-  // Fetch glyph outline when needed
-  useEffect(() => {
-    if (!workerRef.current || !selectedChar) return
-    if (!showOutline) { setOutlinePath(null); return }
-    workerRef.current.postMessage({ id: -4, type: 'charOutlinePath', args: [selectedChar, axes] })
-  }, [showOutline, selectedChar, axes])
-
-  // Cache solved path per curve index (for inactive curve rendering)
+// Cache solved path per curve index (for inactive curve rendering)
   useEffect(() => {
     if (solveResult?.pathSvg) {
       setAllCurvePaths(prev => ({ ...prev, [activeCurve]: solveResult.pathSvg }))
@@ -269,6 +263,23 @@ function SplineEditor({ axes }) {
     svgRef.current?.setPointerCapture(e.pointerId)
   }, [pushUndo])
 
+  // Dragging an auto handle: lock the angle to the current solved value, then allow drag
+  const handleAutoHandlePointerDown = useCallback((e, type, curveIdx, idx, autoAngle) => {
+    e.preventDefault()
+    e.stopPropagation()
+    pushUndo()
+    const locked = Math.round(autoAngle * 100) / 100
+    if (type === 'th_out' && curvesRef.current[curveIdx]?.points[idx]?.ty === 1) {
+      updatePoint(curveIdx, idx, { th_in: locked, th_out: locked })
+    } else {
+      updatePoint(curveIdx, idx, { [type]: locked })
+    }
+    dragRef.current = { type, curveIdx, idx }
+    setActiveCurve(curveIdx)
+    setSelectedPt(idx)
+    svgRef.current?.setPointerCapture(e.pointerId)
+  }, [pushUndo, updatePoint])
+
   const handlePointerMove = useCallback((e) => {
     if (!dragRef.current) return
     const { type, curveIdx, idx } = dragRef.current
@@ -339,6 +350,10 @@ function SplineEditor({ axes }) {
       updates[field] = value === '' ? null : Math.round(parseFloat(value))
     } else if (field === 'th_in' || field === 'th_out') {
       updates[field] = value === '' ? null : toRad(parseFloat(value))
+      // For smooth points keep both angles in sync
+      if (field === 'th_out' && curves[activeCurve]?.points[idx]?.ty === 1) {
+        updates.th_in = updates.th_out
+      }
     }
     updatePoint(activeCurve, idx, updates)
   }, [activeCurve, pushUndo, updatePoint])
@@ -367,7 +382,13 @@ function SplineEditor({ axes }) {
     } else if (field === 'th_in') {
       updatePoint(activeCurve, idx, { th_in: pt.th_in === null ? 0 : null })
     } else if (field === 'th_out') {
-      updatePoint(activeCurve, idx, { th_out: pt.th_out === null ? 0 : null })
+      // For smooth points, toggle both angles together
+      if (pt.ty === 1) {
+        const v = pt.th_out === null ? 0 : null
+        updatePoint(activeCurve, idx, { th_in: v, th_out: v })
+      } else {
+        updatePoint(activeCurve, idx, { th_out: pt.th_out === null ? 0 : null })
+      }
     }
   }, [activeCurve, curves, guides, pushUndo, updatePoint])
 
@@ -530,6 +551,48 @@ function SplineEditor({ axes }) {
     )
   }
 
+  // Single theta cell for smooth knots (th_in and th_out are always equal)
+  const renderSmoothAngleCell = (p, idx) => {
+    const value = p.th_out  // th_in === th_out for smooth; use th_out as canonical
+    if (value === null) {
+      return (
+        <td className="se-auto-cell-td" colSpan={2}>
+          <div className="se-auto-cell">
+            <button className="se-auto-active" onClick={() => handleToggleAuto(idx, 'th_out')} title="Click to set value">auto</button>
+          </div>
+        </td>
+      )
+    }
+    return (
+      <td className="se-auto-cell-td" colSpan={2}>
+        <div className="se-auto-cell">
+          <input
+            type="number" step="1"
+            value={toDeg(value).toFixed(1)}
+            onChange={e => handleTableChange(idx, 'th_out', e.target.value)}
+          />
+          <select
+            className="se-preset-select"
+            value=""
+            onChange={e => {
+              if (e.target.value !== '') {
+                pushUndo()
+                const v = parseFloat(e.target.value)
+                updatePoint(activeCurve, idx, { th_in: v, th_out: v })
+              }
+              e.target.value = ''
+            }}
+            title="Cardinal preset"
+          >
+            <option value="">·</option>
+            {CARDINAL_PRESETS.map(pr => <option key={pr.label} value={pr.value}>{pr.label}</option>)}
+          </select>
+          <button className="se-auto-btn" onClick={() => handleToggleAuto(idx, 'th_out')} title="Set to auto">↺</button>
+        </div>
+      </td>
+    )
+  }
+
   return (
     <div className="spline-editor">
       <div className="se-toolbar">
@@ -625,9 +688,11 @@ function SplineEditor({ axes }) {
 
             {/* All path data uses Y-up math coords; scale(1,-1) flips to SVG space */}
             <g transform="scale(1,-1)">
-              {/* Glyph outline overlay (filled letterform) */}
-              {showOutline && outlinePath && (
-                <path d={outlinePath} fill="rgba(100,180,255,0.12)" stroke="rgba(100,180,255,0.5)" strokeWidth="2" />
+              {/* Outline overlay: current curve path offset by -thickness in x and y */}
+              {showOutline && solveResult?.pathSvg && (
+                <g transform={`translate(${-axes.thickness}, ${-axes.thickness})`}>
+                  <path d={solveResult.pathSvg} fill="none" stroke="rgba(100,180,255,0.6)" strokeWidth="2" strokeDasharray="6,3" />
+                </g>
               )}
 
               {/* Inactive curve spline paths (greyed out) */}
@@ -674,7 +739,9 @@ function SplineEditor({ axes }) {
                       stroke="#e07020" strokeWidth={autoIn ? 1 : 2}
                       strokeDasharray={autoIn ? '5,3' : undefined} opacity={autoIn ? 0.45 : 1} />
                     {autoIn
-                      ? <circle cx={hx} cy={hy} r={8} fill="none" stroke="#e07020" strokeWidth="1.5" opacity="0.45" />
+                      ? <circle cx={hx} cy={hy} r={10} fill="none" stroke="#e07020" strokeWidth="1.5" opacity="0.55"
+                          style={{ cursor: 'grab' }}
+                          onPointerDown={e => handleAutoHandlePointerDown(e, 'th_in', activeCurve, i, thIn)} />
                       : <circle cx={hx} cy={hy} r={14} fill="#e07020" stroke="#fff" strokeWidth="2"
                           style={{ cursor: 'grab' }}
                           onPointerDown={e => handlePointerDown(e, 'th_in', activeCurve, i)} />
@@ -695,7 +762,9 @@ function SplineEditor({ axes }) {
                       stroke="#2070e0" strokeWidth={autoOut ? 1 : 2}
                       strokeDasharray={autoOut ? '5,3' : undefined} opacity={autoOut ? 0.45 : 1} />
                     {autoOut
-                      ? <circle cx={hx} cy={hy} r={8} fill="none" stroke="#2070e0" strokeWidth="1.5" opacity="0.45" />
+                      ? <circle cx={hx} cy={hy} r={10} fill="none" stroke="#2070e0" strokeWidth="1.5" opacity="0.55"
+                          style={{ cursor: 'grab' }}
+                          onPointerDown={e => handleAutoHandlePointerDown(e, 'th_out', activeCurve, i, thOut)} />
                       : <circle cx={hx} cy={hy} r={14} fill="#2070e0" stroke="#fff" strokeWidth="2"
                           style={{ cursor: 'grab' }}
                           onPointerDown={e => handlePointerDown(e, 'th_out', activeCurve, i)} />
@@ -733,8 +802,7 @@ function SplineEditor({ axes }) {
                   <th>Type</th>
                   <th>X</th>
                   <th>Y</th>
-                  <th>&theta;in °</th>
-                  <th>&theta;out °</th>
+                  <th colSpan={2}>&theta; °</th>
                   <th></th>
                 </tr>
               </thead>
@@ -796,8 +864,10 @@ function SplineEditor({ axes }) {
                         }
                       </div>
                     </td>
-                    {renderAngleCell('th_in', p.th_in, i)}
-                    {renderAngleCell('th_out', p.th_out, i)}
+                    {p.ty === 1
+                      ? renderSmoothAngleCell(p, i)
+                      : <>{renderAngleCell('th_in', p.th_in, i)}{renderAngleCell('th_out', p.th_out, i)}</>
+                    }
                     <td><button className="se-btn-del" onClick={() => deletePoint(i)} title="Delete">&times;</button></td>
                   </tr>
                 ))}
