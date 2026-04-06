@@ -348,7 +348,9 @@ type Font(axes: Axes) =
                 axes.flatness,
                 debug = axes.debug,
                 showComb = axes.show_comb,
-                showTangents = axes.show_tangents
+                showTangents = axes.show_tangents,
+                useAnalyticalArms = axes.bespoke_arms,
+                useIterativeSolver = axes.iterative_solver
             )
 
         match elem with
@@ -1088,7 +1090,8 @@ type Font(axes: Axes) =
             let spline = DactylSpline(ctrlPts, isClosed)
 
             let bezPts =
-                spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.debug)
+                spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.debug,
+                                          axes.bespoke_arms, axes.iterative_solver)
 
             let n = bezPts.Length
 

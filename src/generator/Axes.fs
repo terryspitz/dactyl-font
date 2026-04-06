@@ -40,6 +40,8 @@ type Axes =
       smooth: bool //no corners
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
       flatness: float //weight of flatness (abs m) in objective function
+      bespoke_arms: bool //use Levien's Bespoke Spline analytical arm lengths (faster, fewer params)
+      iterative_solver: bool //use fast iterative curvature-continuity solver instead of Nelder-Mead
       debug: bool } //show debug info in console
 
     static member DefaultAxes =
@@ -73,6 +75,8 @@ type Axes =
           smooth = false
           clip_rect = true
           flatness = 1.0
+          bespoke_arms = false
+          iterative_solver = false
           debug = false }
 
     static member controls =
@@ -106,4 +110,6 @@ type Axes =
           "smooth", Checkbox, "default"
           "clip_rect", Checkbox, "debug"
           "flatness", FracRange(0.0, 200.0), "experimental"
+          "bespoke_arms", Checkbox, "experimental"
+          "iterative_solver", Checkbox, "experimental"
           "debug", Checkbox, "debug" ]
