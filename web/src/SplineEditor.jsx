@@ -245,7 +245,7 @@ function SplineEditor({ axes }) {
         th_out: p.th_out ?? undefined,
       }))
       workerRef.current.postMessage({ id, type: 'solveSpline', args: [ctrlPts, curve.isClosed, maxIter] })
-    }, 80)
+    }, 20)
     return () => clearTimeout(timer)
   }, [curves, activeCurve, maxIter])
 

@@ -500,20 +500,6 @@ let generateFontGlyphData (axes: Axes) =
        descender = metrics.D - thickness
        unitsPerEm = font.charHeight |}
 
-/// Returns the SVG path data (d attribute) for a single character's outline.
-/// Path data uses Y-up math coordinates — render under scale(1,-1) in SVG.
-let getCharOutlinePath (charStr: string) (inputAxes: Axes) =
-    if System.String.IsNullOrEmpty(charStr) then ""
-    else
-        try
-            let c = charStr.[0]
-            let axes = { inputAxes with outline = true; filled = true }
-            let font = Font axes
-            let outline = font.CharToOutline c
-            let svg, _, _ = font.elementToSvg outline
-            String.concat " " svg
-        with _ -> ""
-
 let private knotToObj (k: Knot) : obj =
     // When x_fit/y_fit is true the solver treats the coordinate as a free variable (None).
     // Pass null (JS) / None (F#) so the spline editor matches the full font pipeline.

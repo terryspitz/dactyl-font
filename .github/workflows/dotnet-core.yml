@@ -18,10 +18,9 @@ jobs:
     steps:
     - uses: actions/checkout@v6
       with:
+        submodules: 'recursive'
         token: ${{ secrets.GITHUB_TOKEN }}
         ref: ${{ github.head_ref || github.ref }}
-    - name: Init fmin submodule
-      run: git submodule update --init web/src/lib/fmin
     - name: Setup .NET Core
       uses: actions/setup-dotnet@v5
       with:
