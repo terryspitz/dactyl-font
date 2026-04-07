@@ -70,5 +70,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-screenshots
-          path: web/tests/__snapshots__/
+          path: |
+            web/tests/**/*-snapshots/
+            web/test-results/
+            web/playwright-report/
           retention-days: 7

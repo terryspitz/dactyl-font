@@ -278,7 +278,7 @@ type Font(axes: Axes) =
     let spline2ctrlPtsToSvg ctrlPts isClosed =
         let spline = Spline2(ctrlPts, isClosed)
         spline.solve (axes.max_spline_iter)
-        ([ spline.renderSvg ], [], spline.renderTangents)
+        ([ spline.renderSvg ], [], if axes.show_tangents then spline.renderTangents else [])
 
     let spline2ptsToSvg pts isClosed =
         spline2ctrlPtsToSvg (pts |> withNoTangents |> toSpline2ControlPoints) isClosed
@@ -1215,10 +1215,10 @@ type Font(axes: Axes) =
 
     ///Convert element to bezier SVG curves
     member this.elementToSvg elem =
-        if axes.dactyl_spline then
-            elementToDactylSvg elem
-        else if axes.spline2 then
+        if axes.spline2 then
             elementToSpline2Svg elem
+        else if axes.dactyl_spline then
+            elementToDactylSvg elem
         else
             (elementToSpiroSegments elem |> List.collect this.spiroToSvg, [], [])
 
