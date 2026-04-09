@@ -51,6 +51,8 @@ function SplineEditor({ axes }) {
   const [maxIter, setMaxIter] = useState(1000)
   const [showComb, setShowComb] = useState(false)
   const [showTangents, setShowTangents] = useState(true)
+  const [showOldDactylSpline, setShowOldDactylSpline] = useState(true)
+  const [showNewDactylSpline, setShowNewDactylSpline] = useState(true)
   const svgRef = useRef(null)
   const workerRef = useRef(null)
   const solveIdRef = useRef(0)
@@ -453,6 +455,14 @@ function SplineEditor({ axes }) {
             </label>
           )}
           <label className="se-toggle">
+            <input type="checkbox" checked={showOldDactylSpline} onChange={e => setShowOldDactylSpline(e.target.checked)} />
+            <span style={{ color: '#4488ff' }}>OldDactylSpline</span>
+          </label>
+          <label className="se-toggle">
+            <input type="checkbox" checked={showNewDactylSpline} onChange={e => setShowNewDactylSpline(e.target.checked)} />
+            <span style={{ color: '#a020f0' }}>NewDactylSpline</span>
+          </label>
+          <label className="se-toggle">
             <input type="checkbox" checked={showComb} onChange={e => setShowComb(e.target.checked)} />
             Comb
           </label>
@@ -507,9 +517,20 @@ function SplineEditor({ axes }) {
           {/* Solved spline path — path data is in math coords (Y up), so flip Y */}
           {solveResult && (
             <g transform="scale(1,-1)">
-              <path d={solveResult.pathSvg} fill="none" stroke="#4488ff" strokeWidth="2" />
-              {showComb && <path d={solveResult.combSvg} fill="none" stroke="#888" strokeWidth="1" />}
-              {showTangents && <path d={solveResult.tangentSvg} fill="none" stroke="#e00000" strokeWidth="1" />}
+              {showOldDactylSpline && (
+                <>
+                  <path d={solveResult.pathSvg} fill="none" stroke="#4488ff" strokeWidth="2" />
+                  {showComb && <path d={solveResult.combSvg} fill="none" stroke="#4488ff" strokeWidth="1" opacity="0.6" />}
+                  {showTangents && <path d={solveResult.tangentSvg} fill="none" stroke="#e00000" strokeWidth="1" />}
+                </>
+              )}
+              {showNewDactylSpline && (
+                <>
+                  <path d={solveResult.pathSvgNew} fill="none" stroke="#a020f0" strokeWidth="2" />
+                  {showComb && <path d={solveResult.combSvgNew} fill="none" stroke="#a020f0" strokeWidth="1" opacity="0.6" />}
+                  {showTangents && <path d={solveResult.tangentSvgNew} fill="none" stroke="#e00000" strokeWidth="1" />}
+                </>
+              )}
             </g>
           )}
 

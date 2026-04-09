@@ -32,6 +32,7 @@ function App() {
     spiro: true,
     spline2: true,
     dspline: true,
+    dsplineNew: true,
     guides: true,
     knots: true,
     comb: true,
@@ -616,7 +617,18 @@ function App() {
               />
               <span className="swatch orange"></span>
               <span>
-                <a href="#" onClick={(e) => { e.preventDefault(); setTabWithUrl('splines'); }} style={{ color: 'inherit', textDecoration: 'underline' }}>DactylSpline</a>
+                <a href="#" onClick={(e) => { e.preventDefault(); setTabWithUrl('splines'); }} style={{ color: 'inherit', textDecoration: 'underline' }}>OldDactylSpline</a>
+              </span>
+            </div>
+            <div className="legend-item">
+              <input
+                type="checkbox"
+                checked={layerVisibility.dsplineNew}
+                onChange={e => setLayerVisibility(prev => ({ ...prev, dsplineNew: e.target.checked }))}
+              />
+              <span className="swatch purple"></span>
+              <span>
+                <a href="#" onClick={(e) => { e.preventDefault(); setTabWithUrl('splines'); }} style={{ color: 'inherit', textDecoration: 'underline' }}>NewDactylSpline</a>
               </span>
             </div>
             <div className="legend-item">

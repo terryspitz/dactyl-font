@@ -564,6 +564,7 @@
 .swatch.blue { background-color: #3b82f6; }
 .swatch.green { background-color: #10b981; }
 .swatch.orange { background-color: #f59e0b; }
+.swatch.purple { background-color: #a020f0; }
 .swatch.grey { background-color: #94a3b8; }
 .swatch.lightBlue { background-color: #7dd3fc; }
 .swatch.lightGreen { background-color: #6ee7b7; }
@@ -573,6 +574,7 @@
 .hide-spiro .spiro-layer,
 .hide-spline2 .spline2-layer,
 .hide-dspline .dspline-layer,
+.hide-dsplineNew .dspline-new-layer,
 .hide-guides .guides-layer,
 .hide-knots .knots-layer,
 .hide-comb .comb-layer,

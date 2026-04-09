@@ -146,7 +146,17 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
         Font
             { axes with
                 spline2 = false
-                dactyl_spline = true }
+                dactyl_spline = true
+                bespoke_arms = false
+                iterative_solver = false }
+
+    let fontDactylSplineNew =
+        Font
+            { axes with
+                spline2 = false
+                dactyl_spline = true
+                bespoke_arms = true
+                iterative_solver = true }
 
     let fontGuides =
         Font
@@ -211,9 +221,11 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
     let blue = "blue"
     let green = "green"
     let orange = "#FFA500c0"
+    let purple = "#A020F0c0"
     let lightGreen = "lightGreen"
     let lightBlue = "lightBlue"
     let lightOrange = "#FFD580"
+    let lightPurple = "#D8B0F0"
 
     let guidesSvg =
         fontGuides.charToSvg '□' offsetX offsetY grey @ [ svgText 0 0 "Guides" ]
@@ -237,6 +249,9 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
             let dsplineLayer =
                 wrapClass "dspline-layer" (fontDactylSpline.elementToSvgPath spline offsetX offsetY 10 orange)
 
+            let dsplineNewLayer =
+                wrapClass "dspline-new-layer" (fontDactylSplineNew.elementToSvgPath spline offsetX offsetY 10 purple)
+
             let knotsLayer =
                 (wrapClass
                     "spiro-layer knots-layer"
@@ -249,6 +264,10 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
                     "dspline-layer knots-layer"
                     (spline
                      |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightOrange fontDactylSpline.isJoint))
+                @ (wrapClass
+                    "dspline-new-layer knots-layer"
+                    (spline
+                     |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightPurple fontDactylSplineNew.isJoint))
 
             let labelsLayer =
                 wrapClass "labels-layer" (SvgHelpers.getSvgLabels offsetX offsetY spline)
@@ -257,6 +276,7 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
             @ spiroLayer
             @ spline2Layer
             @ dsplineLayer
+            @ dsplineNewLayer
             @ knotsLayer
             @ labelsLayer
         else
@@ -281,6 +301,7 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
             let outlineSpiro = getOutline fontSpiro spiro
             let outlineSpline2 = getOutline fontSpline2 spline
             let outlineDactylSpline = getOutline fontDactylSpline spline
+            let outlineDactylSplineNew = getOutline fontDactylSplineNew spline
 
             let outlineSpiroSvg = safeElementToSvgPath fontSpiro outlineSpiro blue
             let outlineSpline2Svg = safeElementToSvgPath fontSpline2 outlineSpline2 green
@@ -288,10 +309,14 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
             let outlineDactylSplineSvg =
                 safeElementToSvgPath fontDactylSpline outlineDactylSpline orange
 
+            let outlineDactylSplineNewSvg =
+                safeElementToSvgPath fontDactylSplineNew outlineDactylSplineNew purple
+
             // Spine fonts: never fill the thin centerline paths
             let fontSpiroSpine = Font { fontSpiro.axes with filled=false }
             let fontSpline2Spine = Font { fontSpline2.axes with filled=false }
             let fontDactylSplineSpine = Font { fontDactylSpline.axes with filled=false }
+            let fontDactylSplineNewSpine = Font { fontDactylSplineNew.axes with filled=false }
 
             let guidesLayer = wrapClass "guides-layer" guidesSvg
 
@@ -308,6 +333,12 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
                     "dspline-layer"
                     (fontDactylSplineSpine.elementToSvgPath spline offsetX offsetY 3 orange
                      @ outlineDactylSplineSvg)
+
+            let dsplineNewLayer =
+                wrapClass
+                    "dspline-new-layer"
+                    (fontDactylSplineNewSpine.elementToSvgPath spline offsetX offsetY 3 purple
+                     @ outlineDactylSplineNewSvg)
 
             let knotsLayer =
                 (wrapClass
@@ -333,6 +364,14 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
                     "dspline-layer knots-layer"
                     (outlineDactylSpline
                      |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightOrange fontDactylSpline.isJoint))
+                @ (wrapClass
+                    "dspline-new-layer knots-layer"
+                    (spline
+                     |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightPurple fontDactylSplineNew.isJoint))
+                @ (wrapClass
+                    "dspline-new-layer knots-layer"
+                    (outlineDactylSplineNew
+                     |> SvgHelpers.getSvgKnots offsetX offsetY 5.0 lightPurple fontDactylSplineNew.isJoint))
 
             let labelsLayer =
                 wrapClass "labels-layer" (SvgHelpers.getSvgLabels offsetX offsetY spline)
@@ -341,6 +380,7 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
             @ spiroLayer
             @ spline2Layer
             @ dsplineLayer
+            @ dsplineNewLayer
             @ knotsLayer
             @ labelsLayer
 
@@ -379,16 +419,32 @@ let spiroToSplinePointType (ty: SpiroPointType) =
     | _ -> Curves.SplinePointType.Corner
 
 let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (maxIter: int) =
-    let spline = DactylSpline.DactylSpline(ctrlPts, isClosed)
-    let bezPts, pathSvg, combSvg, tangentSvg = spline.solveAndRenderFull(maxIter, 1.0, false, true, true)
-    {| pathSvg = pathSvg |> String.concat ""
-       combSvg = combSvg |> String.concat ""
-       tangentSvg = tangentSvg |> String.concat ""
-       bezierPoints =
-           bezPts |> Array.map (fun (bp: DactylSpline.BezierPoint) ->
-               {| x = bp.x; y = bp.y
-                  th_in = bp.th_in; th_out = bp.th_out
-                  ld = bp.ld; rd = bp.rd |}) |}
+    // Solve with the original (old) DactylSpline — free arm lengths, Nelder-Mead.
+    let splineOld = DactylSpline.DactylSpline(ctrlPts, isClosed)
+    let bezPtsOld, pathSvgOld, combSvgOld, tangentSvgOld =
+        splineOld.solveAndRenderFull(maxIter, 1.0, false, true, true)
+
+    // Solve with the new Bespoke Spline variant — analytical arms + iterative solver.
+    let splineNew = DactylSpline.DactylSpline(ctrlPts, isClosed)
+    let bezPtsNew, pathSvgNew, combSvgNew, tangentSvgNew =
+        splineNew.solveAndRenderFull(maxIter, 1.0, false, true, true,
+                                     useAnalyticalArms = true,
+                                     useIterativeSolver = true)
+
+    let bezPtsToObj (bezPts: DactylSpline.BezierPoint array) =
+        bezPts |> Array.map (fun (bp: DactylSpline.BezierPoint) ->
+            {| x = bp.x; y = bp.y
+               th_in = bp.th_in; th_out = bp.th_out
+               ld = bp.ld; rd = bp.rd |})
+
+    {| pathSvg = pathSvgOld |> String.concat ""
+       combSvg = combSvgOld |> String.concat ""
+       tangentSvg = tangentSvgOld |> String.concat ""
+       bezierPoints = bezPtsToObj bezPtsOld
+       pathSvgNew = pathSvgNew |> String.concat ""
+       combSvgNew = combSvgNew |> String.concat ""
+       tangentSvgNew = tangentSvgNew |> String.concat ""
+       bezierPointsNew = bezPtsToObj bezPtsNew |}
 
 let getGuidePositions (axes: Axes) =
     let m = FontMetrics(axes)
