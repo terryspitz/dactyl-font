@@ -340,11 +340,18 @@ function App() {
                   const variations = content[ctrl.name]
                   if (!variations) return null
 
+                  const firstSvg = variations[0]?.svg ?? ''
                   const rowVariations = variations.map((v, i) => {
                     const boxWidth = 150 * zoom
                     return (
-                      <div key={`${ctrl.name}-${i}`} className="tween-item" style={{ minWidth: boxWidth + 'px', width: boxWidth + 'px' }}>
+                      <div key={`${ctrl.name}-${i}`} className="tween-item" style={{ minWidth: boxWidth + 'px', width: boxWidth + 'px', position: 'relative' }}>
                         <div dangerouslySetInnerHTML={{ __html: v.svg }} />
+                        {i > 0 && (
+                          <div
+                            dangerouslySetInnerHTML={{ __html: firstSvg }}
+                            style={{ position: 'absolute', top: 0, left: 0, opacity: 0.2, filter: 'grayscale(1)', pointerEvents: 'none' }}
+                          />
+                        )}
                         <div style={{ fontSize: '0.7em' }}>{ctrl.type_ === 'checkbox' ? (v.val === 'diff' ? 'diff' : v.val ? 'true' : 'false') : v.val.toFixed(2)}</div>
                       </div>
                     )

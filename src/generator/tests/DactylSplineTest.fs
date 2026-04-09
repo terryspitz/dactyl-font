@@ -164,7 +164,33 @@ type TestClass() =
         printfn "Flatness 10.0: %s" svgFlat10
 
         Assert.That(svgFlat0, Is.Not.EqualTo(svgFlat10))
-    
+
+    [<Test>]
+    member this.CheckMConsistencyParam() =
+        // A curve with three segments gives the optimizer room to vary m across segments.
+        // With high m_consistency the slopes should be pulled together, changing the shape.
+        let spline =
+            DactylSpline(
+                [| dcp SplinePointType.Corner  0.  0. None
+                   dcp SplinePointType.Smooth  0.3  1. None
+                   dcp SplinePointType.Smooth  0.7  1. None
+                   dcp SplinePointType.Corner  1.  0. None |],
+                false
+            )
+
+        let bezPts0 = spline.solveAndGetPoints(5000, 1.0, 0.0, false)
+        let bezPts10 = spline.solveAndGetPoints(5000, 1.0, 10.0, false)
+
+        // At least one interior control point must differ noticeably between the two settings
+        let maxDiff =
+            Array.map2 (fun (a: BezierPoint) (b: BezierPoint) ->
+                abs (a.th_in - b.th_in) + abs (a.th_out - b.th_out) + abs (a.rd - b.rd) + abs (a.ld - b.ld))
+                bezPts0 bezPts10
+            |> Array.max
+
+        printfn "m_consistency max point diff: %f" maxDiff
+        Assert.That(maxDiff, Is.GreaterThan(1e-3), "m_consistency=10 should produce a noticeably different curve than m_consistency=0")
+
     [<Test>]
     member this.EndTangentReversal() =
         // Horizontal line from 0,0 to 1,0.
