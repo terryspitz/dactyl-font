@@ -378,6 +378,37 @@ let spiroToSplinePointType (ty: SpiroPointType) =
     | SpiroPointType.Left -> Curves.SplinePointType.CurveToLine
     | _ -> Curves.SplinePointType.Corner
 
+let computeCurvatureData (bezPts: DactylSpline.BezierPoint array) (isClosed: bool) =
+    let steps = 20
+    let count = if isClosed then bezPts.Length else bezPts.Length - 1
+    let samples = ResizeArray()
+    let knotArcs = ResizeArray()
+    let mutable arcLen = 0.0
+    for i in 0 .. count - 1 do
+        let p1 = bezPts.[i]
+        let p2 = bezPts.[(i + 1) % bezPts.Length]
+        let cp1x = p1.x + p1.rd * cos p1.th_out
+        let cp1y = p1.y + p1.rd * sin p1.th_out
+        let cp2x = p2.x - p2.ld * cos p2.th_in
+        let cp2y = p2.y - p2.ld * sin p2.th_in
+        let p0x, p0y = p1.x, p1.y
+        let p3x, p3y = p2.x, p2.y
+        if i = 0 then knotArcs.Add(arcLen)
+        for s in 0 .. steps - 1 do
+            let tmid = (float s + 0.5) / float steps
+            let mt = 1.0 - tmid
+            let dx1 = 3.0 * (mt*mt*(cp1x-p0x) + 2.0*mt*tmid*(cp2x-cp1x) + tmid*tmid*(p3x-cp2x))
+            let dy1 = 3.0 * (mt*mt*(cp1y-p0y) + 2.0*mt*tmid*(cp2y-cp1y) + tmid*tmid*(p3y-cp2y))
+            let dx2 = 6.0 * ((1.0-tmid)*(cp2x-2.0*cp1x+p0x) + tmid*(p3x-2.0*cp2x+cp1x))
+            let dy2 = 6.0 * ((1.0-tmid)*(cp2y-2.0*cp1y+p0y) + tmid*(p3y-2.0*cp2y+cp1y))
+            let speed = sqrt(dx1*dx1 + dy1*dy1)
+            let denom = speed * speed * speed
+            let kappa = if denom < 1e-10 then 0.0 else (dx1*dy2 - dy1*dx2) / denom
+            samples.Add({| arcLen = arcLen; curvature = kappa |})
+            arcLen <- arcLen + speed / float steps
+        knotArcs.Add(arcLen)
+    {| samples = samples.ToArray(); knotArcs = knotArcs.ToArray() |}
+
 let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (maxIter: int) =
     let spline = DactylSpline.DactylSpline(ctrlPts, isClosed)
     let bezPts, pathSvg, combSvg, tangentSvg = spline.solveAndRenderFull(maxIter, 1.0, 0.0, false, true, true)
@@ -388,7 +419,37 @@ let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: boo
            bezPts |> Array.map (fun (bp: DactylSpline.BezierPoint) ->
                {| x = bp.x; y = bp.y
                   th_in = bp.th_in; th_out = bp.th_out
-                  ld = bp.ld; rd = bp.rd |}) |}
+                  ld = bp.ld; rd = bp.rd |})
+       curvatureData = computeCurvatureData bezPts isClosed |}
+
+/// Generate a proper ink outline for the current spline via Font.getDactylSansOutlines.
+let getSplineOutlinePath (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (inputAxes: Axes) =
+    try
+        let axes = { inputAxes with outline = true; filled = true; dactyl_spline = true }
+        let font = Font axes
+        let splineToSpiro (ty: Curves.SplinePointType) =
+            match ty with
+            | Curves.SplinePointType.CurveToLine -> SpiroPointType.Left
+            | Curves.SplinePointType.LineToCurve -> SpiroPointType.Right
+            | Curves.SplinePointType.Smooth      -> SpiroPointType.G2
+            | _                                  -> SpiroPointType.Corner
+        let knots =
+            ctrlPts
+            |> Array.map (fun cp ->
+                { pt = { x = cp.x |> Option.defaultValue 0.0
+                         y = cp.y |> Option.defaultValue 0.0
+                         x_fit = cp.x.IsNone
+                         y_fit = cp.y.IsNone }
+                  ty = splineToSpiro cp.ty
+                  th_in = cp.th_in
+                  th_out = cp.th_out
+                  label = None })
+            |> Array.toList
+        let curve = Curve(knots, isClosed)
+        let outline = font.getDactylSansOutlines curve
+        let svg, _, _ = font.elementToSvg outline
+        String.concat " " svg
+    with _ -> ""
 
 let getGuidePositions (axes: Axes) =
     let m = FontMetrics(axes)
@@ -440,11 +501,13 @@ let generateFontGlyphData (axes: Axes) =
        unitsPerEm = font.charHeight |}
 
 let private knotToObj (k: Knot) : obj =
+    // When x_fit/y_fit is true the solver treats the coordinate as a free variable (None).
+    // Pass null (JS) / None (F#) so the spline editor matches the full font pipeline.
+    let x_opt = if k.pt.x_fit then System.Nullable<float>() else System.Nullable<float>(k.pt.x)
+    let y_opt = if k.pt.y_fit then System.Nullable<float>() else System.Nullable<float>(k.pt.y)
     {| ty = int (spiroToSplinePointType k.ty)
-       x = k.pt.x
-       y = k.pt.y
-       x_fit = k.pt.x_fit
-       y_fit = k.pt.y_fit
+       x = x_opt
+       y = y_opt
        th_in = k.th_in |> Option.toNullable
        th_out = k.th_out |> Option.toNullable
        label = k.label |> Option.defaultValue "" |} :> obj
