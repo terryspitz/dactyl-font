@@ -23,6 +23,8 @@ open System.Text
 /// <param name="value"></param>
 /// <returns></returns>
 let Format (value: float) =
+    if Double.IsNaN value || Double.IsInfinity value then
+        failwithf "NaN/Infinity coordinate in SVG path: %g" value
     (round value).ToString("F0")
 // sprintf "%d" (int value)
 // (int value).ToString()

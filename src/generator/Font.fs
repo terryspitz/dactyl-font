@@ -425,12 +425,17 @@ type Font(axes: Axes) =
 
     member this.monospace =
         let mono e =
-            let monoFn (p: Point) =
-                let full_scale = _metrics.monospaceWidth / (this.elemWidth e)
-                let x_scale = (1.0 - axes.monospace) + axes.monospace * full_scale
-                { p with x = p.x * x_scale }
+            let w = this.elemWidth e
 
-            movePoints monoFn None e
+            if w = 0.0 then
+                e
+            else
+                let monoFn (p: Point) =
+                    let full_scale = _metrics.monospaceWidth / w
+                    let x_scale = (1.0 - axes.monospace) + axes.monospace * full_scale
+                    { p with x = p.x * x_scale }
+
+                movePoints monoFn None e
 
         applyIf (axes.monospace > 0.0) mono
 
@@ -912,7 +917,12 @@ type Font(axes: Axes) =
             let segs = List.map toSegment segments
 
             [ for i in 0 .. lines - 1 do
-                  let offset = (float thickness) * (float i / float (lines - 1) - 0.5) * 2.0
+                  let offset =
+                      if lines <= 1 then
+                          0.0
+                      else
+                          (float thickness) * (float i / float (lines - 1) - 0.5) * 2.0
+
                   clearElemTangents (Curve(this.offsetSegments segs 0 (segs.Length - 1) false true offset, true)) ]
         | SpiroDot(p) ->
             [ dotToClosedCurve p.x p.y thickness
