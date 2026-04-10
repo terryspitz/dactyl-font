@@ -291,11 +291,6 @@ function App() {
       // If we return null, it might flash.
     }
 
-    // SplineEditor manages its own state/worker — render immediately
-    if (activeTab === 'splines') {
-      return <SplineEditor axes={axes} />
-    }
-
     // Safety check: ensure result matches expected type for tab
     const content = workerResult
     if (!content) return null
@@ -580,8 +575,12 @@ function App() {
                 </button>
               </div>
             )}
-            <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: activeTab === 'tweens' ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
+            <div style={activeTab === 'splines' ? { display: 'none' } : { transform: activeTab === 'tweens' ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
               {renderContent()}
+            </div>
+            {/* Always mounted so state is preserved across tab switches; hidden via CSS when inactive */}
+            <div style={{ display: activeTab === 'splines' ? 'contents' : 'none' }}>
+              <SplineEditor axes={axes} />
             </div>
           </div>
         </div>

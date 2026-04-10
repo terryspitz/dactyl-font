@@ -113,6 +113,10 @@ function SplineEditor({ axes }) {
   const curvesRef = useRef(curves)
   useEffect(() => { curvesRef.current = curves }, [curves])
 
+  // Always-current snapshot of axes without triggering stale closures or extra effects
+  const axesRef = useRef(axes)
+  useEffect(() => { axesRef.current = axes }, [axes])
+
   // Refs for guides and viewBox — accessed in pointer callbacks without stale closure risk
   const guidesRef = useRef(guides)
   useEffect(() => { guidesRef.current = guides }, [guides])
@@ -188,12 +192,12 @@ function SplineEditor({ axes }) {
     return () => w.removeEventListener('message', handler)
   }, [])
 
-  // Parse glyph when char or axes change; persist selection across tab switches
+  // Parse glyph only when the selected character changes, not on axes changes
   useEffect(() => {
     if (!workerRef.current || !selectedChar) return
     localStorage.setItem('splineSelectedChar', selectedChar)
-    workerRef.current.postMessage({ id: -3, type: 'parseGlyph', args: [selectedChar, axes] })
-  }, [selectedChar, axes])
+    workerRef.current.postMessage({ id: -3, type: 'parseGlyph', args: [selectedChar, axesRef.current] })
+  }, [selectedChar])
 
   // Cache solved path for active curve
   useEffect(() => {
