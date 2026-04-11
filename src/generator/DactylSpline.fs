@@ -827,6 +827,48 @@ type DactylSpline(ctrlPts, isClosed) =
             if Double.IsNaN p.rd then
                 p.rd <- 0.
 
+        // Final pass to resolve any remaining NaN th_in/th_out using neighbour angles
+        for i in 0 .. result.Length - 1 do
+            let p = result.[i]
+
+            if Double.IsNaN p.th_in || Double.IsNaN p.th_out then
+                let prev = result.[(i - 1 + result.Length) % result.Length]
+                let next = result.[(i + 1) % result.Length]
+                // Only use neighbour coords if they are themselves valid
+                let fallback =
+                    if
+                        not (Double.IsNaN prev.x)
+                        && not (Double.IsNaN prev.y)
+                        && not (Double.IsNaN next.x)
+                        && not (Double.IsNaN next.y)
+                    then
+                        atan2 (next.y - prev.y) (next.x - prev.x)
+                    else
+                        0.0
+
+                if Double.IsNaN p.th_in then
+                    p.th_in <- fallback
+
+                if Double.IsNaN p.th_out then
+                    p.th_out <- fallback
+
+        // Validate: throw if any coordinate is still NaN so the caller can handle it cleanly
+        for i in 0 .. result.Length - 1 do
+            let p = result.[i]
+
+            if
+                Double.IsNaN p.x
+                || Double.IsNaN p.y
+                || Double.IsNaN p.th_in
+                || Double.IsNaN p.th_out
+                || Double.IsNaN p.ld
+                || Double.IsNaN p.rd
+            then
+                failwithf
+                    "NaN in solved BezierPoint[%d]: %s"
+                    i
+                    (p.tostring ())
+
         result
 
     member this.renderFromPoints(bezPts: BezierPoint[], showComb, showTangents) =

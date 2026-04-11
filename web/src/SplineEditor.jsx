@@ -108,6 +108,7 @@ function SplineEditor({ axes }) {
   const workerRef = useRef(null)
   const solveIdRef = useRef(0)
   const dragRef = useRef(null) // { type: 'knot'|'th_in'|'th_out', curveIdx, idx }
+  const rowPointerRef = useRef({ dragging: false, fromIdx: null, toIdx: null })
 
   // Always-current snapshot of curves without triggering stale closures in callbacks
   const curvesRef = useRef(curves)
@@ -116,6 +117,10 @@ function SplineEditor({ axes }) {
   // Always-current snapshot of axes without triggering stale closures or extra effects
   const axesRef = useRef(axes)
   useEffect(() => { axesRef.current = axes }, [axes])
+
+  // Always-current solveResult for use in pointer callbacks (avoids stale closure)
+  const solveResultRef = useRef(solveResult)
+  useEffect(() => { solveResultRef.current = solveResult }, [solveResult])
 
   // Refs for guides and viewBox — accessed in pointer callbacks without stale closure risk
   const guidesRef = useRef(guides)
@@ -221,17 +226,20 @@ function SplineEditor({ axes }) {
     })
   }, [curves, activeCurve, maxIter])
 
-  // Fetch ink outline via Font.getDactylSansOutlines when showOutline is on
+  // Fetch ink outline via Font.getDactylSansOutlines when showOutline is on (debounced)
   useEffect(() => {
     if (!workerRef.current) return
     const curve = curves[activeCurve]
     if (!showOutline || !curve || curve.points.length < 2) { setOutlinePath(null); return }
-    const ctrlPts = curve.points.map(p => ({
-      ty: p.ty, x: p.x, y: p.y,
-      th_in: p.th_in ?? undefined,
-      th_out: p.th_out ?? undefined,
-    }))
-    workerRef.current.postMessage({ id: -4, type: 'splineOutline', args: [ctrlPts, curve.isClosed, axes] })
+    const timer = setTimeout(() => {
+      const ctrlPts = curve.points.map(p => ({
+        ty: p.ty, x: p.x, y: p.y,
+        th_in: p.th_in ?? undefined,
+        th_out: p.th_out ?? undefined,
+      }))
+      workerRef.current.postMessage({ id: -4, type: 'splineOutline', args: [ctrlPts, curve.isClosed, axes] })
+    }, 80)
+    return () => clearTimeout(timer)
   }, [showOutline, curves, activeCurve, axes])
 
   // Solve spline whenever control points change (debounced to avoid queueing solves during drag)
@@ -305,8 +313,14 @@ function SplineEditor({ axes }) {
     e.preventDefault()
     e.stopPropagation()
     pushUndo()
-    const locked = Math.round(autoAngle * 100) / 100
-    if (type === 'th_out' && curvesRef.current[curveIdx]?.points[idx]?.ty === 1) {
+    const curve = curvesRef.current[curveIdx]
+    // For the last knot's th_in: DactylSpline flips th_in by π internally.
+    // bp.th_in = actual incoming tangent; the stored p.th_in must equal (actual + π)
+    // so that the handle renders at bp.th_in + π = actual + π = p.th_in (no extra +π needed).
+    const isLastKnotThIn = type === 'th_in' && curve && !curve.isClosed && idx === curve.points.length - 1
+    const rawLocked = isLastKnotThIn ? autoAngle + Math.PI : autoAngle
+    const locked = Math.round(rawLocked * 100) / 100
+    if (type === 'th_out' && curve?.points[idx]?.ty === 1) {
       updatePoint(curveIdx, idx, { th_in: locked, th_out: locked })
     } else {
       updatePoint(curveIdx, idx, { [type]: locked })
@@ -339,12 +353,15 @@ function SplineEditor({ axes }) {
       }
       updatePoint(curveIdx, idx, { x: Math.round(sx), y: Math.round(sy) })
     } else if (type === 'th_in' || type === 'th_out') {
-      const bp = solveResult?.bezierPoints?.[idx]
+      const bp = solveResultRef.current?.bezierPoints?.[idx]
       const px = pt.x ?? bp?.x ?? 0
       const py = pt.y ?? bp?.y ?? 0
       const angle = Math.atan2(y - py, x - px)
-      // th_in handle is at (th_in + π) from the knot; th_out handle is at th_out directly.
-      let value = type === 'th_in' ? angle + Math.PI : angle
+      // th_in handle is drawn at (p.th_in + π) from knot for regular knots.
+      // Exception: last knot of open curve — DactylSpline internally flips th_in by π, so
+      // p.th_in is already in "handle direction" convention (no extra + π needed for storage).
+      const isLastKnotThIn = type === 'th_in' && !curve.isClosed && idx === curve.points.length - 1
+      let value = (type === 'th_in' && !isLastKnotThIn) ? angle + Math.PI : angle
       if (value > Math.PI) value -= 2 * Math.PI
       if (value <= -Math.PI) value += 2 * Math.PI
       value = Math.round(value * 100) / 100
@@ -469,6 +486,43 @@ function SplineEditor({ axes }) {
     })
     setSelectedPt(toIdx)
   }, [activeCurve, pushUndo])
+
+  // Pointer-based row drag handlers (replaces HTML5 drag to avoid SVG pointer event interference)
+  const handleRowDragStart = useCallback((e, fromIdx) => {
+    e.stopPropagation()
+    e.preventDefault()
+    rowPointerRef.current = { dragging: true, fromIdx, toIdx: fromIdx }
+    setDragRowIdx(fromIdx)
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }, [])
+
+  const handleRowDragMove = useCallback((e) => {
+    if (!rowPointerRef.current.dragging) return
+    const el = document.elementFromPoint(e.clientX, e.clientY)
+    const tr = el?.closest('[data-row-idx]')
+    if (tr) {
+      const idx = parseInt(tr.dataset.rowIdx)
+      if (!isNaN(idx) && idx !== rowPointerRef.current.toIdx) {
+        rowPointerRef.current.toIdx = idx
+        setDragOverRowIdx(idx)
+      }
+    }
+  }, [])
+
+  const handleRowDragEnd = useCallback(() => {
+    if (!rowPointerRef.current.dragging) return
+    const { fromIdx, toIdx } = rowPointerRef.current
+    rowPointerRef.current = { dragging: false, fromIdx: null, toIdx: null }
+    setDragRowIdx(null)
+    setDragOverRowIdx(null)
+    if (fromIdx !== null && toIdx !== null && fromIdx !== toIdx) movePoint(fromIdx, toIdx)
+  }, [movePoint])
+
+  const handleRowDragCancel = useCallback(() => {
+    rowPointerRef.current = { dragging: false, fromIdx: null, toIdx: null }
+    setDragRowIdx(null)
+    setDragOverRowIdx(null)
+  }, [])
 
   const toggleClosed = useCallback(() => {
     pushUndo()
@@ -694,6 +748,7 @@ function SplineEditor({ axes }) {
             viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
             onClick={handleSvgClick}
             onDoubleClick={handleDblClick}
           >
@@ -765,8 +820,12 @@ function SplineEditor({ axes }) {
                 const autoIn = p.th_in === null
                 const thIn = autoIn ? (bp && !isNaN(bp.th_in) ? bp.th_in : null) : p.th_in
                 if (thIn != null) {
-                  const hx = px + HANDLE_LEN * Math.cos(thIn + Math.PI)
-                  const hy = py - HANDLE_LEN * Math.sin(thIn + Math.PI)
+                  // Regular knots: p.th_in = actual incoming direction, handle is at th_in + π (bezier ctrl pt side).
+                  // Last knot: DactylSpline flips th_in by π internally, so p.th_in is already in "handle direction"
+                  // (i.e. p.th_in points toward the bezier ctrl pt). Auto handle still needs + π (bp.th_in = actual).
+                  const hAngle = (isLast && !autoIn) ? thIn : thIn + Math.PI
+                  const hx = px + HANDLE_LEN * Math.cos(hAngle)
+                  const hy = py - HANDLE_LEN * Math.sin(hAngle)
                   handles.push(
                     <g key={`h-in-${i}`}>
                       <line x1={px} y1={py} x2={hx} y2={hy}
@@ -848,19 +907,15 @@ function SplineEditor({ axes }) {
               <tbody>
                 {points.map((p, i) => (
                   <tr key={i}
+                    data-row-idx={i}
                     className={[i === selectedPt ? 'selected' : '', i === dragOverRowIdx ? 'se-drag-over' : ''].filter(Boolean).join(' ')}
                     onClick={() => setSelectedPt(i)}
-                    onDragOver={e => { e.preventDefault(); setDragOverRowIdx(i) }}
-                    onDragLeave={() => setDragOverRowIdx(null)}
-                    onDrop={() => {
-                      if (dragRowIdx !== null) movePoint(dragRowIdx, i)
-                      setDragRowIdx(null); setDragOverRowIdx(null)
-                    }}
-                    onDragEnd={() => { setDragRowIdx(null); setDragOverRowIdx(null) }}
                   >
                     <td className="se-drag-handle"
-                      draggable
-                      onDragStart={e => { e.stopPropagation(); setDragRowIdx(i) }}
+                      onPointerDown={e => handleRowDragStart(e, i)}
+                      onPointerMove={handleRowDragMove}
+                      onPointerUp={handleRowDragEnd}
+                      onPointerCancel={handleRowDragCancel}
                       title="Drag to reorder"
                     >⠿</td>
                     <td className="se-idx">{i}</td>

@@ -492,3 +492,76 @@ type FontTests() =
                 "Outline should have an East tangent at the top-left corner area"
             )
         | _ -> Assert.Fail("Could not find exterior curve in P outline")
+
+    [<Test>]
+    member this.IsJoint_ReturnsTrue_For_A_Glyph_BowlEndpoint() =
+        // The 'a' glyph is "xr-br xor~x(c)~xbl~bc~bor".
+        // The bowl endpoint "bor" lies exactly on the stem "xr-br", so isJoint must fire.
+        // Default axes: width=300 height=600 x_height=0.6 roundedness=60 thickness=30.
+        // After translateByThickness (+30 in both axes):
+        //   bor  = (R + t, B + roundedness + t) = (330, 90)
+        //   stem = (R + t, X + t) → (R + t, B + t) = (330, 390) → (330, 30)
+        // The point (330, 90) is on the vertical stem (perpDist = 0 < thickness), so
+        // isJoint should return true.
+        let font =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    joints = true
+                    dactyl_spline = true }
+            )
+
+        let backbone = font.charToElem 'a'
+        let t = float Axes.DefaultAxes.thickness  // 30
+        let r = float Axes.DefaultAxes.width       // 300 → R
+        let roundedness = float Axes.DefaultAxes.roundedness  // 60
+        let borX = r + t          // 330
+        let borY = roundedness + t // 90  (B=0 + roundedness + thickness)
+
+        Assert.That(
+            font.isJoint backbone borX borY,
+            Is.True,
+            sprintf "isJoint should return true at bor=(%.0f,%.0f) for 'a' glyph (bowl endpoint lies on stem)" borX borY
+        )
+
+    [<Test>]
+    member this.SoftCorners_A_Glyph_JointCornersNotRounded() =
+        // With joints=true and soft_corners > 0, corners at joint positions must be
+        // preserved (not rounded), so the SVG should not gain extra curve commands at
+        // those joints compared to soft_corners=0.
+        let mkFont sc jt =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true
+                    soft_corners = sc
+                    joints = jt }
+            )
+
+        let countC (svg: string) =
+            svg.Split(' ') |> Array.filter (fun s -> s = "C") |> Array.length
+
+        let svgNoRounding = mkFont 0.0 true  |> fun f -> f.charToSvg 'a' 0.0 0.0 "black" |> String.concat " "
+        let svgWithJoints = mkFont 0.5 true  |> fun f -> f.charToSvg 'a' 0.0 0.0 "black" |> String.concat " "
+        let svgNoJoints   = mkFont 0.5 false |> fun f -> f.charToSvg 'a' 0.0 0.0 "black" |> String.concat " "
+
+        // Sanity: all renders should produce valid SVG
+        Assert.That(svgWithJoints, Does.Contain("M "), "Soft corners + joints: 'a' should render")
+        Assert.That(svgNoJoints,   Does.Contain("M "), "Soft corners, no joints: 'a' should render")
+        Assert.That(svgWithJoints, Does.Not.Contain("NaN"), "Soft corners + joints: no NaN in 'a'")
+        Assert.That(svgNoJoints,   Does.Not.Contain("NaN"), "Soft corners, no joints: no NaN in 'a'")
+
+        // When joints are enabled, joint corners are preserved, so 'a' gains fewer extra
+        // curves than when joints are disabled (where ALL corners get rounded).
+        let cWithJoints = countC svgWithJoints
+        let cNoJoints   = countC svgNoJoints
+        let cNoRounding = countC svgNoRounding
+        Assert.That(
+            cWithJoints,
+            Is.LessThan(cNoJoints),
+            sprintf "joints=true should round fewer corners than joints=false (got %d vs %d C commands)" cWithJoints cNoJoints
+        )
+        Assert.That(
+            cWithJoints,
+            Is.GreaterThanOrEqualTo(cNoRounding),
+            sprintf "soft_corners should still add some rounding even with joints (got %d C, baseline %d)" cWithJoints cNoRounding
+        )
