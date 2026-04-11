@@ -224,7 +224,7 @@ function SplineEditor({ axes }) {
       }))
       workerRef.current.postMessage({ id, type: 'solveSpline', args: [ctrlPts, curve.isClosed, maxIter, axesRef.current] })
     })
-  }, [curves, activeCurve, maxIter])
+  }, [curves, activeCurve, maxIter, axes.flatness, axes.m_consistency])
 
   // Fetch ink outline via Font.getDactylSansOutlines when showOutline is on (debounced)
   useEffect(() => {
@@ -242,7 +242,7 @@ function SplineEditor({ axes }) {
     return () => clearTimeout(timer)
   }, [showOutline, curves, activeCurve, axes])
 
-  // Solve spline whenever control points change (debounced to avoid queueing solves during drag)
+  // Solve spline whenever control points or solve-relevant axes change (debounced)
   useEffect(() => {
     if (!workerRef.current || !curves[activeCurve]) return
     const curve = curves[activeCurve]
@@ -259,7 +259,7 @@ function SplineEditor({ axes }) {
       workerRef.current.postMessage({ id, type: 'solveSpline', args: [ctrlPts, curve.isClosed, maxIter, axesRef.current] })
     }, 20)
     return () => clearTimeout(timer)
-  }, [curves, activeCurve, maxIter])
+  }, [curves, activeCurve, maxIter, axes.flatness, axes.m_consistency])
 
   // SVG coordinate space: compute viewBox from guides
   const viewBox = useMemo(() => {
