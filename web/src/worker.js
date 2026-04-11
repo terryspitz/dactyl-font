@@ -53,9 +53,9 @@ self.onmessage = (e) => {
                 })
                 break
             case 'solveSpline': {
-                const [ctrlPtsRaw, isClosed, maxIter] = args
+                const [ctrlPtsRaw, isClosed, maxIter, glyphAxes] = args
                 const ctrlPts = ctrlPtsRaw.map(p => new DControlPoint(p.ty, p.x, p.y, p.th_in, p.th_out))
-                result = solveSplineEditor(ctrlPts, isClosed, maxIter)
+                result = solveSplineEditor(ctrlPts, isClosed, maxIter, glyphAxes)
                 break
             }
             case 'parseGlyph': {

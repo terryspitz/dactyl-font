@@ -254,6 +254,7 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, mCons
     let _segmentStartIdx = Array.create ctrlPts.Length 0
     let _segmentEndIdx = Array.create ctrlPts.Length 0
     let _segmentM = Array.create ctrlPts.Length 0.0
+    let _segmentMaxDist = Array.create ctrlPts.Length 0.0
 
     member this.ctrlPts = ctrlPts
     member this.isClosed = isClosed
@@ -457,6 +458,7 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, mCons
                     _segmentStartK.[segmentCount] <- startK
                     _segmentEndK.[segmentCount] <- endK
                     _segmentM.[segmentCount] <- m
+                    _segmentMaxDist.[segmentCount] <- max_dist
                     _segmentStartIdx.[segmentCount] <- i
                     _segmentEndIdx.[segmentCount] <- i + 1
                     segmentCount <- segmentCount + 1
@@ -513,14 +515,18 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, mCons
         // 4. m-consistency penalty: penalise jumps in curvature slope (m) at smooth joins.
         // m is the rate of curvature change with arc length; matching it across segments
         // gives G3-like smoothness (the curvature comb has no kinks at joins).
+        // Scale by avgDist² to convert m (k/length) into Δk units, making the penalty
+        // comparable in magnitude to the G2 continuity penalty (gap² × 10).
         if mConsistency > 0.0 then
             for i in 1 .. segmentCount - 1 do
                 let mGap = _segmentM.[i] - _segmentM.[i - 1]
-                totalErr <- totalErr + mGap * mGap * mConsistency
+                let avgDist = (_segmentMaxDist.[i] + _segmentMaxDist.[i - 1]) / 2.0
+                totalErr <- totalErr + mGap * mGap * avgDist * avgDist * mConsistency
 
             if isClosed && segmentCount > 1 then
                 let mGap = _segmentM.[0] - _segmentM.[segmentCount - 1]
-                totalErr <- totalErr + mGap * mGap * mConsistency
+                let avgDist = (_segmentMaxDist.[0] + _segmentMaxDist.[segmentCount - 1]) / 2.0
+                totalErr <- totalErr + mGap * mGap * avgDist * avgDist * mConsistency
 
         if Double.IsNaN totalErr || Double.IsInfinity totalErr then
             if this.debug then

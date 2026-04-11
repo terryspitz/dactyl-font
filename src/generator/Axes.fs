@@ -108,5 +108,5 @@ type Axes =
           "smooth", Checkbox, "default"
           "clip_rect", Checkbox, "debug"
           "flatness", FracRange(0.0, 200.0), "experimental"
-          "m_consistency", FracRange(0.0, 10.0), "experimental"
+          "m_consistency", FracRange(0.0, 0.1), "experimental"
           "debug", Checkbox, "debug" ]

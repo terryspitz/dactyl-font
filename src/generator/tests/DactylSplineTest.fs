@@ -179,17 +179,17 @@ type TestClass() =
             )
 
         let bezPts0 = spline.solveAndGetPoints(5000, 1.0, 0.0, false)
-        let bezPts10 = spline.solveAndGetPoints(5000, 1.0, 10.0, false)
+        let bezPts05 = spline.solveAndGetPoints(5000, 1.0, 0.05, false)
 
         // At least one interior control point must differ noticeably between the two settings
         let maxDiff =
             Array.map2 (fun (a: BezierPoint) (b: BezierPoint) ->
                 abs (a.th_in - b.th_in) + abs (a.th_out - b.th_out) + abs (a.rd - b.rd) + abs (a.ld - b.ld))
-                bezPts0 bezPts10
+                bezPts0 bezPts05
             |> Array.max
 
         printfn "m_consistency max point diff: %f" maxDiff
-        Assert.That(maxDiff, Is.GreaterThan(1e-3), "m_consistency=10 should produce a noticeably different curve than m_consistency=0")
+        Assert.That(maxDiff, Is.GreaterThan(1e-3), "m_consistency=0.05 should produce a noticeably different curve than m_consistency=0")
 
     [<Test>]
     member this.EndTangentReversal() =
