@@ -268,6 +268,7 @@
   padding: 0 4px;
   text-align: center;
   user-select: none;
+  touch-action: none;
 }
 
 .se-drag-handle:hover {

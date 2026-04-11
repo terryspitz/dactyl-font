@@ -108,10 +108,15 @@ function SplineEditor({ axes }) {
   const workerRef = useRef(null)
   const solveIdRef = useRef(0)
   const dragRef = useRef(null) // { type: 'knot'|'th_in'|'th_out', curveIdx, idx }
+  const rowPointerRef = useRef({ dragging: false, fromIdx: null, toIdx: null })
 
   // Always-current snapshot of curves without triggering stale closures in callbacks
   const curvesRef = useRef(curves)
   useEffect(() => { curvesRef.current = curves }, [curves])
+
+  // Always-current solveResult for use in pointer callbacks (avoids stale closure)
+  const solveResultRef = useRef(solveResult)
+  useEffect(() => { solveResultRef.current = solveResult }, [solveResult])
 
   // Refs for guides and viewBox — accessed in pointer callbacks without stale closure risk
   const guidesRef = useRef(guides)
@@ -344,7 +349,7 @@ function SplineEditor({ axes }) {
       }
       updatePoint(curveIdx, idx, { x: Math.round(sx), y: Math.round(sy) })
     } else if (type === 'th_in' || type === 'th_out') {
-      const bp = solveResult?.bezierPoints?.[idx]
+      const bp = solveResultRef.current?.bezierPoints?.[idx]
       const px = pt.x ?? bp?.x ?? 0
       const py = pt.y ?? bp?.y ?? 0
       const angle = Math.atan2(y - py, x - px)
@@ -477,6 +482,43 @@ function SplineEditor({ axes }) {
     })
     setSelectedPt(toIdx)
   }, [activeCurve, pushUndo])
+
+  // Pointer-based row drag handlers (replaces HTML5 drag to avoid SVG pointer event interference)
+  const handleRowDragStart = useCallback((e, fromIdx) => {
+    e.stopPropagation()
+    e.preventDefault()
+    rowPointerRef.current = { dragging: true, fromIdx, toIdx: fromIdx }
+    setDragRowIdx(fromIdx)
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }, [])
+
+  const handleRowDragMove = useCallback((e) => {
+    if (!rowPointerRef.current.dragging) return
+    const el = document.elementFromPoint(e.clientX, e.clientY)
+    const tr = el?.closest('[data-row-idx]')
+    if (tr) {
+      const idx = parseInt(tr.dataset.rowIdx)
+      if (!isNaN(idx) && idx !== rowPointerRef.current.toIdx) {
+        rowPointerRef.current.toIdx = idx
+        setDragOverRowIdx(idx)
+      }
+    }
+  }, [])
+
+  const handleRowDragEnd = useCallback(() => {
+    if (!rowPointerRef.current.dragging) return
+    const { fromIdx, toIdx } = rowPointerRef.current
+    rowPointerRef.current = { dragging: false, fromIdx: null, toIdx: null }
+    setDragRowIdx(null)
+    setDragOverRowIdx(null)
+    if (fromIdx !== null && toIdx !== null && fromIdx !== toIdx) movePoint(fromIdx, toIdx)
+  }, [movePoint])
+
+  const handleRowDragCancel = useCallback(() => {
+    rowPointerRef.current = { dragging: false, fromIdx: null, toIdx: null }
+    setDragRowIdx(null)
+    setDragOverRowIdx(null)
+  }, [])
 
   const toggleClosed = useCallback(() => {
     pushUndo()
@@ -702,6 +744,7 @@ function SplineEditor({ axes }) {
             viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
             onClick={handleSvgClick}
             onDoubleClick={handleDblClick}
           >
@@ -860,19 +903,15 @@ function SplineEditor({ axes }) {
               <tbody>
                 {points.map((p, i) => (
                   <tr key={i}
+                    data-row-idx={i}
                     className={[i === selectedPt ? 'selected' : '', i === dragOverRowIdx ? 'se-drag-over' : ''].filter(Boolean).join(' ')}
                     onClick={() => setSelectedPt(i)}
-                    onDragOver={e => { e.preventDefault(); setDragOverRowIdx(i) }}
-                    onDragLeave={() => setDragOverRowIdx(null)}
-                    onDrop={() => {
-                      if (dragRowIdx !== null) movePoint(dragRowIdx, i)
-                      setDragRowIdx(null); setDragOverRowIdx(null)
-                    }}
-                    onDragEnd={() => { setDragRowIdx(null); setDragOverRowIdx(null) }}
                   >
                     <td className="se-drag-handle"
-                      draggable
-                      onDragStart={e => { e.stopPropagation(); setDragRowIdx(i) }}
+                      onPointerDown={e => handleRowDragStart(e, i)}
+                      onPointerMove={handleRowDragMove}
+                      onPointerUp={handleRowDragEnd}
+                      onPointerCancel={handleRowDragCancel}
                       title="Drag to reorder"
                     >⠿</td>
                     <td className="se-idx">{i}</td>
