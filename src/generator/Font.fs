@@ -589,12 +589,12 @@ type Font(axes: Axes) =
                 ty = Corner
                 th_in = firstThIn
                 th_out = firstThOut
-                label = None }
+                label = Some "joint" }
               { pt = offsetPointRotated X Y (align theta) fthickness -fthickness
                 ty = ty
                 th_in = lastThIn
                 th_out = lastThOut
-                label = None } ]
+                label = Some "joint" } ]
         else
             [ { pt = offsetPointRotated X Y thetaAligned fthickness fthickness
                 ty = Corner
@@ -759,9 +759,12 @@ type Font(axes: Axes) =
             th_in = k.th_out |> Option.map (fun t -> norm (t + PI))
             th_out = k.th_in |> Option.map (fun t -> norm (t + PI)) }
 
-    /// Replace sharp Corner knots with small arcs (LineToCurve → CurveToLine)
-    /// to produce rounded corners. The radius is proportional to soft_corners * thickness.
-    /// Short segments (like end caps) are protected by clamping the radius.
+    /// Replace sharp Corner knots with small arcs to produce rounded corners.
+    /// The radius is proportional to soft_corners * thickness, clamped to 40% of each
+    /// adjacent segment so short segments (end caps) are never over-consumed.
+    /// Corners labelled "joint" (where two strokes meet) are left untouched.
+    /// The arc point types are adapted to the neighbour context: LineToCurve/CurveToLine
+    /// when the adjacent segment is a straight line, G2 when it is a smooth curve.
     member this.roundCorners (pts: Knot list) (isClosed: bool) : Knot list =
         let radius = axes.soft_corners * thickness
 
@@ -775,7 +778,7 @@ type Font(axes: Axes) =
             for i in 0 .. n - 1 do
                 let k = arr.[i]
 
-                if k.ty <> Corner then
+                if k.ty <> Corner || k.label = Some "joint" then
                     result.Add(k)
                 else
                     // Get prev/next indices, wrapping for closed curves
@@ -808,13 +811,18 @@ type Font(axes: Axes) =
                             let outPt = { y = k.pt.y + r * dyNext / distNext
                                           x = k.pt.x + r * dxNext / distNext
                                           y_fit = false; x_fit = false }
-                            // inPt: straight line arrives here, curve departs → LineToCurve
-                            // outPt: curve arrives here, straight line departs → CurveToLine
-                            // (no middle point at the original corner — that was causing the corner to remain)
-                            result.Add({ k with pt = inPt; ty = LineToCurve
-                                                th_out = k.th_in })
-                            result.Add({ k with pt = outPt; ty = CurveToLine
-                                                th_in = k.th_out })
+                            // Choose point types based on whether the adjacent segment is a line or curve.
+                            // A neighbour is "line-like" when its type forces the adjacent segment to be straight:
+                            //   CurveToLine at prev → segment prev→corner was a line (use LineToCurve for inPt)
+                            //   LineToCurve at next → segment corner→next is a line (use CurveToLine for outPt)
+                            //   Corner at prev/next → Corner-Corner segments with colinear tangents are lines too
+                            // When the neighbour is a smooth curve (G2/G4) we use G2 so that the spline solver
+                            // preserves smooth continuity rather than converting the curved approach into a line.
+                            let isLineNeighbour ty = ty = CurveToLine || ty = Corner
+                            let inPtTy  = if isLineNeighbour prev.ty then LineToCurve else G2
+                            let outPtTy = if isLineNeighbour next.ty then CurveToLine else G2
+                            result.Add({ k with pt = inPt; ty = inPtTy; th_out = k.th_in })
+                            result.Add({ k with pt = outPt; ty = outPtTy; th_in = k.th_out })
             List.ofSeq result
 
     /// Apply roundCorners to an Element (Curve or EList of Curves).
