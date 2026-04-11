@@ -328,7 +328,7 @@ type SolverTests() =
                dcp SplinePointType.Smooth 1. 0. None
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 1.0, false)
+        let solver = Solver(ctrlPts, false, 1.0, 0.0, false)
         solver.initialise ()
         let err = solver.computeErr ()
         Assert.That(err, Is.EqualTo(0.0).Within(1e-9))
@@ -340,7 +340,7 @@ type SolverTests() =
                dcp SplinePointType.Smooth 1. 1. None
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 1.0, false)
+        let solver = Solver(ctrlPts, false, 1.0, 0.0, false)
         solver.initialise ()
         let err = solver.computeErr ()
         Assert.That(err, Is.GreaterThan(0.0))
@@ -360,7 +360,7 @@ type VariablePointTests() =
                  th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 0.0, false)
         solver.initialise ()
 
         let initialPts = solver.points ()
@@ -383,7 +383,7 @@ type VariablePointTests() =
                  th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 0.0, false)
         solver.initialise ()
         solver.Solve 5000
         let pts = solver.points ()
@@ -402,7 +402,7 @@ type VariablePointTests() =
                  th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 0.0, false)
         solver.initialise ()
         solver.Solve(5000)
         let pts = solver.points ()
@@ -424,7 +424,7 @@ type AdvancedGeometricTests() =
                dcp SplinePointType.Smooth s45 s45 None
                dcp SplinePointType.Smooth 0. 1. (Some(PI)) |] // Tangent left
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 0.0, false)
         solver.initialise ()
         solver.Solve(5000)
 
@@ -460,7 +460,7 @@ type AdvancedGeometricTests() =
                  th_in = Some 0.0
                  th_out = Some 0.0 } |]
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 0.0, false)
         solver.initialise ()
         solver.Solve(5000)
 
@@ -486,7 +486,7 @@ type AdvancedGeometricTests() =
                dcp SplinePointType.Smooth 0. 0. None
                dcp SplinePointType.Smooth 1. 1. None |]
 
-        let solverFixed = Solver(ctrlPtsFixed, false, 1.0, false)
+        let solverFixed = Solver(ctrlPtsFixed, false, 1.0, 0.0, false)
         solverFixed.initialise ()
         solverFixed.Solve(5000)
         let ptsFixed = solverFixed.points ()
@@ -502,7 +502,7 @@ type AdvancedGeometricTests() =
                  th_out = None }
                dcp SplinePointType.Smooth 1. 1. None |]
 
-        let solverOpt = Solver(ctrlPtsOpt, false, 1.0, false)
+        let solverOpt = Solver(ctrlPtsOpt, false, 1.0, 0.0, false)
         solverOpt.initialise ()
         solverOpt.Solve(500) // Lower iter for faster test, should be enough to move
         let ptsOpt = solverOpt.points ()
@@ -587,7 +587,7 @@ type IntegrationTests() =
         // Fixed points at (0,1000) and (1000,1000) y.
         // Middle point nominal x=0 (left), y=0 (bottom).
         // Solver should move x towards 500 (center) to minimize curvature of (0,1000)->(x,0)->(1000,1000).
-        let solver = Solver([| cp1; cp2; cp3 |], false, 1.0, false)
+        let solver = Solver([| cp1; cp2; cp3 |], false, 1.0, 0.0, false)
         solver.initialise ()
 
         solver.Solve(2000)
@@ -620,7 +620,7 @@ type IntegrationTests() =
         // Check initial assumptions
         Assert.That(cp3.x, Is.EqualTo(None), "Middle point x should be optional")
 
-        let solver = Solver([| cp1; cp2; cp3; cp4 |], false, 1.0, false)
+        let solver = Solver([| cp1; cp2; cp3; cp4 |], false, 1.0, 0.0, false)
         solver.initialise ()
 
         // Solve
@@ -690,7 +690,7 @@ type IntegrationTests() =
             { pointToDcp p5 with
                 ty = SplinePointType.Corner }
 
-        let solver = Solver([| cp1; cp2; cp3; cp4; cp5 |], false, 1.0, false)
+        let solver = Solver([| cp1; cp2; cp3; cp4; cp5 |], false, 1.0, 0.0, false)
         solver.initialise ()
         solver.Solve(5000)
 
