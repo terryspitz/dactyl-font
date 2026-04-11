@@ -808,11 +808,12 @@ type Font(axes: Axes) =
                             let outPt = { y = k.pt.y + r * dyNext / distNext
                                           x = k.pt.x + r * dxNext / distNext
                                           y_fit = false; x_fit = false }
-                            result.Add({ k with pt = inPt; ty = CurveToLine
+                            // inPt: straight line arrives here, curve departs → LineToCurve
+                            // outPt: curve arrives here, straight line departs → CurveToLine
+                            // (no middle point at the original corner — that was causing the corner to remain)
+                            result.Add({ k with pt = inPt; ty = LineToCurve
                                                 th_out = k.th_in })
-                            result.Add({ k with ty = G2
-                                                th_in = None; th_out = None })
-                            result.Add({ k with pt = outPt; ty = LineToCurve
+                            result.Add({ k with pt = outPt; ty = CurveToLine
                                                 th_in = k.th_out })
             List.ofSeq result
 
