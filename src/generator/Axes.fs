@@ -102,7 +102,7 @@ type Axes =
           "show_knots", Checkbox, "debug"
           "show_tangents", Checkbox, "debug"
           "show_comb", Checkbox, "debug"
-          "joints", Checkbox, "default"
+          "joints", Checkbox, "debug"
           "smooth", Checkbox, "default"
           "clip_rect", Checkbox, "debug"
           "flatness", FracRange(0.0, 200.0), "experimental"
