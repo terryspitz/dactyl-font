@@ -3,6 +3,7 @@ import { DControlPoint } from './lib/fable/generator/DactylSpline'
 
 self.onmessage = (e) => {
     const { id, type, args } = e.data
+    const start = performance.now()
     try {
         let result
         switch (type) {
@@ -86,8 +87,10 @@ self.onmessage = (e) => {
             default:
                 throw new Error(`Unknown generation type: ${type}`)
         }
+        console.log(`API [${type}] took ${(performance.now() - start).toFixed(1)}ms`)
         self.postMessage({ id, result })
     } catch (error) {
+        console.log(`API [${type}] failed after ${(performance.now() - start).toFixed(1)}ms`)
         self.postMessage({ id, error: error.message })
     }
 }
