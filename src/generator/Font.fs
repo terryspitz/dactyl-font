@@ -812,15 +812,17 @@ type Font(axes: Axes) =
                                           x = k.pt.x + r * dxNext / distNext
                                           y_fit = false; x_fit = false }
                             // Choose point types based on whether the adjacent segment is a line or curve.
-                            // A neighbour is "line-like" when its type forces the adjacent segment to be straight:
-                            //   CurveToLine at prev → segment prev→corner was a line (use LineToCurve for inPt)
-                            //   LineToCurve at next → segment corner→next is a line (use CurveToLine for outPt)
-                            //   Corner at prev/next → Corner-Corner segments with colinear tangents are lines too
-                            // When the neighbour is a smooth curve (G2/G4) we use G2 so that the spline solver
+                            // The checks are intentionally asymmetric — LineToCurve/CurveToLine encode
+                            // WHICH SIDE of the point the straight section is on:
+                            //   CurveToLine at prev → segment prev→corner is a line → inPt gets LineToCurve
+                            //     (preprocessLineTangents then sets th_out = line direction, anchoring the arc start)
+                            //   LineToCurve at next → segment corner→next is a line → outPt gets CurveToLine
+                            //     (preprocessLineTangents sets th_out = line direction, anchoring the arc end)
+                            //   Corner at either side → Corner-Corner pairs with colinear tangents are lines too
+                            // When the neighbour is a smooth curve (G2/G4) we use G2 so the spline solver
                             // preserves smooth continuity rather than converting the curved approach into a line.
-                            let isLineNeighbour ty = ty = CurveToLine || ty = Corner
-                            let inPtTy  = if isLineNeighbour prev.ty then LineToCurve else G2
-                            let outPtTy = if isLineNeighbour next.ty then CurveToLine else G2
+                            let inPtTy  = if prev.ty = CurveToLine || prev.ty = Corner then LineToCurve else G2
+                            let outPtTy = if next.ty = LineToCurve  || next.ty = Corner then CurveToLine else G2
                             result.Add({ k with pt = inPt; ty = inPtTy; th_out = k.th_in })
                             result.Add({ k with pt = outPt; ty = outPtTy; th_in = k.th_out })
             List.ofSeq result
