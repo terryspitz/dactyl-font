@@ -1310,8 +1310,7 @@ type Font(axes: Axes) =
           else
               // Spiro combs are rendered in very light grey; other curves use black
               let combStroke =
-                  if not axes.spline2 && not axes.dactyl_spline then "#d0d0d0"
-                  else "#000000"
+                  if axes.dactyl_spline then "#000000" else "#808080"
               [ "<g class='comb-layer'>"; "<path "; "d='" ]
               @ combSvg
               @ [ "'"
