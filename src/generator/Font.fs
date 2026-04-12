@@ -1215,11 +1215,11 @@ type Font(axes: Axes) =
         match spiro with
         | SpiroOpenCurve(segs) ->
             let bc = SpiroCombContext(axes.show_comb)
-            Spiro.SpirosToBezier (Array.ofList segs) false (bc :> IBezierContext) |> ignore
+            Spiro.SpirosToBezier (Array.ofList segs) false bc |> ignore
             ([ bc.GetPathData ], bc.GetCombSvg)
         | SpiroClosedCurve(segs) ->
             let bc = SpiroCombContext(axes.show_comb)
-            Spiro.SpirosToBezier (Array.ofList segs) true (bc :> IBezierContext) |> ignore
+            Spiro.SpirosToBezier (Array.ofList segs) true bc |> ignore
             ([ bc.GetPathData ], bc.GetCombSvg)
         | SpiroDot(p) -> (svgCircle p.x p.y thickness, [])
         | SpiroSpace -> ([], [])
