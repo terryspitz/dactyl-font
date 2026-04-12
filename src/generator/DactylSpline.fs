@@ -552,6 +552,26 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: flo
                     let avgDist = (_segmentMaxDist.[0] + _segmentMaxDist.[segmentCount - 1]) / 2.0
                     totalErr <- totalErr + mGap * mGap * avgDist * avgDist * g3Smoothness
 
+        // 5. Free-endpoint curvature regularisation.
+        // Corner endpoints have no G2 constraint, so the optimizer can settle into
+        // different local minima (positive vs. negative start curvature) for nearly
+        // identical inputs. Penalising (c * L / 10000)² ≈ (angle_turned)² is
+        // scale-independent (units: rad²) and gently prefers lower curvature solutions,
+        // making the landscape more unimodal near the free endpoint.
+        // Weight 0.5 adds ~0.1-1 rad² of cost — enough to break sign symmetry without
+        // over-constraining the shape.
+        if segmentCount > 0 then
+            let firstStartIdx = _segmentStartIdx.[0]
+            if ctrlPts.[firstStartIdx].ty = SplinePointType.Corner then
+                let angleTurned = _segmentStartK.[0] * _segmentMaxDist.[0] / 10000.0
+                totalErr <- totalErr + angleTurned * angleTurned * 0.5
+
+            let lastSeg = segmentCount - 1
+            let lastEndIdx = _segmentEndIdx.[lastSeg]
+            if ctrlPts.[lastEndIdx].ty = SplinePointType.Corner then
+                let angleTurned = _segmentEndK.[lastSeg] * _segmentMaxDist.[lastSeg] / 10000.0
+                totalErr <- totalErr + angleTurned * angleTurned * 0.5
+
         if Double.IsNaN totalErr || Double.IsInfinity totalErr then
             if this.debug then
                 printfn "computeErr returning NaN/Inf, replaced with penalty"
