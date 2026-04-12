@@ -192,6 +192,82 @@ type TestClass() =
         Assert.That(maxDiff, Is.GreaterThan(1e-3), "m_consistency=0.05 should produce a noticeably different curve than m_consistency=0")
 
     [<Test>]
+    member this.CheckFlatnessVisibleAtFontScale() =
+        // The existing CheckFlatnessParam uses flatness=1000 on unit-scale coords.
+        // This test verifies flatness=200 (the UI slider max) is meaningful at
+        // font-scale coordinates (height ~700, typical arc radius ~200).
+        // Uses a 'c'-like open arc: corner endpoints have unconstrained start/end
+        // curvature, so flatness can actually pull m toward zero.
+        let spline =
+            DactylSpline(
+                [| dcp SplinePointType.Corner  300.  600.  None
+                   dcp SplinePointType.Smooth  100.  700.  None
+                   dcp SplinePointType.Smooth  100.  300.  None
+                   dcp SplinePointType.Corner  300.  200.  None |],
+                false
+            )
+        let bezPts0   = spline.solveAndGetPoints(5000, 0.0, 0.0, false)
+        let bezPts200 = spline.solveAndGetPoints(5000, 200.0, 0.0, false)
+        let maxDiff =
+            Array.map2 (fun (a: BezierPoint) (b: BezierPoint) ->
+                abs (a.th_in - b.th_in) + abs (a.th_out - b.th_out))
+                bezPts0 bezPts200
+            |> Array.max
+        printfn "flatness=200 max angle diff at font scale: %f rad" maxDiff
+        Assert.That(maxDiff, Is.GreaterThan(0.05),
+            "flatness=200 should produce a visibly different curve at font scale (>0.05 rad ≈ 3°)")
+
+    [<Test>]
+    member this.CheckMConsistencyVisibleAtFontScale() =
+        // The existing CheckMConsistencyParam uses unit-scale coords and checks > 1e-3
+        // (sub-pixel). This test verifies m_consistency=0.1 (UI slider max) is
+        // meaningful at font-scale coordinates where avgDist ~300 units.
+        let spline =
+            DactylSpline(
+                [| dcp SplinePointType.Corner    0.    0.  None
+                   dcp SplinePointType.Smooth  100.  300.  None
+                   dcp SplinePointType.Smooth  300.  300.  None
+                   dcp SplinePointType.Corner  400.    0.  None |],
+                false
+            )
+        let bezPts0  = spline.solveAndGetPoints(5000, 1.0, 0.0, false)
+        let bezPts01 = spline.solveAndGetPoints(5000, 1.0, 0.1, false)
+        let maxDiff =
+            Array.map2 (fun (a: BezierPoint) (b: BezierPoint) ->
+                abs (a.th_in - b.th_in) + abs (a.th_out - b.th_out))
+                bezPts0 bezPts01
+            |> Array.max
+        printfn "m_consistency=0.1 max angle diff at font scale: %f rad" maxDiff
+        Assert.That(maxDiff, Is.GreaterThan(0.05),
+            "m_consistency=0.1 should produce a visibly different curve at font scale (>0.05 rad ≈ 3°)")
+
+    [<Test>]
+    member this.CheckCornerPointStability() =
+        // Moving a corner point by a few font-units should not cause large changes in
+        // the solved tangent angles. This documents the 'c' glyph instability: corner
+        // (free) endpoints have unconstrained start curvature, so the optimizer can
+        // fall into a different local minimum for small input changes, causing a
+        // visible jump in the curvature comb.
+        let makeSpline (dx: float) =
+            DactylSpline(
+                [| dcp SplinePointType.Corner  (300. + dx)  600.  None
+                   dcp SplinePointType.Smooth  100.  700.  None
+                   dcp SplinePointType.Smooth  100.  300.  None
+                   dcp SplinePointType.Corner  300.  200.  None |],
+                false
+            )
+        let bezPts1 = (makeSpline 0.).solveAndGetPoints(5000, 1.0, 0.0, false)
+        let bezPts2 = (makeSpline 3.).solveAndGetPoints(5000, 1.0, 0.0, false)
+        let maxDiff =
+            Array.map2 (fun (a: BezierPoint) (b: BezierPoint) ->
+                abs (a.th_in - b.th_in) + abs (a.th_out - b.th_out))
+                bezPts1 bezPts2
+            |> Array.max
+        printfn "3-unit corner move max angle diff: %f rad" maxDiff
+        Assert.That(maxDiff, Is.LessThan(0.3),
+            "Moving a corner point by 3 font-units should not change tangent angles by more than 0.3 rad (17°)")
+
+    [<Test>]
     member this.EndTangentReversal() =
         // Horizontal line from 0,0 to 1,0.
         // User specifies tangent West (PI) at the end.
