@@ -224,7 +224,7 @@ function SplineEditor({ axes }) {
       }))
       workerRef.current.postMessage({ id, type: 'solveSpline', args: [ctrlPts, curve.isClosed, maxIter, axesRef.current] })
     })
-  }, [curves, activeCurve, maxIter, axes.flatness, axes.m_consistency])
+  }, [curves, activeCurve, maxIter, axes.constant_curvature, axes.g3_smoothness])
 
   // Fetch ink outline via Font.getDactylSansOutlines when showOutline is on (debounced)
   useEffect(() => {
@@ -259,7 +259,7 @@ function SplineEditor({ axes }) {
       workerRef.current.postMessage({ id, type: 'solveSpline', args: [ctrlPts, curve.isClosed, maxIter, axesRef.current] })
     }, 20)
     return () => clearTimeout(timer)
-  }, [curves, activeCurve, maxIter, axes.flatness, axes.m_consistency])
+  }, [curves, activeCurve, maxIter, axes.constant_curvature, axes.g3_smoothness])
 
   // SVG coordinate space: compute viewBox from guides
   const viewBox = useMemo(() => {

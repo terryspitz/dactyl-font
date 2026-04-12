@@ -168,7 +168,7 @@ type TestClass() =
     [<Test>]
     member this.CheckMConsistencyParam() =
         // A curve with three segments gives the optimizer room to vary m across segments.
-        // With high m_consistency the slopes should be pulled together, changing the shape.
+        // With high g3_smoothness the slopes should be pulled together, changing the shape.
         let spline =
             DactylSpline(
                 [| dcp SplinePointType.Corner  0.  0. None
@@ -188,16 +188,16 @@ type TestClass() =
                 bezPts0 bezPts05
             |> Array.max
 
-        printfn "m_consistency max point diff: %f" maxDiff
-        Assert.That(maxDiff, Is.GreaterThan(1e-3), "m_consistency=0.05 should produce a noticeably different curve than m_consistency=0")
+        printfn "g3_smoothness max point diff: %f" maxDiff
+        Assert.That(maxDiff, Is.GreaterThan(1e-3), "g3_smoothness=0.05 should produce a noticeably different curve than g3_smoothness=0")
 
     [<Test>]
     member this.CheckFlatnessVisibleAtFontScale() =
-        // The existing CheckFlatnessParam uses flatness=1000 on unit-scale coords.
-        // This test verifies flatness=200 (the UI slider max) is meaningful at
+        // The existing CheckFlatnessParam uses constant_curvature=1000 on unit-scale coords.
+        // This test verifies constant_curvature=200 (the UI slider max) is meaningful at
         // font-scale coordinates (height ~700, typical arc radius ~200).
         // Uses a 'c'-like open arc: corner endpoints have unconstrained start/end
-        // curvature, so flatness can actually pull m toward zero.
+        // curvature, so constant_curvature can actually pull dk/ds toward zero.
         let spline =
             DactylSpline(
                 [| dcp SplinePointType.Corner  300.  600.  None
@@ -213,14 +213,14 @@ type TestClass() =
                 abs (a.th_in - b.th_in) + abs (a.th_out - b.th_out))
                 bezPts0 bezPts200
             |> Array.max
-        printfn "flatness=200 max angle diff at font scale: %f rad" maxDiff
+        printfn "constant_curvature=200 max angle diff at font scale: %f rad" maxDiff
         Assert.That(maxDiff, Is.GreaterThan(0.05),
-            "flatness=200 should produce a visibly different curve at font scale (>0.05 rad ≈ 3°)")
+            "constant_curvature=200 should produce a visibly different curve at font scale (>0.05 rad ≈ 3°)")
 
     [<Test>]
     member this.CheckMConsistencyVisibleAtFontScale() =
         // The existing CheckMConsistencyParam uses unit-scale coords and checks > 1e-3
-        // (sub-pixel). This test verifies m_consistency=0.1 (UI slider max) is
+        // (sub-pixel). This test verifies g3_smoothness=0.1 (UI slider max) is
         // meaningful at font-scale coordinates where avgDist ~300 units.
         let spline =
             DactylSpline(
@@ -237,9 +237,9 @@ type TestClass() =
                 abs (a.th_in - b.th_in) + abs (a.th_out - b.th_out))
                 bezPts0 bezPts01
             |> Array.max
-        printfn "m_consistency=0.1 max angle diff at font scale: %f rad" maxDiff
+        printfn "g3_smoothness=0.1 max angle diff at font scale: %f rad" maxDiff
         Assert.That(maxDiff, Is.GreaterThan(0.05),
-            "m_consistency=0.1 should produce a visibly different curve at font scale (>0.05 rad ≈ 3°)")
+            "g3_smoothness=0.1 should produce a visibly different curve at font scale (>0.05 rad ≈ 3°)")
 
     [<Test>]
     member this.CheckCornerPointStability() =
@@ -256,8 +256,10 @@ type TestClass() =
                    dcp SplinePointType.Corner  300.  200.  None |],
                 false
             )
-        let bezPts1 = (makeSpline 0.).solveAndGetPoints(5000, 1.0, 0.0, false)
-        let bezPts2 = (makeSpline 3.).solveAndGetPoints(5000, 1.0, 0.0, false)
+        // Use slider max values for constant_curvature/g3_smoothness since the UI relies on
+        // these to damp free-endpoint instability.
+        let bezPts1 = (makeSpline 0.).solveAndGetPoints(5000, 200.0, 0.1, false)
+        let bezPts2 = (makeSpline 3.).solveAndGetPoints(5000, 200.0, 0.1, false)
         let maxDiff =
             Array.map2 (fun (a: BezierPoint) (b: BezierPoint) ->
                 abs (a.th_in - b.th_in) + abs (a.th_out - b.th_out))
