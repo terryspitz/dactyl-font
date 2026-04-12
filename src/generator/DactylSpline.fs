@@ -244,7 +244,7 @@ let getBezPt (p0x, p0y) (p1x, p1y) (p2x, p2y) (p3x, p3y) t =
     { x = c0 * p0x + c1 * p1x + c2 * p2x + c3 * p3x
       y = c0 * p0y + c1 * p1y + c2 * p2y + c3 * p3y }
 
-type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug: bool) =
+type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: float, g3Smoothness: float, debug: bool) =
     let _points: BezierPoint array = Array.init ctrlPts.Length (fun _ -> BezierPoint())
     let STEPS = 8
     let _ks = Array.create (STEPS + 1) 0.0
@@ -253,19 +253,22 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
     let _segmentEndK = Array.create ctrlPts.Length 0.0
     let _segmentStartIdx = Array.create ctrlPts.Length 0
     let _segmentEndIdx = Array.create ctrlPts.Length 0
+    let _segmentM = Array.create ctrlPts.Length 0.0
+    let _segmentMaxDist = Array.create ctrlPts.Length 0.0
 
     member this.ctrlPts = ctrlPts
     member this.isClosed = isClosed
     member val startTh: float option = None with get, set
     member val endTh: float option = None with get, set
     member this.points() = _points
-    member this.flatness = flatness
+    member this.constantCurvature = constantCurvature
+    member this.g3Smoothness = g3Smoothness
     member this.debug = debug
 
     member this.initialise() =
         //initialise points
         if this.debug then
-            printfn "dspline solver init, flatness: %f, pts: %A" this.flatness ctrlPts
+            printfn "dspline solver init, constantCurvature: %f, pts: %A" this.constantCurvature ctrlPts
 
         // Initialisation of points
         for i in 0 .. ctrlPts.Length - 1 do
@@ -443,17 +446,19 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     // 1. Residuals from being an Euler spiral
                     totalErr <- totalErr + residuals
 
-                    // 2. Penalty for high variation in curvature (flatness)
-                    totalErr <- totalErr + abs m * flatness
+                    // 2. Penalty for high curvature rate (dk/ds), pulling toward circular arc
+                    totalErr <- totalErr + abs m * constantCurvature
 
                     // Calculate start and end curvature for continuity
                     // k(s) = m*s + c. Start is s=0 (c), End is s=max_dist
                     let startK = c
                     let endK = m * max_dist + c
 
-                    // Store start/end indices for continuity check
+                    // Store start/end curvature and slope for continuity checks
                     _segmentStartK.[segmentCount] <- startK
                     _segmentEndK.[segmentCount] <- endK
+                    _segmentM.[segmentCount] <- m
+                    _segmentMaxDist.[segmentCount] <- max_dist
                     _segmentStartIdx.[segmentCount] <- i
                     _segmentEndIdx.[segmentCount] <- i + 1
                     segmentCount <- segmentCount + 1
@@ -506,6 +511,66 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             if isJoinSmooth then
                 let gap = firstStartK - lastEndK
                 totalErr <- totalErr + gap * gap * 10.0
+
+        // 4. m-consistency penalty: penalise jumps in curvature slope (m) at smooth joins.
+        // m is the rate of curvature change with arc length; matching it across segments
+        // gives G3-like smoothness (the curvature comb has no kinks at joins).
+        // Scale by avgDist² to convert m (k/length) into Δk units, making the penalty
+        // comparable in magnitude to the G2 continuity penalty (gap² × 10).
+        if g3Smoothness > 0.0 then
+            for i in 1 .. segmentCount - 1 do
+                let startIdx = _segmentStartIdx.[i]
+                let prevEndIdx = _segmentEndIdx.[i - 1]
+
+                // Only apply at smooth joins (mirrors G2 continuity logic above)
+                let mutable isJoinSmooth = true
+
+                for k in prevEndIdx .. startIdx do
+                    if ctrlPts.[k].ty = SplinePointType.Corner then
+                        isJoinSmooth <- false
+
+                if isJoinSmooth then
+                    let mGap = _segmentM.[i] - _segmentM.[i - 1]
+                    let avgDist = (_segmentMaxDist.[i] + _segmentMaxDist.[i - 1]) / 2.0
+                    totalErr <- totalErr + mGap * mGap * avgDist * avgDist * g3Smoothness
+
+            if isClosed && segmentCount > 1 then
+                let lastEndIdx = _segmentEndIdx.[segmentCount - 1]
+                let firstStartIdx = _segmentStartIdx.[0]
+                let mutable isJoinSmooth = true
+
+                for k in lastEndIdx .. _points.Length - 1 do
+                    if ctrlPts.[k].ty = SplinePointType.Corner then
+                        isJoinSmooth <- false
+
+                for k in 0 .. firstStartIdx do
+                    if ctrlPts.[k].ty = SplinePointType.Corner then
+                        isJoinSmooth <- false
+
+                if isJoinSmooth then
+                    let mGap = _segmentM.[0] - _segmentM.[segmentCount - 1]
+                    let avgDist = (_segmentMaxDist.[0] + _segmentMaxDist.[segmentCount - 1]) / 2.0
+                    totalErr <- totalErr + mGap * mGap * avgDist * avgDist * g3Smoothness
+
+        // 5. Free-endpoint curvature regularisation.
+        // Corner endpoints have no G2 constraint, so the optimizer can settle into
+        // different local minima (positive vs. negative start curvature) for nearly
+        // identical inputs. Penalising (c * L / 10000)² ≈ (angle_turned)² is
+        // scale-independent (units: rad²) and gently prefers lower curvature solutions,
+        // making the landscape more unimodal near the free endpoint.
+        // Weight 0.5 adds ~0.1-1 rad² of cost — enough to break sign symmetry without
+        // over-constraining the shape.
+        if segmentCount > 0 then
+            let firstStartIdx = _segmentStartIdx.[0]
+            if ctrlPts.[firstStartIdx].ty = SplinePointType.Corner then
+                let angleTurned = _segmentStartK.[0] * _segmentMaxDist.[0] / 10000.0
+                totalErr <- totalErr + angleTurned * angleTurned * 0.5
+
+            let lastSeg = segmentCount - 1
+            let lastEndIdx = _segmentEndIdx.[lastSeg]
+            if ctrlPts.[lastEndIdx].ty = SplinePointType.Corner then
+                let angleTurned = _segmentEndK.[lastSeg] * _segmentMaxDist.[lastSeg] / 10000.0
+                totalErr <- totalErr + angleTurned * angleTurned * 0.5
 
         if Double.IsNaN totalErr || Double.IsInfinity totalErr then
             if this.debug then
@@ -680,9 +745,9 @@ type DactylSpline(ctrlPts, isClosed) =
 
     /// Construct and solve a Solver for the given inner points.
     /// If the optimizer hits its iteration limit the best-so-far state is kept (no exception).
-    member this.solveSection(innerPts: DControlPoint list, length: int, maxIter, flatness, debug) =
+    member this.solveSection(innerPts: DControlPoint list, length: int, maxIter, constantCurvature, g3Smoothness, debug) =
         let solver =
-            Solver(Array.ofList innerPts, isClosed && innerPts.Length - 1 = length, flatness, debug)
+            Solver(Array.ofList innerPts, isClosed && innerPts.Length - 1 = length, constantCurvature, g3Smoothness, debug)
 
         solver.initialise ()
 
@@ -693,7 +758,7 @@ type DactylSpline(ctrlPts, isClosed) =
 
         solver
 
-    member this.solveAndGetPoints(maxIter, flatness, debug) : BezierPoint[] =
+    member this.solveAndGetPoints(maxIter, constantCurvature, g3Smoothness, debug) : BezierPoint[] =
         /// Returns one BezierPoint per ctrlPts entry with solved x, y, th values.
         let length = ctrlPts.Length - if isClosed then 0 else 1
 
@@ -761,7 +826,7 @@ type DactylSpline(ctrlPts, isClosed) =
                 i <- i + 1
             else
                 let innerPts, j = this.collectCurveSection (i, length)
-                let solver = this.solveSection (innerPts, length, maxIter, flatness, debug)
+                let solver = this.solveSection (innerPts, length, maxIter, constantCurvature, g3Smoothness, debug)
                 let bezPts = solver.points ()
 
                 // Copy solver results back.
@@ -943,12 +1008,12 @@ type DactylSpline(ctrlPts, isClosed) =
 
         (path.tostringlist (), combPath.tostringlist (), tangentPath.tostringlist ())
 
-    member this.solveAndRenderSvg(maxIter, flatness, debug, showComb, showTangents) =
-        let bezPts = this.solveAndGetPoints (maxIter, flatness, debug)
+    member this.solveAndRenderSvg(maxIter, constantCurvature, g3Smoothness, debug, showComb, showTangents) =
+        let bezPts = this.solveAndGetPoints (maxIter, constantCurvature, g3Smoothness, debug)
         this.renderFromPoints(bezPts, showComb, showTangents)
 
-    member this.solveAndRenderFull(maxIter, flatness, debug, showComb, showTangents) =
-        let bezPts = this.solveAndGetPoints (maxIter, flatness, debug)
+    member this.solveAndRenderFull(maxIter, constantCurvature, g3Smoothness, debug, showComb, showTangents) =
+        let bezPts = this.solveAndGetPoints (maxIter, constantCurvature, g3Smoothness, debug)
         let pathSvg, combSvg, tangentSvg = this.renderFromPoints(bezPts, showComb, showTangents)
         (bezPts, pathSvg, combSvg, tangentSvg)
 

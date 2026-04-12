@@ -29,7 +29,7 @@ type FontTests() =
 
         let spline = DactylSpline(ctrlPts, true)
         // Should not throw IndexOutOfRangeException
-        let bezPts = spline.solveAndGetPoints (500, 1.0, false)
+        let bezPts = spline.solveAndGetPoints (500, 1.0, 0.0, false)
 
         // Result must have exactly N points, one per control point
         Assert.That(bezPts.Length, Is.EqualTo(ctrlPts.Length), "BezierPoint count must match ctrlPts count")

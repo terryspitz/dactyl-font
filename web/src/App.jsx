@@ -291,11 +291,6 @@ function App() {
       // If we return null, it might flash.
     }
 
-    // SplineEditor manages its own state/worker — render immediately
-    if (activeTab === 'splines') {
-      return <SplineEditor axes={axes} />
-    }
-
     // Safety check: ensure result matches expected type for tab
     const content = workerResult
     if (!content) return null
@@ -340,11 +335,21 @@ function App() {
                   const variations = content[ctrl.name]
                   if (!variations) return null
 
+                  const firstSvg = variations[0]?.svg ?? ''
+                  const isFloat = ctrl.type_ === 'range'
                   const rowVariations = variations.map((v, i) => {
                     const boxWidth = 150 * zoom
                     return (
                       <div key={`${ctrl.name}-${i}`} className="tween-item" style={{ minWidth: boxWidth + 'px', width: boxWidth + 'px' }}>
-                        <div dangerouslySetInnerHTML={{ __html: v.svg }} />
+                        <div style={{ position: 'relative', overflow: 'hidden' }}>
+                          <div dangerouslySetInnerHTML={{ __html: v.svg }} />
+                          {isFloat && i > 0 && (
+                            <div
+                              dangerouslySetInnerHTML={{ __html: firstSvg }}
+                              style={{ position: 'absolute', inset: 0, opacity: 0.2, filter: 'grayscale(1)', pointerEvents: 'none' }}
+                            />
+                          )}
+                        </div>
                         <div style={{ fontSize: '0.7em' }}>{ctrl.type_ === 'checkbox' ? (v.val === 'diff' ? 'diff' : v.val ? 'true' : 'false') : v.val.toFixed(2)}</div>
                       </div>
                     )
@@ -573,8 +578,12 @@ function App() {
                 </button>
               </div>
             )}
-            <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: activeTab === 'tweens' ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
+            <div style={activeTab === 'splines' ? { display: 'none' } : { transform: activeTab === 'tweens' ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
               {renderContent()}
+            </div>
+            {/* Always mounted so state is preserved across tab switches; hidden via CSS when inactive */}
+            <div style={{ display: activeTab === 'splines' ? 'contents' : 'none' }}>
+              <SplineEditor axes={axes} />
             </div>
           </div>
         </div>

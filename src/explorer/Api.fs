@@ -409,9 +409,9 @@ let computeCurvatureData (bezPts: DactylSpline.BezierPoint array) (isClosed: boo
         knotArcs.Add(arcLen)
     {| samples = samples.ToArray(); knotArcs = knotArcs.ToArray() |}
 
-let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (maxIter: int) =
+let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (maxIter: int) (glyphAxes: Axes) =
     let spline = DactylSpline.DactylSpline(ctrlPts, isClosed)
-    let bezPts, pathSvg, combSvg, tangentSvg = spline.solveAndRenderFull(maxIter, 1.0, false, true, true)
+    let bezPts, pathSvg, combSvg, tangentSvg = spline.solveAndRenderFull(maxIter, glyphAxes.constant_curvature, glyphAxes.g3_smoothness, false, true, true)
     {| pathSvg = pathSvg |> String.concat ""
        combSvg = combSvg |> String.concat ""
        tangentSvg = tangentSvg |> String.concat ""

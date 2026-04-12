@@ -114,6 +114,10 @@ function SplineEditor({ axes }) {
   const curvesRef = useRef(curves)
   useEffect(() => { curvesRef.current = curves }, [curves])
 
+  // Always-current snapshot of axes without triggering stale closures or extra effects
+  const axesRef = useRef(axes)
+  useEffect(() => { axesRef.current = axes }, [axes])
+
   // Always-current solveResult for use in pointer callbacks (avoids stale closure)
   const solveResultRef = useRef(solveResult)
   useEffect(() => { solveResultRef.current = solveResult }, [solveResult])
@@ -193,12 +197,12 @@ function SplineEditor({ axes }) {
     return () => w.removeEventListener('message', handler)
   }, [])
 
-  // Parse glyph when char or axes change; persist selection across tab switches
+  // Parse glyph only when the selected character changes, not on axes changes
   useEffect(() => {
     if (!workerRef.current || !selectedChar) return
     localStorage.setItem('splineSelectedChar', selectedChar)
-    workerRef.current.postMessage({ id: -3, type: 'parseGlyph', args: [selectedChar, axes] })
-  }, [selectedChar, axes])
+    workerRef.current.postMessage({ id: -3, type: 'parseGlyph', args: [selectedChar, axesRef.current] })
+  }, [selectedChar])
 
   // Cache solved path for active curve
   useEffect(() => {
@@ -218,9 +222,9 @@ function SplineEditor({ axes }) {
         th_in: p.th_in ?? undefined,
         th_out: p.th_out ?? undefined,
       }))
-      workerRef.current.postMessage({ id, type: 'solveSpline', args: [ctrlPts, curve.isClosed, maxIter] })
+      workerRef.current.postMessage({ id, type: 'solveSpline', args: [ctrlPts, curve.isClosed, maxIter, axesRef.current] })
     })
-  }, [curves, activeCurve, maxIter])
+  }, [curves, activeCurve, maxIter, axes.constant_curvature, axes.g3_smoothness])
 
   // Fetch ink outline via Font.getDactylSansOutlines when showOutline is on (debounced)
   useEffect(() => {
@@ -238,7 +242,7 @@ function SplineEditor({ axes }) {
     return () => clearTimeout(timer)
   }, [showOutline, curves, activeCurve, axes])
 
-  // Solve spline whenever control points change (debounced to avoid queueing solves during drag)
+  // Solve spline whenever control points or solve-relevant axes change (debounced)
   useEffect(() => {
     if (!workerRef.current || !curves[activeCurve]) return
     const curve = curves[activeCurve]
@@ -252,10 +256,10 @@ function SplineEditor({ axes }) {
         th_in: p.th_in ?? undefined,
         th_out: p.th_out ?? undefined,
       }))
-      workerRef.current.postMessage({ id, type: 'solveSpline', args: [ctrlPts, curve.isClosed, maxIter] })
+      workerRef.current.postMessage({ id, type: 'solveSpline', args: [ctrlPts, curve.isClosed, maxIter, axesRef.current] })
     }, 20)
     return () => clearTimeout(timer)
-  }, [curves, activeCurve, maxIter])
+  }, [curves, activeCurve, maxIter, axes.constant_curvature, axes.g3_smoothness])
 
   // SVG coordinate space: compute viewBox from guides
   const viewBox = useMemo(() => {
