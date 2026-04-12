@@ -336,12 +336,13 @@ function App() {
                   if (!variations) return null
 
                   const firstSvg = variations[0]?.svg ?? ''
+                  const isFloat = ctrl.type_ === 'range'
                   const rowVariations = variations.map((v, i) => {
                     const boxWidth = 150 * zoom
                     return (
-                      <div key={`${ctrl.name}-${i}`} className="tween-item" style={{ minWidth: boxWidth + 'px', width: boxWidth + 'px', position: 'relative' }}>
+                      <div key={`${ctrl.name}-${i}`} className="tween-item" style={{ minWidth: boxWidth + 'px', width: boxWidth + 'px', position: 'relative', overflow: 'hidden' }}>
                         <div dangerouslySetInnerHTML={{ __html: v.svg }} />
-                        {i > 0 && (
+                        {isFloat && i > 0 && (
                           <div
                             dangerouslySetInnerHTML={{ __html: firstSvg }}
                             style={{ position: 'absolute', top: 0, left: 0, opacity: 0.2, filter: 'grayscale(1)', pointerEvents: 'none' }}
