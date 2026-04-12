@@ -246,7 +246,7 @@ let getBezPt (p0x, p0y) (p1x, p1y) (p2x, p2y) (p3x, p3y) t =
 
 type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug: bool) =
     let _points: BezierPoint array = Array.init ctrlPts.Length (fun _ -> BezierPoint())
-    let STEPS = 8
+    let STEPS = 16
     let _ks = Array.create (STEPS + 1) 0.0
     let _dists = Array.create (STEPS + 1) 0.0
     let _segmentStartK = Array.create ctrlPts.Length 0.0
@@ -413,13 +413,21 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
 
                     let k = 10000. * getCurvature p0 p1 p2 p3 t1
 
-                    // Sample segment length around t1
+                    // Sample segment length around t1, keeping t within [0,1].
+                    // j=0: t0 is negative, so use [0, 0.5/STEPS] instead.
+                    // j=STEPS: t2 exceeds 1, so use [(STEPS-0.5)/STEPS, 1] instead.
                     let segLen =
                         if j = 0 then
                             let p_start = getBezPt p0 p1 p2 p3 0.
                             let p_half = getBezPt p0 p1 p2 p3 (0.5 / float STEPS)
                             let dx = p_half.x - p_start.x
                             let dy = p_half.y - p_start.y
+                            sqrt (dx * dx + dy * dy)
+                        elif j = STEPS then
+                            let p_half = getBezPt p0 p1 p2 p3 ((float STEPS - 0.5) / float STEPS)
+                            let p_end = getBezPt p0 p1 p2 p3 1.
+                            let dx = p_end.x - p_half.x
+                            let dy = p_end.y - p_half.y
                             sqrt (dx * dx + dy * dy)
                         else
                             let p_low = getBezPt p0 p1 p2 p3 t0
