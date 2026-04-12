@@ -1,8 +1,9 @@
-import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, generateSplineViewerSvg, controlDefinitions, solveSplineEditor, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphData } from './lib/fable/Api'
+import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, generateSplineViewerSvg, controlDefinitions, solveSplineEditor, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphData, getSplineOutlinePath } from './lib/fable/Api'
 import { DControlPoint } from './lib/fable/generator/DactylSpline'
 
 self.onmessage = (e) => {
     const { id, type, args } = e.data
+    const start = performance.now()
     try {
         let result
         switch (type) {
@@ -77,11 +78,19 @@ self.onmessage = (e) => {
                 result = generateFontGlyphData(fontAxes)
                 break
             }
+            case 'splineOutline': {
+                const [ctrlPtsRaw, isClosed, glyphAxes] = args
+                const ctrlPts = ctrlPtsRaw.map(p => new DControlPoint(p.ty, p.x, p.y, p.th_in, p.th_out))
+                result = getSplineOutlinePath(ctrlPts, isClosed, glyphAxes)
+                break
+            }
             default:
                 throw new Error(`Unknown generation type: ${type}`)
         }
+        console.log(`API [${type}] took ${(performance.now() - start).toFixed(1)}ms`)
         self.postMessage({ id, result })
     } catch (error) {
+        console.log(`API [${type}] failed after ${(performance.now() - start).toFixed(1)}ms`)
         self.postMessage({ id, error: error.message })
     }
 }

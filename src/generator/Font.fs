@@ -425,12 +425,17 @@ type Font(axes: Axes) =
 
     member this.monospace =
         let mono e =
-            let monoFn (p: Point) =
-                let full_scale = _metrics.monospaceWidth / (this.elemWidth e)
-                let x_scale = (1.0 - axes.monospace) + axes.monospace * full_scale
-                { p with x = p.x * x_scale }
+            let w = this.elemWidth e
 
-            movePoints monoFn None e
+            if w = 0.0 then
+                e
+            else
+                let monoFn (p: Point) =
+                    let full_scale = _metrics.monospaceWidth / w
+                    let x_scale = (1.0 - axes.monospace) + axes.monospace * full_scale
+                    { p with x = p.x * x_scale }
+
+                movePoints monoFn None e
 
         applyIf (axes.monospace > 0.0) mono
 
@@ -584,12 +589,12 @@ type Font(axes: Axes) =
                 ty = Corner
                 th_in = firstThIn
                 th_out = firstThOut
-                label = None }
+                label = Some "joint" }
               { pt = offsetPointRotated X Y (align theta) fthickness -fthickness
                 ty = ty
                 th_in = lastThIn
                 th_out = lastThOut
-                label = None } ]
+                label = Some "joint" } ]
         else
             [ { pt = offsetPointRotated X Y thetaAligned fthickness fthickness
                 ty = Corner
@@ -754,9 +759,12 @@ type Font(axes: Axes) =
             th_in = k.th_out |> Option.map (fun t -> norm (t + PI))
             th_out = k.th_in |> Option.map (fun t -> norm (t + PI)) }
 
-    /// Replace sharp Corner knots with small arcs (LineToCurve → CurveToLine)
-    /// to produce rounded corners. The radius is proportional to soft_corners * thickness.
-    /// Short segments (like end caps) are protected by clamping the radius.
+    /// Replace sharp Corner knots with small arcs to produce rounded corners.
+    /// The radius is proportional to soft_corners * thickness, clamped to 40% of each
+    /// adjacent segment so short segments (end caps) are never over-consumed.
+    /// Corners labelled "joint" (where two strokes meet) are left untouched.
+    /// The arc point types are adapted to the neighbour context: LineToCurve/CurveToLine
+    /// when the adjacent segment is a straight line, G2 when it is a smooth curve.
     member this.roundCorners (pts: Knot list) (isClosed: bool) : Knot list =
         let radius = axes.soft_corners * thickness
 
@@ -770,7 +778,7 @@ type Font(axes: Axes) =
             for i in 0 .. n - 1 do
                 let k = arr.[i]
 
-                if k.ty <> Corner then
+                if k.ty <> Corner || k.label = Some "joint" then
                     result.Add(k)
                 else
                     // Get prev/next indices, wrapping for closed curves
@@ -803,12 +811,20 @@ type Font(axes: Axes) =
                             let outPt = { y = k.pt.y + r * dyNext / distNext
                                           x = k.pt.x + r * dxNext / distNext
                                           y_fit = false; x_fit = false }
-                            result.Add({ k with pt = inPt; ty = CurveToLine
-                                                th_out = k.th_in })
-                            result.Add({ k with ty = G2
-                                                th_in = None; th_out = None })
-                            result.Add({ k with pt = outPt; ty = LineToCurve
-                                                th_in = k.th_out })
+                            // Choose point types based on whether the adjacent segment is a line or curve.
+                            // The checks are intentionally asymmetric — LineToCurve/CurveToLine encode
+                            // WHICH SIDE of the point the straight section is on:
+                            //   CurveToLine at prev → segment prev→corner is a line → inPt gets LineToCurve
+                            //     (preprocessLineTangents then sets th_out = line direction, anchoring the arc start)
+                            //   LineToCurve at next → segment corner→next is a line → outPt gets CurveToLine
+                            //     (preprocessLineTangents sets th_out = line direction, anchoring the arc end)
+                            //   Corner at either side → Corner-Corner pairs with colinear tangents are lines too
+                            // When the neighbour is a smooth curve (G2/G4) we use G2 so the spline solver
+                            // preserves smooth continuity rather than converting the curved approach into a line.
+                            let inPtTy  = if prev.ty = CurveToLine || prev.ty = Corner then LineToCurve else G2
+                            let outPtTy = if next.ty = LineToCurve  || next.ty = Corner then CurveToLine else G2
+                            result.Add({ k with pt = inPt; ty = inPtTy; th_out = k.th_in })
+                            result.Add({ k with pt = outPt; ty = outPtTy; th_in = k.th_out })
             List.ofSeq result
 
     /// Apply roundCorners to an Element (Curve or EList of Curves).
@@ -912,7 +928,12 @@ type Font(axes: Axes) =
             let segs = List.map toSegment segments
 
             [ for i in 0 .. lines - 1 do
-                  let offset = (float thickness) * (float i / float (lines - 1) - 0.5) * 2.0
+                  let offset =
+                      if lines <= 1 then
+                          0.0
+                      else
+                          (float thickness) * (float i / float (lines - 1) - 0.5) * 2.0
+
                   clearElemTangents (Curve(this.offsetSegments segs 0 (segs.Length - 1) false true offset, true)) ]
         | SpiroDot(p) ->
             [ dotToClosedCurve p.x p.y thickness
