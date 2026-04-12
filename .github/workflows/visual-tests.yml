@@ -71,7 +71,10 @@ jobs:
             echo "No snapshot changes to commit."
           else
             git commit -m "Update visual regression snapshots [skip ci]"
-            git push
+            # On PR runs the checkout is a detached-HEAD merge commit; push
+            # explicitly to the source branch using head_ref (PR) or ref_name (push/dispatch).
+            BRANCH="${{ github.head_ref || github.ref_name }}"
+            git push origin HEAD:"$BRANCH"
           fi
 
       - name: Upload screenshots on failure
