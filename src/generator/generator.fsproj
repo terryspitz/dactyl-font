@@ -24,6 +24,7 @@
     <Compile Include="GeneratorTypes.fs" />
     <Compile Include="GlyphStringDefs.fs" />
     <Compile Include="SvgHelpers.fs" />
+    <Compile Include="SpiroCombContext.fs" />
     <Compile Include="Font.fs" />
     <Compile Include="SplineViewer.fs" />
   </ItemGroup>

@@ -17,6 +17,7 @@ open PathBezierContext
 open Axes
 open Curves
 open DactylSpline
+open SpiroCombContext
 open SvgHelpers
 
 
@@ -1220,7 +1221,21 @@ type Font(axes: Axes) =
 
         applyToSegments spiroConstrain elem
 
-    ///Convert spiro curves to bezier SVG curves
+    ///Convert spiro curves to bezier SVG curves, returning (pathSvg, combSvg)
+    member this.spiroToSvgWithComb spiro =
+        match spiro with
+        | SpiroOpenCurve(segs) ->
+            let bc = SpiroCombContext(axes.show_comb, segs.Length * 20)
+            Spiro.SpirosToBezier (Array.ofList segs) false bc |> ignore
+            ([ bc.GetPathData ], bc.GetCombSvg)
+        | SpiroClosedCurve(segs) ->
+            let bc = SpiroCombContext(axes.show_comb, segs.Length * 20)
+            Spiro.SpirosToBezier (Array.ofList segs) true bc |> ignore
+            ([ bc.GetPathData ], bc.GetCombSvg)
+        | SpiroDot(p) -> (svgCircle p.x p.y thickness, [])
+        | SpiroSpace -> ([], [])
+
+    ///Convert spiro curves to bezier SVG curves (path only, for callers that don't need comb)
     member this.spiroToSvg spiro =
         match spiro with
         | SpiroOpenCurve(segs) ->
@@ -1241,7 +1256,11 @@ type Font(axes: Axes) =
         else if axes.dactyl_spline then
             elementToDactylSvg elem
         else
-            (elementToSpiroSegments elem |> List.collect this.spiroToSvg, [], [])
+            let segs = elementToSpiroSegments elem
+            let results = segs |> List.map this.spiroToSvgWithComb
+            let svgPaths = results |> List.collect fst
+            let combPaths = results |> List.collect snd
+            (svgPaths, combPaths, [])
 
     member this.elementToSvgPath (element: Element) (offsetX: float) (offsetY: float) (strokeWidth: float) fillColour =
         let GetStableHash (str: string) =
@@ -1300,11 +1319,14 @@ type Font(axes: Axes) =
         @ if List.isEmpty combSvg then
               []
           else
+              // Spiro combs are rendered in very light grey; other curves use black
+              let combStroke =
+                  if axes.dactyl_spline then "#000000" else "#808080"
               [ "<g class='comb-layer'>"; "<path "; "d='" ]
               @ combSvg
               @ [ "'"
                   sprintf "transform='translate(%.0f,%.0f) scale(1,-1)'" (float offsetX) (float offsetY)
-                  sprintf "style='fill:none;stroke:#000000;stroke-width:1'" // Black, min thickness (1px)
+                  sprintf "style='fill:none;stroke:%s;stroke-width:1'" combStroke
                   "/>"
                   "</g>" ]
         // Add separate path for tangents if present
