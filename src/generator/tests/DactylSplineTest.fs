@@ -339,6 +339,31 @@ type TestClass() =
         // tcrW (pt 2) should be flipped to East
         Assert.That(bezPts.[2].th_in, Is.EqualTo(0.0).Within(1e-10), "tcrW should be flipped to East")
 
+    [<Test>]
+    member this.CheckAdaptiveSubdivisionPreservesOutputShape() =
+        // A sharp S-bend that deviates significantly from a single Euler spiral should
+        // trigger adaptive subdivision (inserting synthetic midpoints) and still produce
+        // valid, finite bezier points at each ORIGINAL control point.
+        // The result shape should differ from an equivalent solve with no subdivision
+        // (achieved by limiting maxIter=0 so the adaptive solve runs but the zero-iter
+        // fallback does nothing — here we just verify no NaN / no exception).
+        let spline =
+            DactylSpline(
+                [| dcp SplinePointType.Corner    0.    0.  None
+                   dcp SplinePointType.Smooth   50.  400.  None
+                   dcp SplinePointType.Smooth  300. -200.  None
+                   dcp SplinePointType.Smooth  450.  400.  None
+                   dcp SplinePointType.Corner  500.    0.  None |],
+                false
+            )
+        // solveAndGetPoints must not throw and must return finite values
+        let bezPts = spline.solveAndGetPoints(200, 1.0, 0.0, false)
+        Assert.That(bezPts.Length, Is.EqualTo(5), "should return one BezierPoint per control point")
+        for bp in bezPts do
+            Assert.That(Double.IsNaN bp.th_in, Is.False, "th_in should not be NaN after adaptive solve")
+            Assert.That(Double.IsNaN bp.th_out, Is.False, "th_out should not be NaN after adaptive solve")
+            Assert.That(Double.IsNaN bp.ld, Is.False, "ld should not be NaN after adaptive solve")
+            Assert.That(Double.IsNaN bp.rd, Is.False, "rd should not be NaN after adaptive solve")
 
 
 [<TestFixture>]

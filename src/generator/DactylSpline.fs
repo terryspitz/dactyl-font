@@ -255,6 +255,8 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: flo
     let _segmentEndIdx = Array.create ctrlPts.Length 0
     let _segmentM = Array.create ctrlPts.Length 0.0
     let _segmentMaxDist = Array.create ctrlPts.Length 0.0
+    let _segmentResiduals = Array.create ctrlPts.Length 0.0
+    let mutable _lastSegmentCount = 0
 
     member this.ctrlPts = ctrlPts
     member this.isClosed = isClosed
@@ -264,6 +266,10 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: flo
     member this.constantCurvature = constantCurvature
     member this.g3Smoothness = g3Smoothness
     member this.debug = debug
+    member this.lastSegmentCount = _lastSegmentCount
+    member this.segmentResiduals = _segmentResiduals
+    member this.segmentMaxDist = _segmentMaxDist
+    member this.segmentStartIdx = _segmentStartIdx
 
     member this.initialise() =
         //initialise points
@@ -459,9 +465,12 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: flo
                     _segmentEndK.[segmentCount] <- endK
                     _segmentM.[segmentCount] <- m
                     _segmentMaxDist.[segmentCount] <- max_dist
+                    _segmentResiduals.[segmentCount] <- residuals
                     _segmentStartIdx.[segmentCount] <- i
                     _segmentEndIdx.[segmentCount] <- i + 1
                     segmentCount <- segmentCount + 1
+
+        _lastSegmentCount <- segmentCount
 
         // 3. Continuity Penalties
         // Penalize jumps in curvature between segments
@@ -758,6 +767,94 @@ type DactylSpline(ctrlPts, isClosed) =
 
         solver
 
+    /// Solve a curve section with adaptive subdivision.
+    /// If any segment has poor Euler-spiral fit (high normalised residuals), a smooth
+    /// midpoint is inserted at the bezier midpoint (t=0.5) and the section is re-solved.
+    ///
+    /// Criterion (analogous to SpiroFs' bend > 1.0):
+    ///   sqrt(residuals_i) / max_dist_i > 0.5
+    /// where residuals_i is the sum of squared deviations from linear curvature fit
+    /// (scaled by 10000) and max_dist_i is the arc length of segment i.
+    ///
+    /// Returns the final Solver and origMap: origMap.[k] = index in final bezPts for
+    /// the k-th position of the ORIGINAL (pre-expansion) innerPts list.
+    member private this.solveSectionAdaptive
+        (innerPts: DControlPoint list, isSectionClosed: bool, maxIter, cc, g3s, debug, depth)
+        : Solver * int[] =
+        let innerArr = Array.ofList innerPts
+
+        let solver =
+            let s = Solver(innerArr, isSectionClosed, cc, g3s, debug)
+            s.initialise ()
+            try s.Solve(maxIter) with _ -> ()
+            s
+
+        let identityMap = Array.init innerArr.Length id
+
+        if depth >= 2 then
+            solver, identityMap
+        else
+            let bezPts = solver.points ()
+            let segCount = solver.lastSegmentCount
+
+            // Find segments whose curvature deviates significantly from linear (Euler spiral).
+            // Threshold 0.5: RMS curvature deviation per unit of arc length (scaled units).
+            let insertAfter =
+                [| 0 .. segCount - 1 |]
+                |> Array.choose (fun s ->
+                    let r = solver.segmentResiduals.[s]
+                    let d = solver.segmentMaxDist.[s]
+                    if d > 0.0 && sqrt r / d > 0.5 then
+                        Some solver.segmentStartIdx.[s]
+                    else
+                        None)
+                |> Set.ofArray
+
+            if insertAfter.IsEmpty then
+                solver, identityMap
+            else
+                if debug then
+                    printfn "adaptive subdivision: inserting %d midpoints at depth %d" insertAfter.Count depth
+
+                let expanded = ResizeArray<DControlPoint>()
+                let origToExpanded = Array.create innerArr.Length 0
+                let mutable insertions = 0
+
+                for k in 0 .. innerArr.Length - 1 do
+                    origToExpanded.[k] <- k + insertions
+                    expanded.Add(innerArr.[k])
+
+                    // Insert midpoint after position k if segment k→k+1 needs subdivision
+                    if k < innerArr.Length - 1 && insertAfter.Contains(k) then
+                        let bp0 = bezPts.[k]
+                        let bp1 = bezPts.[k + 1]
+                        // Guard against degenerate bezier points
+                        if not (Double.IsNaN bp0.x || Double.IsNaN bp1.x || Double.IsNaN bp0.rd || Double.IsNaN bp1.ld) then
+                            let p0 = (bp0.x, bp0.y)
+                            let p1c = (bp0.rpt().x, bp0.rpt().y)
+                            let p2c = (bp1.lpt().x, bp1.lpt().y)
+                            let p3 = (bp1.x, bp1.y)
+                            let mid = getBezPt p0 p1c p2c p3 0.5
+                            expanded.Add(
+                                { ty = SplinePointType.Smooth
+                                  x = Some mid.x
+                                  y = Some mid.y
+                                  th_in = None
+                                  th_out = None }
+                            )
+                            insertions <- insertions + 1
+
+                if insertions = 0 then
+                    solver, identityMap
+                else
+                    let expandedList = List.ofSeq expanded
+                    let finalSolver, innerToFinal =
+                        this.solveSectionAdaptive(expandedList, isSectionClosed, maxIter, cc, g3s, debug, depth + 1)
+
+                    // Compose: original k → origToExpanded[k] → innerToFinal[origToExpanded[k]]
+                    let composedMap = Array.init innerArr.Length (fun k -> innerToFinal.[origToExpanded.[k]])
+                    finalSolver, composedMap
+
     member this.solveAndGetPoints(maxIter, constantCurvature, g3Smoothness, debug) : BezierPoint[] =
         /// Returns one BezierPoint per ctrlPts entry with solved x, y, th values.
         let length = ctrlPts.Length - if isClosed then 0 else 1
@@ -826,40 +923,45 @@ type DactylSpline(ctrlPts, isClosed) =
                 i <- i + 1
             else
                 let innerPts, j = this.collectCurveSection (i, length)
-                let solver = this.solveSection (innerPts, length, maxIter, constantCurvature, g3Smoothness, debug)
+                let isSectionClosed = isClosed && innerPts.Length - 1 = length
+                let solver, origMap =
+                    this.solveSectionAdaptive (innerPts, isSectionClosed, maxIter, constantCurvature, g3Smoothness, debug, 0)
                 let bezPts = solver.points ()
 
                 // Copy solver results back.
+                // copyCount is the original innerPts length; origMap.[k] maps to the
+                // corresponding index in bezPts (which may be larger after subdivision).
                 // For closed splines, we must copy the final point back to point 0 too.
-                let copyCount = bezPts.Length
+                let copyCount = List.length innerPts
 
                 for k in 0 .. copyCount - 1 do
                     let resIdx = (i + k) % ctrlPts.Length
+                    let bk = origMap.[k]  // index into expanded bezPts
 
                     if Double.IsNaN result.[resIdx].x then
-                        result.[resIdx].x <- bezPts.[k].x
-                        result.[resIdx].y <- bezPts.[k].y
+                        result.[resIdx].x <- bezPts.[bk].x
+                        result.[resIdx].y <- bezPts.[bk].y
 
                     // Selective copy: only update properties relevant for the segment sides this point is on.
                     // 'th_in' and 'ld' come from the segment END (incoming direction).
                     if k > 0 || (i = 0 && not isClosed) then
-                        result.[resIdx].th_in <- bezPts.[k].th_in
-                        result.[resIdx].ld <- bezPts.[k].ld
+                        result.[resIdx].th_in <- bezPts.[bk].th_in
+                        result.[resIdx].ld <- bezPts.[bk].ld
 
                     // 'th_out' and 'rd' come from the segment START (outgoing direction).
-                    if k < bezPts.Length - 1 || (resIdx = ctrlPts.Length - 1 && not isClosed) then
-                        result.[resIdx].th_out <- bezPts.[k].th_out
-                        result.[resIdx].rd <- bezPts.[k].rd
+                    if k < copyCount - 1 || (resIdx = ctrlPts.Length - 1 && not isClosed) then
+                        result.[resIdx].th_out <- bezPts.[bk].th_out
+                        result.[resIdx].rd <- bezPts.[bk].rd
 
                     // Legacy ensure non-NaN th_in/out for open ends (from user)
                     if resIdx = 0 && not isClosed && Double.IsNaN result.[resIdx].th_in then
-                        result.[resIdx].th_in <- bezPts.[k].th_out
+                        result.[resIdx].th_in <- bezPts.[bk].th_out
 
                     if
                         resIdx = ctrlPts.Length - 1
                         && not isClosed
                     then
-                        result.[resIdx].th_out <- bezPts.[k].th_in
+                        result.[resIdx].th_out <- bezPts.[bk].th_in
 
                 i <- j - 1
 
