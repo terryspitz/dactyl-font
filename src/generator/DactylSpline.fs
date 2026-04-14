@@ -269,6 +269,7 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: flo
     member this.lastSegmentCount = _lastSegmentCount
     member this.segmentResiduals = _segmentResiduals
     member this.segmentMaxDist = _segmentMaxDist
+    member this.segmentM = _segmentM
     member this.segmentStartIdx = _segmentStartIdx
 
     member this.initialise() =
@@ -771,10 +772,12 @@ type DactylSpline(ctrlPts, isClosed) =
     /// If any segment has poor Euler-spiral fit (high normalised residuals), a smooth
     /// midpoint is inserted at the bezier midpoint (t=0.5) and the section is re-solved.
     ///
-    /// Criterion (analogous to SpiroFs' bend > 1.0):
-    ///   sqrt(residuals_i) / max_dist_i > 0.5
-    /// where residuals_i is the sum of squared deviations from linear curvature fit
-    /// (scaled by 10000) and max_dist_i is the arc length of segment i.
+    /// Scale-independent criterion (analogous to SpiroFs' bend > 1.0):
+    ///   sqrt(residuals_i) / (|m_i × dist_i| + ε) > 1.0
+    /// Both numerator and denominator are in the same 10000-scaled curvature units,
+    /// so the ratio is dimensionless and behaves the same at unit and font coordinate scales.
+    /// A ratio > 1.0 means the RMS curvature deviation exceeds the curvature variation
+    /// across the segment — a reliable sign that one Euler spiral is a poor fit.
     ///
     /// Returns the final Solver and origMap: origMap.[k] = index in final bezPts for
     /// the k-th position of the ORIGINAL (pre-expansion) innerPts list.
@@ -798,13 +801,23 @@ type DactylSpline(ctrlPts, isClosed) =
             let segCount = solver.lastSegmentCount
 
             // Find segments whose curvature deviates significantly from linear (Euler spiral).
-            // Threshold 0.5: RMS curvature deviation per unit of arc length (scaled units).
+            //
+            // Scale-independent criterion (analogous to SpiroFs' bend > 1.0):
+            //   sqrt(residuals) / (|m × d| + ε) > 1.0
+            //
+            // |m × d| is the total curvature change across the segment (in the same
+            // 10000-scaled units as the residuals), so this ratio is dimensionless and
+            // does not depend on coordinate scale.  A ratio > 1.0 means the RMS deviation
+            // from linear curvature exceeds the curvature variation itself — a clear sign
+            // that a single Euler-spiral segment is a poor fit.
             let insertAfter =
                 [| 0 .. segCount - 1 |]
                 |> Array.choose (fun s ->
                     let r = solver.segmentResiduals.[s]
                     let d = solver.segmentMaxDist.[s]
-                    if d > 0.0 && sqrt r / d > 0.5 then
+                    let m = solver.segmentM.[s]
+                    let curvatureVariation = abs (m * d) + 1e-3  // ε avoids ÷0 on straight segs
+                    if d > 0.0 && sqrt r / curvatureVariation > 1.0 then
                         Some solver.segmentStartIdx.[s]
                     else
                         None)
