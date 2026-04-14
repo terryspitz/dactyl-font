@@ -196,14 +196,15 @@ type TestClass() =
         // The existing CheckFlatnessParam uses constant_curvature=1000 on unit-scale coords.
         // This test verifies constant_curvature=200 (the UI slider max) is meaningful at
         // font-scale coordinates (height ~700, typical arc radius ~200).
-        // Uses a 'c'-like open arc: corner endpoints have unconstrained start/end
-        // curvature, so constant_curvature can actually pull dk/ds toward zero.
+        // Uses an L-shaped curve: curvature is high near the bend and near-zero at the
+        // straight ends, so dk/ds is genuinely large and constant_curvature can pull it
+        // toward zero. A near-circular arc would have dk/ds≈0 already.
         let spline =
             DactylSpline(
-                [| dcp SplinePointType.Corner  300.  600.  None
-                   dcp SplinePointType.Smooth  100.  700.  None
-                   dcp SplinePointType.Smooth  100.  300.  None
-                   dcp SplinePointType.Corner  300.  200.  None |],
+                [| dcp SplinePointType.Corner    0.  600.  None
+                   dcp SplinePointType.Smooth    0.  200.  None
+                   dcp SplinePointType.Smooth  400.    0.  None
+                   dcp SplinePointType.Corner  600.    0.  None |],
                 false
             )
         let bezPts0   = spline.solveAndGetPoints(5000, 0.0, 0.0, false)
@@ -222,12 +223,16 @@ type TestClass() =
         // The existing CheckMConsistencyParam uses unit-scale coords and checks > 1e-3
         // (sub-pixel). This test verifies g3_smoothness=0.1 (UI slider max) is
         // meaningful at font-scale coordinates where avgDist ~300 units.
+        // Uses an asymmetric wavy shape with 3 curve segments so adjacent segments
+        // naturally have different dk/ds slopes (m values). A symmetric arch has equal
+        // m by symmetry so g3_smoothness has no effect (mGap≈0).
         let spline =
             DactylSpline(
                 [| dcp SplinePointType.Corner    0.    0.  None
-                   dcp SplinePointType.Smooth  100.  300.  None
-                   dcp SplinePointType.Smooth  300.  300.  None
-                   dcp SplinePointType.Corner  400.    0.  None |],
+                   dcp SplinePointType.Smooth  100.  400.  None
+                   dcp SplinePointType.Smooth  250.  100.  None
+                   dcp SplinePointType.Smooth  400.  400.  None
+                   dcp SplinePointType.Corner  500.    0.  None |],
                 false
             )
         let bezPts0  = spline.solveAndGetPoints(5000, 1.0, 0.0, false)
