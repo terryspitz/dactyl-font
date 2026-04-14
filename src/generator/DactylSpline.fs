@@ -821,13 +821,13 @@ type DactylSpline(ctrlPts, isClosed) =
                         Some solver.segmentStartIdx.[s]
                     else
                         None)
-                |> Set.ofArray
+                |> Set.ofSeq
 
             if insertAfter.IsEmpty then
                 solver, identityMap
             else
                 if debug then
-                    printfn "adaptive subdivision: inserting %d midpoints at depth %d" insertAfter.Count depth
+                    printfn "adaptive subdivision: inserting %d midpoints at depth %d" (Set.count insertAfter) depth
 
                 let expanded = ResizeArray<DControlPoint>()
                 let origToExpanded = Array.create innerArr.Length 0
