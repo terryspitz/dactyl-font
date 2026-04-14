@@ -810,24 +810,29 @@ type DactylSpline(ctrlPts, isClosed) =
             // does not depend on coordinate scale.  A ratio > 1.0 means the RMS deviation
             // from linear curvature exceeds the curvature variation itself — a clear sign
             // that a single Euler-spiral segment is a poor fit.
-            let insertAfter =
-                [| 0 .. segCount - 1 |]
-                |> Array.choose (fun s ->
-                    let r = solver.segmentResiduals.[s]
-                    let d = solver.segmentMaxDist.[s]
-                    let m = solver.segmentM.[s]
-                    let curvatureVariation = abs (m * d) + 1e-3  // ε avoids ÷0 on straight segs
-                    if d > 0.0 && sqrt r / curvatureVariation > 1.0 then
-                        Some solver.segmentStartIdx.[s]
-                    else
-                        None)
-                |> Set.ofSeq
+            //
+            // Use a bool array indexed by original innerArr position to avoid any Fable
+            // compatibility questions about Set module functions.
+            let insertAfterFlags = Array.create innerArr.Length false
+            let mutable needsSubdivision = false
 
-            if insertAfter.IsEmpty then
+            for s in 0 .. segCount - 1 do
+                let r = solver.segmentResiduals.[s]
+                let d = solver.segmentMaxDist.[s]
+                let m = solver.segmentM.[s]
+                let curvatureVariation = abs (m * d) + 1e-3  // ε avoids ÷0 on straight segs
+                if d > 0.0 && sqrt r / curvatureVariation > 1.0 then
+                    let startIdx = solver.segmentStartIdx.[s]
+                    if startIdx < innerArr.Length - 1 then
+                        insertAfterFlags.[startIdx] <- true
+                        needsSubdivision <- true
+
+            if not needsSubdivision then
                 solver, identityMap
             else
                 if debug then
-                    printfn "adaptive subdivision: inserting %d midpoints at depth %d" (Set.count insertAfter) depth
+                    let count = Array.sumBy (fun b -> if b then 1 else 0) insertAfterFlags
+                    printfn "adaptive subdivision: inserting %d midpoints at depth %d" count depth
 
                 let expanded = ResizeArray<DControlPoint>()
                 let origToExpanded = Array.create innerArr.Length 0
@@ -838,7 +843,7 @@ type DactylSpline(ctrlPts, isClosed) =
                     expanded.Add(innerArr.[k])
 
                     // Insert midpoint after position k if segment k→k+1 needs subdivision
-                    if k < innerArr.Length - 1 && insertAfter.Contains(k) then
+                    if k < innerArr.Length - 1 && insertAfterFlags.[k] then
                         let bp0 = bezPts.[k]
                         let bp1 = bezPts.[k + 1]
                         // Guard against degenerate bezier points
