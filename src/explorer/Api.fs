@@ -409,18 +409,53 @@ let computeCurvatureData (bezPts: DactylSpline.BezierPoint array) (isClosed: boo
         knotArcs.Add(arcLen)
     {| samples = samples.ToArray(); knotArcs = knotArcs.ToArray() |}
 
+/// For each subdivision midpoint (mx, my), find which bezier segment it lies on
+/// (matching to B(0.5) of each segment) and return the arc length at that midpoint
+/// (average of the two adjacent knot arcs — good approximation for the t=0.5 position).
+let findSubdivisionArcs
+    (bezPts: DactylSpline.BezierPoint array)
+    (isClosed: bool)
+    (knotArcs: float[])
+    (subdivMidpoints: (float * float)[]) =
+    let count = if isClosed then bezPts.Length else bezPts.Length - 1
+    subdivMidpoints |> Array.map (fun (mx, my) ->
+        let mutable bestSeg = 0
+        let mutable bestDistSq = infinity
+        for i in 0 .. count - 1 do
+            let p1 = bezPts.[i]
+            let p2 = bezPts.[(i + 1) % bezPts.Length]
+            let cp1x = p1.x + p1.rd * cos p1.th_out
+            let cp1y = p1.y + p1.rd * sin p1.th_out
+            let cp2x = p2.x - p2.ld * cos p2.th_in
+            let cp2y = p2.y - p2.ld * sin p2.th_in
+            // B(0.5) = 0.125*P0 + 0.375*CP1 + 0.375*CP2 + 0.125*P3
+            let bx = 0.125*p1.x + 0.375*cp1x + 0.375*cp2x + 0.125*p2.x
+            let by = 0.125*p1.y + 0.375*cp1y + 0.375*cp2y + 0.125*p2.y
+            let dSq = (bx - mx)**2.0 + (by - my)**2.0
+            if dSq < bestDistSq then
+                bestDistSq <- dSq
+                bestSeg <- i
+        if bestSeg + 1 < knotArcs.Length then
+            (knotArcs.[bestSeg] + knotArcs.[bestSeg + 1]) / 2.0
+        else knotArcs.[max 0 (knotArcs.Length - 1)]
+    )
+
 let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (maxIter: int) (glyphAxes: Axes) =
     let spline = DactylSpline.DactylSpline(ctrlPts, isClosed)
-    let bezPts, pathSvg, combSvg, tangentSvg = spline.solveAndRenderFull(maxIter, glyphAxes.constant_curvature, glyphAxes.g3_smoothness, glyphAxes.debug, true, true)
+    let bezPts, subdivMidpoints, pathSvg, combSvg, tangentSvg, subdivSvg =
+        spline.solveAndRenderFull(maxIter, glyphAxes.constant_curvature, glyphAxes.g3_smoothness, glyphAxes.debug, true, true)
+    let curvatureData = computeCurvatureData bezPts isClosed
+    let subdivArcs = findSubdivisionArcs bezPts isClosed curvatureData.knotArcs subdivMidpoints
     {| pathSvg = pathSvg |> String.concat ""
        combSvg = combSvg |> String.concat ""
        tangentSvg = tangentSvg |> String.concat ""
+       subdivisionSvg = subdivSvg |> String.concat ""
        bezierPoints =
            bezPts |> Array.map (fun (bp: DactylSpline.BezierPoint) ->
                {| x = bp.x; y = bp.y
                   th_in = bp.th_in; th_out = bp.th_out
                   ld = bp.ld; rd = bp.rd |})
-       curvatureData = computeCurvatureData bezPts isClosed |}
+       curvatureData = {| samples = curvatureData.samples; knotArcs = curvatureData.knotArcs; subdivisionArcs = subdivArcs |} |}
 
 /// Generate a proper ink outline for the current spline via Font.getDactylSansOutlines.
 let getSplineOutlinePath (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (inputAxes: Axes) =

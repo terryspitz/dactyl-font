@@ -288,26 +288,46 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: flo
                 point.fit_x <- false
             // possibly: define fit_x/y separately from none, then use x/y for initialisation
             | None ->
+                // Walk outward to find nearest non-None x in each direction.
+                // This is safe even when adjacent points also have x=None (e.g. subdivision midpoints).
+                let mutable prevX = 0.0
+                let mutable j = i - 1
+                while j >= 0 do
+                    match ctrlPts.[j].x with
+                    | Some v -> prevX <- v; j <- -1
+                    | None -> j <- j - 1
+                let mutable nextX = 0.0
+                j <- i + 1
+                while j < ctrlPts.Length do
+                    match ctrlPts.[j].x with
+                    | Some v -> nextX <- v; j <- ctrlPts.Length
+                    | None -> j <- j + 1
                 point.x <-
-                    if i = 0 then
-                        ctrlPts.[i + 1].x.Value
-                    elif i = ctrlPts.Length - 1 then
-                        ctrlPts.[i - 1].x.Value
-                    else
-                        (ctrlPts.[i - 1].x.Value + ctrlPts.[i + 1].x.Value) / 2.
+                    if i = 0 then nextX
+                    elif i = ctrlPts.Length - 1 then prevX
+                    else (prevX + nextX) / 2.0
             //TODO: fit_y
             match ctrlPt.y with
             | Some y ->
                 point.y <- y
                 point.fit_y <- false
             | None ->
+                let mutable prevY = 0.0
+                let mutable j = i - 1
+                while j >= 0 do
+                    match ctrlPts.[j].y with
+                    | Some v -> prevY <- v; j <- -1
+                    | None -> j <- j - 1
+                let mutable nextY = 0.0
+                j <- i + 1
+                while j < ctrlPts.Length do
+                    match ctrlPts.[j].y with
+                    | Some v -> nextY <- v; j <- ctrlPts.Length
+                    | None -> j <- j + 1
                 point.y <-
-                    if i = 0 then
-                        ctrlPts.[i + 1].y.Value
-                    elif i = ctrlPts.Length - 1 then
-                        ctrlPts.[i - 1].y.Value
-                    else
-                        (ctrlPts.[i - 1].y.Value + ctrlPts.[i + 1].y.Value) / 2.
+                    if i = 0 then nextY
+                    elif i = ctrlPts.Length - 1 then prevY
+                    else (prevY + nextY) / 2.0
 
         // Initialise tangent angle/distance
         for i in 0 .. ctrlPts.Length - 1 do
@@ -688,6 +708,7 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: flo
 type DactylSpline(ctrlPts, isClosed) =
     member this.ctrlPts: DControlPoint array = ctrlPts
     member this.isClosed = isClosed
+    let mutable _subdivMidpoints : (float * float)[] = [||]
 
     /// Pre-process LineToCurve/CurveToLine points: fix their tangent to the line direction.
     /// Must be called before segment iteration in both solveAndGetPoints and solveAndRenderTuple.
@@ -781,21 +802,33 @@ type DactylSpline(ctrlPts, isClosed) =
     ///
     /// Returns the final Solver and origMap: origMap.[k] = index in final bezPts for
     /// the k-th position of the ORIGINAL (pre-expansion) innerPts list.
+    ///
+    /// fittablePositions: indices in innerArr whose x/y should be treated as fittable even
+    /// though DControlPoint.x/y = Some (the solver initialised them with a good bezier-midpoint
+    /// warm start, but we want the optimiser to move them freely).
     member private this.solveSectionAdaptive
-        (innerPts: DControlPoint list, isSectionClosed: bool, maxIter, cc, g3s, debug, depth)
-        : Solver * int[] =
+        (innerPts: DControlPoint list, isSectionClosed: bool, maxIter, cc, g3s, debug, depth,
+         fittablePositions: int[])
+        : Solver * int[] * (float * float)[] =
         let innerArr = Array.ofList innerPts
 
         let solver =
             let s = Solver(innerArr, isSectionClosed, cc, g3s, debug)
             s.initialise ()
+            // Override fit_x/fit_y for positions passed from the parent level.
+            // These are subdivision midpoints initialised with a bezier-midpoint warm start
+            // (x = Some mid.x) but whose position should still be optimised by the solver.
+            for idx in fittablePositions do
+                if idx < s.points().Length then
+                    s.points().[idx].fit_x <- true
+                    s.points().[idx].fit_y <- true
             try s.Solve(maxIter) with _ -> ()
             s
 
         let identityMap = Array.init innerArr.Length id
 
         if depth >= 2 then
-            solver, identityMap
+            solver, identityMap, [||]
         else
             let bezPts = solver.points ()
             let segCount = solver.lastSegmentCount
@@ -828,7 +861,7 @@ type DactylSpline(ctrlPts, isClosed) =
                         needsSubdivision <- true
 
             if not needsSubdivision then
-                solver, identityMap
+                solver, identityMap, [||]
             else
                 if debug then
                     let count = Array.sumBy (fun b -> if b then 1 else 0) insertAfterFlags
@@ -836,13 +869,19 @@ type DactylSpline(ctrlPts, isClosed) =
 
                 let expanded = ResizeArray<DControlPoint>()
                 let origToExpanded = Array.create innerArr.Length 0
+                // Track which positions in `expanded` are inserted midpoints (by expanded-list index).
+                // These will be passed to the recursive call so the child solver makes them fittable.
+                let insertedExpandedIndices = ResizeArray<int>()
                 let mutable insertions = 0
 
                 for k in 0 .. innerArr.Length - 1 do
                     origToExpanded.[k] <- k + insertions
                     expanded.Add(innerArr.[k])
 
-                    // Insert midpoint after position k if segment k→k+1 needs subdivision
+                    // Insert midpoint after position k if segment k→k+1 needs subdivision.
+                    // x = Some mid.x, y = Some mid.y: bezier midpoint as warm start.
+                    // th_in/th_out = None: tangents are fitted by the solver.
+                    // The position is made fittable in the recursive call via fittablePositions.
                     if k < innerArr.Length - 1 && insertAfterFlags.[k] then
                         let bp0 = bezPts.[k]
                         let bp1 = bezPts.[k + 1]
@@ -853,6 +892,7 @@ type DactylSpline(ctrlPts, isClosed) =
                             let p2c = (bp1.lpt().x, bp1.lpt().y)
                             let p3 = (bp1.x, bp1.y)
                             let mid = getBezPt p0 p1c p2c p3 0.5
+                            insertedExpandedIndices.Add(origToExpanded.[k] + 1)
                             expanded.Add(
                                 { ty = SplinePointType.Smooth
                                   x = Some mid.x
@@ -863,19 +903,35 @@ type DactylSpline(ctrlPts, isClosed) =
                             insertions <- insertions + 1
 
                 if insertions = 0 then
-                    solver, identityMap
+                    solver, identityMap, [||]
                 else
                     let expandedList = List.ofSeq expanded
-                    let finalSolver, innerToFinal =
-                        this.solveSectionAdaptive(expandedList, isSectionClosed, maxIter, cc, g3s, debug, depth + 1)
+                    // Pass the inserted indices so the recursive solver makes their x/y fittable.
+                    let finalSolver, innerToFinal, subMidpoints =
+                        this.solveSectionAdaptive(expandedList, isSectionClosed, maxIter, cc, g3s, debug, depth + 1,
+                                                   insertedExpandedIndices.ToArray())
 
                     // Compose: original k → origToExpanded[k] → innerToFinal[origToExpanded[k]]
                     let composedMap = Array.init innerArr.Length (fun k -> innerToFinal.[origToExpanded.[k]])
-                    finalSolver, composedMap
+
+                    // Collect final SOLVED positions of the midpoints we inserted at this level.
+                    // These reflect the optimised positions (fit_x/fit_y were true during the solve).
+                    let finalBezPts = finalSolver.points ()
+                    let currentMidpoints =
+                        insertedExpandedIndices.ToArray ()
+                        |> Array.map (fun expIdx ->
+                            let finalIdx = innerToFinal.[expIdx]
+                            let bp = finalBezPts.[finalIdx]
+                            (bp.x, bp.y))
+
+                    let allMidpoints = Array.append currentMidpoints subMidpoints
+                    finalSolver, composedMap, allMidpoints
 
     member this.solveAndGetPoints(maxIter, constantCurvature, g3Smoothness, debug) : BezierPoint[] =
         /// Returns one BezierPoint per ctrlPts entry with solved x, y, th values.
         let length = ctrlPts.Length - if isClosed then 0 else 1
+
+        let allSubdivMidpoints = ResizeArray<float * float>()
 
         this.preprocessLineTangents ()
 
@@ -942,8 +998,9 @@ type DactylSpline(ctrlPts, isClosed) =
             else
                 let innerPts, j = this.collectCurveSection (i, length)
                 let isSectionClosed = isClosed && innerPts.Length - 1 = length
-                let solver, origMap =
-                    this.solveSectionAdaptive (innerPts, isSectionClosed, maxIter, constantCurvature, g3Smoothness, debug, 0)
+                let solver, origMap, sectionMidpoints =
+                    this.solveSectionAdaptive (innerPts, isSectionClosed, maxIter, constantCurvature, g3Smoothness, debug, 0, [||])
+                allSubdivMidpoints.AddRange(sectionMidpoints)
                 let bezPts = solver.points ()
 
                 // Copy solver results back.
@@ -1033,7 +1090,21 @@ type DactylSpline(ctrlPts, isClosed) =
                     i
                     (p.tostring ())
 
+        _subdivMidpoints <- allSubdivMidpoints.ToArray()
         result
+
+    /// Generate SVG diamond markers at the given (x, y) positions.
+    /// Rendered inside the scale(1,-1) group so coordinates are in spline/math space.
+    member private this.renderSubdivisionMarkers(midpoints: (float * float)[]) =
+        let path = BezPath()
+        let s = 15.0  // diamond half-size in spline coordinate units
+        for (mx, my) in midpoints do
+            path.moveto(mx, my - s)
+            path.lineto(mx + s, my)
+            path.lineto(mx, my + s)
+            path.lineto(mx - s, my)
+            path.closepath()
+        path.tostringlist()
 
     member this.renderFromPoints(bezPts: BezierPoint[], showComb, showTangents) =
         let length = ctrlPts.Length - if isClosed then 0 else 1
@@ -1135,5 +1206,6 @@ type DactylSpline(ctrlPts, isClosed) =
     member this.solveAndRenderFull(maxIter, constantCurvature, g3Smoothness, debug, showComb, showTangents) =
         let bezPts = this.solveAndGetPoints (maxIter, constantCurvature, g3Smoothness, debug)
         let pathSvg, combSvg, tangentSvg = this.renderFromPoints(bezPts, showComb, showTangents)
-        (bezPts, pathSvg, combSvg, tangentSvg)
+        let subdivSvg = this.renderSubdivisionMarkers(_subdivMidpoints)
+        (bezPts, _subdivMidpoints, pathSvg, combSvg, tangentSvg, subdivSvg)
 

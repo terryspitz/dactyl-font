@@ -54,7 +54,7 @@ const snapToGuide = (value, guideArray, thresholdUnits) => {
 // Evaluate a cubic bezier at t: returns {x, y}
 // SVG curvature graph component — data comes pre-computed from F# via solveResult.curvatureData
 function CurvatureGraph({ curvatureData, width = 400, height = 100 }) {
-  const { samples, knotArcs } = curvatureData || { samples: [], knotArcs: [] }
+  const { samples, knotArcs, subdivisionArcs } = curvatureData || { samples: [], knotArcs: [], subdivisionArcs: [] }
 
   if (!samples.length) return null
 
@@ -77,10 +77,15 @@ function CurvatureGraph({ curvatureData, width = 400, height = 100 }) {
       <line x1={pad.l} y1={midY} x2={pad.l + gw} y2={midY} stroke="#444" strokeWidth="1" />
       {/* Curvature polyline */}
       <polyline points={pts} fill="none" stroke="#4af" strokeWidth="1.5" />
-      {/* Knot markers */}
+      {/* Knot markers (orange) */}
       {knotArcs.map((arc, i) => {
         const x = toX(arc)
         return <line key={i} x1={x} y1={pad.t} x2={x} y2={pad.t + gh} stroke="#f84" strokeWidth="1" strokeDasharray="2,2" />
+      })}
+      {/* Subdivision midpoint markers (green) — shown where adaptive subdivision inserted a point */}
+      {subdivisionArcs?.map((arc, i) => {
+        const x = toX(arc)
+        return <line key={`s${i}`} x1={x} y1={pad.t} x2={x} y2={pad.t + gh} stroke="#4f8" strokeWidth="1" strokeDasharray="1,3" />
       })}
     </svg>
   )
@@ -788,6 +793,10 @@ function SplineEditor({ axes }) {
                 <>
                   <path d={solveResult.pathSvg} fill="none" stroke="#4488ff" strokeWidth="2" />
                   {showComb && <path d={solveResult.combSvg} fill="none" stroke="#888" strokeWidth="1" />}
+                  {/* Adaptive subdivision midpoint markers — orange diamonds at inserted points */}
+                  {solveResult.subdivisionSvg && (
+                    <path d={solveResult.subdivisionSvg} fill="#ffa500" fillOpacity="0.8" stroke="#fff" strokeWidth="3" />
+                  )}
                 </>
               )}
             </g>
