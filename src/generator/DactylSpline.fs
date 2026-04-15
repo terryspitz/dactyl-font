@@ -706,9 +706,10 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: flo
 
 // DactylSpline handles general sequence of lines & curves, including corners.
 type DactylSpline(ctrlPts, isClosed) =
+    // let-bindings must precede member definitions in an F# class body
+    let mutable _subdivMidpoints : (float * float)[] = [||]
     member this.ctrlPts: DControlPoint array = ctrlPts
     member this.isClosed = isClosed
-    let mutable _subdivMidpoints : (float * float)[] = [||]
 
     /// Pre-process LineToCurve/CurveToLine points: fix their tangent to the line direction.
     /// Must be called before segment iteration in both solveAndGetPoints and solveAndRenderTuple.
