@@ -418,9 +418,12 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             if chordLen > 1e-4 then
                 let chordAngle = atan2 dy dx
                 let arm0, arm1 = bespokeArmLengths p1.th_out p2.th_in chordAngle chordLen
-
-                if arm0 > 0.0 then p1.rd <- arm0
-                if arm1 > 0.0 then p2.ld <- arm1
+                // Clamp to [0, chordLen] — a negative arm would flip the CP to the wrong side of the
+                // endpoint, giving a cusp/loop. Clamping to 0 produces a straight-ish segment which
+                // is a safer fallback than either the bespoke negative or a stale previous value.
+                let clampArm a = max 0.0 (min chordLen a)
+                p1.rd <- clampArm arm0
+                p2.ld <- clampArm arm1
 
     member this.computeErr() =
         // Piecewise Euler spiral fitting
@@ -731,12 +734,16 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     _points.[i].th_in <- origTh
                     _points.[i].th_out <- origTh
 
-                    // Newton step with damping for stability
+                    // Newton step with damping and clamping for stability. A very small dgap
+                    // combined with a non-zero gap would otherwise send the tangent off to
+                    // absurd values (which is what the "off by 90°" symptom likely is).
                     if abs dgap > 1e-10 then
-                        let step = gap / dgap
+                        let rawStep = gap / dgap
+                        let MAX_STEP = 0.5  // radians per iter (~28.6°)
+                        let step = max -MAX_STEP (min MAX_STEP rawStep)
                         let damping = min 1.0 (tanh (0.25 * float (iter + 1)))
-                        _points.[i].th_in <- origTh + damping * step
-                        _points.[i].th_out <- origTh + damping * step
+                        _points.[i].th_in <- norm (origTh + damping * step)
+                        _points.[i].th_out <- norm (origTh + damping * step)
 
                     totalGap <- totalGap + abs gap
 
@@ -882,8 +889,15 @@ type DactylSpline(ctrlPts, isClosed) =
 
         solver.initialise ()
 
+        // SolveIterative only adjusts tangent angles; it cannot optimise auto x/y coords.
+        // If any control point has x or y set to None, fall back to Nelder-Mead (which
+        // respects fit_x / fit_y) — still benefiting from analytical arm lengths when
+        // analyticalArms=true (Solve excludes ld/rd from the parameter space in that case).
+        let hasAutoXY =
+            innerPts |> List.exists (fun p -> p.x.IsNone || p.y.IsNone)
+
         try
-            if iterativeSolver && analyticalArms then
+            if iterativeSolver && analyticalArms && not hasAutoXY then
                 solver.SolveIterative(maxIter)
             else
                 solver.Solve(maxIter)
