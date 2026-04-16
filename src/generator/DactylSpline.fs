@@ -1001,7 +1001,7 @@ type DactylSpline(ctrlPts, isClosed) =
                 let isSectionClosed = isClosed && innerPts.Length - 1 = length
                 let solver, origMap, sectionMidpoints =
                     this.solveSectionAdaptive (innerPts, isSectionClosed, maxIter, constantCurvature, g3Smoothness, debug, 0, [||])
-                allSubdivMidpoints.AddRange(sectionMidpoints)
+                for mp in sectionMidpoints do allSubdivMidpoints.Add(mp)
                 let bezPts = solver.points ()
 
                 // Copy solver results back.
