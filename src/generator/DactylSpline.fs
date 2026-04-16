@@ -1099,7 +1099,8 @@ type DactylSpline(ctrlPts, isClosed) =
     member private this.renderSubdivisionMarkers(midpoints: (float * float)[]) =
         let path = BezPath()
         let s = 15.0  // diamond half-size in spline coordinate units
-        for (mx, my) in midpoints do
+        for i in 0 .. midpoints.Length - 1 do
+            let mx, my = midpoints.[i]
             path.moveto(mx, my - s)
             path.lineto(mx + s, my)
             path.lineto(mx, my + s)
