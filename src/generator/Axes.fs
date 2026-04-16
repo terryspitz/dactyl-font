@@ -39,7 +39,8 @@ type Axes =
       joints: bool //check joints to turn off serifs
       smooth: bool //no corners
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
-      flatness: float //weight of flatness (abs m) in objective function
+      constant_curvature: float //weight pulling curvature toward constant (circular arc); penalises |dk/ds| per segment
+      g3_smoothness: float //weight for G3 continuity: penalises jumps in curvature rate (dk/ds) at smooth joins
       debug: bool } //show debug info in console
 
     static member DefaultAxes =
@@ -72,7 +73,8 @@ type Axes =
           constraints = false
           smooth = false
           clip_rect = true
-          flatness = 1.0
+          constant_curvature = 1.0
+          g3_smoothness = 0.0
           debug = false }
 
     static member controls =
@@ -105,5 +107,6 @@ type Axes =
           "joints", Checkbox, "debug"
           "smooth", Checkbox, "default"
           "clip_rect", Checkbox, "debug"
-          "flatness", FracRange(0.0, 200.0), "experimental"
+          "constant_curvature", FracRange(0.0, 200.0), "experimental"
+          "g3_smoothness", FracRange(0.0, 0.1), "experimental"
           "debug", Checkbox, "debug" ]

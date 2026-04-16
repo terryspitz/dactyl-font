@@ -54,7 +54,7 @@ const snapToGuide = (value, guideArray, thresholdUnits) => {
 // Evaluate a cubic bezier at t: returns {x, y}
 // SVG curvature graph component — data comes pre-computed from F# via solveResult.curvatureData
 function CurvatureGraph({ curvatureData, width = 400, height = 100 }) {
-  const { samples, knotArcs } = curvatureData || { samples: [], knotArcs: [] }
+  const { samples, knotArcs, subdivisionArcs } = curvatureData || { samples: [], knotArcs: [], subdivisionArcs: [] }
 
   if (!samples.length) return null
 
@@ -77,10 +77,15 @@ function CurvatureGraph({ curvatureData, width = 400, height = 100 }) {
       <line x1={pad.l} y1={midY} x2={pad.l + gw} y2={midY} stroke="#444" strokeWidth="1" />
       {/* Curvature polyline */}
       <polyline points={pts} fill="none" stroke="#4af" strokeWidth="1.5" />
-      {/* Knot markers */}
+      {/* Knot markers (orange) */}
       {knotArcs.map((arc, i) => {
         const x = toX(arc)
         return <line key={i} x1={x} y1={pad.t} x2={x} y2={pad.t + gh} stroke="#f84" strokeWidth="1" strokeDasharray="2,2" />
+      })}
+      {/* Subdivision midpoint markers (green) — shown where adaptive subdivision inserted a point */}
+      {subdivisionArcs?.map((arc, i) => {
+        const x = toX(arc)
+        return <line key={`s${i}`} x1={x} y1={pad.t} x2={x} y2={pad.t + gh} stroke="#4f8" strokeWidth="1" strokeDasharray="1,3" />
       })}
     </svg>
   )
@@ -113,6 +118,10 @@ function SplineEditor({ axes }) {
   // Always-current snapshot of curves without triggering stale closures in callbacks
   const curvesRef = useRef(curves)
   useEffect(() => { curvesRef.current = curves }, [curves])
+
+  // Always-current snapshot of axes without triggering stale closures or extra effects
+  const axesRef = useRef(axes)
+  useEffect(() => { axesRef.current = axes }, [axes])
 
   // Always-current solveResult for use in pointer callbacks (avoids stale closure)
   const solveResultRef = useRef(solveResult)
@@ -193,12 +202,12 @@ function SplineEditor({ axes }) {
     return () => w.removeEventListener('message', handler)
   }, [])
 
-  // Parse glyph when char or axes change; persist selection across tab switches
+  // Parse glyph only when the selected character changes, not on axes changes
   useEffect(() => {
     if (!workerRef.current || !selectedChar) return
     localStorage.setItem('splineSelectedChar', selectedChar)
-    workerRef.current.postMessage({ id: -3, type: 'parseGlyph', args: [selectedChar, axes] })
-  }, [selectedChar, axes])
+    workerRef.current.postMessage({ id: -3, type: 'parseGlyph', args: [selectedChar, axesRef.current] })
+  }, [selectedChar])
 
   // Cache solved path for active curve
   useEffect(() => {
@@ -218,9 +227,9 @@ function SplineEditor({ axes }) {
         th_in: p.th_in ?? undefined,
         th_out: p.th_out ?? undefined,
       }))
-      workerRef.current.postMessage({ id, type: 'solveSpline', args: [ctrlPts, curve.isClosed, maxIter] })
+      workerRef.current.postMessage({ id, type: 'solveSpline', args: [ctrlPts, curve.isClosed, maxIter, axesRef.current] })
     })
-  }, [curves, activeCurve, maxIter])
+  }, [curves, activeCurve, maxIter, axes.constant_curvature, axes.g3_smoothness])
 
   // Fetch ink outline via Font.getDactylSansOutlines when showOutline is on (debounced)
   useEffect(() => {
@@ -238,7 +247,7 @@ function SplineEditor({ axes }) {
     return () => clearTimeout(timer)
   }, [showOutline, curves, activeCurve, axes])
 
-  // Solve spline whenever control points change (debounced to avoid queueing solves during drag)
+  // Solve spline whenever control points or solve-relevant axes change (debounced)
   useEffect(() => {
     if (!workerRef.current || !curves[activeCurve]) return
     const curve = curves[activeCurve]
@@ -252,10 +261,10 @@ function SplineEditor({ axes }) {
         th_in: p.th_in ?? undefined,
         th_out: p.th_out ?? undefined,
       }))
-      workerRef.current.postMessage({ id, type: 'solveSpline', args: [ctrlPts, curve.isClosed, maxIter] })
+      workerRef.current.postMessage({ id, type: 'solveSpline', args: [ctrlPts, curve.isClosed, maxIter, axesRef.current] })
     }, 20)
     return () => clearTimeout(timer)
-  }, [curves, activeCurve, maxIter])
+  }, [curves, activeCurve, maxIter, axes.constant_curvature, axes.g3_smoothness])
 
   // SVG coordinate space: compute viewBox from guides
   const viewBox = useMemo(() => {
@@ -784,6 +793,10 @@ function SplineEditor({ axes }) {
                 <>
                   <path d={solveResult.pathSvg} fill="none" stroke="#4488ff" strokeWidth="2" />
                   {showComb && <path d={solveResult.combSvg} fill="none" stroke="#888" strokeWidth="1" />}
+                  {/* Adaptive subdivision midpoint markers — orange diamonds at inserted points */}
+                  {solveResult.subdivisionSvg && (
+                    <path d={solveResult.subdivisionSvg} fill="#ffa500" fillOpacity="0.8" stroke="#fff" strokeWidth="3" />
+                  )}
                 </>
               )}
             </g>

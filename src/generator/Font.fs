@@ -346,7 +346,8 @@ type Font(axes: Axes) =
 
             spline.solveAndRenderSvg (
                 axes.max_spline_iter,
-                axes.flatness,
+                axes.constant_curvature,
+                axes.g3_smoothness,
                 debug = axes.debug,
                 showComb = axes.show_comb,
                 showTangents = axes.show_tangents
@@ -1110,7 +1111,7 @@ type Font(axes: Axes) =
             let spline = DactylSpline(ctrlPts, isClosed)
 
             let bezPts =
-                spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.debug)
+                spline.solveAndGetPoints (axes.max_spline_iter, axes.constant_curvature, axes.g3_smoothness, axes.debug)
 
             let n = bezPts.Length
 

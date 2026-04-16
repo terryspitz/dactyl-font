@@ -26,7 +26,7 @@ let pointToDcp (p: Point) =
 type TestClass() =
 
     let solve_and_print_spline (spline: DactylSpline) =
-        let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, false, false, false)
+        let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, 0.0, false, false, false)
         let svg = (String.Join(" ", svg))
         printfn "%A" svg
         svg.Trim()
@@ -155,16 +155,125 @@ type TestClass() =
             )
 
         let svgFlat0 =
-            let svg, _, _ = spline.solveAndRenderSvg (5000, 0.0, false, false, false) in svg |> String.concat " "
+            let svg, _, _ = spline.solveAndRenderSvg (5000, 0.0, 0.0, false, false, false) in svg |> String.concat " "
 
         let svgFlat10 =
-            let svg, _, _ = spline.solveAndRenderSvg (5000, 1000.0, false, false, false) in svg |> String.concat " "
+            let svg, _, _ = spline.solveAndRenderSvg (5000, 1000.0, 0.0, false, false, false) in svg |> String.concat " "
 
         printfn "Flatness 0.0: %s" svgFlat0
         printfn "Flatness 10.0: %s" svgFlat10
 
         Assert.That(svgFlat0, Is.Not.EqualTo(svgFlat10))
-    
+
+    [<Test>]
+    member this.CheckMConsistencyParam() =
+        // A curve with three segments gives the optimizer room to vary m across segments.
+        // With high g3_smoothness the slopes should be pulled together, changing the shape.
+        let spline =
+            DactylSpline(
+                [| dcp SplinePointType.Corner  0.  0. None
+                   dcp SplinePointType.Smooth  0.3  1. None
+                   dcp SplinePointType.Smooth  0.7  1. None
+                   dcp SplinePointType.Corner  1.  0. None |],
+                false
+            )
+
+        let bezPts0 = spline.solveAndGetPoints(5000, 1.0, 0.0, false)
+        let bezPts05 = spline.solveAndGetPoints(5000, 1.0, 0.05, false)
+
+        // At least one interior control point must differ noticeably between the two settings
+        let maxDiff =
+            Array.map2 (fun (a: BezierPoint) (b: BezierPoint) ->
+                abs (a.th_in - b.th_in) + abs (a.th_out - b.th_out) + abs (a.rd - b.rd) + abs (a.ld - b.ld))
+                bezPts0 bezPts05
+            |> Array.max
+
+        printfn "g3_smoothness max point diff: %f" maxDiff
+        Assert.That(maxDiff, Is.GreaterThan(1e-3), "g3_smoothness=0.05 should produce a noticeably different curve than g3_smoothness=0")
+
+    [<Test>]
+    member this.CheckFlatnessVisibleAtFontScale() =
+        // The existing CheckFlatnessParam uses constant_curvature=1000 on unit-scale coords.
+        // This test verifies constant_curvature=200 (the UI slider max) is meaningful at
+        // font-scale coordinates (height ~700, typical arc radius ~200).
+        // Uses an L-shaped curve: curvature is high near the bend and near-zero at the
+        // straight ends, so dk/ds is genuinely large and constant_curvature can pull it
+        // toward zero. A near-circular arc would have dk/ds≈0 already.
+        let spline =
+            DactylSpline(
+                [| dcp SplinePointType.Corner    0.  600.  None
+                   dcp SplinePointType.Smooth    0.  200.  None
+                   dcp SplinePointType.Smooth  400.    0.  None
+                   dcp SplinePointType.Corner  600.    0.  None |],
+                false
+            )
+        let bezPts0   = spline.solveAndGetPoints(5000, 0.0, 0.0, false)
+        let bezPts200 = spline.solveAndGetPoints(5000, 200.0, 0.0, false)
+        let maxDiff =
+            Array.map2 (fun (a: BezierPoint) (b: BezierPoint) ->
+                abs (a.th_in - b.th_in) + abs (a.th_out - b.th_out))
+                bezPts0 bezPts200
+            |> Array.max
+        printfn "constant_curvature=200 max angle diff at font scale: %f rad" maxDiff
+        Assert.That(maxDiff, Is.GreaterThan(0.05),
+            "constant_curvature=200 should produce a visibly different curve at font scale (>0.05 rad ≈ 3°)")
+
+    [<Test>]
+    member this.CheckMConsistencyVisibleAtFontScale() =
+        // The existing CheckMConsistencyParam uses unit-scale coords and checks > 1e-3
+        // (sub-pixel). This test verifies g3_smoothness=0.1 (UI slider max) is
+        // meaningful at font-scale coordinates where avgDist ~300 units.
+        // Uses an asymmetric wavy shape with 3 curve segments so adjacent segments
+        // naturally have different dk/ds slopes (m values). A symmetric arch has equal
+        // m by symmetry so g3_smoothness has no effect (mGap≈0).
+        let spline =
+            DactylSpline(
+                [| dcp SplinePointType.Corner    0.    0.  None
+                   dcp SplinePointType.Smooth  100.  400.  None
+                   dcp SplinePointType.Smooth  250.  100.  None
+                   dcp SplinePointType.Smooth  400.  400.  None
+                   dcp SplinePointType.Corner  500.    0.  None |],
+                false
+            )
+        let bezPts0  = spline.solveAndGetPoints(5000, 1.0, 0.0, false)
+        let bezPts01 = spline.solveAndGetPoints(5000, 1.0, 0.1, false)
+        let maxDiff =
+            Array.map2 (fun (a: BezierPoint) (b: BezierPoint) ->
+                abs (a.th_in - b.th_in) + abs (a.th_out - b.th_out))
+                bezPts0 bezPts01
+            |> Array.max
+        printfn "g3_smoothness=0.1 max angle diff at font scale: %f rad" maxDiff
+        Assert.That(maxDiff, Is.GreaterThan(0.05),
+            "g3_smoothness=0.1 should produce a visibly different curve at font scale (>0.05 rad ≈ 3°)")
+
+    [<Test>]
+    member this.CheckCornerPointStability() =
+        // Moving a corner point by a few font-units should not cause large changes in
+        // the solved tangent angles. This documents the 'c' glyph instability: corner
+        // (free) endpoints have unconstrained start curvature, so the optimizer can
+        // fall into a different local minimum for small input changes, causing a
+        // visible jump in the curvature comb.
+        let makeSpline (dx: float) =
+            DactylSpline(
+                [| dcp SplinePointType.Corner  (300. + dx)  600.  None
+                   dcp SplinePointType.Smooth  100.  700.  None
+                   dcp SplinePointType.Smooth  100.  300.  None
+                   dcp SplinePointType.Corner  300.  200.  None |],
+                false
+            )
+        // Use slider max values for constant_curvature/g3_smoothness since the UI relies on
+        // these to damp free-endpoint instability.
+        let bezPts1 = (makeSpline 0.).solveAndGetPoints(5000, 200.0, 0.1, false)
+        let bezPts2 = (makeSpline 3.).solveAndGetPoints(5000, 200.0, 0.1, false)
+        let maxDiff =
+            Array.map2 (fun (a: BezierPoint) (b: BezierPoint) ->
+                abs (a.th_in - b.th_in) + abs (a.th_out - b.th_out))
+                bezPts1 bezPts2
+            |> Array.max
+        printfn "3-unit corner move max angle diff: %f rad" maxDiff
+        Assert.That(maxDiff, Is.LessThan(0.3),
+            "Moving a corner point by 3 font-units should not change tangent angles by more than 0.3 rad (17°)")
+
     [<Test>]
     member this.EndTangentReversal() =
         // Horizontal line from 0,0 to 1,0.
@@ -176,7 +285,7 @@ type TestClass() =
                dcp SplinePointType.Corner 1. 0. (Some PI) |]
 
         let spline = DactylSpline(ctrlPts, false)
-        let bezPts = spline.solveAndGetPoints(max_iter, 1.0, false)
+        let bezPts = spline.solveAndGetPoints(max_iter, 1.0, 0.0, false)
         
         // check that th_in at the end is 0 (East), after being flipped from PI (West)
         Assert.That(bezPts.[1].th_in, Is.EqualTo(0.0).Within(1e-10))
@@ -192,7 +301,7 @@ type TestClass() =
                dcp SplinePointType.Corner 1. 0. None |]
 
         let splineStart = DactylSpline(ctrlPtsStart, false)
-        let bezPtsStart = splineStart.solveAndGetPoints(max_iter, 1.0, false)
+        let bezPtsStart = splineStart.solveAndGetPoints(max_iter, 1.0, 0.0, false)
         
         Assert.That(bezPtsStart.[0].th_out, Is.EqualTo(0.0).Within(1e-10))
         let rpt = bezPtsStart.[0].rpt()
@@ -209,7 +318,7 @@ type TestClass() =
                dcp SplinePointType.Corner 255. 630. (Some PI) |]
 
         let spline = DactylSpline(ctrlPts, false)
-        let bezPts = spline.solveAndGetPoints(500, 1.0, true)
+        let bezPts = spline.solveAndGetPoints(500, 1.0, 0.0, true)
         
         // Point 0 (xtllc) should NOT be flipped. It should point North.
         Assert.That(bezPts.[0].th_out, Is.EqualTo(PI / 2.0).Within(1e-10), "xtllc should point North")
@@ -226,7 +335,7 @@ type TestClass() =
                dcp SplinePointType.Corner 255. 630. (Some PI) |]
 
         let spline = DactylSpline(ctrlPts, false)
-        let bezPts = spline.solveAndGetPoints(500, 1.0, true)
+        let bezPts = spline.solveAndGetPoints(500, 1.0, 0.0, true)
         
         // xtllc (pt 1) should point North (from stem line)
         Assert.That(bezPts.[1].th_in, Is.EqualTo(PI / 2.0).Within(1e-10), "xtllc in should be North")
@@ -235,6 +344,27 @@ type TestClass() =
         // tcrW (pt 2) should be flipped to East
         Assert.That(bezPts.[2].th_in, Is.EqualTo(0.0).Within(1e-10), "tcrW should be flipped to East")
 
+    [<Test>]
+    member this.CheckAdaptiveSubdivisionPreservesOutputShape() =
+        // Verify that adaptive subdivision produces valid (non-NaN) BezierPoints at each
+        // ORIGINAL control point.  Uses the same font-scale C-arc as CheckCornerPointStability
+        // because it is a known-good shape that always converges without NaN.
+        let spline =
+            DactylSpline(
+                [| dcp SplinePointType.Corner  300.  600.  None
+                   dcp SplinePointType.Smooth  100.  700.  None
+                   dcp SplinePointType.Smooth  100.  300.  None
+                   dcp SplinePointType.Corner  300.  200.  None |],
+                false
+            )
+        // solveAndGetPoints must not throw and must return finite values
+        let bezPts = spline.solveAndGetPoints(500, 1.0, 0.0, false)
+        Assert.That(bezPts.Length, Is.EqualTo(4), "should return one BezierPoint per control point")
+        for bp in bezPts do
+            Assert.That(Double.IsNaN bp.th_in, Is.False, "th_in should not be NaN after adaptive solve")
+            Assert.That(Double.IsNaN bp.th_out, Is.False, "th_out should not be NaN after adaptive solve")
+            Assert.That(Double.IsNaN bp.ld, Is.False, "ld should not be NaN after adaptive solve")
+            Assert.That(Double.IsNaN bp.rd, Is.False, "rd should not be NaN after adaptive solve")
 
 
 [<TestFixture>]
@@ -302,7 +432,7 @@ type SolverTests() =
                dcp SplinePointType.Smooth 1. 0. None
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 1.0, false)
+        let solver = Solver(ctrlPts, false, 1.0, 0.0, false)
         solver.initialise ()
         let err = solver.computeErr ()
         Assert.That(err, Is.EqualTo(0.0).Within(1e-9))
@@ -314,7 +444,7 @@ type SolverTests() =
                dcp SplinePointType.Smooth 1. 1. None
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 1.0, false)
+        let solver = Solver(ctrlPts, false, 1.0, 0.0, false)
         solver.initialise ()
         let err = solver.computeErr ()
         Assert.That(err, Is.GreaterThan(0.0))
@@ -334,7 +464,7 @@ type VariablePointTests() =
                  th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 0.0, false)
         solver.initialise ()
 
         let initialPts = solver.points ()
@@ -357,7 +487,7 @@ type VariablePointTests() =
                  th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 0.0, false)
         solver.initialise ()
         solver.Solve 5000
         let pts = solver.points ()
@@ -376,7 +506,7 @@ type VariablePointTests() =
                  th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 0.0, false)
         solver.initialise ()
         solver.Solve(5000)
         let pts = solver.points ()
@@ -398,7 +528,7 @@ type AdvancedGeometricTests() =
                dcp SplinePointType.Smooth s45 s45 None
                dcp SplinePointType.Smooth 0. 1. (Some(PI)) |] // Tangent left
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 0.0, false)
         solver.initialise ()
         solver.Solve(5000)
 
@@ -434,7 +564,7 @@ type AdvancedGeometricTests() =
                  th_in = Some 0.0
                  th_out = Some 0.0 } |]
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 0.0, false)
         solver.initialise ()
         solver.Solve(5000)
 
@@ -460,7 +590,7 @@ type AdvancedGeometricTests() =
                dcp SplinePointType.Smooth 0. 0. None
                dcp SplinePointType.Smooth 1. 1. None |]
 
-        let solverFixed = Solver(ctrlPtsFixed, false, 1.0, false)
+        let solverFixed = Solver(ctrlPtsFixed, false, 1.0, 0.0, false)
         solverFixed.initialise ()
         solverFixed.Solve(5000)
         let ptsFixed = solverFixed.points ()
@@ -476,7 +606,7 @@ type AdvancedGeometricTests() =
                  th_out = None }
                dcp SplinePointType.Smooth 1. 1. None |]
 
-        let solverOpt = Solver(ctrlPtsOpt, false, 1.0, false)
+        let solverOpt = Solver(ctrlPtsOpt, false, 1.0, 0.0, false)
         solverOpt.initialise ()
         solverOpt.Solve(500) // Lower iter for faster test, should be enough to move
         let ptsOpt = solverOpt.points ()
@@ -493,7 +623,7 @@ type AdvancedGeometricTests() =
 [<TestFixture>]
 type LineToCurveTests() =
     let solve_and_print_spline (spline: DactylSpline) =
-        let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, false, false, false)
+        let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, 0.0, false, false, false)
         let svg = (String.Join(" ", svg))
         printfn "%A" svg
         svg.Trim()
@@ -561,7 +691,7 @@ type IntegrationTests() =
         // Fixed points at (0,1000) and (1000,1000) y.
         // Middle point nominal x=0 (left), y=0 (bottom).
         // Solver should move x towards 500 (center) to minimize curvature of (0,1000)->(x,0)->(1000,1000).
-        let solver = Solver([| cp1; cp2; cp3 |], false, 1.0, false)
+        let solver = Solver([| cp1; cp2; cp3 |], false, 1.0, 0.0, false)
         solver.initialise ()
 
         solver.Solve(2000)
@@ -594,7 +724,7 @@ type IntegrationTests() =
         // Check initial assumptions
         Assert.That(cp3.x, Is.EqualTo(None), "Middle point x should be optional")
 
-        let solver = Solver([| cp1; cp2; cp3; cp4 |], false, 1.0, false)
+        let solver = Solver([| cp1; cp2; cp3; cp4 |], false, 1.0, 0.0, false)
         solver.initialise ()
 
         // Solve
@@ -664,7 +794,7 @@ type IntegrationTests() =
             { pointToDcp p5 with
                 ty = SplinePointType.Corner }
 
-        let solver = Solver([| cp1; cp2; cp3; cp4; cp5 |], false, 1.0, false)
+        let solver = Solver([| cp1; cp2; cp3; cp4; cp5 |], false, 1.0, 0.0, false)
         solver.initialise ()
         solver.Solve(5000)
 
