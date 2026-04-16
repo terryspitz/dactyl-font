@@ -285,7 +285,6 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                         ctrlPts.[i - 1].x.Value
                     else
                         (ctrlPts.[i - 1].x.Value + ctrlPts.[i + 1].x.Value) / 2.
-            //TODO: fit_y
             match ctrlPt.y with
             | Some y ->
                 point.y <- y

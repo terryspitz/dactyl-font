@@ -191,16 +191,18 @@ let splineStaticPage () =
                       8 ]
 
     let show_char_iterations =
-        //TODO: chars too big, need to scale down
-        [ for i in 0..curves do
-              let font =
-                  Font(
-                      { Axes.DefaultAxes with
-                          dactyl_spline = true
-                          max_spline_iter = i }
-                  )
+        [ "<g transform='scale(0.001, 0.001)'>" ]
+        @ [ for i in 0..curves do
+                let font =
+                    Font(
+                        { Axes.DefaultAxes with
+                            dactyl_spline = true
+                            max_spline_iter = i
+                            clip_rect = false }
+                    )
 
-              yield! (font.charToSvg 'c' 6 i black) ]
+                yield! (font.charToSvg 'c' 6000.0 (1000.0 * float (i + 1)) black) ]
+        @ [ "</g>" ]
 
 
     [ sprintf "<text x='1' y='0.5' font-size='0.5' fill='black'>Dactyl Spline test</text>"
@@ -214,4 +216,4 @@ let splineStaticPage () =
       sprintf "<text x='8' y='0.8' font-size='0.15' fill='blue'>Asymmetric</text>" ]
     @ single_curve_rotate_theta
     @ show_iterations
-// @ show_char_iterations
+    @ show_char_iterations
