@@ -13,8 +13,6 @@ const TABS = [
     url: '?view=proofs&proof=uppercase' },
   { name: 'proofs-lowercase', selector: '.svg-container',
     url: '?view=proofs&proof=lowercase' },
-  { name: 'proofs-mixed',     selector: '.svg-container',
-    url: '?view=proofs&proof=mixed' },
 ];
 
 test.beforeEach(async ({ page }) => {

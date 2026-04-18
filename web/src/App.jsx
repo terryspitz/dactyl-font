@@ -32,7 +32,8 @@ function App() {
   const [tabZooms, setTabZooms] = useState(() => {
     const urlZoom = parseFloat(new URLSearchParams(window.location.search).get('zoom'))
     const zoom = isNaN(urlZoom) ? 1.0 : urlZoom
-    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom, proofs: zoom }
+    const proofsZoom = isNaN(urlZoom) ? 0.1 : urlZoom
+    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom, proofs: proofsZoom }
   })
   const [layerVisibility, setLayerVisibility] = useState({
     spiro: true,
