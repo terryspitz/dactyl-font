@@ -7,6 +7,7 @@ open DactylSpline
 open Axes
 open GeneratorTypes
 open Font
+open Spacing
 
 let dcp = DactylSpline.dcp
 
@@ -414,6 +415,80 @@ type FontTests() =
             let svgDefault = fontDefault.charToSvg ch 0.0 0.0 "black" |> String.concat " "
             let svgZero = fontZero.charToSvg ch 0.0 0.0 "black" |> String.concat " "
             Assert.That(svgZero, Is.EqualTo(svgDefault), sprintf "soft_corners=0 should match default for '%c'" ch)
+
+    [<Test>]
+    member this.Kerning_PairOverride_MatchesSpacingTable() =
+        // The Spacing module declares explicit kerning for AV, and Font.pairKern
+        // must surface that value verbatim (float-cast of the int override).
+        let font = Font.Font(Axes.DefaultAxes)
+        let expected = float (Spacing.pairKernInt 'A' 'V')
+        Assert.That(expected, Is.LessThan(0.0), "AV should have a negative override")
+        Assert.That(font.pairKern 'A' 'V', Is.EqualTo(expected))
+
+    [<Test>]
+    member this.Kerning_UnknownPair_ReturnsZero() =
+        // Any pair without an entry in Spacing.kerningOverrides must return 0 so
+        // non-kerned strings preserve their pre-kerning widths exactly.
+        let font = Font.Font(Axes.DefaultAxes)
+        Assert.That(font.pairKern 'X' 'Z', Is.EqualTo(0.0))
+        Assert.That(font.pairKern 'A' 'B', Is.EqualTo(0.0))
+
+    [<Test>]
+    member this.Kerning_StringWidth_EqualsSumOfAdvancesPlusKerns() =
+        // Conservation law: stringWidth is exactly (Σ charWidth) + (Σ pairKern).
+        let font = Font.Font(Axes.DefaultAxes)
+        let s = "AVATAR"
+        let widthSum = s |> Seq.sumBy font.charWidth
+        let kernSum = List.sum (font.pairKerns s)
+        Assert.That(font.stringWidth s, Is.EqualTo(widthSum + kernSum).Within(1e-9))
+        Assert.That(kernSum, Is.LessThan(0.0), "AVATAR contains AV and AT kern pairs (negative)")
+
+    [<Test>]
+    member this.Kerning_NoKernPairs_StringWidthUnchanged() =
+        // For a string with no kerning overrides, stringWidth equals Σ charWidth.
+        let font = Font.Font(Axes.DefaultAxes)
+        let s = "BCDEGHJKMNOPQSUXZ"  // no overrides on left for any of these
+        let kerns = font.pairKerns s
+        Assert.That(List.forall (fun k -> k = 0.0) kerns, Is.True, "no override should apply")
+        let widthSum = s |> Seq.sumBy font.charWidth
+        Assert.That(font.stringWidth s, Is.EqualTo(widthSum).Within(1e-9))
+
+    [<Test>]
+    member this.Kerning_ShortStrings_HaveNoKerns() =
+        let font = Font.Font(Axes.DefaultAxes)
+        Assert.That(font.pairKerns "", Is.Empty)
+        Assert.That(font.pairKerns "A", Is.Empty)
+        Assert.That(font.pairKerns "AV" |> List.length, Is.EqualTo(1))
+
+    [<Test>]
+    member this.SidebearingScale_ScalesPerCharWidth() =
+        // sidebearingScale=1 is the baseline; scaling to 2 must add exactly
+        // the per-char sidebearing term once more. sidebearingScale=0 strips it.
+        let mkFont sc =
+            Font.Font({ Axes.DefaultAxes with sidebearingScale = sc })
+        let fontBase  = mkFont 1.0
+        let fontZero  = mkFont 0.0
+        let fontDbl   = mkFont 2.0
+        let axes = Axes.DefaultAxes
+        let thick = float axes.thickness
+        let sidebearingAtOne = (1.0 + axes.contrast) * thick * 2.0 + float axes.serif
+        let delta = fontBase.charWidth 'A' - fontZero.charWidth 'A'
+        Assert.That(delta, Is.EqualTo(sidebearingAtOne).Within(1e-6))
+        let delta2 = fontDbl.charWidth 'A' - fontBase.charWidth 'A'
+        Assert.That(delta2, Is.EqualTo(sidebearingAtOne).Within(1e-6))
+
+    [<Test>]
+    member this.Kerning_ItalicInvariant_OverridesSurviveShear()  =
+        // Manual overrides are independent of italic shear (shear is X-of-Y, so
+        // horizontal distances at the baseline are untouched for the advance
+        // frame). pairKern must return identical values regardless of italic.
+        let upright = Font.Font({ Axes.DefaultAxes with italic = 0.0 })
+        let slanted = Font.Font({ Axes.DefaultAxes with italic = 0.3 })
+        for (a, b) in [ ('A', 'V'); ('T', 'o'); ('L', 'T'); ('f', 'i') ] do
+            Assert.That(
+                upright.pairKern a b,
+                Is.EqualTo(slanted.pairKern a b),
+                sprintf "kern(%c,%c) should not depend on italic axis" a b)
 
     [<Test>]
     member this.SoftCorners_AllGlyphs_RenderWithoutException() =
