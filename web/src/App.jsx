@@ -270,7 +270,7 @@ function App() {
         return
       }
       typeReq = 'font'
-      args = [text, axes]
+      args = [text, axes, activeTab === 'proofs']
     } else if (activeTab === 'glyphs') {
       typeReq = 'glyphsFromDefs'
       args = [glyphsDefsText, { ...axes, filled: glyphsFilled }]

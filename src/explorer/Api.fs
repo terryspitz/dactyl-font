@@ -46,7 +46,7 @@ NOPQRSTUVWXYZ
 !\"#£$%&'()*+,-./:;
 <=>?@[\\]^_`{|}~"
 
-let generateSvg (text: string) (axes: Axes) (progress: (float -> unit) option) =
+let generateSvg (text: string) (axes: Axes) (autoscale: bool) (progress: (float -> unit) option) =
     let font = Font axes
 
     let lines =
@@ -55,9 +55,7 @@ let generateSvg (text: string) (axes: Axes) (progress: (float -> unit) option) =
         else
             text.Replace("\r\n", "\n").Split('\n') |> List.ofArray
 
-    // Using the same parameters as explorer.fs: 0 0 false black
-    // You might want to make these configurable later
-    font.stringToSvg lines 0.0 0.0 false "black" progress |> String.concat "\n"
+    font.stringToSvg lines 0.0 0.0 autoscale "black" progress |> String.concat "\n"
 
 let generateTweenSvg (text: string) (axes: Axes) =
     let font = Font axes
