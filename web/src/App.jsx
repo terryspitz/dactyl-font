@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, allChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
 import { downloadFont } from './fontExport'
+import { proofTexts, proofLabels, proofCases } from './proofs'
 import './App.css'
 
 
@@ -14,7 +15,8 @@ function App() {
       glyphs: savedGlyphs !== null ? savedGlyphs : 'font',
       tweens: 'a',
       visualDiffs: allChars,
-      splines: ''
+      splines: '',
+      proofs: proofTexts.uppercase
     }
   })
   const [glyphsDefsText, setGlyphsDefsText] = useState(() => {
@@ -23,10 +25,14 @@ function App() {
   })
   const [axes, setAxes] = useState({ ...defaultAxes })
   const [activeTab, setActiveTab] = useState('font')
+  const [proofCase, setProofCase] = useState(() => {
+    const p = new URLSearchParams(window.location.search).get('proof')
+    return proofCases.includes(p) ? p : 'uppercase'
+  })
   const [tabZooms, setTabZooms] = useState(() => {
     const urlZoom = parseFloat(new URLSearchParams(window.location.search).get('zoom'))
     const zoom = isNaN(urlZoom) ? 1.0 : urlZoom
-    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom }
+    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom, proofs: zoom }
   })
   const [layerVisibility, setLayerVisibility] = useState({
     spiro: true,
@@ -48,8 +54,12 @@ function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     let view = params.get('view')
-    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines'].includes(view)) {
+    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines', 'proofs'].includes(view)) {
       setActiveTab(view)
+    }
+    const p = params.get('proof')
+    if (proofCases.includes(p)) {
+      setTabTexts(prev => ({ ...prev, proofs: proofTexts[p] }))
     }
   }, [])
 
@@ -58,6 +68,14 @@ function App() {
     setActiveTab(tab)
     const url = new URL(window.location)
     url.searchParams.set('view', tab)
+    window.history.pushState({}, '', url)
+  }
+
+  const setProofCaseWithUrl = (pcase) => {
+    setProofCase(pcase)
+    setTabTexts(prev => ({ ...prev, proofs: proofTexts[pcase] }))
+    const url = new URL(window.location)
+    url.searchParams.set('proof', pcase)
     window.history.pushState({}, '', url)
   }
 
@@ -242,7 +260,7 @@ function App() {
     }, 1000)
 
     let typeReq, args
-    if (activeTab === 'font') {
+    if (activeTab === 'font' || activeTab === 'proofs') {
       if (!text) {
         setWorkerResult("")
         setLoading(false)
@@ -368,6 +386,12 @@ function App() {
           className="svg-container"
           dangerouslySetInnerHTML={{ __html: content }}
         />
+      } else if (activeTab === 'proofs') {
+        if (typeof content !== 'string') return null
+        return <div
+          className="svg-container"
+          dangerouslySetInnerHTML={{ __html: content }}
+        />
       }
       return null
     } catch (e) {
@@ -486,7 +510,20 @@ function App() {
             <button className={`tab-button ${activeTab === 'tweens' ? 'active' : ''}`} onClick={() => setTabWithUrl('tweens')}>Tweens</button>
             <button className={`tab-button ${activeTab === 'visualDiffs' ? 'active' : ''}`} onClick={() => setTabWithUrl('visualDiffs')}>Visual Diffs</button>
             <button className={`tab-button ${activeTab === 'splines' ? 'active' : ''}`} onClick={() => setTabWithUrl('splines')}>Splines</button>
+            <button className={`tab-button ${activeTab === 'proofs' ? 'active' : ''}`} onClick={() => setTabWithUrl('proofs')}>Proofs</button>
           </div>
+          {activeTab === 'proofs' && (
+            <select
+              className="proof-case-select"
+              value={proofCase}
+              onChange={e => setProofCaseWithUrl(e.target.value)}
+              title="Proof case"
+            >
+              {proofCases.map(k => (
+                <option key={k} value={k}>{proofLabels[k]}</option>
+              ))}
+            </select>
+          )}
           {activeTab === 'font' && (
             <button
               className="icon-button"
@@ -512,7 +549,7 @@ function App() {
             <button
               className="text-reset-button"
               onClick={() => {
-                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '' }
+                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', proofs: proofTexts[proofCase] }
                 setText(defaults[activeTab])
               }}
               title="Reset Text to Default"
