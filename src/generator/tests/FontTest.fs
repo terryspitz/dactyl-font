@@ -447,7 +447,7 @@ type FontTests() =
     member this.Kerning_NoKernPairs_StringWidthUnchanged() =
         // For a string with no kerning overrides, stringWidth equals Σ charWidth.
         let font = Font.Font(Axes.DefaultAxes)
-        let s = "BCDEGHJKMNOPQSUXZ"  // no overrides on left for any of these
+        let s = "CGJOQSXZ"  // no overrides on left or right for any of these
         let kerns = font.pairKerns s
         Assert.That(List.forall (fun k -> k = 0.0) kerns, Is.True, "no override should apply")
         let widthSum = s |> Seq.sumBy font.charWidth
