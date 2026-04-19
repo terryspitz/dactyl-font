@@ -417,6 +417,17 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
+.proof-case-select {
+    margin-left: 12px;
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--panel-bg);
+    color: var(--text-primary);
+    font-size: 0.9em;
+    cursor: pointer;
+}
+
 /* Toolbar */
 .toolbar {
     display: flex;
