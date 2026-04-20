@@ -1,4 +1,4 @@
-import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, generateSplineViewerSvg, controlDefinitions, solveSplineEditor, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphData, getSplineOutlinePath } from './lib/fable/Api'
+import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, controlDefinitions, solveSplineEditor, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphData, getSplineOutlinePath } from './lib/fable/Api'
 import { DControlPoint } from './lib/fable/generator/DactylSpline'
 
 self.onmessage = (e) => {
@@ -45,10 +45,7 @@ self.onmessage = (e) => {
                 result = data
                 break
             }
-            case 'splineViewer':
-        result = generateSplineViewerSvg()
-        break
-      case 'visualDiffs':
+            case 'visualDiffs':
                 result = generateVisualDiffsSvg(...args, (p) => {
                     self.postMessage({ id, type: 'progress', value: p });
                 })

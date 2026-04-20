@@ -364,11 +364,6 @@ let getGlyphDefs (text: string) =
         |> String.concat "\n"
 
 
-let generateSplineViewerSvg () =
-    SplineViewer.splineStaticPage ()
-    |> SvgHelpers.toSvgDocument 0. 0. 10. 12.
-    |> String.concat "\n"
-
 
 let spiroToSplinePointType (ty: SpiroPointType) =
     match ty with
