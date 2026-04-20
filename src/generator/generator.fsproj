@@ -26,7 +26,6 @@
     <Compile Include="SvgHelpers.fs" />
     <Compile Include="SpiroCombContext.fs" />
     <Compile Include="Font.fs" />
-    <Compile Include="SplineViewer.fs" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' != 'Release'">
     <PackageReference Include="Fable.Core" Version="4.3.0" />
