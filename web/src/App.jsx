@@ -387,6 +387,7 @@ function App() {
             lineHeight: 1.4,
             whiteSpace: 'pre-wrap',
             padding: '20px',
+            color: '#000',
           }}
         >
           {text}

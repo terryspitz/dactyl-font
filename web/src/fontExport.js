@@ -54,7 +54,8 @@ function buildFont(glyphData, familyName = 'Dactyl') {
   const glyphs = [
     notdef,
     ...glyphsData
-      .filter(g => g.pathData)
+      .filter(g => g.pathData && g.unicode >= 32)
+      .sort((a, b) => a.unicode - b.unicode)
       .map(g => {
         const path = new opentype.Path()
         for (const cmd of parseSvgPath(g.pathData)) {
