@@ -107,7 +107,7 @@ export default function SplineGrid() {
   ]
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif', color: '#1a1a1a' }}>
+    <div className="sg-grid" style={{ padding: '20px', fontFamily: 'sans-serif', color: '#1a1a1a' }}>
       <h2 style={{ marginBottom: '6px' }}>Spline Grid</h2>
       <p style={{ marginBottom: '4px', fontSize: '13px', color: '#333', maxWidth: '700px' }}>
         All 4³=64 combinations of point types on an isosceles triangle.
