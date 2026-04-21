@@ -102,10 +102,8 @@ export default function SplineGrid() {
   }
 
   const sections = [
-    { isClosed: false, withTangent: false, label: 'Open — No Tangent' },
-    { isClosed: false, withTangent: true,  label: 'Open — With Horizontal Tangent at Apex' },
-    { isClosed: true,  withTangent: false, label: 'Closed — No Tangent' },
-    { isClosed: true,  withTangent: true,  label: 'Closed — With Horizontal Tangent at Apex' },
+    { withTangent: false, label: 'No Tangent' },
+    { withTangent: true,  label: 'With Horizontal Tangent at Apex' },
   ]
 
   return (
@@ -120,18 +118,24 @@ export default function SplineGrid() {
         Types: C=Corner · G2=Smooth · LC=LineToCurve · CL=CurveToLine
       </p>
 
-      {sections.map(({ isClosed, withTangent, label }) => (
+      {sections.map(({ withTangent, label }) => (
         <div key={label} style={{ marginBottom: '40px' }}>
           <h3 style={{ marginBottom: '8px', color: '#111' }}>{label}</h3>
           <table style={{ borderCollapse: 'collapse', color: '#1a1a1a' }}>
             <thead>
               <tr>
-                <th style={{ ...thStyle, textAlign: 'left', minWidth: '72px' }}>P0/P1</th>
-                {TYPE_SHORT.map((s, t2) => (
-                  <th key={t2} style={{ ...thStyle, textAlign: 'center', width: CELL_W + 'px' }}>
-                    P2={s}
-                  </th>
-                ))}
+                <th style={{ ...thStyle, textAlign: 'left', minWidth: '72px' }} rowSpan={2}>P0/P1</th>
+                <th style={{ ...thStyle, textAlign: 'center', background: '#d0dff0' }} colSpan={4}>Open</th>
+                <th style={{ ...thStyle, textAlign: 'center', background: '#d0f0d8' }} colSpan={4}>Closed</th>
+              </tr>
+              <tr>
+                {[false, true].map(isClosed =>
+                  TYPE_SHORT.map(s => (
+                    <th key={`${isClosed}-${s}`} style={{ ...thStyle, textAlign: 'center', width: CELL_W + 'px', background: isClosed ? '#e8f5ec' : '#e8f0fc' }}>
+                      P2={s}
+                    </th>
+                  ))
+                )}
               </tr>
             </thead>
             <tbody>
@@ -148,10 +152,12 @@ export default function SplineGrid() {
                     }}>
                       {TYPE_SHORT[t0]}/{TYPE_SHORT[t1]}
                     </td>
-                    {[0, 1, 2, 3].map(t2 => {
-                      const cell = getCell(isClosed, withTangent, t0, t1, t2)
-                      return <SplineCell key={t2} pathSvg={cell?.pathSvg ?? ''} />
-                    })}
+                    {[false, true].map(isClosed =>
+                      [0, 1, 2, 3].map(t2 => {
+                        const cell = getCell(isClosed, withTangent, t0, t1, t2)
+                        return <SplineCell key={`${isClosed}-${t2}`} pathSvg={cell?.pathSvg ?? ''} />
+                      })
+                    )}
                   </tr>
                 ))
               )}
