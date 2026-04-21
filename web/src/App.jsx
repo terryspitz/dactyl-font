@@ -18,7 +18,7 @@ function App() {
       visualDiffs: allChars,
       splines: '',
       splineGrid: '',
-      proofs: proofTexts.uppercase
+      proofs: proofTexts.lowercase
     }
   })
   const [glyphsDefsText, setGlyphsDefsText] = useState(() => {
@@ -29,7 +29,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('font')
   const [proofCase, setProofCase] = useState(() => {
     const p = new URLSearchParams(window.location.search).get('proof')
-    return proofCases.includes(p) ? p : 'uppercase'
+    return proofCases.includes(p) ? p : 'lowercase'
   })
   const [tabZooms, setTabZooms] = useState(() => {
     const urlZoom = parseFloat(new URLSearchParams(window.location.search).get('zoom'))
@@ -376,16 +376,15 @@ function App() {
 
     // Proofs tab uses CSS font rendering — bypass SVG result check
     if (activeTab === 'proofs') {
-      const upm = axes.height + axes.height / 2 + 2 * axes.thickness + axes.leading
-      const fontSize = 60 * (upm / axes.height)
       return (
         <div
           className="proof-text"
           style={{
             fontFamily: proofFontUrl ? "'DactylPreview', monospace" : 'monospace',
-            fontSize: `${fontSize}px`,
+            fontSize: `${36 * zoom}pt`,
             lineHeight: 1.4,
-            whiteSpace: 'pre-wrap',
+            whiteSpace: 'pre',
+            textAlign: 'left',
             padding: '20px',
             color: '#000',
           }}
@@ -589,16 +588,17 @@ function App() {
             <button className={`tab-button ${activeTab === 'proofs' ? 'active' : ''}`} onClick={() => setTabWithUrl('proofs')}>Proofs</button>
           </div>
           {activeTab === 'proofs' && (
-            <select
-              className="proof-case-select"
-              value={proofCase}
-              onChange={e => setProofCaseWithUrl(e.target.value)}
-              title="Proof case"
-            >
+            <div className="proof-chips">
               {proofCases.map(k => (
-                <option key={k} value={k}>{proofLabels[k]}</option>
+                <button
+                  key={k}
+                  className={`proof-chip ${proofCase === k ? 'selected' : ''}`}
+                  onClick={() => setProofCaseWithUrl(k)}
+                >
+                  {proofLabels[k]}
+                </button>
               ))}
-            </select>
+            </div>
           )}
           {activeTab === 'font' && (
             <button
@@ -686,7 +686,7 @@ function App() {
                 </button>
               </div>
             )}
-            <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: activeTab === 'tweens' ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
+            <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: (activeTab === 'tweens' || activeTab === 'proofs') ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
               {renderContent()}
             </div>
           </div>
