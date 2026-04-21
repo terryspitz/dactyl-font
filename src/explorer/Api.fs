@@ -487,8 +487,13 @@ let solveSplineGrid () =
                         let pts =
                             Array.init 3 (fun i ->
                                 let (x, y) = tri.[i]
-                                // Apply horizontal tangent only to the apex (index 2)
-                                let th = if withTangent && i = 2 then Some 0.0 else None
+                                // Apply horizontal tangent only to the apex (index 2).
+                                // For closed curves the traversal direction at the apex is reversed,
+                                // so flip the angle by π so the constraint is still "horizontal".
+                                let th =
+                                    if withTangent && i = 2 then
+                                        Some (if isClosed then System.Math.PI else 0.0)
+                                    else None
                                 DactylSpline.dcp types.[i] x y th)
                         let pathSvg =
                             try
