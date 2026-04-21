@@ -466,7 +466,7 @@ type Font(axes: Axes) =
                           false
                       else
                           let perpX, perpY = (y2 - y1), -(x2 - x1)
-                          assert ((x1 * perpX + y1 * perpY) = (x2 * perpX + y2 * perpY))
+                          assert ((x1 * perpX + y1 * perpY) - (x2 * perpX + y2 * perpY) < 1.0)
                           let perpDist = (X * perpX + Y * perpY) - (x1 * perpX + y1 * perpY)
                           (perpDist > -thickness) && (perpDist < thickness) ]
         //TODO: check joints on curves, or mark manually in reduce fn.
