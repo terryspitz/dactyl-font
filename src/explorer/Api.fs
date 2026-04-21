@@ -493,8 +493,10 @@ let solveSplineGrid () =
                         let pathSvg =
                             try
                                 let spline = DactylSpline.DactylSpline(pts, isClosed)
-                                let _, svg, _, _ = spline.solveAndRenderFull(200, 1.0, false, false, false)
-                                svg |> String.concat ""
+                                let bezPts, svg, _, _ = spline.solveAndRenderFull(200, 1.0, false, false, false)
+                                // Reject if any arm length is unreasonably large (solver diverged)
+                                let ok = bezPts |> Array.forall (fun bp -> abs bp.ld < 1e5 && abs bp.rd < 1e5)
+                                if ok then svg |> String.concat "" else ""
                             with _ -> ""
                         results.Add(
                             {| types = [| int t0; int t1; int t2 |]
