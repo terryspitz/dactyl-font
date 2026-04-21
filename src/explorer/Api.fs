@@ -466,6 +466,43 @@ let getGlyphList () =
     |> Map.toArray
     |> Array.map (fun (c, def) -> {| char = string c; def = def |})
 
+/// Compute spline paths for every combination of 3 point types (Corner, Smooth/G2,
+/// LineToCurve, CurveToLine), with and without a horizontal tangent at the apex,
+/// and both closed and open — all arranged on an isosceles triangle.
+let solveSplineGrid () =
+    let pointTypes =
+        [| Curves.SplinePointType.Corner
+           Curves.SplinePointType.Smooth
+           Curves.SplinePointType.LineToCurve
+           Curves.SplinePointType.CurveToLine |]
+    // Isosceles triangle: bottom-left, bottom-right, apex (math/y-up coords)
+    let tri = [| (50.0, 50.0); (250.0, 50.0); (150.0, 200.0) |]
+    let results = ResizeArray()
+    for isClosed in [| false; true |] do
+        for withTangent in [| false; true |] do
+            for t0 in pointTypes do
+                for t1 in pointTypes do
+                    for t2 in pointTypes do
+                        let types = [| t0; t1; t2 |]
+                        let pts =
+                            Array.init 3 (fun i ->
+                                let (x, y) = tri.[i]
+                                // Apply horizontal tangent only to the apex (index 2)
+                                let th = if withTangent && i = 2 then Some 0.0 else None
+                                DactylSpline.dcp types.[i] x y th)
+                        let pathSvg =
+                            try
+                                let spline = DactylSpline.DactylSpline(pts, isClosed)
+                                let _, svg, _, _ = spline.solveAndRenderFull(200, 1.0, false, false, false)
+                                svg |> String.concat ""
+                            with _ -> ""
+                        results.Add(
+                            {| types = [| int t0; int t1; int t2 |]
+                               isClosed = isClosed
+                               withTangent = withTangent
+                               pathSvg = pathSvg |})
+    results.ToArray()
+
 let generateFontGlyphData (axes: Axes) =
     let fontAxes = { axes with outline = true; filled = true }
     let font = Font fontAxes
