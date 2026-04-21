@@ -37,7 +37,7 @@ const SplineCell = ({ pathSvg }) => {
             <path d={pathSvg} fill="none" stroke="#3366cc" strokeWidth="5" />
           </g>
         ) : (
-          <text x="150" y="-120" textAnchor="middle" fontSize="28" fill="#ddd">✗</text>
+          <text x="150" y="-100" textAnchor="middle" fontSize="80" fill="#000">✗</text>
         )}
         {/* Control point dots: base vertices red, apex green */}
         <circle cx="50"  cy="-50"  r="5" fill="#cc3333" />
