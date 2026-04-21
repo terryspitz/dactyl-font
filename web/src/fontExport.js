@@ -85,6 +85,19 @@ function buildFont(glyphData, familyName = 'Dactyl') {
 }
 
 /**
+ * Build a font from the glyph data and return it as an OTF data URL suitable
+ * for a CSS @font-face src declaration.
+ */
+export function buildFontDataUrl(glyphData, familyName = 'DactylPreview') {
+  const font = buildFont(glyphData, familyName)
+  const buffer = font.toArrayBuffer()
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
+  return 'data:font/otf;base64,' + btoa(binary)
+}
+
+/**
  * Build a font from the glyph data and trigger a browser download of the OTF file.
  */
 export function downloadFont(glyphData, filename = 'dactyl.otf') {

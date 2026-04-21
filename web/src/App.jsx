@@ -196,6 +196,7 @@ function App() {
   // Worker state is now handled within the effect directly
 
   const [downloadingFont, setDownloadingFont] = useState(false)
+  const [proofFontUrl, setProofFontUrl] = useState(null)
 
   const handleDownloadFont = () => {
     setDownloadingFont(true)
@@ -262,7 +263,7 @@ function App() {
     }, 1000)
 
     let typeReq, args
-    if (activeTab === 'font' || activeTab === 'proofs') {
+    if (activeTab === 'font') {
       if (!text) {
         setWorkerResult("")
         setLoading(false)
@@ -271,7 +272,7 @@ function App() {
         return
       }
       typeReq = 'font'
-      args = [text, axes, activeTab === 'proofs']
+      args = [text, axes, false]
     } else if (activeTab === 'glyphs') {
       typeReq = 'glyphsFromDefs'
       args = [glyphsDefsText, { ...axes, filled: glyphsFilled }]
@@ -285,6 +286,12 @@ function App() {
     } else if (activeTab === 'visualDiffs') {
       typeReq = 'visualDiffs'
       args = [text || allChars, axes]
+    } else if (activeTab === 'proofs') {
+      // Proofs has its own dedicated effect — skip
+      setLoading(false)
+      clearTimeout(timer)
+      worker.terminate()
+      return
     } else if (activeTab === 'splines' || activeTab === 'splineGrid') {
       // SplineEditor and SplineGrid have their own workers — skip
       setLoading(false)
@@ -303,6 +310,53 @@ function App() {
     }
   }, [text, axes, activeTab, glyphsDefsText, glyphsFilled])
 
+  // Dedicated effect for proofs tab: generates full font and builds a data URL.
+  // Deps are [axes, activeTab] only — switching proof text doesn't re-trigger.
+  // Old font stays visible until the new one arrives (proofFontUrl is not cleared).
+  useEffect(() => {
+    if (activeTab !== 'proofs') return
+
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    const id = ++renderIdRef.current
+    setLoading(true)
+    loadingRef.current = true
+    setError(null)
+
+    const timer = setTimeout(() => {
+      if (id === renderIdRef.current && loadingRef.current) setShowProgress(true)
+    }, 300)
+
+    worker.onmessage = (e) => {
+      const { id: msgId, result, error } = e.data
+      if (msgId !== renderIdRef.current) return
+      clearTimeout(timer)
+      if (error) { setError(error) }
+      else { setProofFontUrl(result); setError(null) }
+      setLoading(false)
+      loadingRef.current = false
+      setShowProgress(false)
+    }
+
+    worker.postMessage({ id, type: 'fontPreview', args: [axes] })
+
+    return () => {
+      clearTimeout(timer)
+      worker.terminate()
+    }
+  }, [axes, activeTab])
+
+  // Inject/update the @font-face rule whenever a new proof font data URL arrives.
+  useEffect(() => {
+    if (!proofFontUrl) return
+    let el = document.getElementById('dactyl-proof-font')
+    if (!el) {
+      el = document.createElement('style')
+      el.id = 'dactyl-proof-font'
+      document.head.appendChild(el)
+    }
+    el.textContent = `@font-face { font-family: 'DactylPreview'; src: url('${proofFontUrl}') format('opentype'); }`
+  }, [proofFontUrl])
+
   const renderContent = () => {
     if (error) return <div style={{ color: 'red' }}>Error: {error}</div>
     if (!workerResult && loading && activeTab !== 'tweens') {
@@ -318,6 +372,26 @@ function App() {
 
     if (activeTab === 'splineGrid') {
       return <SplineGrid />
+    }
+
+    // Proofs tab uses CSS font rendering — bypass SVG result check
+    if (activeTab === 'proofs') {
+      const upm = axes.height + axes.height / 2 + 2 * axes.thickness + axes.leading
+      const fontSize = 60 * (upm / axes.height)
+      return (
+        <div
+          className="proof-text"
+          style={{
+            fontFamily: proofFontUrl ? "'DactylPreview', monospace" : 'monospace',
+            fontSize: `${fontSize}px`,
+            lineHeight: 1.4,
+            whiteSpace: 'pre-wrap',
+            padding: '20px',
+          }}
+        >
+          {text}
+        </div>
+      )
     }
 
     // Safety check: ensure result matches expected type for tab
@@ -387,12 +461,6 @@ function App() {
           </div>
         )
       } else if (activeTab === 'visualDiffs') {
-        if (typeof content !== 'string') return null
-        return <div
-          className="svg-container"
-          dangerouslySetInnerHTML={{ __html: content }}
-        />
-      } else if (activeTab === 'proofs') {
         if (typeof content !== 'string') return null
         return <div
           className="svg-container"
