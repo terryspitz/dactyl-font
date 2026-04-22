@@ -39,3 +39,5 @@ export const proofLabels = {
 }
 
 export const proofCases = ['lowercase', 'uppercase', 'alphabet']
+
+export { classicBooks } from './proofs/books'

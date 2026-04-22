@@ -447,6 +447,18 @@
     border-color: var(--accent-color);
 }
 
+.proof-book-title {
+    margin-left: 10px;
+    font-size: 0.75em;
+    color: var(--text-secondary);
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 300px;
+    align-self: center;
+}
+
 /* Toolbar */
 .toolbar {
     display: flex;
