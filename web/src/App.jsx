@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, allChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
+import SplineGrid from './SplineGrid'
 import { downloadFont } from './fontExport'
 import { proofTexts, proofLabels, proofCases } from './proofs'
 import './App.css'
@@ -16,6 +17,7 @@ function App() {
       tweens: 'a',
       visualDiffs: allChars,
       splines: '',
+      splineGrid: '',
       proofs: proofTexts.uppercase
     }
   })
@@ -32,7 +34,7 @@ function App() {
   const [tabZooms, setTabZooms] = useState(() => {
     const urlZoom = parseFloat(new URLSearchParams(window.location.search).get('zoom'))
     const zoom = isNaN(urlZoom) ? 1.0 : urlZoom
-    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom, proofs: zoom }
+    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom }
   })
   const [layerVisibility, setLayerVisibility] = useState({
     spiro: true,
@@ -54,7 +56,7 @@ function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     let view = params.get('view')
-    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines', 'proofs'].includes(view)) {
+    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines', 'splineGrid', 'proofs'].includes(view)) {
       setActiveTab(view)
     }
     const p = params.get('proof')
@@ -283,8 +285,8 @@ function App() {
     } else if (activeTab === 'visualDiffs') {
       typeReq = 'visualDiffs'
       args = [text || allChars, axes]
-    } else if (activeTab === 'splines') {
-      // SplineEditor has its own worker — skip
+    } else if (activeTab === 'splines' || activeTab === 'splineGrid') {
+      // SplineEditor and SplineGrid have their own workers — skip
       setLoading(false)
       clearTimeout(timer)
       worker.terminate()
@@ -312,6 +314,10 @@ function App() {
     // SplineEditor manages its own state/worker — render immediately
     if (activeTab === 'splines') {
       return <SplineEditor axes={axes} />
+    }
+
+    if (activeTab === 'splineGrid') {
+      return <SplineGrid />
     }
 
     // Safety check: ensure result matches expected type for tab
@@ -510,6 +516,7 @@ function App() {
             <button className={`tab-button ${activeTab === 'tweens' ? 'active' : ''}`} onClick={() => setTabWithUrl('tweens')}>Tweens</button>
             <button className={`tab-button ${activeTab === 'visualDiffs' ? 'active' : ''}`} onClick={() => setTabWithUrl('visualDiffs')}>Visual Diffs</button>
             <button className={`tab-button ${activeTab === 'splines' ? 'active' : ''}`} onClick={() => setTabWithUrl('splines')}>Splines</button>
+            <button className={`tab-button ${activeTab === 'splineGrid' ? 'active' : ''}`} onClick={() => setTabWithUrl('splineGrid')}>Spline Grid</button>
             <button className={`tab-button ${activeTab === 'proofs' ? 'active' : ''}`} onClick={() => setTabWithUrl('proofs')}>Proofs</button>
           </div>
           {activeTab === 'proofs' && (
@@ -538,7 +545,7 @@ function App() {
           )}
         </div>
 
-        <div className={`input-area ${activeTab === 'glyphs' ? 'with-defs' : ''}`} style={activeTab === 'splines' ? { display: 'none' } : undefined}>
+        <div className={`input-area ${activeTab === 'glyphs' ? 'with-defs' : ''}`} style={activeTab === 'splines' || activeTab === 'splineGrid' ? { display: 'none' } : undefined}>
           <div className="input-wrapper">
             <textarea
               value={text}
@@ -549,7 +556,7 @@ function App() {
             <button
               className="text-reset-button"
               onClick={() => {
-                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', proofs: proofTexts[proofCase] }
+                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', splineGrid: '', proofs: proofTexts[proofCase] }
                 setText(defaults[activeTab])
               }}
               title="Reset Text to Default"
@@ -596,8 +603,8 @@ function App() {
               )}
             </div>
           )}
-          <div ref={previewRef} className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`}>
-            {activeTab !== 'splines' && (
+          <div ref={previewRef} className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`} style={activeTab === 'splineGrid' ? { padding: 0 } : undefined}>
+            {activeTab !== 'splines' && activeTab !== 'splineGrid' && (
               <div className="zoom-controls">
                 <button onClick={() => setZoom(z => Math.min(z + 0.1, 5.0))} title="Zoom In">
                   <span className="material-symbols-outlined">add</span>

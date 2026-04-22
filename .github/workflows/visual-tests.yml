@@ -12,12 +12,18 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: write
+
 jobs:
   visual-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.head_ref || github.ref }}
 
       - name: Init fmin submodule
         run: git submodule update --init web/src/lib/fmin
@@ -62,6 +68,19 @@ jobs:
             echo "No snapshot changes to commit."
           else
             git commit -m "Update visual regression snapshots"
+            git push
+          fi
+
+      - name: Commit new baselines
+        if: always() && !inputs.update_snapshots
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add web/tests/tabs.spec.js-snapshots/ web/tests/tweens.spec.js-snapshots/ 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No new baselines to commit."
+          else
+            git commit -m "Add new visual regression baselines"
             git push
           fi
 

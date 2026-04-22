@@ -9,6 +9,7 @@ const TABS = [
   { name: 'tweens',           selector: '.tweens-grid'   },
   { name: 'visualDiffs',      selector: '.svg-container' },
   { name: 'splines',          selector: '.se-canvas'     },
+  { name: 'splineGrid',       selector: '.sg-grid'       },
   { name: 'proofs-uppercase', selector: '.svg-container',
     url: '?view=proofs&proof=uppercase' },
   { name: 'proofs-lowercase', selector: '.svg-container',

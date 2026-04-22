@@ -3,6 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests',
   timeout: 120_000,       // per-test timeout (tweens tab is slow)
+  updateSnapshots: 'missing', // generate baselines that don't exist yet instead of failing
   reporter: [
     ['list'],
     ['html', { open: 'never' }],

@@ -1,4 +1,4 @@
-import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, controlDefinitions, solveSplineEditor, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphData, getSplineOutlinePath } from './lib/fable/Api'
+import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, controlDefinitions, solveSplineEditor, solveSplineGrid, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphData, getSplineOutlinePath } from './lib/fable/Api'
 import { DControlPoint } from './lib/fable/generator/DactylSpline'
 
 self.onmessage = (e) => {
@@ -68,6 +68,10 @@ self.onmessage = (e) => {
             }
             case 'getGlyphList': {
                 result = getGlyphList()
+                break
+            }
+            case 'solveSplineGrid': {
+                result = solveSplineGrid()
                 break
             }
             case 'fontData': {
