@@ -54,7 +54,8 @@ function buildFont(glyphData, familyName = 'Dactyl') {
   const glyphs = [
     notdef,
     ...glyphsData
-      .filter(g => g.pathData)
+      .filter(g => g.pathData && g.unicode >= 32)
+      .sort((a, b) => a.unicode - b.unicode)
       .map(g => {
         const path = new opentype.Path()
         for (const cmd of parseSvgPath(g.pathData)) {
@@ -82,6 +83,19 @@ function buildFont(glyphData, familyName = 'Dactyl') {
     descender: Math.round(descender),
     glyphs,
   })
+}
+
+/**
+ * Build a font from the glyph data and return it as an OTF data URL suitable
+ * for a CSS @font-face src declaration.
+ */
+export function buildFontDataUrl(glyphData, familyName = 'DactylPreview') {
+  const font = buildFont(glyphData, familyName)
+  const buffer = font.toArrayBuffer()
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
+  return 'data:font/otf;base64,' + btoa(binary)
 }
 
 /**

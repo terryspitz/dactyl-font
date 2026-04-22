@@ -417,15 +417,34 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
-.proof-case-select {
+.proof-chips {
+    display: flex;
+    gap: 6px;
+    align-items: center;
     margin-left: 12px;
-    padding: 6px 10px;
+}
+
+.proof-chip {
+    padding: 4px 14px;
+    border-radius: 20px;
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    background: var(--panel-bg);
+    background: transparent;
     color: var(--text-primary);
-    font-size: 0.9em;
     cursor: pointer;
+    font-size: 0.8em;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.proof-chip:hover:not(.selected) {
+    background: var(--panel-bg);
+}
+
+.proof-chip.selected {
+    background: var(--accent-color);
+    color: #fff;
+    border-color: var(--accent-color);
 }
 
 /* Toolbar */
