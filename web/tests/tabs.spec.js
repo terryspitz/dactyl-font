@@ -27,6 +27,13 @@ const TABS = [
       await page.evaluate(() => document.fonts.ready);
     },
   },
+  { name: 'proofs-classic', selector: '.proof-text',
+    url: '?view=proofs&proof=classic&book=0',
+    extraWait: async (page) => {
+      await page.waitForFunction(() => !!document.getElementById('dactyl-proof-font'), { timeout: 90_000 });
+      await page.evaluate(() => document.fonts.ready);
+    },
+  },
 ];
 
 test.beforeEach(async ({ page }) => {
