@@ -21,7 +21,7 @@ self.onmessage = (e) => {
             case 'tweens': {
                 const [char, axes, steps = 9] = args
                 const data = {}
-                const EXCLUDED_TWEEN_AXES = ['tracking', 'leading', 'debug']
+                const EXCLUDED_TWEEN_AXES = ['tracking', 'leading', 'sidebearingScale', 'debug']
                 const tweenControls = controlDefinitions.filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name))
                 const totalVariations = tweenControls.reduce((sum, c) => sum + (c.type_ === 'checkbox' ? 3 : steps), 0)
                 let completed = 0
