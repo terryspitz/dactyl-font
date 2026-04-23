@@ -3,7 +3,7 @@ import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyp
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
 import { downloadFont } from './fontExport'
-import { proofTexts, proofLabels, proofCases } from './proofs'
+import { proofTexts, proofLabels, proofCases, classicBooks } from './proofs'
 import './App.css'
 
 
@@ -28,7 +28,9 @@ function App() {
   const [axes, setAxes] = useState({ ...defaultAxes })
   const [activeTab, setActiveTab] = useState('font')
   const [proofCase, setProofCase] = useState(() => {
-    const p = new URLSearchParams(window.location.search).get('proof')
+    const params = new URLSearchParams(window.location.search)
+    const p = params.get('proof')
+    if (p === 'classic') return 'classic'
     return proofCases.includes(p) ? p : 'lowercase'
   })
   const [tabZooms, setTabZooms] = useState(() => {
@@ -62,6 +64,10 @@ function App() {
     const p = params.get('proof')
     if (proofCases.includes(p)) {
       setTabTexts(prev => ({ ...prev, proofs: proofTexts[p] }))
+    } else if (p === 'classic') {
+      const idx = parseInt(params.get('book'))
+      const book = (!isNaN(idx) && idx >= 0 && idx < classicBooks.length) ? classicBooks[idx] : null
+      if (book) setTabTexts(prev => ({ ...prev, proofs: book.text }))
     }
   }, [])
 
@@ -75,9 +81,22 @@ function App() {
 
   const setProofCaseWithUrl = (pcase) => {
     setProofCase(pcase)
+    setClassicBook(null)
     setTabTexts(prev => ({ ...prev, proofs: proofTexts[pcase] }))
     const url = new URL(window.location)
     url.searchParams.set('proof', pcase)
+    window.history.pushState({}, '', url)
+  }
+
+  const handlePickClassic = () => {
+    const idx = Math.floor(Math.random() * classicBooks.length)
+    const book = classicBooks[idx]
+    setClassicBook(book)
+    setProofCase('classic')
+    setTabTexts(prev => ({ ...prev, proofs: book.text }))
+    const url = new URL(window.location)
+    url.searchParams.set('proof', 'classic')
+    url.searchParams.set('book', idx)
     window.history.pushState({}, '', url)
   }
 
@@ -197,6 +216,12 @@ function App() {
 
   const [downloadingFont, setDownloadingFont] = useState(false)
   const [proofFontUrl, setProofFontUrl] = useState(null)
+  const [classicBook, setClassicBook] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('proof') !== 'classic') return null
+    const idx = parseInt(params.get('book'))
+    return (!isNaN(idx) && idx >= 0 && idx < classicBooks.length) ? classicBooks[idx] : null
+  })
 
   const handleDownloadFont = () => {
     setDownloadingFont(true)
@@ -598,6 +623,18 @@ function App() {
                   {proofLabels[k]}
                 </button>
               ))}
+              <button
+                className={`proof-chip ${proofCase === 'classic' ? 'selected' : ''}`}
+                onClick={handlePickClassic}
+                title="Pick a random classic"
+              >
+                Classic &#x21BA;
+              </button>
+              {proofCase === 'classic' && classicBook && (
+                <span className="proof-book-title">
+                  {classicBook.title} &mdash; {classicBook.author}
+                </span>
+              )}
             </div>
           )}
           {activeTab === 'font' && (
