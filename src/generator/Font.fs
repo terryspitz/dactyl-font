@@ -1407,8 +1407,7 @@ type Font(axes: Axes) =
         Seq.map this.charWidth str |> List.ofSeq
 
     /// Kerning for the ordered pair (a, b). Currently just the Spacing manual
-    /// override table; the bezier-sampled optical path reads axes.opticalKerning
-    /// and will be wired in a follow-up.
+    /// override table.
     member this.pairKern (a: char) (b: char) : float = Spacing.pairKern a b
 
     /// Pair-kern adjustments for an N-character string, one per adjacent pair.

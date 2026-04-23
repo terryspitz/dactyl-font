@@ -40,8 +40,6 @@ type Axes =
       smooth: bool //no corners
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
       flatness: float //weight of flatness (abs m) in objective function
-      opticalKerning: bool //wire for bezier-profile optical kerning (follow-up; currently a no-op)
-      kerningTarget: int //target minimum gap between glyph ink, units as glyph coords
       sidebearingScale: float //multiplier on the per-glyph thickness sidebearing padding
       debug: bool } //show debug info in console
 
@@ -76,8 +74,6 @@ type Axes =
           smooth = false
           clip_rect = true
           flatness = 1.0
-          opticalKerning = false
-          kerningTarget = 30
           sidebearingScale = 1.0
           debug = false }
 
@@ -112,7 +108,5 @@ type Axes =
           "smooth", Checkbox, "default"
           "clip_rect", Checkbox, "debug"
           "flatness", FracRange(0.0, 200.0), "experimental"
-          "opticalKerning", Checkbox, "experimental"
-          "kerningTarget", Range(0, 200), "experimental"
           "sidebearingScale", FracRange(0.0, 2.0), "experimental"
           "debug", Checkbox, "debug" ]

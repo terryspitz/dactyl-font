@@ -532,10 +532,20 @@ let generateFontGlyphData (axes: Axes) =
         |> Array.ofSeq
 
     let thickness = float axes.thickness
+
+    // Pair-kerning overrides exposed as a flat array so opentype.js can
+    // emit a `kern` table; scaled to int units consistent with advanceWidth.
+    let kerningPairs =
+        Spacing.kerningOverrides
+        |> Map.toArray
+        |> Array.map (fun ((l, r), v) ->
+            {| left = int l; right = int r; value = v |})
+
     {| glyphs = glyphs
        ascender = metrics.T + thickness
        descender = metrics.D - thickness
-       unitsPerEm = font.charHeight |}
+       unitsPerEm = font.charHeight
+       kerningPairs = kerningPairs |}
 
 let private knotToObj (k: Knot) : obj =
     // When x_fit/y_fit is true the solver treats the coordinate as a free variable (None).
