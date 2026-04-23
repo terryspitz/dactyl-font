@@ -419,7 +419,7 @@ type Font(axes: Axes) =
         | Dot(p) -> p.x
         | EList(elems) -> List.fold max 0.0 (List.map this.elemWidth elems)
         | Space ->
-            let space = axes.height / 4 //according to https://en.wikipedia.org/wiki/Whitespace_character#Variable-width_general-purpose_space
+            let space = axes.height / 6 //according to https://en.wikipedia.org/wiki/Whitespace_character#Variable-width_general-purpose_space
 
             (1.0 - axes.monospace) * float space + axes.monospace * _metrics.monospaceWidth
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" e)
@@ -1394,9 +1394,14 @@ type Font(axes: Axes) =
                       [])
 
     member this.width e =
-        (e |> this.reduce |> this.monospace |> this.elemWidth)
-        + float this.axes.tracking
-        + ((1.0 + this.axes.contrast) * thickness * 2.0 + float this.axes.serif)
+        let reduced = e |> this.reduce |> this.monospace
+        let w = this.elemWidth reduced
+        let overhead =
+            float this.axes.tracking
+            + match reduced with
+              | Space -> 0.0  // space has no strokes, skip stroke-width overhead
+              | _ -> (1.0 + this.axes.contrast) * thickness * 2.0 + float this.axes.serif
+        w + overhead
 
     member this.charWidth ch = this.width (Glyph(ch))
 
