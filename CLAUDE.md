@@ -18,41 +18,29 @@ Push to the designated feature branch; do not push directly to `main`.
 ## Build pipeline
 
 The web app depends on F# compiled to JavaScript via [Fable](https://fable.io/).
-`dotnet` is **not available** in this environment, so the F# → JS compilation
-step must run in CI.
+`dotnet` is available in this environment (installed by the SessionStart hook
+in `.claude/hooks/session-start.sh`), so the full build can run locally.
 
-Full build sequence (CI only):
+Full build sequence:
 ```
 dotnet restore && dotnet tool restore
 dotnet fable src/explorer --outDir web/src/lib/fable   # F# → JS
 cd web && npm ci && npm run build                       # Vite production build
 ```
 
-## Tests: local vs CI
+## Tests
 
-### Runnable locally (no dotnet needed)
-These work against the compiled JS in `web/src/lib/fable/` — but only if that
-directory has been populated by a prior Fable build or by copying from CI.
+### Runnable locally
 
 | Command | What it does |
 |---------|-------------|
 | `cd web && npm test` | Vitest unit tests (`src/**/*.test.js`) |
+| `dotnet test src/generator/tests/generator.tests.fsproj` | F# unit tests (NUnit) |
+| `dotnet test src/SpiroFs/tests/SpiroFs.tests.fsproj` | SpiroFs unit tests (NUnit) |
 
-### Require CI (need Fable-compiled output + production build)
+### Visual / screenshot tests (require production build)
 
-| CI workflow | Trigger | What it does |
-|-------------|---------|-------------|
-| `.NET Core` (`dotnet-core.yml`) | push to `main` or `claude/**`; PRs to `main` | `dotnet build` + `dotnet test` (F# unit tests) |
-| `Visual Tests` (`visual-tests.yml`) | PRs to `main`; `workflow_dispatch` | Playwright screenshot tests against production build; auto-commits new baselines |
-| `Deploy Pages` (`deploy-pages.yml`) | push to `main` only | Builds and deploys to GitHub Pages |
-
-**Visual test snapshots** live in `web/tests/tabs.spec.js-snapshots/` and
-`web/tests/tweens.spec.js-snapshots/` (committed to the repo).  After
-intentional visual changes, trigger the `Visual Tests` workflow manually via
-`workflow_dispatch` with `update_snapshots: true` to regenerate and
-auto-commit them.
-
-To run visual tests manually (requires dotnet + Node + Playwright):
+These run against the production Vite build via `vite preview`:
 ```
 dotnet fable src/explorer --outDir web/src/lib/fable
 cd web && npm ci && npx playwright install chromium && npm run build
@@ -60,10 +48,23 @@ npm run test:tabs            # compare snapshots
 npm run test:tabs:update     # regenerate snapshots
 ```
 
+**Visual test snapshots** live in `web/tests/tabs.spec.js-snapshots/` and
+`web/tests/tweens.spec.js-snapshots/` (committed to the repo).  After
+intentional visual changes, trigger the `Visual Tests` CI workflow manually
+with `update_snapshots: true` to regenerate and auto-commit them.
+
+### CI workflows
+
+| CI workflow | Trigger | What it does |
+|-------------|---------|-------------|
+| `.NET Core` (`dotnet-core.yml`) | push to `main` or `claude/**`; PRs to `main` | `dotnet build` + `dotnet test` (F# unit tests) |
+| `Visual Tests` (`visual-tests.yml`) | PRs to `main`; `workflow_dispatch` | Playwright screenshot tests against production build; auto-commits new baselines |
+| `Deploy Pages` (`deploy-pages.yml`) | push to `main` only | Builds and deploys to GitHub Pages |
+
 ## Key source files
 
 | File | Purpose |
-|------|---------|
+|------|--------|
 | `src/generator/Font.fs` | Core font geometry — glyph shapes, advance widths, space width |
 | `src/generator/Axes.fs` | Font axis definitions and defaults |
 | `src/generator/GeneratorTypes.fs` | Element type definitions (`Element`, `movePoints`, etc.) |
