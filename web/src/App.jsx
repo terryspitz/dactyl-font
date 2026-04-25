@@ -406,9 +406,9 @@ function App() {
           className="proof-text"
           style={{
             fontFamily: proofFontUrl ? "'DactylPreview', monospace" : 'monospace',
-            fontSize: `${36 * zoom}pt`,
+            fontSize: `${18 * zoom}pt`,
             lineHeight: 1.4,
-            whiteSpace: 'pre',
+            whiteSpace: 'pre-wrap',
             textAlign: 'left',
             padding: '20px',
             color: '#000',

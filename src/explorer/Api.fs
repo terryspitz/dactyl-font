@@ -38,13 +38,13 @@ let controlDefinitions = Axes.controls |> List.map getControlDetails |> Array.of
 let defaultAxes = Axes.DefaultAxes
 
 let allChars =
-    "abcdefghijklm
-nopqrstuvwxyz
-0123456789
-ABCDEFGHIJKLM
-NOPQRSTUVWXYZ
-!\"#£$%&'()*+,-./:;
-<=>?@[\\]^_`{|}~"
+    "abcdefg hijklm
+nopqrst uvwxyz
+01234 56789
+ABCDEFG HIJKLM
+NOPQRST UVWXYZ
+!\"#£$% &'()*+,-./:;
+<=>?@ [\\]^_`{|}~"
 
 let generateSvg (text: string) (axes: Axes) (autoscale: bool) (progress: (float -> unit) option) =
     let font = Font axes
