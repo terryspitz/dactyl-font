@@ -130,8 +130,35 @@ jobs:
             git push
           fi
 
+      - name: Generate failure diff GIFs
+        if: failure()
+        run: |
+          mkdir -p web/test-results/diffs
+          find web/test-results -name '*-actual.png' | while IFS= read -r actual; do
+            expected="${actual%-actual.png}-expected.png"
+            [ -f "$expected" ] || continue
+            name=$(basename "${actual%-actual.png}")
+            convert "$expected" \
+              -fill 'rgba(0,0,0,0.75)' -draw 'rectangle 0,0 150,36' \
+              -fill white -font DejaVu-Sans-Bold -pointsize 24 \
+              -gravity NorthWest -annotate +8+28 'BEFORE' \
+              /tmp/frame-before.png
+            convert "$actual" \
+              -fill 'rgba(0,0,0,0.75)' -draw 'rectangle 0,0 150,36' \
+              -fill white -font DejaVu-Sans-Bold -pointsize 24 \
+              -gravity NorthWest -annotate +8+28 'AFTER' \
+              /tmp/frame-after.png
+            convert -delay 100 /tmp/frame-before.png \
+                    -delay 100 /tmp/frame-after.png \
+                    -loop 0 "web/test-results/diffs/${name}.gif"
+            echo "Generated diff: ${name}.gif"
+          done
+          echo "Failure diffs:"
+          ls web/test-results/diffs/ 2>/dev/null || echo "(none)"
+
       - name: Upload screenshots on failure
         if: failure()
+        id: artifact-upload
         uses: actions/upload-artifact@v4
         with:
           name: playwright-screenshots
@@ -140,3 +167,7 @@ jobs:
             web/test-results/
             web/playwright-report/
           retention-days: 7
+
+      - name: Log artifact URL
+        if: failure()
+        run: echo "Diff GIFs and screenshots uploaded. Download at ${{ steps.artifact-upload.outputs.artifact-url }}"
