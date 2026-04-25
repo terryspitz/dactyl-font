@@ -418,7 +418,8 @@ let findSubdivisionArcs
     (knotArcs: float[])
     (subdivMidpoints: (float * float)[]) =
     let count = if isClosed then bezPts.Length else bezPts.Length - 1
-    subdivMidpoints |> Array.map (fun (mx, my) ->
+    subdivMidpoints |> Array.map (fun mp ->
+        let mx, my = mp
         let mutable bestSeg = 0
         let mutable bestDistSq = infinity
         for i in 0 .. count - 1 do
