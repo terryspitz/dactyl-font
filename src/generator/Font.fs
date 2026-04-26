@@ -755,6 +755,8 @@ type Font(axes: Axes) =
 
     /// Flip tangent by PI for reversed-path points (path direction reversal).
     /// Also swaps th_in and th_out since path direction reverses.
+    /// Note: type swapping (LineToCurve↔CurveToLine) is already handled by offsetSegment(reverse=true),
+    /// so flipTangent must NOT change ty.
     static member flipTangent(k: Knot) =
         { k with
             th_in = k.th_out |> Option.map (fun t -> norm (t + PI))
