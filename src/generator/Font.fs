@@ -754,15 +754,11 @@ type Font(axes: Axes) =
                   yield! this.offsetSegment seg lastSeg reverse dist ]
 
     /// Flip tangent by PI for reversed-path points (path direction reversal).
-    /// Also swaps th_in/th_out and flips LineToCurve↔CurveToLine since path direction reverses.
+    /// Also swaps th_in and th_out since path direction reverses.
+    /// Note: type swapping (LineToCurve↔CurveToLine) is already handled by offsetSegment(reverse=true),
+    /// so flipTangent must NOT change ty.
     static member flipTangent(k: Knot) =
-        let flippedTy =
-            match k.ty with
-            | SpiroPointType.Right -> SpiroPointType.Left   // LineToCurve → CurveToLine
-            | SpiroPointType.Left  -> SpiroPointType.Right  // CurveToLine → LineToCurve
-            | other -> other
         { k with
-            ty = flippedTy
             th_in = k.th_out |> Option.map (fun t -> norm (t + PI))
             th_out = k.th_in |> Option.map (fun t -> norm (t + PI)) }
 
