@@ -514,48 +514,21 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
         // Zero-curvature at line-curve boundaries.
         // Each curve section is solved in isolation and never sees the adjacent straight
         // segment, so without an explicit penalty the optimizer has no incentive to drive
-        // boundary curvature to zero.  Penalise with weight 10 (same as G2 continuity)
-        // so the constraint is firm without dominating the arc shape.
+        // boundary curvature toward zero.  Use a gentle weight (1.0, well below the G2
+        // continuity weight of 10.0) so the optimizer minimises boundary curvature without
+        // dominating the Euler-spiral fit.  When exact zero is geometrically unachievable
+        // (e.g. the 'f' arch: North tangent at xtllc, West tangent at tcrW far to the
+        // right) the penalty still nudges curvature as low as possible without distorting
+        // the curve the way a heavy weight would.
         // Uses the exact t=0 / t=1 samples rather than the extrapolated regression estimate.
-        //
-        // Geometric achievability check: zero curvature at t=0 for a cubic Bezier with
-        // fixed tangents requires ld_needed = (dx·sin α − dy·cos α) / sin(α−β) ≥ 0
-        // where (dx,dy) = P3−P0, α = th_out at P0, β = th_in at P3.
-        // If that value is negative the constraint cannot be met with a positive handle,
-        // so the penalty is skipped to avoid distorting the curve.
         if segmentCount > 0 then
             if ctrlPts.[0].ty = SplinePointType.LineToCurve then
-                let p0 = _points.[0]
-                let p1 = _points.[1]
-                let alpha = p0.th_out
-                let beta  = p1.th_in
-                let sinDiff = sin (alpha - beta)
-                let achievable =
-                    abs sinDiff > 1e-6 &&
-                    let dx = p1.x - p0.x
-                    let dy = p1.y - p0.y
-                    let ldNeeded = (dx * sin alpha - dy * cos alpha) / sinDiff
-                    ldNeeded >= 0.0
-                if achievable then
-                    let k = _segmentStartActualK.[0]
-                    totalErr <- totalErr + k * k * 10.0
+                let k = _segmentStartActualK.[0]
+                totalErr <- totalErr + k * k * 1.0
             let lastSeg = segmentCount - 1
             if ctrlPts.[ctrlPts.Length - 1].ty = SplinePointType.CurveToLine then
-                let pN  = _points.[_points.Length - 1]
-                let pN1 = _points.[_points.Length - 2]
-                let beta  = pN.th_in
-                let alpha = pN1.th_out
-                let sinDiff = sin (beta - alpha)
-                let achievable =
-                    abs sinDiff > 1e-6 &&
-                    let dx = pN.x - pN1.x
-                    let dy = pN.y - pN1.y
-                    // zero curvature at t=1 requires rd_needed = (dx·sin β − dy·cos β) / sin(β−α) ≥ 0
-                    let rdNeeded = (dx * sin beta - dy * cos beta) / sinDiff
-                    rdNeeded >= 0.0
-                if achievable then
-                    let k = _segmentEndActualK.[lastSeg]
-                    totalErr <- totalErr + k * k * 10.0
+                let k = _segmentEndActualK.[lastSeg]
+                totalErr <- totalErr + k * k * 1.0
 
         if Double.IsNaN totalErr || Double.IsInfinity totalErr then
             if this.debug then
