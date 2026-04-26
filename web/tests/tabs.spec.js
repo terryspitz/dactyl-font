@@ -57,7 +57,7 @@ for (const { name, selector, url, extraWait } of TABS) {
     // Per-tab extra settling (e.g. font-face loading for proofs)
     if (extraWait) await extraWait(page);
 
-    // Screenshot just the preview area (excludes the axis sidebar)
-    await expect(page.locator('.preview-content')).toHaveScreenshot(`${name}.png`);
+    // Screenshot the full page (includes axis sidebar)
+    await expect(page).toHaveScreenshot(`${name}.png`, { fullPage: true });
   });
 }
