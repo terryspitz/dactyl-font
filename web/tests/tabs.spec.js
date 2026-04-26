@@ -5,13 +5,15 @@ import { test, expect } from '@playwright/test';
 // variants where both the tab and the case selector are encoded in the URL).
 // `extraWait` is an optional async function called after the selector appears,
 // for tabs that need additional settling (e.g. font-face loading).
+// `tallViewport` temporarily enlarges the viewport height so the full content
+// fits without scrolling (used for tabs whose content overflows 900px).
 const TABS = [
   { name: 'font',             selector: '.svg-container' },
   { name: 'glyphs',           selector: '.svg-container' },
   { name: 'tweens',           selector: '.tweens-grid'   },
   { name: 'visualDiffs',      selector: '.svg-container' },
   { name: 'splines',          selector: '.se-canvas'     },
-  { name: 'splineGrid',       selector: '.sg-grid'       },
+  { name: 'splineGrid',       selector: '.sg-grid',       tallViewport: true },
   { name: 'proofs-uppercase', selector: '.proof-text',
     url: '?view=proofs&proof=uppercase',
     extraWait: async (page) => {
@@ -47,7 +49,7 @@ test.beforeEach(async ({ page }) => {
   page.on('pageerror', err => console.error('Page error:', err.message));
 });
 
-for (const { name, selector, url, extraWait } of TABS) {
+for (const { name, selector, url, extraWait, tallViewport } of TABS) {
   test(`${name} tab`, async ({ page }) => {
     await page.goto(url ?? `?view=${name}`);
 
@@ -56,6 +58,12 @@ for (const { name, selector, url, extraWait } of TABS) {
 
     // Per-tab extra settling (e.g. font-face loading for proofs)
     if (extraWait) await extraWait(page);
+
+    if (tallViewport) {
+      // Expand the viewport so the flex layout makes .preview-content tall enough
+      // to show all content without internal scrolling (splineGrid is ~2700px tall).
+      await page.setViewportSize({ width: 1280, height: 3000 });
+    }
 
     // Screenshot just the preview area (excludes the axis sidebar)
     await expect(page.locator('.preview-content')).toHaveScreenshot(`${name}.png`);

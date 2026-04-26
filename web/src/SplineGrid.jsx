@@ -99,6 +99,8 @@ export default function SplineGrid() {
     fontSize: '12px',
     border: '1px solid #ccc',
     whiteSpace: 'nowrap',
+    verticalAlign: 'middle',
+    lineHeight: 1.2,
   }
 
   const sections = [

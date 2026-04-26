@@ -84,14 +84,14 @@ jobs:
               if ! cmp -s "$after" "$before"; then
                 name=$(basename "${after%.png}")
                 convert "$before" \
-                  -fill 'rgba(0,0,0,0.75)' -draw 'rectangle 0,0 150,36' \
+                  -fill 'rgba(0,0,0,0.75)' -draw 'rectangle 0,0 150,44' \
                   -fill white -font DejaVu-Sans-Bold -pointsize 24 \
-                  -gravity NorthWest -annotate +8+28 'BEFORE' \
+                  -gravity NorthWest -annotate +8+6 'BEFORE' \
                   /tmp/frame-before.png
                 convert "$after" \
-                  -fill 'rgba(0,0,0,0.75)' -draw 'rectangle 0,0 150,36' \
+                  -fill 'rgba(0,0,0,0.75)' -draw 'rectangle 0,0 150,44' \
                   -fill white -font DejaVu-Sans-Bold -pointsize 24 \
-                  -gravity NorthWest -annotate +8+28 'AFTER' \
+                  -gravity NorthWest -annotate +8+6 'AFTER' \
                   /tmp/frame-after.png
                 convert -delay 100 /tmp/frame-before.png \
                         -delay 100 /tmp/frame-after.png \
@@ -139,14 +139,14 @@ jobs:
             [ -f "$expected" ] || continue
             name=$(basename "${actual%-actual.png}")
             convert "$expected" \
-              -fill 'rgba(0,0,0,0.75)' -draw 'rectangle 0,0 150,36' \
+              -fill 'rgba(0,0,0,0.75)' -draw 'rectangle 0,0 150,44' \
               -fill white -font DejaVu-Sans-Bold -pointsize 24 \
-              -gravity NorthWest -annotate +8+28 'BEFORE' \
+              -gravity NorthWest -annotate +8+6 'BEFORE' \
               /tmp/frame-before.png
             convert "$actual" \
-              -fill 'rgba(0,0,0,0.75)' -draw 'rectangle 0,0 150,36' \
+              -fill 'rgba(0,0,0,0.75)' -draw 'rectangle 0,0 150,44' \
               -fill white -font DejaVu-Sans-Bold -pointsize 24 \
-              -gravity NorthWest -annotate +8+28 'AFTER' \
+              -gravity NorthWest -annotate +8+6 'AFTER' \
               /tmp/frame-after.png
             convert -delay 100 /tmp/frame-before.png \
                     -delay 100 /tmp/frame-after.png \
