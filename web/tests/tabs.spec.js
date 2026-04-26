@@ -5,13 +5,14 @@ import { test, expect } from '@playwright/test';
 // variants where both the tab and the case selector are encoded in the URL).
 // `extraWait` is an optional async function called after the selector appears,
 // for tabs that need additional settling (e.g. font-face loading).
+// `fullPage` captures the full scrollable page instead of just .preview-content.
 const TABS = [
   { name: 'font',             selector: '.svg-container' },
   { name: 'glyphs',           selector: '.svg-container' },
   { name: 'tweens',           selector: '.tweens-grid'   },
   { name: 'visualDiffs',      selector: '.svg-container' },
   { name: 'splines',          selector: '.se-canvas'     },
-  { name: 'splineGrid',       selector: '.sg-grid'       },
+  { name: 'splineGrid',       selector: '.sg-grid',       fullPage: true },
   { name: 'proofs-uppercase', selector: '.proof-text',
     url: '?view=proofs&proof=uppercase',
     extraWait: async (page) => {
@@ -47,7 +48,7 @@ test.beforeEach(async ({ page }) => {
   page.on('pageerror', err => console.error('Page error:', err.message));
 });
 
-for (const { name, selector, url, extraWait } of TABS) {
+for (const { name, selector, url, extraWait, fullPage } of TABS) {
   test(`${name} tab`, async ({ page }) => {
     await page.goto(url ?? `?view=${name}`);
 
@@ -57,7 +58,12 @@ for (const { name, selector, url, extraWait } of TABS) {
     // Per-tab extra settling (e.g. font-face loading for proofs)
     if (extraWait) await extraWait(page);
 
-    // Screenshot the full page (includes axis sidebar)
-    await expect(page).toHaveScreenshot(`${name}.png`, { fullPage: true });
+    if (fullPage) {
+      // Capture the full scrollable page (used for tall tabs like splineGrid)
+      await expect(page).toHaveScreenshot(`${name}.png`, { fullPage: true });
+    } else {
+      // Screenshot just the preview area (excludes the axis sidebar)
+      await expect(page.locator('.preview-content')).toHaveScreenshot(`${name}.png`);
+    }
   });
 }
