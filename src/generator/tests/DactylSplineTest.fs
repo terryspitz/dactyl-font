@@ -523,6 +523,44 @@ type LineToCurveTests() =
         // Expected: M 0,0 C ... L 2,1
         Assert.That(svg, Does.Match("M 0,0.*C.*L 2,1"), "Second segment should be a line")
 
+    // Spline grid failing cases
+
+    [<Test>]
+    member this.LineToCurve_G2_Open_ShouldRenderValidCurve() =
+        // C/LC/G2 open: line then curve, no arm explosion
+        let ctrlPts =
+            [| dcp SplinePointType.Corner 50. 50. None
+               dcp SplinePointType.LineToCurve 250. 50. None
+               dcp SplinePointType.Smooth 150. 200. None |]
+
+        let spline = DactylSpline(ctrlPts, false)
+        let svg = solve_and_print_spline spline
+        let bezPts, _, _, _ = spline.solveAndRenderFull(max_iter, 1.0, false, false, false)
+        printfn "bezPts: %A" (bezPts |> Array.map (fun bp -> sprintf "ld=%.2f rd=%.2f" bp.ld bp.rd))
+        // First segment should be a line (horizontal)
+        Assert.That(svg, Does.Match("L 250(\.0+)?,50(\.0+)?"), "First segment Corner→LineToCurve should be a line")
+        // No arm should blow up
+        let ok = bezPts |> Array.forall (fun bp -> abs bp.ld < 1e5 && abs bp.rd < 1e5)
+        Assert.That(ok, Is.True, "Arm lengths should stay within bounds (no solver divergence)")
+
+    [<Test>]
+    member this.LineToCurve_CurveToLine_Closed_ShouldRenderValidCurve() =
+        // C/LC/CL closed: corner + LC + CL, closed triangle — both penalties must not fight
+        let ctrlPts =
+            [| dcp SplinePointType.Corner 50. 50. None
+               dcp SplinePointType.LineToCurve 250. 50. None
+               dcp SplinePointType.CurveToLine 150. 200. None |]
+
+        let spline = DactylSpline(ctrlPts, true)
+        let svg = solve_and_print_spline spline
+        let bezPts, _, _, _ = spline.solveAndRenderFull(max_iter, 1.0, false, false, false)
+        printfn "bezPts: %A" (bezPts |> Array.map (fun bp -> sprintf "ld=%.2f rd=%.2f" bp.ld bp.rd))
+        // First segment should be a line (horizontal)
+        Assert.That(svg, Does.Match("L 250(\.0+)?,50(\.0+)?"), "First segment Corner→LineToCurve should be a line")
+        // No arm should blow up
+        let ok = bezPts |> Array.forall (fun bp -> abs bp.ld < 1e5 && abs bp.rd < 1e5)
+        Assert.That(ok, Is.True, "Arm lengths should stay within bounds (no solver divergence)")
+
 [<TestFixture>]
 type IntegrationTests() =
     [<Test>]

@@ -511,6 +511,20 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 let gap = firstStartK - lastEndK
                 totalErr <- totalErr + gap * gap * 10.0
 
+        // Prevent degenerate handle lengths. As handles grow large relative to the
+        // chord, the Bezier flattens toward a straight line: both Euler-spiral
+        // residuals and boundary-curvature penalties approach zero simultaneously,
+        // creating a spurious global minimum at infinite handle size. A soft penalty
+        // above 4× chord removes this minimum without restricting reasonable curves
+        // (Euler-spiral Beziers typically have handles well below 2× chord).
+        for i in 0 .. _points.Length - 2 do
+            let chord = (_points.[i + 1].vec - _points.[i].vec).norm ()
+
+            if chord > 1e-4 then
+                let rdExcess = max 0.0 (_points.[i].rd / chord - 4.0)
+                let ldExcess = max 0.0 (_points.[i + 1].ld / chord - 4.0)
+                totalErr <- totalErr + (rdExcess * rdExcess + ldExcess * ldExcess) * 1.0e4
+
         // Zero-curvature at line-curve boundaries.
         // Each curve section is solved in isolation and never sees the adjacent straight
         // segment, so without an explicit penalty the optimizer has no incentive to drive
