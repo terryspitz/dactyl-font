@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 
 const TYPE_LABELS = ['Corner', 'Smooth', 'LineCurve', 'CurveLine']
-const TYPE_SHORT = ['C', 'G2', 'LC', 'CL']
+const TYPE_SHORT = ['∧', 'G2', 'L→C', 'C→L']
 
 // Triangle vertices in math/y-up coords:
 //   P0 = (50, 50)  bottom-left  (red)
@@ -117,7 +117,7 @@ export default function SplineGrid() {
         {' '}<strong>P2</strong> = apex (green). Rows: P0/P1 types. Columns: P2 type.
       </p>
       <p style={{ marginBottom: '20px', fontSize: '12px', color: '#555' }}>
-        Types: C=Corner · G2=Smooth · LC=LineToCurve · CL=CurveToLine
+        Types: ∧=Corner · G2=Smooth · L→C=LineToCurve · C→L=CurveToLine
       </p>
 
       {sections.map(({ withTangent, label }) => (
