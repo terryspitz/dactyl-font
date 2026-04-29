@@ -440,7 +440,10 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
 
                     let k = 10000. * getCurvature p0 p1 p2 p3 t1
 
-                    // Sample segment length around t1
+                    // Sample segment length around t1, clamping at both ends so
+                    // getBezPt is never called outside [0, 1]. Without the j=STEPS
+                    // guard, t2 = (STEPS+0.5)/STEPS > 1 extrapolates past the curve,
+                    // inflating the final arc-length sample by roughly 2×.
                     let segLen =
                         if j = 0 then
                             let p_start = getBezPt p0 p1 p2 p3 0.
@@ -448,8 +451,14 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                             let dx = p_half.x - p_start.x
                             let dy = p_half.y - p_start.y
                             sqrt (dx * dx + dy * dy)
+                        elif j = STEPS then
+                            let p_half = getBezPt p0 p1 p2 p3 ((float STEPS - 0.5) / float STEPS)
+                            let p_end  = getBezPt p0 p1 p2 p3 1.
+                            let dx = p_end.x - p_half.x
+                            let dy = p_end.y - p_half.y
+                            sqrt (dx * dx + dy * dy)
                         else
-                            let p_low = getBezPt p0 p1 p2 p3 t0
+                            let p_low  = getBezPt p0 p1 p2 p3 t0
                             let p_high = getBezPt p0 p1 p2 p3 t2
                             let dx = p_high.x - p_low.x
                             let dy = p_high.y - p_low.y
@@ -494,7 +503,17 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     _segmentEndIdx.[segmentCount] <- i + 1
                     segmentCount <- segmentCount + 1
 
-        // 3. Continuity Penalties
+        // 3. Negative-handle penalty.
+        // Nelder-Mead is unconstrained, so rd/ld can go negative. A negative handle
+        // flips the control point through the knot, producing self-intersecting segments
+        // with nonsensical curvature readings. Hard-penalise any such configuration.
+        for i in 0 .. _points.Length - 2 do
+            if _points.[i].rd < 0.0 then
+                totalErr <- totalErr + 1e8
+            if _points.[i + 1].ld < 0.0 then
+                totalErr <- totalErr + 1e8
+
+        // 4. Continuity Penalties
         // Penalize jumps in curvature between segments
         for i in 0 .. segmentCount - 1 do
             if i > 0 then

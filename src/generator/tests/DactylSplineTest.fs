@@ -742,7 +742,7 @@ type IntegrationTests() =
         let finalX = solver.points().[2].x
 
         printfn "Final X: %f (Center is 500)" finalX
-        // Solver moves point RIGHT (542) to minimize curvature of the turn from the vertical HL segment.
+        // Solver moves point RIGHT to minimize curvature of the turn from the vertical HL segment.
         // A wider turn (larger X) reduces energy compared to a tight turn (small X).
         Assert.That(
             finalX,
@@ -812,12 +812,13 @@ type IntegrationTests() =
 
         let finalX = solver.points().[2].x
 
-        // Direction depends on the active flatness penalty balance; just verify the
-        // solver moves the point away from its 500 nominal and keeps it in a sane range.
+        // With corrected arc-length sampling (no end-extrapolation), the stiffer LEFT
+        // side (shorter 333-unit drop) pushes the bottom point rightward — away from
+        // the stiff side — giving x > 500.
         Assert.That(
             finalX,
-            Is.InRange(200.0, 800.0),
-            "fitted x should remain in a reasonable range (solver didn't diverge)"
+            Is.GreaterThan(500.0),
+            "fitted x of the bottom point should be to the right of centre (stiffer left side pushes right)"
         )
 
     [<Test>]
