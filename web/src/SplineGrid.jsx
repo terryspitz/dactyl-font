@@ -10,9 +10,9 @@ const TYPE_SHORT = ['∧', 'G2', 'L→C', 'C→L']
 // After scale(1,-1) flip to SVG screen coords:
 //   P0 → (50, -50), P1 → (250, -50), P2 → (150, -200)
 // ViewBox covers x:[30,270], y:[-215,-30] with padding
-const VIEWBOX = '30 -215 240 185'
-const CELL_W = 45
-const CELL_H = 35
+const VIEWBOX = '-50 -280 400 310'
+const CELL_W = 90
+const CELL_H = 70
 
 // Secondary defence: reject paths that contain scientific-notation numbers,
 // which indicate the solver diverged and produced astronomically large coordinates.
