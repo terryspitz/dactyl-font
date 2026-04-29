@@ -415,6 +415,37 @@ let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: boo
                   ld = bp.ld; rd = bp.rd |})
        curvatureData = computeCurvatureData bezPts isClosed |}
 
+/// Return SVG path data for Spiro and Spline2 interpretations of the same control points.
+let solveAltSplines (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (inputAxes: Axes) =
+    let baseAxes = { inputAxes with outline = false; filled = false; debug = false; show_comb = false; show_tangents = false }
+    let splineToSpiro (ty: Curves.SplinePointType) =
+        match ty with
+        | Curves.SplinePointType.CurveToLine -> SpiroPointType.Left
+        | Curves.SplinePointType.LineToCurve -> SpiroPointType.Right
+        | Curves.SplinePointType.Smooth      -> SpiroPointType.G2
+        | _                                  -> SpiroPointType.Corner
+    let knots =
+        ctrlPts
+        |> Array.map (fun cp ->
+            { pt = { x = cp.x |> Option.defaultValue 0.0
+                     y = cp.y |> Option.defaultValue 0.0
+                     x_fit = false
+                     y_fit = false }
+              ty = splineToSpiro cp.ty
+              th_in = cp.th_in
+              th_out = cp.th_out
+              label = None })
+        |> Array.toList
+    let curve = Curve(knots, isClosed)
+    let getPath (axes: Axes) =
+        try
+            let font = Font axes
+            let svg, _, _ = font.elementToSvg curve
+            String.concat "" svg
+        with _ -> ""
+    {| spiroPath = getPath { baseAxes with spline2 = false; dactyl_spline = false }
+       spline2Path = getPath { baseAxes with spline2 = true; dactyl_spline = false } |}
+
 /// Generate a proper ink outline for the current spline via Font.getDactylSansOutlines.
 let getSplineOutlinePath (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (inputAxes: Axes) =
     try
