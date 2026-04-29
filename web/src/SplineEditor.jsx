@@ -102,6 +102,9 @@ function SplineEditor({ axes }) {
   const [showOutline, setShowOutline] = useState(false)
   const [outlinePath, setOutlinePath] = useState(null)
   const [showCurvatureGraph, setShowCurvatureGraph] = useState(false)
+  const [showSpiro, setShowSpiro] = useState(false)
+  const [showSpline2, setShowSpline2] = useState(false)
+  const [altPaths, setAltPaths] = useState(null)
   const [dragRowIdx, setDragRowIdx] = useState(null)    // index of row being dragged to reorder
   const [dragOverRowIdx, setDragOverRowIdx] = useState(null) // row being hovered over during drag
   const svgRef = useRef(null)
@@ -182,6 +185,7 @@ function SplineEditor({ axes }) {
         }
       }
       if (id === -4 && result !== undefined) setOutlinePath(result || null)
+      if (id === -5 && result !== undefined) setAltPaths(result || null)
       if (id <= -100) {
         const ci = -(id + 100)
         if (result?.pathSvg) setAllCurvePaths(prev => ({ ...prev, [ci]: result.pathSvg }))
@@ -237,6 +241,22 @@ function SplineEditor({ axes }) {
     }, 80)
     return () => clearTimeout(timer)
   }, [showOutline, curves, activeCurve, axes])
+
+  // Fetch Spiro and Spline2 paths when either alt-spline checkbox is on (debounced)
+  useEffect(() => {
+    if (!workerRef.current) return
+    const curve = curves[activeCurve]
+    if ((!showSpiro && !showSpline2) || !curve || curve.points.length < 2) { setAltPaths(null); return }
+    const timer = setTimeout(() => {
+      const ctrlPts = curve.points.map(p => ({
+        ty: p.ty, x: p.x, y: p.y,
+        th_in: p.th_in ?? undefined,
+        th_out: p.th_out ?? undefined,
+      }))
+      workerRef.current.postMessage({ id: -5, type: 'solveAltSplines', args: [ctrlPts, curve.isClosed, axes] })
+    }, 20)
+    return () => clearTimeout(timer)
+  }, [showSpiro, showSpline2, curves, activeCurve, axes])
 
   // Solve spline whenever control points change (debounced to avoid queueing solves during drag)
   useEffect(() => {
@@ -720,6 +740,14 @@ function SplineEditor({ axes }) {
             <input type="checkbox" checked={showCurvatureGraph} onChange={e => setShowCurvatureGraph(e.target.checked)} />
             Curvature
           </label>
+          <label className="se-toggle">
+            <input type="checkbox" checked={showSpiro} onChange={e => setShowSpiro(e.target.checked)} />
+            <span style={{ color: '#4af' }}>Spiro</span>
+          </label>
+          <label className="se-toggle">
+            <input type="checkbox" checked={showSpline2} onChange={e => setShowSpline2(e.target.checked)} />
+            <span style={{ color: '#4d4' }}>Spline2</span>
+          </label>
           <label className="se-iter">
             Iter:
             <input
@@ -778,6 +806,14 @@ function SplineEditor({ axes }) {
                 <path key={`ghost-path-${ci}`} d={allCurvePaths[ci]}
                   fill="none" stroke="#555" strokeWidth="2" opacity="0.6" />
               ))}
+
+              {/* Alt splines (Spiro and Spline2) */}
+              {showSpiro && altPaths?.spiroPath && (
+                <path d={altPaths.spiroPath} fill="none" stroke="#4af" strokeWidth="1.5" strokeDasharray="6,3" opacity="0.7" />
+              )}
+              {showSpline2 && altPaths?.spline2Path && (
+                <path d={altPaths.spline2Path} fill="none" stroke="#4d4" strokeWidth="1.5" strokeDasharray="6,3" opacity="0.7" />
+              )}
 
               {/* Active curve solved spline */}
               {solveResult && (
