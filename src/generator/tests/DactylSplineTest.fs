@@ -764,3 +764,36 @@ type IntegrationTests() =
             Is.GreaterThan(500.0),
             "fitted x of the bottom point should be to the right of centre (stiffer left side pushes right)"
         )
+
+    [<Test>]
+    member this.TestAsymmetricFit_3PointProductionPath() =
+        // Same geometry as TestAsymmetricFit_U_Shape but using the PRODUCTION 3-point
+        // inner solver [LC, Smooth, CL] exactly as DactylSpline.solveSection would call it.
+        // LC at (0,333) going downward, CL at (1000,500) going upward, Smooth x free.
+        //
+        // Arc-length equalization predicts x ≈ 570:
+        //   left arc ≈ sqrt(x² + 333²), right arc ≈ sqrt((1000-x)² + 500²)
+        //   equal when x² + 110889 = (1000-x)² + 250000  →  x ≈ 570 > 500
+        //
+        // The right endpoint is farther from the bottom (500 > 333), so the
+        // equal-arc-length point sits RIGHT of centre.
+        let ctrlPts3 =
+            [| { ty = SplinePointType.LineToCurve
+                 x = Some 0.; y = Some 333.
+                 th_in = Some(-System.Math.PI / 2.0); th_out = Some(-System.Math.PI / 2.0) }
+               { ty = SplinePointType.Smooth
+                 x = None; y = Some 0.
+                 th_in = None; th_out = None }
+               { ty = SplinePointType.CurveToLine
+                 x = Some 1000.; y = Some 500.
+                 th_in = Some(System.Math.PI / 2.0); th_out = Some(System.Math.PI / 2.0) } |]
+
+        let solver3 = Solver(ctrlPts3, false, 1.0, false)
+        solver3.initialise ()
+        try solver3.Solve(5000) with _ -> ()
+        let x3 = solver3.points().[1].x
+        printfn "3-point production solver x = %.2f  (center=500, arc-len prediction≈570)" x3
+
+        // The right junction is higher (500 vs 333), so equal arc lengths put x right of centre.
+        Assert.That(x3, Is.GreaterThan(500.0),
+            "right junction is higher → equal-arc-length optimum is right of centre")
