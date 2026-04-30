@@ -564,6 +564,18 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                         // We only add th_in (index 2) to the mapping.
                         if j = int BezierIndex.ThOut && ctrlPts.[i].ty = SplinePointType.Smooth then
                             ()
+                        // For open sections, th_in of the first point has no incoming segment
+                        // and th_out of the last point has no outgoing segment, so both are
+                        // phantom parameters that don't affect computeErr. Excluding them keeps
+                        // the search space minimal and avoids degeneracy in Nelder-Mead.
+                        // Guard: Smooth points link th_out = th_in, so th_in of the first
+                        // Smooth point is NOT phantom (th_out depends on it and IS used).
+                        elif not isClosed && i = 0 && j = int BezierIndex.ThIn
+                             && ctrlPts.[i].ty <> SplinePointType.Smooth then
+                            ()
+                        elif not isClosed && i = _points.Length - 1 && j = int BezierIndex.ThOut
+                             && ctrlPts.[i].ty <> SplinePointType.Smooth then
+                            ()
                         else
                             mapping.Add((i, j))
                             initial.Add(_points.[i].arr.[j])
