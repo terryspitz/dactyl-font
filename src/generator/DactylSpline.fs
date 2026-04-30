@@ -251,6 +251,9 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
     let _dists = Array.create (STEPS + 1) 0.0
     let _segmentStartK = Array.create ctrlPts.Length 0.0
     let _segmentEndK = Array.create ctrlPts.Length 0.0
+    // Exact curvature samples at t=0 and t=1 of each segment (not the linear-regression estimate)
+    let _segmentStartActualK = Array.create ctrlPts.Length 0.0
+    let _segmentEndActualK = Array.create ctrlPts.Length 0.0
     let _segmentStartIdx = Array.create ctrlPts.Length 0
     let _segmentEndIdx = Array.create ctrlPts.Length 0
 
@@ -453,6 +456,8 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     // Store start/end indices for continuity check
                     _segmentStartK.[segmentCount] <- startK
                     _segmentEndK.[segmentCount] <- endK
+                    _segmentStartActualK.[segmentCount] <- _ks.[0]
+                    _segmentEndActualK.[segmentCount] <- _ks.[STEPS]
                     _segmentStartIdx.[segmentCount] <- i
                     _segmentEndIdx.[segmentCount] <- i + 1
                     segmentCount <- segmentCount + 1
@@ -506,6 +511,39 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 let gap = firstStartK - lastEndK
                 totalErr <- totalErr + gap * gap * 10.0
 
+        // Prevent degenerate handle lengths. As handles grow large relative to the
+        // chord, the Bezier flattens toward a straight line: both Euler-spiral
+        // residuals and boundary-curvature penalties approach zero simultaneously,
+        // creating a spurious global minimum at infinite handle size. A soft penalty
+        // above 4× chord removes this minimum without restricting reasonable curves
+        // (Euler-spiral Beziers typically have handles well below 2× chord).
+        for i in 0 .. _points.Length - 2 do
+            let chord = (_points.[i + 1].vec - _points.[i].vec).norm ()
+
+            if chord > 1e-4 then
+                let rdExcess = max 0.0 (_points.[i].rd / chord - 4.0)
+                let ldExcess = max 0.0 (_points.[i + 1].ld / chord - 4.0)
+                totalErr <- totalErr + (rdExcess * rdExcess + ldExcess * ldExcess) * 1.0e4
+
+        // Zero-curvature at line-curve boundaries.
+        // Each curve section is solved in isolation and never sees the adjacent straight
+        // segment, so without an explicit penalty the optimizer has no incentive to drive
+        // boundary curvature toward zero.  Use a gentle weight (1.0, well below the G2
+        // continuity weight of 10.0) so the optimizer minimises boundary curvature without
+        // dominating the Euler-spiral fit.  When exact zero is geometrically unachievable
+        // (e.g. the 'f' arch: North tangent at xtllc, West tangent at tcrW far to the
+        // right) the penalty still nudges curvature as low as possible without distorting
+        // the curve the way a heavy weight would.
+        // Uses the exact t=0 / t=1 samples rather than the extrapolated regression estimate.
+        if segmentCount > 0 then
+            if ctrlPts.[0].ty = SplinePointType.LineToCurve then
+                let k = _segmentStartActualK.[0]
+                totalErr <- totalErr + k * k * 1.0
+            let lastSeg = segmentCount - 1
+            if ctrlPts.[ctrlPts.Length - 1].ty = SplinePointType.CurveToLine then
+                let k = _segmentEndActualK.[lastSeg]
+                totalErr <- totalErr + k * k * 1.0
+
         if Double.IsNaN totalErr || Double.IsInfinity totalErr then
             if this.debug then
                 printfn "computeErr returning NaN/Inf, replaced with penalty"
@@ -525,6 +563,18 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                         // For smooth points, th_in and th_out are synchronized.
                         // We only add th_in (index 2) to the mapping.
                         if j = int BezierIndex.ThOut && ctrlPts.[i].ty = SplinePointType.Smooth then
+                            ()
+                        // For open sections, th_in of the first point has no incoming segment
+                        // and th_out of the last point has no outgoing segment, so both are
+                        // phantom parameters that don't affect computeErr. Excluding them keeps
+                        // the search space minimal and avoids degeneracy in Nelder-Mead.
+                        // Guard: Smooth points link th_out = th_in, so th_in of the first
+                        // Smooth point is NOT phantom (th_out depends on it and IS used).
+                        elif not isClosed && i = 0 && j = int BezierIndex.ThIn
+                             && ctrlPts.[i].ty <> SplinePointType.Smooth then
+                            ()
+                        elif not isClosed && i = _points.Length - 1 && j = int BezierIndex.ThOut
+                             && ctrlPts.[i].ty <> SplinePointType.Smooth then
                             ()
                         else
                             mapping.Add((i, j))
