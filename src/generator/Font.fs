@@ -107,6 +107,7 @@ type Font(axes: Axes) =
 
         match elem with
         | Curve(pts, isClosed) ->
+            validateKnotSequence pts isClosed
             // Revert to simpler logic that doesn't add handle points for tangents,
             // as this was breaking legacy Spiro path for some glyphs.
             let scps =
@@ -214,6 +215,7 @@ type Font(axes: Axes) =
     let rec elementToSpline2 elem =
         match elem with
         | Curve(pts, isClosed) ->
+            validateKnotSequence pts isClosed
             let ctrlPts = toSpline2ControlPoints pts
             let spline = Spline2(ctrlPts, isClosed)
             spline.solve (axes.max_spline_iter)
@@ -1118,6 +1120,7 @@ type Font(axes: Axes) =
         let rec dactylToOutline elem =
             match elem with
             | Curve(pts, isClosed) ->
+                validateKnotSequence pts isClosed
                 let segs = solveCurveSegs pts isClosed
 
                 if axes.debug then
