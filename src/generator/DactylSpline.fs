@@ -804,24 +804,6 @@ type DactylSpline(ctrlPts, isClosed) =
             else
                 let innerPts, j = this.collectCurveSection (i, startIdx + length)
 
-                // When a closed-path section starts at a Smooth point that immediately
-                // follows a line segment, the solver must know that the curve begins at
-                // a line-to-curve join (zero curvature). Without this, the two sections
-                // optimise the shared point's tangent independently and disagree.
-                let innerPts =
-                    if isClosed then
-                        let prevCtrlPt = ctrlPts.[(i - 1 + ctrlPts.Length) % ctrlPts.Length]
-                        let firstPt = List.head innerPts
-                        if this.isLineSegment(prevCtrlPt, firstPt) && firstPt.ty = SplinePointType.Smooth then
-                            let lineAngle =
-                                atan2 (firstPt.y.Value - prevCtrlPt.y.Value) (firstPt.x.Value - prevCtrlPt.x.Value)
-                            let modified = { firstPt with ty = SplinePointType.LineToCurve; th_in = Some lineAngle; th_out = Some lineAngle }
-                            modified :: List.tail innerPts
-                        else
-                            innerPts
-                    else
-                        innerPts
-
                 let solver = this.solveSection (innerPts, length, maxIter, flatness, debug)
                 let bezPts = solver.points ()
 
