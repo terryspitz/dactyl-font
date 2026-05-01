@@ -610,6 +610,40 @@ type LineToCurveTests() =
 
         Assert.That(failures.Count, Is.EqualTo(0), sprintf "%d grid cells failed:\n%s" failures.Count (String.concat "\n" failures))
 
+    [<Test>]
+    member this.Closed_G2_G2_LC_SmoothAtP0() =
+        // Regression: [G2,G2,LC] closed was not smooth at P0.
+        // The section collector used to start at i=0 (Smooth), splitting P0 between two
+        // independent solvers that each optimised its tangent separately.  The fix starts
+        // the loop at the first hard-boundary (P2=LC) so P0 is always interior to one section.
+        let ctrlPts =
+            [| dcp SplinePointType.Smooth 50. 50. None
+               dcp SplinePointType.Smooth 250. 50. None
+               dcp SplinePointType.LineToCurve 150. 200. None |]
+        let spline = DactylSpline(ctrlPts, true)
+        let bezPts, _, _, _ = spline.solveAndRenderFull(500, 1.0, false, false, false)
+        // P0 must be G1: th_in = th_out (same tangent, no kink)
+        let p0 = bezPts.[0]
+        let angleDiff = abs (norm (p0.th_in - p0.th_out))
+        printfn "P0 th_in=%.4f th_out=%.4f diff=%.4f" p0.th_in p0.th_out angleDiff
+        Assert.That(angleDiff, Is.LessThan(1e-3), "P0 must be smooth (th_in ≈ th_out) in [G2,G2,LC] closed")
+
+    [<Test>]
+    member this.Closed_G2_G2_CL_SmoothAtP0() =
+        // Symmetric case: [G2,G2,CL] closed — the line is P2→P0, so P0 is at the
+        // line-to-curve join.  The fix treats P0 as LineToCurve when it immediately
+        // follows a line segment, keeping th_in = th_out consistent.
+        let ctrlPts =
+            [| dcp SplinePointType.Smooth 50. 50. None
+               dcp SplinePointType.Smooth 250. 50. None
+               dcp SplinePointType.CurveToLine 150. 200. None |]
+        let spline = DactylSpline(ctrlPts, true)
+        let bezPts, _, _, _ = spline.solveAndRenderFull(500, 1.0, false, false, false)
+        let p0 = bezPts.[0]
+        let angleDiff = abs (norm (p0.th_in - p0.th_out))
+        printfn "P0 th_in=%.4f th_out=%.4f diff=%.4f" p0.th_in p0.th_out angleDiff
+        Assert.That(angleDiff, Is.LessThan(1e-3), "P0 must be smooth (th_in ≈ th_out) in [G2,G2,CL] closed")
+
 [<TestFixture>]
 type IntegrationTests() =
     [<Test>]
