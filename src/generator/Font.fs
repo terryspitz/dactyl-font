@@ -656,15 +656,11 @@ type Font(axes: Axes) =
 
     member this.offsetSegment (seg: Segment) (lastSeg: Segment) reverse dist =
         let newType =
-            if reverse then
-                match seg.Type with
-                | SpiroPointType.Left -> SpiroPointType.Right
-                | SpiroPointType.Right -> SpiroPointType.Left
-                | _ -> seg.Type
-            else
-                match seg.Type with
-                | SpiroPointType.EndOpenContour -> Corner
-                | _ -> seg.Type
+            match seg.Type, reverse with
+            | SpiroPointType.Left, true -> SpiroPointType.Right
+            | SpiroPointType.Right, true -> SpiroPointType.Left
+            | SpiroPointType.EndOpenContour, false -> Corner
+            | _ -> seg.Type
 
         let angle = if reverse then -PI / 2. else PI / 2.
 
@@ -872,24 +868,9 @@ type Font(axes: Axes) =
 
     member this.getSpiroSansOutlines e =
         let fthickness = float thickness
-
-        let startCap (seg: Segment) =
-            let ty =
-                if seg.Type = SpiroPointType.Anchor then
-                    SpiroPointType.Anchor
-                else
-                    Corner
-
-            this.startCap seg e ty
-
-        let endCap (seg: Segment) (lastSeg: Segment) =
-            let ty =
-                if seg.Type = SpiroPointType.Anchor then
-                    SpiroPointType.Anchor
-                else
-                    Corner
-
-            this.endCap seg lastSeg e ty
+        let capType (seg: Segment) = if seg.Type = SpiroPointType.Anchor then SpiroPointType.Anchor else Corner
+        let startCap (seg: Segment) = this.startCap seg e (capType seg)
+        let endCap (seg: Segment) (lastSeg: Segment) = this.endCap seg lastSeg e (capType seg)
 
         let spiroToOutline spiro =
             match spiro with

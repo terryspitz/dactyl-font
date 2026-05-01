@@ -308,6 +308,9 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             let dpl = point.vec - _points.[max (i - 1) 0].vec //pointing from previous point to this
             let dpr = _points.[min (i + 1) (_points.Length - 1)].vec - point.vec
 
+            let lth = dpl.atan2 ()
+            let rth = dpr.atan2 ()
+
             match ctrlPt.th_in, ctrlPt.th_out with
             | Some th_i, Some th_o ->
                 point.th_in <- th_i
@@ -317,20 +320,12 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             | Some th_i, None ->
                 point.th_in <- th_i
                 point.fit_th_in <- false
-                // Initialise th_out from geometry, leave fittable
-                let lth = dpl.atan2 ()
-                let rth = dpr.atan2 ()
                 point.th_out <- if i < ctrlPts.Length - 1 then rth else lth
             | None, Some th_o ->
                 point.th_out <- th_o
                 point.fit_th_out <- false
-                // Initialise th_in from geometry, leave fittable
-                let lth = dpl.atan2 ()
-                let rth = dpr.atan2 ()
                 point.th_in <- if i > 0 then lth else rth
             | None, None ->
-                let lth = dpl.atan2 ()
-                let rth = dpr.atan2 ()
 
                 let new_th =
                     if i = 0 then
@@ -579,19 +574,19 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                         else
                             mapping.Add((i, j))
                             initial.Add(_points.[i].arr.[j])
+            let syncSmooth (index1: int) (index2: int) (value: float) =
+                if index2 = int BezierIndex.ThIn
+                   && ctrlPts.[index1].ty = SplinePointType.Smooth
+                   && _points.[index1].fit_th_out
+                then
+                    _points.[index1].th_out <- value
+
 #if FABLE_COMPILER
             let objectiveFunction (x: float[]) =
                 for i in 0 .. x.Length - 1 do
                     let (index1, index2) = mapping.[i]
                     _points.[index1].arr.[index2] <- x[i]
-
-                    // Synchronize th_out for smooth points
-                    if
-                        index2 = int BezierIndex.ThIn
-                        && ctrlPts.[index1].ty = SplinePointType.Smooth
-                        && _points.[index1].fit_th_out
-                    then
-                        _points.[index1].th_out <- x[i]
+                    syncSmooth index1 index2 x[i]
 
                 if isClosed then
                     _points.[_points.Length - 1].th_in <- _points.[0].th_in
@@ -605,13 +600,7 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             for i in 0 .. best.Length - 1 do
                 let (index1, index2) = mapping.[i]
                 _points.[index1].arr.[index2] <- best[i]
-
-                if
-                    index2 = int BezierIndex.ThIn
-                    && ctrlPts.[index1].ty = SplinePointType.Smooth
-                    && _points.[index1].fit_th_out
-                then
-                    _points.[index1].th_out <- best[i]
+                syncSmooth index1 index2 best[i]
 #else
             let minimiser: Optimization.NelderMeadSimplex =
                 Optimization.NelderMeadSimplex(1e-5, maxIter)
@@ -622,14 +611,7 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 for i in 0 .. x.Count - 1 do
                     let (index1, index2) = mapping.[i]
                     _points.[index1].arr.[index2] <- x[i]
-
-                    // Synchronize th_out for smooth points
-                    if
-                        index2 = int BezierIndex.ThIn
-                        && ctrlPts.[index1].ty = SplinePointType.Smooth
-                        && _points.[index1].fit_th_out
-                    then
-                        _points.[index1].th_out <- x[i]
+                    syncSmooth index1 index2 x[i]
 
                 this.computeErr ()
 
@@ -649,13 +631,7 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             for i in 0 .. resultVec.Count - 1 do
                 let (index1, index2) = mapping.[i]
                 _points.[index1].arr.[index2] <- resultVec.[i]
-
-                if
-                    index2 = int BezierIndex.ThIn
-                    && ctrlPts.[index1].ty = SplinePointType.Smooth
-                    && _points.[index1].fit_th_out
-                then
-                    _points.[index1].th_out <- resultVec.[i]
+                syncSmooth index1 index2 resultVec.[i]
 #endif
 
 // DactylSpline handles general sequence of lines & curves, including corners.
