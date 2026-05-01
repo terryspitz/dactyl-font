@@ -601,6 +601,10 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 let (index1, index2) = mapping.[i]
                 _points.[index1].arr.[index2] <- best[i]
                 syncSmooth index1 index2 best[i]
+
+            if isClosed then
+                _points.[_points.Length - 1].th_in <- _points.[0].th_in
+                _points.[_points.Length - 1].th_out <- _points.[0].th_out
 #else
             let minimiser: Optimization.NelderMeadSimplex =
                 Optimization.NelderMeadSimplex(1e-5, maxIter)
@@ -612,6 +616,10 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     let (index1, index2) = mapping.[i]
                     _points.[index1].arr.[index2] <- x[i]
                     syncSmooth index1 index2 x[i]
+
+                if isClosed then
+                    _points.[_points.Length - 1].th_in <- _points.[0].th_in
+                    _points.[_points.Length - 1].th_out <- _points.[0].th_out
 
                 this.computeErr ()
 
@@ -632,6 +640,10 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 let (index1, index2) = mapping.[i]
                 _points.[index1].arr.[index2] <- resultVec.[i]
                 syncSmooth index1 index2 resultVec.[i]
+
+            if isClosed then
+                _points.[_points.Length - 1].th_in <- _points.[0].th_in
+                _points.[_points.Length - 1].th_out <- _points.[0].th_out
 #endif
 
 // DactylSpline handles general sequence of lines & curves, including corners.

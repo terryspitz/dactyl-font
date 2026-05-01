@@ -565,6 +565,8 @@ type LineToCurveTests() =
     member this.SplineGrid_AllCombinations_NoArmDivergence() =
         // Mirror the Api.solveSplineGrid logic: all 4^3 type combos × open/closed.
         // Every cell must produce arm lengths < 1e5 (otherwise shows as X in the UI).
+        // For closed paths: also check G1 smoothness at P0 when P0=Smooth and P0 is
+        // not at the start of a section that follows a line from P2 (P2≠CL).
         let pointTypes =
             [| SplinePointType.Corner
                SplinePointType.Smooth
@@ -591,18 +593,33 @@ type LineToCurveTests() =
                         try
                             let spline = DactylSpline(pts, isClosed)
                             let bezPts, _, _, _ = spline.solveAndRenderFull(200, 1.0, false, false, false)
-                            let ok = bezPts |> Array.forall (fun bp -> abs bp.ld < 1e5 && abs bp.rd < 1e5)
-                            if not ok then
+
+                            // Arm divergence check
+                            let armOk = bezPts |> Array.forall (fun bp -> abs bp.ld < 1e5 && abs bp.rd < 1e5)
+                            if not armOk then
                                 let maxArm = bezPts |> Array.map (fun bp -> max (abs bp.ld) (abs bp.rd)) |> Array.max
-                                let label = sprintf "[%s,%s,%s] %s maxArm=%.0f"
-                                                typeNames.[it0] typeNames.[it1] typeNames.[it2]
-                                                (if isClosed then "closed" else "open") maxArm
-                                failures.Add(label)
+                                failures.Add(sprintf "[%s,%s,%s] %s arm=%.0f"
+                                    typeNames.[it0] typeNames.[it1] typeNames.[it2]
+                                    (if isClosed then "closed" else "open") maxArm)
+
+                            // G1 smoothness at P0: only for closed paths where P0=Smooth
+                            // and P0 does NOT follow a line from P2 (i.e. P2≠CL).
+                            // When P2=CL the segment P2→P0 is a straight line and P0 is
+                            // the start of a new section; a kink there is expected because
+                            // the user did not declare P0 as LC.
+                            if isClosed
+                               && types.[0] = SplinePointType.Smooth
+                               && types.[2] <> SplinePointType.CurveToLine then
+                                let p0 = bezPts.[0]
+                                let diff = abs (norm (p0.th_in - p0.th_out))
+                                if diff > 0.1 then
+                                    failures.Add(sprintf "[%s,%s,%s] closed P0 not smooth: th_in=%.3f th_out=%.3f diff=%.3f"
+                                        typeNames.[it0] typeNames.[it1] typeNames.[it2]
+                                        p0.th_in p0.th_out diff)
                         with ex ->
-                            let label = sprintf "[%s,%s,%s] %s EXCEPTION: %s"
-                                            typeNames.[it0] typeNames.[it1] typeNames.[it2]
-                                            (if isClosed then "closed" else "open") ex.Message
-                            failures.Add(label)
+                            failures.Add(sprintf "[%s,%s,%s] %s EXCEPTION: %s"
+                                typeNames.[it0] typeNames.[it1] typeNames.[it2]
+                                (if isClosed then "closed" else "open") ex.Message)
 
         if failures.Count > 0 then
             printfn "Failing grid cells:"
