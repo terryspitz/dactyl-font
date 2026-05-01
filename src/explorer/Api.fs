@@ -495,6 +495,46 @@ let getGlyphList () =
 /// Compute spline paths for every combination of 3 point types (Corner, Smooth/G2,
 /// LineToCurve, CurveToLine), with and without a horizontal tangent at the apex,
 /// and both closed and open — all arranged on an isosceles triangle.
+
+/// Returns Some errorMessage if consecutive SplinePointType values imply incompatible
+/// segment kinds (e.g. Smooth departs a curve but LineToCurve expects a line to arrive).
+let private validateSplineTypes (types: Curves.SplinePointType[]) isClosed =
+    let departing ty =
+        match ty with
+        | Curves.SplinePointType.Smooth | Curves.SplinePointType.LineToCurve -> Some true   // curve out
+        | Curves.SplinePointType.CurveToLine -> Some false                                   // line out
+        | _ -> None                                                                          // Corner = flexible
+
+    let arriving ty =
+        match ty with
+        | Curves.SplinePointType.Smooth | Curves.SplinePointType.CurveToLine -> Some true   // curve in
+        | Curves.SplinePointType.LineToCurve -> Some false                                  // line in
+        | _ -> None
+
+    let typeName ty =
+        match ty with
+        | Curves.SplinePointType.Smooth -> "Smooth"
+        | Curves.SplinePointType.Corner -> "Corner"
+        | Curves.SplinePointType.LineToCurve -> "LineToCurve"
+        | Curves.SplinePointType.CurveToLine -> "CurveToLine"
+        | _ -> sprintf "%A" ty
+
+    let check i j =
+        match departing types.[i], arriving types.[j] with
+        | Some true,  Some false ->
+            Some (sprintf "P%d→P%d: %s departs a curve but %s expects a line to arrive" i j (typeName types.[i]) (typeName types.[j]))
+        | Some false, Some true  ->
+            Some (sprintf "P%d→P%d: %s departs a line but %s expects a curve to arrive" i j (typeName types.[i]) (typeName types.[j]))
+        | _ -> None
+
+    let n = types.Length
+    let mutable result = None
+    for i in 0 .. n - 2 do
+        if result.IsNone then result <- check i (i + 1)
+    if isClosed && result.IsNone then
+        result <- check (n - 1) 0
+    result
+
 let solveSplineGrid () =
     let pointTypes =
         [| Curves.SplinePointType.Corner
@@ -521,19 +561,23 @@ let solveSplineGrid () =
                                         Some (if isClosed then System.Math.PI else 0.0)
                                     else None
                                 DactylSpline.dcp types.[i] x y th)
-                        let pathSvg =
-                            try
-                                let spline = DactylSpline.DactylSpline(pts, isClosed)
-                                let bezPts, svg, _, _ = spline.solveAndRenderFull(200, 1.0, false, false, false)
-                                // Reject if any arm length is unreasonably large (solver diverged)
-                                let ok = bezPts |> Array.forall (fun bp -> abs bp.ld < 1e5 && abs bp.rd < 1e5)
-                                if ok then svg |> String.concat "" else ""
-                            with _ -> ""
+                        let error, pathSvg =
+                            match validateSplineTypes types isClosed with
+                            | Some msg -> msg, ""
+                            | None ->
+                                try
+                                    let spline = DactylSpline.DactylSpline(pts, isClosed)
+                                    let bezPts, svg, _, _ = spline.solveAndRenderFull(200, 1.0, false, false, false)
+                                    // Reject if any arm length is unreasonably large (solver diverged)
+                                    let ok = bezPts |> Array.forall (fun bp -> abs bp.ld < 1e5 && abs bp.rd < 1e5)
+                                    "", if ok then svg |> String.concat "" else ""
+                                with _ -> "", ""
                         results.Add(
                             {| types = [| int t0; int t1; int t2 |]
                                isClosed = isClosed
                                withTangent = withTangent
-                               pathSvg = pathSvg |})
+                               pathSvg = pathSvg
+                               error = error |})
     results.ToArray()
 
 let generateFontGlyphData (axes: Axes) =
