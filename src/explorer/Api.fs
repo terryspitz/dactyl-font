@@ -371,6 +371,13 @@ let spiroToSplinePointType (ty: SpiroPointType) =
     | SpiroPointType.Left -> Curves.SplinePointType.CurveToLine
     | _ -> Curves.SplinePointType.Corner
 
+let splineToSpiroPointType (ty: Curves.SplinePointType) =
+    match ty with
+    | Curves.SplinePointType.CurveToLine -> SpiroPointType.Left
+    | Curves.SplinePointType.LineToCurve -> SpiroPointType.Right
+    | Curves.SplinePointType.Smooth      -> SpiroPointType.G2
+    | _                                  -> SpiroPointType.Corner
+
 let computeCurvatureData (bezPts: DactylSpline.BezierPoint array) (isClosed: bool) =
     let steps = 20
     let count = if isClosed then bezPts.Length else bezPts.Length - 1
@@ -418,12 +425,6 @@ let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: boo
 /// Return SVG path data for Spiro and Spline2 interpretations of the same control points.
 let solveAltSplines (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (inputAxes: Axes) =
     let baseAxes = { inputAxes with outline = false; filled = false; debug = false; show_comb = false; show_tangents = false }
-    let splineToSpiro (ty: Curves.SplinePointType) =
-        match ty with
-        | Curves.SplinePointType.CurveToLine -> SpiroPointType.Left
-        | Curves.SplinePointType.LineToCurve -> SpiroPointType.Right
-        | Curves.SplinePointType.Smooth      -> SpiroPointType.G2
-        | _                                  -> SpiroPointType.Corner
     let knots =
         ctrlPts
         |> Array.map (fun cp ->
@@ -431,7 +432,7 @@ let solveAltSplines (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool)
                      y = cp.y |> Option.defaultValue 0.0
                      x_fit = false
                      y_fit = false }
-              ty = splineToSpiro cp.ty
+              ty = splineToSpiroPointType cp.ty
               th_in = cp.th_in
               th_out = cp.th_out
               label = None })
@@ -451,12 +452,6 @@ let getSplineOutlinePath (ctrlPts: DactylSpline.DControlPoint array) (isClosed: 
     try
         let axes = { inputAxes with outline = true; filled = true; dactyl_spline = true }
         let font = Font axes
-        let splineToSpiro (ty: Curves.SplinePointType) =
-            match ty with
-            | Curves.SplinePointType.CurveToLine -> SpiroPointType.Left
-            | Curves.SplinePointType.LineToCurve -> SpiroPointType.Right
-            | Curves.SplinePointType.Smooth      -> SpiroPointType.G2
-            | _                                  -> SpiroPointType.Corner
         let knots =
             ctrlPts
             |> Array.map (fun cp ->
@@ -464,7 +459,7 @@ let getSplineOutlinePath (ctrlPts: DactylSpline.DControlPoint array) (isClosed: 
                          y = cp.y |> Option.defaultValue 0.0
                          x_fit = cp.x.IsNone
                          y_fit = cp.y.IsNone }
-                  ty = splineToSpiro cp.ty
+                  ty = splineToSpiroPointType cp.ty
                   th_in = cp.th_in
                   th_out = cp.th_out
                   label = None })
