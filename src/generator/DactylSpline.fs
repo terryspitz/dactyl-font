@@ -581,46 +581,31 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 then
                     _points.[index1].th_out <- value
 
-#if FABLE_COMPILER
-            let objectiveFunction (x: float[]) =
-                for i in 0 .. x.Length - 1 do
+            let applyParams (getVal: int -> float) (count: int) =
+                for i in 0 .. count - 1 do
                     let (index1, index2) = mapping.[i]
-                    _points.[index1].arr.[index2] <- x[i]
-                    syncSmooth index1 index2 x[i]
-
+                    let v = getVal i
+                    _points.[index1].arr.[index2] <- v
+                    syncSmooth index1 index2 v
                 if isClosed then
                     _points.[_points.Length - 1].th_in <- _points.[0].th_in
                     _points.[_points.Length - 1].th_out <- _points.[0].th_out
 
+#if FABLE_COMPILER
+            let objectiveFunction (x: float[]) =
+                applyParams (fun i -> x[i]) x.Length
                 this.computeErr ()
 
             let param = createObj [ "maxIterations" ==> maxIter ]
             let best = nelderMead objectiveFunction (Array.ofSeq initial) param
-
-            for i in 0 .. best.Length - 1 do
-                let (index1, index2) = mapping.[i]
-                _points.[index1].arr.[index2] <- best[i]
-                syncSmooth index1 index2 best[i]
-
-            if isClosed then
-                _points.[_points.Length - 1].th_in <- _points.[0].th_in
-                _points.[_points.Length - 1].th_out <- _points.[0].th_out
+            applyParams (fun i -> best[i]) best.Length
 #else
             let minimiser: Optimization.NelderMeadSimplex =
                 Optimization.NelderMeadSimplex(1e-5, maxIter)
 
             let objectiveFunction (x: Vector<float>) =
                 assert (x.Count = mapping.Count)
-
-                for i in 0 .. x.Count - 1 do
-                    let (index1, index2) = mapping.[i]
-                    _points.[index1].arr.[index2] <- x[i]
-                    syncSmooth index1 index2 x[i]
-
-                if isClosed then
-                    _points.[_points.Length - 1].th_in <- _points.[0].th_in
-                    _points.[_points.Length - 1].th_out <- _points.[0].th_out
-
+                applyParams (fun i -> x.[i]) x.Count
                 this.computeErr ()
 
             let objModel = Optimization.ObjectiveFunction.Value(objectiveFunction)
@@ -636,14 +621,7 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 else
                     best.MinimizingPoint
 
-            for i in 0 .. resultVec.Count - 1 do
-                let (index1, index2) = mapping.[i]
-                _points.[index1].arr.[index2] <- resultVec.[i]
-                syncSmooth index1 index2 resultVec.[i]
-
-            if isClosed then
-                _points.[_points.Length - 1].th_in <- _points.[0].th_in
-                _points.[_points.Length - 1].th_out <- _points.[0].th_out
+            applyParams (fun i -> resultVec.[i]) resultVec.Count
 #endif
 
 // DactylSpline handles general sequence of lines & curves, including corners.
