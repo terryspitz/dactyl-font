@@ -443,6 +443,13 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     // 2. Penalty for high variation in curvature (flatness)
                     totalErr <- totalErr + abs m * flatness
 
+                    // 3. Extra flatness at open endpoints: endpoint segments should be
+                    //    circular arcs (constant curvature, i.e. m ≈ 0).
+                    //    Weight 2× extra (3× total) was the original intent; using linear
+                    //    |m| rather than quadratic to keep gradients gentle for Nelder-Mead.
+                    if not isClosed && (i = 0 || i = _points.Length - 2) then
+                        totalErr <- totalErr + abs m * flatness * 2.0
+
                     // Calculate start and end curvature for continuity
                     // k(s) = m*s + c. Start is s=0 (c), End is s=max_dist
                     let startK = c
