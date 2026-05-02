@@ -101,6 +101,7 @@
   min-height: 0;
   background: var(--bg-color, #0f0f1a);
   cursor: crosshair;
+  touch-action: none;
 }
 
 .se-table-panel {
