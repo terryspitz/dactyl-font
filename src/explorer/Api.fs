@@ -381,8 +381,7 @@ let splineToSpiroPointType (ty: Curves.SplinePointType) =
 let computeCurvatureData (bezPts: DactylSpline.BezierPoint array) (isClosed: bool) =
     let steps = 20
     let count = if isClosed then bezPts.Length else bezPts.Length - 1
-    let samples = ResizeArray()
-    let knotArcs = ResizeArray()
+    let segments = ResizeArray()
     let mutable arcLen = 0.0
     for i in 0 .. count - 1 do
         let p1 = bezPts.[i]
@@ -393,21 +392,36 @@ let computeCurvatureData (bezPts: DactylSpline.BezierPoint array) (isClosed: boo
         let cp2y = p2.y - p2.ld * sin p2.th_in
         let p0x, p0y = p1.x, p1.y
         let p3x, p3y = p2.x, p2.y
-        if i = 0 then knotArcs.Add(arcLen)
+        // Sample curvature at t=0, 1/steps, ..., 1 (steps+1 points)
+        let localArcs = Array.zeroCreate (steps + 1)
+        let curvatures = Array.zeroCreate (steps + 1)
+        for s in 0 .. steps do
+            let t = float s / float steps
+            let mt = 1.0 - t
+            let dx1 = 3.0 * (mt*mt*(cp1x-p0x) + 2.0*mt*t*(cp2x-cp1x) + t*t*(p3x-cp2x))
+            let dy1 = 3.0 * (mt*mt*(cp1y-p0y) + 2.0*mt*t*(cp2y-cp1y) + t*t*(p3y-cp2y))
+            let dx2 = 6.0 * ((1.0-t)*(cp2x-2.0*cp1x+p0x) + t*(p3x-2.0*cp2x+cp1x))
+            let dy2 = 6.0 * ((1.0-t)*(cp2y-2.0*cp1y+p0y) + t*(p3y-2.0*cp2y+cp1y))
+            let speed = sqrt(dx1*dx1 + dy1*dy1)
+            let denom = speed * speed * speed
+            curvatures.[s] <- if denom < 1e-10 then 0.0 else (dx1*dy2 - dy1*dx2) / denom
+        // Build local arc lengths using midpoint speed between consecutive t values
+        localArcs.[0] <- 0.0
         for s in 0 .. steps - 1 do
             let tmid = (float s + 0.5) / float steps
             let mt = 1.0 - tmid
-            let dx1 = 3.0 * (mt*mt*(cp1x-p0x) + 2.0*mt*tmid*(cp2x-cp1x) + tmid*tmid*(p3x-cp2x))
-            let dy1 = 3.0 * (mt*mt*(cp1y-p0y) + 2.0*mt*tmid*(cp2y-cp1y) + tmid*tmid*(p3y-cp2y))
-            let dx2 = 6.0 * ((1.0-tmid)*(cp2x-2.0*cp1x+p0x) + tmid*(p3x-2.0*cp2x+cp1x))
-            let dy2 = 6.0 * ((1.0-tmid)*(cp2y-2.0*cp1y+p0y) + tmid*(p3y-2.0*cp2y+cp1y))
-            let speed = sqrt(dx1*dx1 + dy1*dy1)
-            let denom = speed * speed * speed
-            let kappa = if denom < 1e-10 then 0.0 else (dx1*dy2 - dy1*dx2) / denom
-            samples.Add({| arcLen = arcLen; curvature = kappa |})
-            arcLen <- arcLen + speed / float steps
-        knotArcs.Add(arcLen)
-    {| samples = samples.ToArray(); knotArcs = knotArcs.ToArray() |}
+            let dxm = 3.0 * (mt*mt*(cp1x-p0x) + 2.0*mt*tmid*(cp2x-cp1x) + tmid*tmid*(p3x-cp2x))
+            let dym = 3.0 * (mt*mt*(cp1y-p0y) + 2.0*mt*tmid*(cp2y-cp1y) + tmid*tmid*(p3y-cp2y))
+            localArcs.[s+1] <- localArcs.[s] + sqrt(dxm*dxm + dym*dym) / float steps
+        let segArcLen = localArcs.[steps]
+        let segSamples =
+            Array.init (steps + 1) (fun s ->
+                {| arcLen = arcLen + localArcs.[s]; curvature = curvatures.[s] |})
+        // Linear regression: k(localArc) = m * localArc + c
+        let m, c, _ = DactylSpline.linear_regression localArcs curvatures (steps + 1)
+        segments.Add({| samples = segSamples; m = m; c = c |})
+        arcLen <- arcLen + segArcLen
+    {| segments = segments.ToArray() |}
 
 let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (maxIter: int) =
     let spline = DactylSpline.DactylSpline(ctrlPts, isClosed)
