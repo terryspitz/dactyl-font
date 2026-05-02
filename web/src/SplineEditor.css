@@ -402,3 +402,24 @@
   flex-shrink: 0;
   display: block;
 }
+
+/* Mobile: stack canvas above table so the spline is always visible */
+@media (max-width: 700px) {
+  .se-main {
+    flex-direction: column;
+  }
+
+  .se-canvas-area {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  .se-table-panel {
+    width: 100%;
+    min-width: 0;
+    border-left: none;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    flex: 0 0 auto;
+    max-height: 40vh;
+  }
+}
