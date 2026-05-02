@@ -565,3 +565,83 @@ type FontTests() =
             Is.GreaterThanOrEqualTo(cNoRounding),
             sprintf "soft_corners should still add some rounding even with joints (got %d C, baseline %d)" cWithJoints cNoRounding
         )
+
+[<TestFixture>]
+type KnotSequenceValidationTests() =
+    let pt x y = { x = x; y = y; x_fit = false; y_fit = false }
+    let knot ty x y = { pt = pt x y; ty = ty; th_in = None; th_out = None; label = None }
+
+    [<Test>]
+    member _.Valid_AllG2_Closed() =
+        let ks = [ knot G2 0. 0.; knot G2 1. 0.; knot G2 1. 1.; knot G2 0. 1. ]
+        Assert.DoesNotThrow(fun () -> validateKnotSequence ks true)
+
+    [<Test>]
+    member _.Valid_AllCorner_Open() =
+        let ks = [ knot Corner 0. 0.; knot Corner 1. 0.; knot Corner 1. 1. ]
+        Assert.DoesNotThrow(fun () -> validateKnotSequence ks false)
+
+    [<Test>]
+    member _.Valid_ProperTransitions_Open() =
+        // Corner → LineToCurve → G2 → CurveToLine → Corner
+        let ks =
+            [ knot Corner 0. 0.
+              knot LineToCurve 1. 0.
+              knot G2 2. 1.
+              knot CurveToLine 2. 2.
+              knot Corner 0. 2. ]
+        Assert.DoesNotThrow(fun () -> validateKnotSequence ks false)
+
+    [<Test>]
+    member _.Valid_ProperTransitions_Closed() =
+        // Closed [LineToCurve, G2, CurveToLine]: wrap-around is CurveToLine→LineToCurve = line segment, valid
+        let ks = [ knot LineToCurve 0. 0.; knot G2 1. 0.; knot CurveToLine 1. 1. ]
+        Assert.DoesNotThrow(fun () -> validateKnotSequence ks true)
+
+    [<Test>]
+    member _.Valid_CornerAdjacentToAnything() =
+        // Corner is unconstrained so it can sit next to G2, LineToCurve, or CurveToLine without error
+        let ks = [ knot G2 0. 0.; knot Corner 1. 0.; knot LineToCurve 2. 0.; knot G2 3. 0. ]
+        Assert.DoesNotThrow(fun () -> validateKnotSequence ks false)
+
+    [<Test>]
+    member _.Valid_SingleKnot() =
+        let ks = [ knot G2 0. 0. ]
+        Assert.DoesNotThrow(fun () -> validateKnotSequence ks false)
+
+    [<Test>]
+    member _.Invalid_G2_ThenLineToCurve() =
+        // G2 departs a curve; LineToCurve expects a line to arrive
+        let ks = [ knot G2 0. 0.; knot LineToCurve 1. 0.; knot G2 2. 1. ]
+        Assert.Throws<System.ArgumentException>(fun () -> validateKnotSequence ks false) |> ignore
+
+    [<Test>]
+    member _.Invalid_CurveToLine_ThenG2() =
+        // CurveToLine departs a line; G2 expects a curve to arrive
+        let ks = [ knot G2 0. 0.; knot CurveToLine 1. 0.; knot G2 2. 1. ]
+        Assert.Throws<System.ArgumentException>(fun () -> validateKnotSequence ks false) |> ignore
+
+    [<Test>]
+    member _.Invalid_DoubleCurveToLine() =
+        // First CurveToLine departs a line; second CurveToLine expects a curve to arrive
+        let ks = [ knot G2 0. 0.; knot CurveToLine 1. 0.; knot CurveToLine 2. 0.; knot Corner 3. 0. ]
+        Assert.Throws<System.ArgumentException>(fun () -> validateKnotSequence ks false) |> ignore
+
+    [<Test>]
+    member _.Invalid_DoubleLineToCurve() =
+        // First LineToCurve departs a curve; second LineToCurve expects a line to arrive
+        let ks = [ knot Corner 0. 0.; knot LineToCurve 1. 0.; knot LineToCurve 2. 0.; knot G2 3. 0. ]
+        Assert.Throws<System.ArgumentException>(fun () -> validateKnotSequence ks false) |> ignore
+
+    [<Test>]
+    member _.Invalid_Closed_WrapAround_G2_ThenLineToCurve() =
+        // Closed [LineToCurve, G2, G2]: last G2 departs a curve, first LineToCurve expects a line to arrive
+        let ks = [ knot LineToCurve 0. 0.; knot G2 1. 0.; knot G2 1. 1. ]
+        Assert.Throws<System.ArgumentException>(fun () -> validateKnotSequence ks true) |> ignore
+
+    [<Test>]
+    member _.Valid_Open_LineToCurveFirst_CurveToLineLast() =
+        // LineToCurve at start and CurveToLine at end of open curve: no wrap-around check,
+        // and the internal pairs (LineToCurve→G2 = curve out / curve in, G2→CurveToLine = curve out / curve in) are valid
+        let ks = [ knot LineToCurve 0. 0.; knot G2 1. 0.; knot CurveToLine 2. 0. ]
+        Assert.DoesNotThrow(fun () -> validateKnotSequence ks false)
