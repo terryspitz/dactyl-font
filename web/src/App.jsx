@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, allChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
+import SplineGrid from './SplineGrid'
 import { downloadFont } from './fontExport'
+import { proofTexts, proofLabels, proofCases, classicBooks } from './proofs'
 import './App.css'
 
 
@@ -14,7 +16,9 @@ function App() {
       glyphs: savedGlyphs !== null ? savedGlyphs : 'font',
       tweens: 'a',
       visualDiffs: allChars,
-      splines: ''
+      splines: '',
+      splineGrid: '',
+      proofs: proofTexts.lowercase
     }
   })
   const [glyphsDefsText, setGlyphsDefsText] = useState(() => {
@@ -23,10 +27,16 @@ function App() {
   })
   const [axes, setAxes] = useState({ ...defaultAxes })
   const [activeTab, setActiveTab] = useState('font')
+  const [proofCase, setProofCase] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    const p = params.get('proof')
+    if (p === 'classic') return 'classic'
+    return proofCases.includes(p) ? p : 'lowercase'
+  })
   const [tabZooms, setTabZooms] = useState(() => {
     const urlZoom = parseFloat(new URLSearchParams(window.location.search).get('zoom'))
     const zoom = isNaN(urlZoom) ? 1.0 : urlZoom
-    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom }
+    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom }
   })
   const [layerVisibility, setLayerVisibility] = useState({
     spiro: true,
@@ -48,8 +58,16 @@ function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     let view = params.get('view')
-    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines'].includes(view)) {
+    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines', 'splineGrid', 'proofs'].includes(view)) {
       setActiveTab(view)
+    }
+    const p = params.get('proof')
+    if (proofCases.includes(p)) {
+      setTabTexts(prev => ({ ...prev, proofs: proofTexts[p] }))
+    } else if (p === 'classic') {
+      const idx = parseInt(params.get('book'))
+      const book = (!isNaN(idx) && idx >= 0 && idx < classicBooks.length) ? classicBooks[idx] : null
+      if (book) setTabTexts(prev => ({ ...prev, proofs: book.text }))
     }
   }, [])
 
@@ -58,6 +76,27 @@ function App() {
     setActiveTab(tab)
     const url = new URL(window.location)
     url.searchParams.set('view', tab)
+    window.history.pushState({}, '', url)
+  }
+
+  const setProofCaseWithUrl = (pcase) => {
+    setProofCase(pcase)
+    setClassicBook(null)
+    setTabTexts(prev => ({ ...prev, proofs: proofTexts[pcase] }))
+    const url = new URL(window.location)
+    url.searchParams.set('proof', pcase)
+    window.history.pushState({}, '', url)
+  }
+
+  const handlePickClassic = () => {
+    const idx = Math.floor(Math.random() * classicBooks.length)
+    const book = classicBooks[idx]
+    setClassicBook(book)
+    setProofCase('classic')
+    setTabTexts(prev => ({ ...prev, proofs: book.text }))
+    const url = new URL(window.location)
+    url.searchParams.set('proof', 'classic')
+    url.searchParams.set('book', idx)
     window.history.pushState({}, '', url)
   }
 
@@ -176,6 +215,13 @@ function App() {
   // Worker state is now handled within the effect directly
 
   const [downloadingFont, setDownloadingFont] = useState(false)
+  const [proofFontUrl, setProofFontUrl] = useState(null)
+  const [classicBook, setClassicBook] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('proof') !== 'classic') return null
+    const idx = parseInt(params.get('book'))
+    return (!isNaN(idx) && idx >= 0 && idx < classicBooks.length) ? classicBooks[idx] : null
+  })
 
   const handleDownloadFont = () => {
     setDownloadingFont(true)
@@ -251,7 +297,7 @@ function App() {
         return
       }
       typeReq = 'font'
-      args = [text, axes]
+      args = [text, axes, false]
     } else if (activeTab === 'glyphs') {
       typeReq = 'glyphsFromDefs'
       args = [glyphsDefsText, { ...axes, filled: glyphsFilled }]
@@ -265,8 +311,14 @@ function App() {
     } else if (activeTab === 'visualDiffs') {
       typeReq = 'visualDiffs'
       args = [text || allChars, axes]
-    } else if (activeTab === 'splines') {
-      // SplineEditor has its own worker — skip
+    } else if (activeTab === 'proofs') {
+      // Proofs has its own dedicated effect — skip
+      setLoading(false)
+      clearTimeout(timer)
+      worker.terminate()
+      return
+    } else if (activeTab === 'splines' || activeTab === 'splineGrid') {
+      // SplineEditor and SplineGrid have their own workers — skip
       setLoading(false)
       clearTimeout(timer)
       worker.terminate()
@@ -283,6 +335,53 @@ function App() {
     }
   }, [text, axes, activeTab, glyphsDefsText, glyphsFilled])
 
+  // Dedicated effect for proofs tab: generates full font and builds a data URL.
+  // Deps are [axes, activeTab] only — switching proof text doesn't re-trigger.
+  // Old font stays visible until the new one arrives (proofFontUrl is not cleared).
+  useEffect(() => {
+    if (activeTab !== 'proofs') return
+
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    const id = ++renderIdRef.current
+    setLoading(true)
+    loadingRef.current = true
+    setError(null)
+
+    const timer = setTimeout(() => {
+      if (id === renderIdRef.current && loadingRef.current) setShowProgress(true)
+    }, 300)
+
+    worker.onmessage = (e) => {
+      const { id: msgId, result, error } = e.data
+      if (msgId !== renderIdRef.current) return
+      clearTimeout(timer)
+      if (error) { setError(error) }
+      else { setProofFontUrl(result); setError(null) }
+      setLoading(false)
+      loadingRef.current = false
+      setShowProgress(false)
+    }
+
+    worker.postMessage({ id, type: 'fontPreview', args: [axes] })
+
+    return () => {
+      clearTimeout(timer)
+      worker.terminate()
+    }
+  }, [axes, activeTab])
+
+  // Inject/update the @font-face rule whenever a new proof font data URL arrives.
+  useEffect(() => {
+    if (!proofFontUrl) return
+    let el = document.getElementById('dactyl-proof-font')
+    if (!el) {
+      el = document.createElement('style')
+      el.id = 'dactyl-proof-font'
+      document.head.appendChild(el)
+    }
+    el.textContent = `@font-face { font-family: 'DactylPreview'; src: url('${proofFontUrl}') format('opentype'); }`
+  }, [proofFontUrl])
+
   const renderContent = () => {
     if (error) return <div style={{ color: 'red' }}>Error: {error}</div>
     if (!workerResult && loading && activeTab !== 'tweens') {
@@ -290,6 +389,36 @@ function App() {
       // But user asked for progress bar at top, so maybe leave blank or keep old?
       // If we return null, it might flash.
     }
+
+    // SplineEditor manages its own state/worker — render immediately
+    if (activeTab === 'splines') {
+      return <SplineEditor axes={axes} />
+    }
+
+    if (activeTab === 'splineGrid') {
+      return <SplineGrid />
+    }
+
+    // Proofs tab uses CSS font rendering — bypass SVG result check
+    if (activeTab === 'proofs') {
+      return (
+        <div
+          className="proof-text"
+          style={{
+            fontFamily: proofFontUrl ? "'DactylPreview', monospace" : 'monospace',
+            fontSize: `${18 * zoom}pt`,
+            lineHeight: 1.4,
+            whiteSpace: 'pre-wrap',
+            textAlign: 'left',
+            padding: '20px',
+            color: '#000',
+          }}
+        >
+          {text}
+        </div>
+      )
+    }
+
 
     // Safety check: ensure result matches expected type for tab
     const content = workerResult
@@ -491,7 +620,34 @@ function App() {
             <button className={`tab-button ${activeTab === 'tweens' ? 'active' : ''}`} onClick={() => setTabWithUrl('tweens')}>Tweens</button>
             <button className={`tab-button ${activeTab === 'visualDiffs' ? 'active' : ''}`} onClick={() => setTabWithUrl('visualDiffs')}>Visual Diffs</button>
             <button className={`tab-button ${activeTab === 'splines' ? 'active' : ''}`} onClick={() => setTabWithUrl('splines')}>Splines</button>
+            <button className={`tab-button ${activeTab === 'splineGrid' ? 'active' : ''}`} onClick={() => setTabWithUrl('splineGrid')}>Spline Grid</button>
+            <button className={`tab-button ${activeTab === 'proofs' ? 'active' : ''}`} onClick={() => setTabWithUrl('proofs')}>Proofs</button>
           </div>
+          {activeTab === 'proofs' && (
+            <div className="proof-chips">
+              {proofCases.map(k => (
+                <button
+                  key={k}
+                  className={`proof-chip ${proofCase === k ? 'selected' : ''}`}
+                  onClick={() => setProofCaseWithUrl(k)}
+                >
+                  {proofLabels[k]}
+                </button>
+              ))}
+              <button
+                className={`proof-chip ${proofCase === 'classic' ? 'selected' : ''}`}
+                onClick={handlePickClassic}
+                title="Pick a random classic"
+              >
+                Classic &#x21BA;
+              </button>
+              {proofCase === 'classic' && classicBook && (
+                <span className="proof-book-title">
+                  {classicBook.title} &mdash; {classicBook.author}
+                </span>
+              )}
+            </div>
+          )}
           {activeTab === 'font' && (
             <button
               className="icon-button"
@@ -506,7 +662,7 @@ function App() {
           )}
         </div>
 
-        <div className={`input-area ${activeTab === 'glyphs' ? 'with-defs' : ''}`} style={activeTab === 'splines' ? { display: 'none' } : undefined}>
+        <div className={`input-area ${activeTab === 'glyphs' ? 'with-defs' : ''}`} style={activeTab === 'splines' || activeTab === 'splineGrid' ? { display: 'none' } : undefined}>
           <div className="input-wrapper">
             <textarea
               value={text}
@@ -517,7 +673,7 @@ function App() {
             <button
               className="text-reset-button"
               onClick={() => {
-                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '' }
+                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', splineGrid: '', proofs: proofTexts[proofCase] }
                 setText(defaults[activeTab])
               }}
               title="Reset Text to Default"
@@ -564,8 +720,8 @@ function App() {
               )}
             </div>
           )}
-          <div ref={previewRef} className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`}>
-            {activeTab !== 'splines' && (
+          <div ref={previewRef} className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`} style={activeTab === 'splineGrid' ? { padding: 0 } : undefined}>
+            {activeTab !== 'splines' && activeTab !== 'splineGrid' && (
               <div className="zoom-controls">
                 <button onClick={() => setZoom(z => Math.min(z + 0.1, 5.0))} title="Zoom In">
                   <span className="material-symbols-outlined">add</span>
@@ -578,7 +734,7 @@ function App() {
                 </button>
               </div>
             )}
-            <div style={activeTab === 'splines' ? { display: 'none' } : { transform: activeTab === 'tweens' ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
+            <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: (activeTab === 'tweens' || activeTab === 'proofs') ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
               {renderContent()}
             </div>
             {/* Always mounted so state is preserved across tab switches; hidden via CSS when inactive */}

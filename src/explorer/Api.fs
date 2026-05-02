@@ -38,15 +38,15 @@ let controlDefinitions = Axes.controls |> List.map getControlDetails |> Array.of
 let defaultAxes = Axes.DefaultAxes
 
 let allChars =
-    "abcdefghijklm
-nopqrstuvwxyz
-0123456789
-ABCDEFGHIJKLM
-NOPQRSTUVWXYZ
-!\"#£$%&'()*+,-./:;
-<=>?@[\\]^_`{|}~"
+    "abcdefg hijklm
+nopqrst uvwxyz
+01234 56789
+ABCDEFG HIJKLM
+NOPQRST UVWXYZ
+!\"#£$% &'()*+,-./:;
+<=>?@ [\\]^_`{|}~"
 
-let generateSvg (text: string) (axes: Axes) (progress: (float -> unit) option) =
+let generateSvg (text: string) (axes: Axes) (autoscale: bool) (progress: (float -> unit) option) =
     let font = Font axes
 
     let lines =
@@ -55,9 +55,7 @@ let generateSvg (text: string) (axes: Axes) (progress: (float -> unit) option) =
         else
             text.Replace("\r\n", "\n").Split('\n') |> List.ofArray
 
-    // Using the same parameters as explorer.fs: 0 0 false black
-    // You might want to make these configurable later
-    font.stringToSvg lines 0.0 0.0 false "black" progress |> String.concat "\n"
+    font.stringToSvg lines 0.0 0.0 autoscale "black" progress |> String.concat "\n"
 
 let generateTweenSvg (text: string) (axes: Axes) =
     let font = Font axes
@@ -364,11 +362,6 @@ let getGlyphDefs (text: string) =
         |> String.concat "\n"
 
 
-let generateSplineViewerSvg () =
-    SplineViewer.splineStaticPage ()
-    |> SvgHelpers.toSvgDocument 0. 0. 10. 12.
-    |> String.concat "\n"
-
 
 let spiroToSplinePointType (ty: SpiroPointType) =
     match ty with
@@ -377,6 +370,13 @@ let spiroToSplinePointType (ty: SpiroPointType) =
     | SpiroPointType.Right -> Curves.SplinePointType.LineToCurve
     | SpiroPointType.Left -> Curves.SplinePointType.CurveToLine
     | _ -> Curves.SplinePointType.Corner
+
+let splineToSpiroPointType (ty: Curves.SplinePointType) =
+    match ty with
+    | Curves.SplinePointType.CurveToLine -> SpiroPointType.Left
+    | Curves.SplinePointType.LineToCurve -> SpiroPointType.Right
+    | Curves.SplinePointType.Smooth      -> SpiroPointType.G2
+    | _                                  -> SpiroPointType.Corner
 
 let computeCurvatureData (bezPts: DactylSpline.BezierPoint array) (isClosed: bool) =
     let steps = 20
@@ -458,17 +458,36 @@ let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: boo
                   ld = bp.ld; rd = bp.rd |})
        curvatureData = {| samples = curvatureData.samples; knotArcs = curvatureData.knotArcs; subdivisionArcs = subdivArcs |} |}
 
+/// Return SVG path data for Spiro and Spline2 interpretations of the same control points.
+let solveAltSplines (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (inputAxes: Axes) =
+    let baseAxes = { inputAxes with outline = false; filled = false; debug = false; show_comb = false; show_tangents = false }
+    let knots =
+        ctrlPts
+        |> Array.map (fun cp ->
+            { pt = { x = cp.x |> Option.defaultValue 0.0
+                     y = cp.y |> Option.defaultValue 0.0
+                     x_fit = false
+                     y_fit = false }
+              ty = splineToSpiroPointType cp.ty
+              th_in = cp.th_in
+              th_out = cp.th_out
+              label = None })
+        |> Array.toList
+    let curve = Curve(knots, isClosed)
+    let getPath (axes: Axes) =
+        try
+            let font = Font axes
+            let svg, _, _ = font.elementToSvg curve
+            String.concat "" svg
+        with _ -> ""
+    {| spiroPath = getPath { baseAxes with spline2 = false; dactyl_spline = false }
+       spline2Path = getPath { baseAxes with spline2 = true; dactyl_spline = false } |}
+
 /// Generate a proper ink outline for the current spline via Font.getDactylSansOutlines.
 let getSplineOutlinePath (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (inputAxes: Axes) =
     try
         let axes = { inputAxes with outline = true; filled = true; dactyl_spline = true }
         let font = Font axes
-        let splineToSpiro (ty: Curves.SplinePointType) =
-            match ty with
-            | Curves.SplinePointType.CurveToLine -> SpiroPointType.Left
-            | Curves.SplinePointType.LineToCurve -> SpiroPointType.Right
-            | Curves.SplinePointType.Smooth      -> SpiroPointType.G2
-            | _                                  -> SpiroPointType.Corner
         let knots =
             ctrlPts
             |> Array.map (fun cp ->
@@ -476,7 +495,7 @@ let getSplineOutlinePath (ctrlPts: DactylSpline.DControlPoint array) (isClosed: 
                          y = cp.y |> Option.defaultValue 0.0
                          x_fit = cp.x.IsNone
                          y_fit = cp.y.IsNone }
-                  ty = splineToSpiro cp.ty
+                  ty = splineToSpiroPointType cp.ty
                   th_in = cp.th_in
                   th_out = cp.th_out
                   label = None })
@@ -508,6 +527,94 @@ let getGlyphList () =
     GlyphStringDefs.glyphMap
     |> Map.toArray
     |> Array.map (fun (c, def) -> {| char = string c; def = def |})
+
+/// Compute spline paths for every combination of 3 point types (Corner, Smooth/G2,
+/// LineToCurve, CurveToLine), with and without a horizontal tangent at the apex,
+/// and both closed and open — all arranged on an isosceles triangle.
+
+/// Returns Some errorMessage if consecutive SplinePointType values imply incompatible
+/// segment kinds (e.g. Smooth departs a curve but LineToCurve expects a line to arrive).
+let private validateSplineTypes (types: Curves.SplinePointType[]) isClosed =
+    let departing ty =
+        match ty with
+        | Curves.SplinePointType.Smooth | Curves.SplinePointType.LineToCurve -> Some true   // curve out
+        | Curves.SplinePointType.CurveToLine -> Some false                                   // line out
+        | _ -> None                                                                          // Corner = flexible
+
+    let arriving ty =
+        match ty with
+        | Curves.SplinePointType.Smooth | Curves.SplinePointType.CurveToLine -> Some true   // curve in
+        | Curves.SplinePointType.LineToCurve -> Some false                                  // line in
+        | _ -> None
+
+    let typeName ty =
+        match ty with
+        | Curves.SplinePointType.Smooth -> "Smooth"
+        | Curves.SplinePointType.Corner -> "Corner"
+        | Curves.SplinePointType.LineToCurve -> "LineToCurve"
+        | Curves.SplinePointType.CurveToLine -> "CurveToLine"
+        | _ -> sprintf "%A" ty
+
+    let check i j =
+        match departing types.[i], arriving types.[j] with
+        | Some true,  Some false ->
+            Some (sprintf "P%d→P%d: %s departs a curve but %s expects a line to arrive" i j (typeName types.[i]) (typeName types.[j]))
+        | Some false, Some true  ->
+            Some (sprintf "P%d→P%d: %s departs a line but %s expects a curve to arrive" i j (typeName types.[i]) (typeName types.[j]))
+        | _ -> None
+
+    let n = types.Length
+    let mutable result = None
+    for i in 0 .. n - 2 do
+        if result.IsNone then result <- check i (i + 1)
+    if isClosed && result.IsNone then
+        result <- check (n - 1) 0
+    result
+
+let solveSplineGrid () =
+    let pointTypes =
+        [| Curves.SplinePointType.Corner
+           Curves.SplinePointType.Smooth
+           Curves.SplinePointType.LineToCurve
+           Curves.SplinePointType.CurveToLine |]
+    // Isosceles triangle: bottom-left, bottom-right, apex (math/y-up coords)
+    let tri = [| (50.0, 50.0); (250.0, 50.0); (150.0, 200.0) |]
+    let results = ResizeArray()
+    for isClosed in [| false; true |] do
+        for withTangent in [| false; true |] do
+            for t0 in pointTypes do
+                for t1 in pointTypes do
+                    for t2 in pointTypes do
+                        let types = [| t0; t1; t2 |]
+                        let pts =
+                            Array.init 3 (fun i ->
+                                let (x, y) = tri.[i]
+                                // Apply horizontal tangent only to the apex (index 2).
+                                // For closed curves the traversal direction at the apex is reversed,
+                                // so flip the angle by π so the constraint is still "horizontal".
+                                let th =
+                                    if withTangent && i = 2 then
+                                        Some (if isClosed then System.Math.PI else 0.0)
+                                    else None
+                                DactylSpline.dcp types.[i] x y th)
+                        let error, pathSvg =
+                            match validateSplineTypes types isClosed with
+                            | Some msg -> msg, ""
+                            | None ->
+                                try
+                                    let spline = DactylSpline.DactylSpline(pts, isClosed)
+                                    let bezPts, svg, _, _ = spline.solveAndRenderFull(200, 1.0, false, false, false)
+                                    // Reject if any arm length is unreasonably large (solver diverged)
+                                    let ok = bezPts |> Array.forall (fun bp -> abs bp.ld < 1e5 && abs bp.rd < 1e5)
+                                    "", if ok then svg |> String.concat "" else ""
+                                with _ -> "", ""
+                        results.Add(
+                            {| types = [| int t0; int t1; int t2 |]
+                               isClosed = isClosed
+                               withTangent = withTangent
+                               pathSvg = pathSvg
+                               error = error |})
+    results.ToArray()
 
 let generateFontGlyphData (axes: Axes) =
     let fontAxes = { axes with outline = true; filled = true }
