@@ -244,6 +244,36 @@ let getBezPt (p0x, p0y) (p1x, p1y) (p2x, p2y) (p3x, p3y) t =
     { x = c0 * p0x + c1 * p1x + c2 * p2x + c3 * p3x
       y = c0 * p0y + c1 * p1y + c2 * p2y + c3 * p3y }
 
+let computeCurvatureData (bezPts: BezierPoint array) (isClosed: bool) =
+    let steps = 20
+    let count = if isClosed then bezPts.Length else bezPts.Length - 1
+    let segments = ResizeArray()
+    let mutable arcLen = 0.0
+    for i in 0 .. count - 1 do
+        let p1 = bezPts.[i]
+        let p2 = bezPts.[(i + 1) % bezPts.Length]
+        let cp1 = (p1.x + p1.rd * cos p1.th_out, p1.y + p1.rd * sin p1.th_out)
+        let cp2 = (p2.x - p2.ld * cos p2.th_in,  p2.y - p2.ld * sin p2.th_in)
+        let p0 = (p1.x, p1.y)
+        let p3 = (p2.x, p2.y)
+        let localArcs = Array.zeroCreate (steps + 1)
+        let curvatures = Array.init (steps + 1) (fun s ->
+            getCurvature p0 cp1 cp2 p3 (float s / float steps))
+        for s in 0 .. steps - 1 do
+            let pa = getBezPt p0 cp1 cp2 p3 (float s / float steps)
+            let pb = getBezPt p0 cp1 cp2 p3 (float (s + 1) / float steps)
+            let dx = pb.x - pa.x
+            let dy = pb.y - pa.y
+            localArcs.[s + 1] <- localArcs.[s] + sqrt (dx * dx + dy * dy)
+        let segArcLen = localArcs.[steps]
+        let segSamples =
+            Array.init (steps + 1) (fun s ->
+                {| arcLen = arcLen + localArcs.[s]; curvature = curvatures.[s] |})
+        let m, c, _ = linear_regression localArcs curvatures (steps + 1)
+        segments.Add({| samples = segSamples; m = m; c = c |})
+        arcLen <- arcLen + segArcLen
+    {| segments = segments.ToArray() |}
+
 type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug: bool) =
     let _points: BezierPoint array = Array.init ctrlPts.Length (fun _ -> BezierPoint())
     let STEPS = 8
