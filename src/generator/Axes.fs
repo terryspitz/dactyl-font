@@ -74,7 +74,7 @@ type Axes =
           smooth = false
           clip_rect = true
           flatness = 1.0
-          sidebearingScale = 1.0
+          sidebearingScale = 1.2
           debug = false }
 
     static member controls =
