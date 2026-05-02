@@ -17,6 +17,7 @@ open PathBezierContext
 open Axes
 open Curves
 open DactylSpline
+open SpiroCombContext
 open SvgHelpers
 
 
@@ -106,6 +107,7 @@ type Font(axes: Axes) =
 
         match elem with
         | Curve(pts, isClosed) ->
+            validateKnotSequence pts isClosed
             // Revert to simpler logic that doesn't add handle points for tangents,
             // as this was breaking legacy Spiro path for some glyphs.
             let scps =
@@ -213,6 +215,7 @@ type Font(axes: Axes) =
     let rec elementToSpline2 elem =
         match elem with
         | Curve(pts, isClosed) ->
+            validateKnotSequence pts isClosed
             let ctrlPts = toSpline2ControlPoints pts
             let spline = Spline2(ctrlPts, isClosed)
             spline.solve (axes.max_spline_iter)
@@ -466,7 +469,7 @@ type Font(axes: Axes) =
                           false
                       else
                           let perpX, perpY = (y2 - y1), -(x2 - x1)
-                          assert ((x1 * perpX + y1 * perpY) = (x2 * perpX + y2 * perpY))
+                          assert ((x1 * perpX + y1 * perpY) - (x2 * perpX + y2 * perpY) < 1.0)
                           let perpDist = (X * perpX + Y * perpY) - (x1 * perpX + y1 * perpY)
                           (perpDist > -thickness) && (perpDist < thickness) ]
         //TODO: check joints on curves, or mark manually in reduce fn.
@@ -656,15 +659,11 @@ type Font(axes: Axes) =
 
     member this.offsetSegment (seg: Segment) (lastSeg: Segment) reverse dist =
         let newType =
-            if reverse then
-                match seg.Type with
-                | SpiroPointType.Left -> SpiroPointType.Right
-                | SpiroPointType.Right -> SpiroPointType.Left
-                | _ -> seg.Type
-            else
-                match seg.Type with
-                | SpiroPointType.EndOpenContour -> Corner
-                | _ -> seg.Type
+            match seg.Type, reverse with
+            | SpiroPointType.Left, true -> SpiroPointType.Right
+            | SpiroPointType.Right, true -> SpiroPointType.Left
+            | SpiroPointType.EndOpenContour, false -> Corner
+            | _ -> seg.Type
 
         let angle = if reverse then -PI / 2. else PI / 2.
 
@@ -755,6 +754,8 @@ type Font(axes: Axes) =
 
     /// Flip tangent by PI for reversed-path points (path direction reversal).
     /// Also swaps th_in and th_out since path direction reverses.
+    /// Note: type swapping (LineToCurve↔CurveToLine) is already handled by offsetSegment(reverse=true),
+    /// so flipTangent must NOT change ty.
     static member flipTangent(k: Knot) =
         { k with
             th_in = k.th_out |> Option.map (fun t -> norm (t + PI))
@@ -870,24 +871,9 @@ type Font(axes: Axes) =
 
     member this.getSpiroSansOutlines e =
         let fthickness = float thickness
-
-        let startCap (seg: Segment) =
-            let ty =
-                if seg.Type = SpiroPointType.Anchor then
-                    SpiroPointType.Anchor
-                else
-                    Corner
-
-            this.startCap seg e ty
-
-        let endCap (seg: Segment) (lastSeg: Segment) =
-            let ty =
-                if seg.Type = SpiroPointType.Anchor then
-                    SpiroPointType.Anchor
-                else
-                    Corner
-
-            this.endCap seg lastSeg e ty
+        let capType (seg: Segment) = if seg.Type = SpiroPointType.Anchor then SpiroPointType.Anchor else Corner
+        let startCap (seg: Segment) = this.startCap seg e (capType seg)
+        let endCap (seg: Segment) (lastSeg: Segment) = this.endCap seg lastSeg e (capType seg)
 
         let spiroToOutline spiro =
             match spiro with
@@ -1135,6 +1121,7 @@ type Font(axes: Axes) =
         let rec dactylToOutline elem =
             match elem with
             | Curve(pts, isClosed) ->
+                validateKnotSequence pts isClosed
                 let segs = solveCurveSegs pts isClosed
 
                 if axes.debug then
@@ -1221,7 +1208,21 @@ type Font(axes: Axes) =
 
         applyToSegments spiroConstrain elem
 
-    ///Convert spiro curves to bezier SVG curves
+    ///Convert spiro curves to bezier SVG curves, returning (pathSvg, combSvg)
+    member this.spiroToSvgWithComb spiro =
+        match spiro with
+        | SpiroOpenCurve(segs) ->
+            let bc = SpiroCombContext(axes.show_comb, segs.Length * 20)
+            Spiro.SpirosToBezier (Array.ofList segs) false bc |> ignore
+            ([ bc.GetPathData ], bc.GetCombSvg)
+        | SpiroClosedCurve(segs) ->
+            let bc = SpiroCombContext(axes.show_comb, segs.Length * 20)
+            Spiro.SpirosToBezier (Array.ofList segs) true bc |> ignore
+            ([ bc.GetPathData ], bc.GetCombSvg)
+        | SpiroDot(p) -> (svgCircle p.x p.y thickness, [])
+        | SpiroSpace -> ([], [])
+
+    ///Convert spiro curves to bezier SVG curves (path only, for callers that don't need comb)
     member this.spiroToSvg spiro =
         match spiro with
         | SpiroOpenCurve(segs) ->
@@ -1242,7 +1243,11 @@ type Font(axes: Axes) =
         else if axes.dactyl_spline then
             elementToDactylSvg elem
         else
-            (elementToSpiroSegments elem |> List.collect this.spiroToSvg, [], [])
+            let segs = elementToSpiroSegments elem
+            let results = segs |> List.map this.spiroToSvgWithComb
+            let svgPaths = results |> List.collect fst
+            let combPaths = results |> List.collect snd
+            (svgPaths, combPaths, [])
 
     member this.elementToSvgPath (element: Element) (offsetX: float) (offsetY: float) (strokeWidth: float) fillColour =
         let GetStableHash (str: string) =
@@ -1301,11 +1306,14 @@ type Font(axes: Axes) =
         @ if List.isEmpty combSvg then
               []
           else
+              // Spiro combs are rendered in very light grey; other curves use black
+              let combStroke =
+                  if axes.dactyl_spline then "#000000" else "#808080"
               [ "<g class='comb-layer'>"; "<path "; "d='" ]
               @ combSvg
               @ [ "'"
                   sprintf "transform='translate(%.0f,%.0f) scale(1,-1)'" (float offsetX) (float offsetY)
-                  sprintf "style='fill:none;stroke:#000000;stroke-width:1'" // Black, min thickness (1px)
+                  sprintf "style='fill:none;stroke:%s;stroke-width:1'" combStroke
                   "/>"
                   "</g>" ]
         // Add separate path for tangents if present

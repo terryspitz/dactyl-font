@@ -1,4 +1,5 @@
-import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, generateSplineViewerSvg, controlDefinitions, solveSplineEditor, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphData, getSplineOutlinePath } from './lib/fable/Api'
+import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, controlDefinitions, solveSplineEditor, solveSplineGrid, solveAltSplines, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphData, getSplineOutlinePath } from './lib/fable/Api'
+import { buildFontDataUrl } from './fontExport'
 import { DControlPoint } from './lib/fable/generator/DactylSpline'
 
 self.onmessage = (e) => {
@@ -45,10 +46,7 @@ self.onmessage = (e) => {
                 result = data
                 break
             }
-            case 'splineViewer':
-        result = generateSplineViewerSvg()
-        break
-      case 'visualDiffs':
+            case 'visualDiffs':
                 result = generateVisualDiffsSvg(...args, (p) => {
                     self.postMessage({ id, type: 'progress', value: p });
                 })
@@ -73,15 +71,30 @@ self.onmessage = (e) => {
                 result = getGlyphList()
                 break
             }
+            case 'solveSplineGrid': {
+                result = solveSplineGrid()
+                break
+            }
             case 'fontData': {
                 const [fontAxes] = args
                 result = generateFontGlyphData(fontAxes)
+                break
+            }
+            case 'fontPreview': {
+                const [fontAxes] = args
+                result = buildFontDataUrl(generateFontGlyphData(fontAxes), 'DactylPreview')
                 break
             }
             case 'splineOutline': {
                 const [ctrlPtsRaw, isClosed, glyphAxes] = args
                 const ctrlPts = ctrlPtsRaw.map(p => new DControlPoint(p.ty, p.x, p.y, p.th_in, p.th_out))
                 result = getSplineOutlinePath(ctrlPts, isClosed, glyphAxes)
+                break
+            }
+            case 'solveAltSplines': {
+                const [ctrlPtsRaw, isClosed, glyphAxes] = args
+                const ctrlPts = ctrlPtsRaw.map(p => new DControlPoint(p.ty, p.x, p.y, p.th_in, p.th_out))
+                result = solveAltSplines(ctrlPts, isClosed, glyphAxes)
                 break
             }
             default:

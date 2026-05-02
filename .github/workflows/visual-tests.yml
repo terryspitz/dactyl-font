@@ -12,12 +12,18 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: write
+
 jobs:
   visual-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.head_ref || github.ref }}
 
       - name: Init fmin submodule
         run: git submodule update --init web/src/lib/fmin
@@ -46,8 +52,20 @@ jobs:
       - name: Install Playwright browsers
         run: cd web && npx playwright install --with-deps chromium
 
+      - name: Install ImageMagick
+        run: sudo apt-get install -y imagemagick fonts-dejavu-core
+
       - name: Build web app
         run: cd web && npm run build
+
+      - name: Save snapshots before update
+        if: inputs.update_snapshots
+        run: |
+          while IFS= read -r dir; do
+            for f in "$dir"/*.png; do
+              [ -f "$f" ] && cp "$f" "${f%.png}__before.png"
+            done
+          done < <(find web/tests -name '*-snapshots' -type d)
 
       - name: Run visual tests
         id: run-tests
@@ -60,6 +78,40 @@ jobs:
             npm run test:visual:update
             echo "snapshots_created=true" >> $GITHUB_OUTPUT
           fi
+
+      - name: Generate diff GIFs
+        if: inputs.update_snapshots
+        run: |
+          mkdir -p web/tests/diffs
+          rm -f web/tests/diffs/*.gif
+          while IFS= read -r dir; do
+            for after in "$dir"/*.png; do
+              [ -f "$after" ] || continue
+              [[ "$after" == *__before.png ]] && continue
+              before="${after%.png}__before.png"
+              [ ! -f "$before" ] && continue
+              if ! cmp -s "$after" "$before"; then
+                name=$(basename "${after%.png}")
+                convert "$before" \
+                  -fill 'rgba(0,0,0,0.75)' -draw 'rectangle 0,0 150,44' \
+                  -fill white -font DejaVu-Sans-Bold -pointsize 24 \
+                  -gravity NorthWest -annotate +8+6 'BEFORE' \
+                  /tmp/frame-before.png
+                convert "$after" \
+                  -fill 'rgba(0,0,0,0.75)' -draw 'rectangle 0,0 150,44' \
+                  -fill white -font DejaVu-Sans-Bold -pointsize 24 \
+                  -gravity NorthWest -annotate +8+6 'AFTER' \
+                  /tmp/frame-after.png
+                convert -delay 100 /tmp/frame-before.png \
+                        -delay 100 /tmp/frame-after.png \
+                        -loop 0 "web/tests/diffs/${name}.gif"
+                echo "Generated diff: ${name}.gif"
+              fi
+            done
+          done < <(find web/tests -name '*-snapshots' -type d)
+          find web/tests -name '*__before.png' -delete
+          echo "Diffs generated:"
+          ls web/tests/diffs/ 2>/dev/null || echo "(none)"
 
       - name: Commit updated snapshots
         if: inputs.update_snapshots || steps.run-tests.outputs.snapshots_created == 'true'
@@ -77,8 +129,48 @@ jobs:
             git push origin HEAD:"$BRANCH"
           fi
 
+      - name: Commit new baselines
+        if: always() && !inputs.update_snapshots
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add web/tests/tabs.spec.js-snapshots/ web/tests/tweens.spec.js-snapshots/ 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No new baselines to commit."
+          else
+            git commit -m "Add new visual regression baselines"
+            git push
+          fi
+
+      - name: Generate failure diff GIFs
+        if: failure()
+        run: |
+          mkdir -p web/test-results/diffs
+          find web/test-results -name '*-actual.png' | while IFS= read -r actual; do
+            expected="${actual%-actual.png}-expected.png"
+            [ -f "$expected" ] || continue
+            name=$(basename "${actual%-actual.png}")
+            convert "$expected" \
+              -fill 'rgba(0,0,0,0.75)' -draw 'rectangle 0,0 150,44' \
+              -fill white -font DejaVu-Sans-Bold -pointsize 24 \
+              -gravity NorthWest -annotate +8+6 'BEFORE' \
+              /tmp/frame-before.png
+            convert "$actual" \
+              -fill 'rgba(0,0,0,0.75)' -draw 'rectangle 0,0 150,44' \
+              -fill white -font DejaVu-Sans-Bold -pointsize 24 \
+              -gravity NorthWest -annotate +8+6 'AFTER' \
+              /tmp/frame-after.png
+            convert -delay 100 /tmp/frame-before.png \
+                    -delay 100 /tmp/frame-after.png \
+                    -loop 0 "web/test-results/diffs/${name}.gif"
+            echo "Generated diff: ${name}.gif"
+          done
+          echo "Failure diffs:"
+          ls web/test-results/diffs/ 2>/dev/null || echo "(none)"
+
       - name: Upload screenshots on failure
         if: failure()
+        id: artifact-upload
         uses: actions/upload-artifact@v4
         with:
           name: playwright-screenshots
@@ -87,3 +179,7 @@ jobs:
             web/test-results/
             web/playwright-report/
           retention-days: 7
+
+      - name: Log artifact URL
+        if: failure()
+        run: echo "Diff GIFs and screenshots uploaded. Download at ${{ steps.artifact-upload.outputs.artifact-url }}"

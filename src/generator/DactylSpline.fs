@@ -244,6 +244,36 @@ let getBezPt (p0x, p0y) (p1x, p1y) (p2x, p2y) (p3x, p3y) t =
     { x = c0 * p0x + c1 * p1x + c2 * p2x + c3 * p3x
       y = c0 * p0y + c1 * p1y + c2 * p2y + c3 * p3y }
 
+let computeCurvatureData (bezPts: BezierPoint array) (isClosed: bool) =
+    let steps = 20
+    let count = if isClosed then bezPts.Length else bezPts.Length - 1
+    let segments = ResizeArray()
+    let mutable arcLen = 0.0
+    for i in 0 .. count - 1 do
+        let p1 = bezPts.[i]
+        let p2 = bezPts.[(i + 1) % bezPts.Length]
+        let cp1 = (p1.x + p1.rd * cos p1.th_out, p1.y + p1.rd * sin p1.th_out)
+        let cp2 = (p2.x - p2.ld * cos p2.th_in,  p2.y - p2.ld * sin p2.th_in)
+        let p0 = (p1.x, p1.y)
+        let p3 = (p2.x, p2.y)
+        let localArcs = Array.zeroCreate (steps + 1)
+        let curvatures = Array.init (steps + 1) (fun s ->
+            getCurvature p0 cp1 cp2 p3 (float s / float steps))
+        for s in 0 .. steps - 1 do
+            let pa = getBezPt p0 cp1 cp2 p3 (float s / float steps)
+            let pb = getBezPt p0 cp1 cp2 p3 (float (s + 1) / float steps)
+            let dx = pb.x - pa.x
+            let dy = pb.y - pa.y
+            localArcs.[s + 1] <- localArcs.[s] + sqrt (dx * dx + dy * dy)
+        let segArcLen = localArcs.[steps]
+        let segSamples =
+            Array.init (steps + 1) (fun s ->
+                {| arcLen = arcLen + localArcs.[s]; curvature = curvatures.[s] |})
+        let m, c, _ = linear_regression localArcs curvatures (steps + 1)
+        segments.Add({| samples = segSamples; m = m; c = c |})
+        arcLen <- arcLen + segArcLen
+    {| segments = segments.ToArray() |}
+
 type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: float, g3Smoothness: float, debug: bool) =
     let _points: BezierPoint array = Array.init ctrlPts.Length (fun _ -> BezierPoint())
     let STEPS = 8
@@ -251,6 +281,9 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: flo
     let _dists = Array.create (STEPS + 1) 0.0
     let _segmentStartK = Array.create ctrlPts.Length 0.0
     let _segmentEndK = Array.create ctrlPts.Length 0.0
+    // Exact curvature samples at t=0 and t=1 of each segment (not the linear-regression estimate)
+    let _segmentStartActualK = Array.create ctrlPts.Length 0.0
+    let _segmentEndActualK = Array.create ctrlPts.Length 0.0
     let _segmentStartIdx = Array.create ctrlPts.Length 0
     let _segmentEndIdx = Array.create ctrlPts.Length 0
     let _segmentM = Array.create ctrlPts.Length 0.0
@@ -288,7 +321,6 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: flo
                         ctrlPts.[i - 1].x.Value
                     else
                         (ctrlPts.[i - 1].x.Value + ctrlPts.[i + 1].x.Value) / 2.
-            //TODO: fit_y
             match ctrlPt.y with
             | Some y ->
                 point.y <- y
@@ -309,6 +341,9 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: flo
             let dpl = point.vec - _points.[max (i - 1) 0].vec //pointing from previous point to this
             let dpr = _points.[min (i + 1) (_points.Length - 1)].vec - point.vec
 
+            let lth = dpl.atan2 ()
+            let rth = dpr.atan2 ()
+
             match ctrlPt.th_in, ctrlPt.th_out with
             | Some th_i, Some th_o ->
                 point.th_in <- th_i
@@ -318,20 +353,12 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: flo
             | Some th_i, None ->
                 point.th_in <- th_i
                 point.fit_th_in <- false
-                // Initialise th_out from geometry, leave fittable
-                let lth = dpl.atan2 ()
-                let rth = dpr.atan2 ()
                 point.th_out <- if i < ctrlPts.Length - 1 then rth else lth
             | None, Some th_o ->
                 point.th_out <- th_o
                 point.fit_th_out <- false
-                // Initialise th_in from geometry, leave fittable
-                let lth = dpl.atan2 ()
-                let rth = dpr.atan2 ()
                 point.th_in <- if i > 0 then lth else rth
             | None, None ->
-                let lth = dpl.atan2 ()
-                let rth = dpr.atan2 ()
 
                 let new_th =
                     if i = 0 then
@@ -449,6 +476,13 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: flo
                     // 2. Penalty for high curvature rate (dk/ds), pulling toward circular arc
                     totalErr <- totalErr + abs m * constantCurvature
 
+                    // 3. Extra flatness at open endpoints: endpoint segments should be
+                    //    circular arcs (constant curvature, i.e. m ≈ 0).
+                    //    Weight 2× extra (3× total) was the original intent; using linear
+                    //    |m| rather than quadratic to keep gradients gentle for Nelder-Mead.
+                    if not isClosed && (i = 0 || i = _points.Length - 2) then
+                        totalErr <- totalErr + abs m * constantCurvature * 2.0
+
                     // Calculate start and end curvature for continuity
                     // k(s) = m*s + c. Start is s=0 (c), End is s=max_dist
                     let startK = c
@@ -459,6 +493,8 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: flo
                     _segmentEndK.[segmentCount] <- endK
                     _segmentM.[segmentCount] <- m
                     _segmentMaxDist.[segmentCount] <- max_dist
+                    _segmentStartActualK.[segmentCount] <- _ks.[0]
+                    _segmentEndActualK.[segmentCount] <- _ks.[STEPS]
                     _segmentStartIdx.[segmentCount] <- i
                     _segmentEndIdx.[segmentCount] <- i + 1
                     segmentCount <- segmentCount + 1
@@ -513,64 +549,62 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: flo
                 totalErr <- totalErr + gap * gap * 10.0
 
         // 4. m-consistency penalty: penalise jumps in curvature slope (m) at smooth joins.
-        // m is the rate of curvature change with arc length; matching it across segments
-        // gives G3-like smoothness (the curvature comb has no kinks at joins).
-        // Scale by avgDist² to convert m (k/length) into Δk units, making the penalty
-        // comparable in magnitude to the G2 continuity penalty (gap² × 10).
         if g3Smoothness > 0.0 then
             for i in 1 .. segmentCount - 1 do
                 let startIdx = _segmentStartIdx.[i]
                 let prevEndIdx = _segmentEndIdx.[i - 1]
-
-                // Only apply at smooth joins (mirrors G2 continuity logic above)
                 let mutable isJoinSmooth = true
-
                 for k in prevEndIdx .. startIdx do
                     if ctrlPts.[k].ty = SplinePointType.Corner then
                         isJoinSmooth <- false
-
                 if isJoinSmooth then
                     let mGap = _segmentM.[i] - _segmentM.[i - 1]
                     let avgDist = (_segmentMaxDist.[i] + _segmentMaxDist.[i - 1]) / 2.0
                     totalErr <- totalErr + mGap * mGap * avgDist * avgDist * g3Smoothness
-
             if isClosed && segmentCount > 1 then
                 let lastEndIdx = _segmentEndIdx.[segmentCount - 1]
                 let firstStartIdx = _segmentStartIdx.[0]
                 let mutable isJoinSmooth = true
-
                 for k in lastEndIdx .. _points.Length - 1 do
                     if ctrlPts.[k].ty = SplinePointType.Corner then
                         isJoinSmooth <- false
-
                 for k in 0 .. firstStartIdx do
                     if ctrlPts.[k].ty = SplinePointType.Corner then
                         isJoinSmooth <- false
-
                 if isJoinSmooth then
                     let mGap = _segmentM.[0] - _segmentM.[segmentCount - 1]
                     let avgDist = (_segmentMaxDist.[0] + _segmentMaxDist.[segmentCount - 1]) / 2.0
                     totalErr <- totalErr + mGap * mGap * avgDist * avgDist * g3Smoothness
 
         // 5. Free-endpoint curvature regularisation.
-        // Corner endpoints have no G2 constraint, so the optimizer can settle into
-        // different local minima (positive vs. negative start curvature) for nearly
-        // identical inputs. Penalising (c * L / 10000)² ≈ (angle_turned)² is
-        // scale-independent (units: rad²) and gently prefers lower curvature solutions,
-        // making the landscape more unimodal near the free endpoint.
-        // Weight 0.5 adds ~0.1-1 rad² of cost — enough to break sign symmetry without
-        // over-constraining the shape.
         if segmentCount > 0 then
             let firstStartIdx = _segmentStartIdx.[0]
             if ctrlPts.[firstStartIdx].ty = SplinePointType.Corner then
                 let angleTurned = _segmentStartK.[0] * _segmentMaxDist.[0] / 10000.0
                 totalErr <- totalErr + angleTurned * angleTurned * 0.5
-
             let lastSeg = segmentCount - 1
             let lastEndIdx = _segmentEndIdx.[lastSeg]
             if ctrlPts.[lastEndIdx].ty = SplinePointType.Corner then
                 let angleTurned = _segmentEndK.[lastSeg] * _segmentMaxDist.[lastSeg] / 10000.0
                 totalErr <- totalErr + angleTurned * angleTurned * 0.5
+
+        // 6. Prevent degenerate handle lengths.
+        for i in 0 .. _points.Length - 2 do
+            let chord = (_points.[i + 1].vec - _points.[i].vec).norm ()
+            if chord > 1e-4 then
+                let rdExcess = max 0.0 (_points.[i].rd / chord - 4.0)
+                let ldExcess = max 0.0 (_points.[i + 1].ld / chord - 4.0)
+                totalErr <- totalErr + (rdExcess * rdExcess + ldExcess * ldExcess) * 1.0e4
+
+        // 7. Zero-curvature at line-curve boundaries (weight 1.0).
+        if segmentCount > 0 then
+            if ctrlPts.[0].ty = SplinePointType.LineToCurve then
+                let k = _segmentStartActualK.[0]
+                totalErr <- totalErr + k * k * 1.0
+            let lastSeg = segmentCount - 1
+            if ctrlPts.[ctrlPts.Length - 1].ty = SplinePointType.CurveToLine then
+                let k = _segmentEndActualK.[lastSeg]
+                totalErr <- totalErr + k * k * 1.0
 
         if Double.IsNaN totalErr || Double.IsInfinity totalErr then
             if this.debug then
@@ -592,61 +626,53 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: flo
                         // We only add th_in (index 2) to the mapping.
                         if j = int BezierIndex.ThOut && ctrlPts.[i].ty = SplinePointType.Smooth then
                             ()
+                        // For open sections, th_in of the first point has no incoming segment
+                        // and th_out of the last point has no outgoing segment, so both are
+                        // phantom parameters that don't affect computeErr. Excluding them keeps
+                        // the search space minimal and avoids degeneracy in Nelder-Mead.
+                        // Guard: Smooth points link th_out = th_in, so th_in of the first
+                        // Smooth point is NOT phantom (th_out depends on it and IS used).
+                        elif not isClosed && i = 0 && j = int BezierIndex.ThIn
+                             && ctrlPts.[i].ty <> SplinePointType.Smooth then
+                            ()
+                        elif not isClosed && i = _points.Length - 1 && j = int BezierIndex.ThOut
+                             && ctrlPts.[i].ty <> SplinePointType.Smooth then
+                            ()
                         else
                             mapping.Add((i, j))
                             initial.Add(_points.[i].arr.[j])
-#if FABLE_COMPILER
-            let objectiveFunction (x: float[]) =
-                for i in 0 .. x.Length - 1 do
+            let syncSmooth (index1: int) (index2: int) (value: float) =
+                if index2 = int BezierIndex.ThIn
+                   && ctrlPts.[index1].ty = SplinePointType.Smooth
+                   && _points.[index1].fit_th_out
+                then
+                    _points.[index1].th_out <- value
+
+            let applyParams (getVal: int -> float) (count: int) =
+                for i in 0 .. count - 1 do
                     let (index1, index2) = mapping.[i]
-                    _points.[index1].arr.[index2] <- x[i]
-
-                    // Synchronize th_out for smooth points
-                    if
-                        index2 = int BezierIndex.ThIn
-                        && ctrlPts.[index1].ty = SplinePointType.Smooth
-                        && _points.[index1].fit_th_out
-                    then
-                        _points.[index1].th_out <- x[i]
-
+                    let v = getVal i
+                    _points.[index1].arr.[index2] <- v
+                    syncSmooth index1 index2 v
                 if isClosed then
                     _points.[_points.Length - 1].th_in <- _points.[0].th_in
                     _points.[_points.Length - 1].th_out <- _points.[0].th_out
 
+#if FABLE_COMPILER
+            let objectiveFunction (x: float[]) =
+                applyParams (fun i -> x[i]) x.Length
                 this.computeErr ()
 
             let param = createObj [ "maxIterations" ==> maxIter ]
             let best = nelderMead objectiveFunction (Array.ofSeq initial) param
-
-            for i in 0 .. best.Length - 1 do
-                let (index1, index2) = mapping.[i]
-                _points.[index1].arr.[index2] <- best[i]
-
-                if
-                    index2 = int BezierIndex.ThIn
-                    && ctrlPts.[index1].ty = SplinePointType.Smooth
-                    && _points.[index1].fit_th_out
-                then
-                    _points.[index1].th_out <- best[i]
+            applyParams (fun i -> best[i]) best.Length
 #else
             let minimiser: Optimization.NelderMeadSimplex =
                 Optimization.NelderMeadSimplex(1e-5, maxIter)
 
             let objectiveFunction (x: Vector<float>) =
                 assert (x.Count = mapping.Count)
-
-                for i in 0 .. x.Count - 1 do
-                    let (index1, index2) = mapping.[i]
-                    _points.[index1].arr.[index2] <- x[i]
-
-                    // Synchronize th_out for smooth points
-                    if
-                        index2 = int BezierIndex.ThIn
-                        && ctrlPts.[index1].ty = SplinePointType.Smooth
-                        && _points.[index1].fit_th_out
-                    then
-                        _points.[index1].th_out <- x[i]
-
+                applyParams (fun i -> x.[i]) x.Count
                 this.computeErr ()
 
             let objModel = Optimization.ObjectiveFunction.Value(objectiveFunction)
@@ -662,16 +688,7 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, constantCurvature: flo
                 else
                     best.MinimizingPoint
 
-            for i in 0 .. resultVec.Count - 1 do
-                let (index1, index2) = mapping.[i]
-                _points.[index1].arr.[index2] <- resultVec.[i]
-
-                if
-                    index2 = int BezierIndex.ThIn
-                    && ctrlPts.[index1].ty = SplinePointType.Smooth
-                    && _points.[index1].fit_th_out
-                then
-                    _points.[index1].th_out <- resultVec.[i]
+            applyParams (fun i -> resultVec.[i]) resultVec.Count
 #endif
 
 // DactylSpline handles general sequence of lines & curves, including corners.
@@ -722,14 +739,15 @@ type DactylSpline(ctrlPts, isClosed) =
 
     /// Collect the run of smooth inner points starting at index i, returning the list and
     /// the exclusive end index j (i.e. the next segment to process starts at j-1).
-    member this.collectCurveSection(i: int, length: int) =
-        let ptI = ctrlPts.[i]
+    /// bound controls how far j may advance (inclusive); use startIdx+length for closed wrap-around.
+    member this.collectCurveSection(i: int, bound: int) =
+        let ptI = ctrlPts.[i % ctrlPts.Length]
         let mutable j = i + 1
         let mutable break_ = false
 
         let innerPts =
             ptI
-            :: [ while j <= length && not break_ do
+            :: [ while j <= bound && not break_ do
                      let ptJ = ctrlPts.[j % ctrlPts.Length]
                      yield ptJ
                      j <- j + 1
@@ -788,10 +806,28 @@ type DactylSpline(ctrlPts, isClosed) =
             result.[i].th_in <- ctrlPts.[i].th_in |> Option.defaultValue Double.NaN
             result.[i].th_out <- ctrlPts.[i].th_out |> Option.defaultValue Double.NaN
 
-        let mutable i = 0
+        // For closed paths, start the section loop at the first hard-boundary point
+        // (Corner/LineToCurve/CurveToLine) so that Smooth points are always interior
+        // to a single solver section rather than split across two independent solvers.
+        // When a Smooth point straddles two sections, each solver optimises its tangent
+        // independently and they disagree, producing a visible kink.
+        let startIdx =
+            if isClosed then
+                [0 .. ctrlPts.Length - 1]
+                |> List.tryFind (fun k ->
+                    let ty = ctrlPts.[k].ty
+                    ty = SplinePointType.Corner
+                    || ty = SplinePointType.LineToCurve
+                    || ty = SplinePointType.CurveToLine)
+                |> Option.defaultValue 0
+            else
+                0
 
-        while i < length do
-            let ptI = ctrlPts.[i]
+        let mutable i = startIdx
+
+        while i < startIdx + length do
+            let ri = i % ctrlPts.Length
+            let ptI = ctrlPts.[ri]
             let ptI1 = ctrlPts.[(i + 1) % ctrlPts.Length]
 
             if this.isLineSegment (ptI, ptI1) then
@@ -800,18 +836,16 @@ type DactylSpline(ctrlPts, isClosed) =
                 let nextIdx = (i + 1) % result.Length
                 let dist = sqrt ((ptI1.x.Value - ptI.x.Value) ** 2.0 + (ptI1.y.Value - ptI.y.Value) ** 2.0)
 
-                if Double.IsNaN result.[i].th_out then
-                    result.[i].th_out <- lineAngle
-                result.[i].rd <- dist / 3.0
+                if Double.IsNaN result.[ri].th_out then
+                    result.[ri].th_out <- lineAngle
+                result.[ri].rd <- dist / 3.0
 
                 // For start of open curve, initialize th_in to lineAngle too
-                if i = 0 && not isClosed && Double.IsNaN result.[i].th_in then
-                    result.[i].th_in <- lineAngle
+                if i = 0 && not isClosed && Double.IsNaN result.[ri].th_in then
+                    result.[ri].th_in <- lineAngle
 
                 result.[nextIdx].th_in <- lineAngle
                 result.[nextIdx].ld <- dist / 3.0
-
-                // For end of open curve, initialize th_out to lineAngle too
 
                 // For end of open curve, initialize th_out to lineAngle too
                 if
