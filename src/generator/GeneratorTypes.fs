@@ -132,7 +132,48 @@ let G4 = SpiroPointType.G4
 let Corner = SpiroPointType.Corner
 let Anchor = SpiroPointType.Anchor
 let Handle = SpiroPointType.Handle
- 
+
+/// Validates that consecutive knot types agree on whether each connecting segment
+/// is a curve or a straight line. Throws ArgumentException on any mismatch.
+/// isClosed: if true, also checks the wrap-around from the last knot back to the first.
+let validateKnotSequence (knots: list<Knot>) (isClosed: bool) =
+    let n = knots.Length
+    if n >= 2 then
+        // None = unconstrained (Corner, Anchor, Handle…) — any segment kind is acceptable.
+        let departing ty =
+            if ty = G2 || ty = G4 || ty = LineToCurve then Some true  // curve departs
+            elif ty = CurveToLine then Some false                      // line departs
+            else None
+
+        let arriving ty =
+            if ty = G2 || ty = G4 || ty = CurveToLine then Some true  // curve arrives
+            elif ty = LineToCurve then Some false                      // line arrives
+            else None
+
+        let typeName ty =
+            if ty = CurveToLine then "CurveToLine"
+            elif ty = LineToCurve then "LineToCurve"
+            else sprintf "%A" ty
+
+        let checkPair i j =
+            let ki = knots.[i]
+            let kj = knots.[j]
+            match departing ki.ty, arriving kj.ty with
+            | Some true, Some false ->
+                invalidArg "knots"
+                    (sprintf "Invalid knot sequence at %d→%d: %s departs a curve but %s expects a line to arrive"
+                        i j (typeName ki.ty) (typeName kj.ty))
+            | Some false, Some true ->
+                invalidArg "knots"
+                    (sprintf "Invalid knot sequence at %d→%d: %s departs a line but %s expects a curve to arrive"
+                        i j (typeName ki.ty) (typeName kj.ty))
+            | _ -> ()
+
+        for i in 0 .. n - 2 do
+            checkPair i (i + 1)
+        if isClosed then
+            checkPair (n - 1) 0
+
 let rec bounds elem =
     let dummy = -999.0
  
