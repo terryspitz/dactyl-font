@@ -581,38 +581,31 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 then
                     _points.[index1].th_out <- value
 
-#if FABLE_COMPILER
-            let objectiveFunction (x: float[]) =
-                for i in 0 .. x.Length - 1 do
+            let applyParams (getVal: int -> float) (count: int) =
+                for i in 0 .. count - 1 do
                     let (index1, index2) = mapping.[i]
-                    _points.[index1].arr.[index2] <- x[i]
-                    syncSmooth index1 index2 x[i]
-
+                    let v = getVal i
+                    _points.[index1].arr.[index2] <- v
+                    syncSmooth index1 index2 v
                 if isClosed then
                     _points.[_points.Length - 1].th_in <- _points.[0].th_in
                     _points.[_points.Length - 1].th_out <- _points.[0].th_out
 
+#if FABLE_COMPILER
+            let objectiveFunction (x: float[]) =
+                applyParams (fun i -> x[i]) x.Length
                 this.computeErr ()
 
             let param = createObj [ "maxIterations" ==> maxIter ]
             let best = nelderMead objectiveFunction (Array.ofSeq initial) param
-
-            for i in 0 .. best.Length - 1 do
-                let (index1, index2) = mapping.[i]
-                _points.[index1].arr.[index2] <- best[i]
-                syncSmooth index1 index2 best[i]
+            applyParams (fun i -> best[i]) best.Length
 #else
             let minimiser: Optimization.NelderMeadSimplex =
                 Optimization.NelderMeadSimplex(1e-5, maxIter)
 
             let objectiveFunction (x: Vector<float>) =
                 assert (x.Count = mapping.Count)
-
-                for i in 0 .. x.Count - 1 do
-                    let (index1, index2) = mapping.[i]
-                    _points.[index1].arr.[index2] <- x[i]
-                    syncSmooth index1 index2 x[i]
-
+                applyParams (fun i -> x.[i]) x.Count
                 this.computeErr ()
 
             let objModel = Optimization.ObjectiveFunction.Value(objectiveFunction)
@@ -628,10 +621,7 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 else
                     best.MinimizingPoint
 
-            for i in 0 .. resultVec.Count - 1 do
-                let (index1, index2) = mapping.[i]
-                _points.[index1].arr.[index2] <- resultVec.[i]
-                syncSmooth index1 index2 resultVec.[i]
+            applyParams (fun i -> resultVec.[i]) resultVec.Count
 #endif
 
 // DactylSpline handles general sequence of lines & curves, including corners.
@@ -682,14 +672,15 @@ type DactylSpline(ctrlPts, isClosed) =
 
     /// Collect the run of smooth inner points starting at index i, returning the list and
     /// the exclusive end index j (i.e. the next segment to process starts at j-1).
-    member this.collectCurveSection(i: int, length: int) =
-        let ptI = ctrlPts.[i]
+    /// bound controls how far j may advance (inclusive); use startIdx+length for closed wrap-around.
+    member this.collectCurveSection(i: int, bound: int) =
+        let ptI = ctrlPts.[i % ctrlPts.Length]
         let mutable j = i + 1
         let mutable break_ = false
 
         let innerPts =
             ptI
-            :: [ while j <= length && not break_ do
+            :: [ while j <= bound && not break_ do
                      let ptJ = ctrlPts.[j % ctrlPts.Length]
                      yield ptJ
                      j <- j + 1
@@ -748,10 +739,28 @@ type DactylSpline(ctrlPts, isClosed) =
             result.[i].th_in <- ctrlPts.[i].th_in |> Option.defaultValue Double.NaN
             result.[i].th_out <- ctrlPts.[i].th_out |> Option.defaultValue Double.NaN
 
-        let mutable i = 0
+        // For closed paths, start the section loop at the first hard-boundary point
+        // (Corner/LineToCurve/CurveToLine) so that Smooth points are always interior
+        // to a single solver section rather than split across two independent solvers.
+        // When a Smooth point straddles two sections, each solver optimises its tangent
+        // independently and they disagree, producing a visible kink.
+        let startIdx =
+            if isClosed then
+                [0 .. ctrlPts.Length - 1]
+                |> List.tryFind (fun k ->
+                    let ty = ctrlPts.[k].ty
+                    ty = SplinePointType.Corner
+                    || ty = SplinePointType.LineToCurve
+                    || ty = SplinePointType.CurveToLine)
+                |> Option.defaultValue 0
+            else
+                0
 
-        while i < length do
-            let ptI = ctrlPts.[i]
+        let mutable i = startIdx
+
+        while i < startIdx + length do
+            let ri = i % ctrlPts.Length
+            let ptI = ctrlPts.[ri]
             let ptI1 = ctrlPts.[(i + 1) % ctrlPts.Length]
 
             if this.isLineSegment (ptI, ptI1) then
@@ -760,18 +769,16 @@ type DactylSpline(ctrlPts, isClosed) =
                 let nextIdx = (i + 1) % result.Length
                 let dist = sqrt ((ptI1.x.Value - ptI.x.Value) ** 2.0 + (ptI1.y.Value - ptI.y.Value) ** 2.0)
 
-                if Double.IsNaN result.[i].th_out then
-                    result.[i].th_out <- lineAngle
-                result.[i].rd <- dist / 3.0
+                if Double.IsNaN result.[ri].th_out then
+                    result.[ri].th_out <- lineAngle
+                result.[ri].rd <- dist / 3.0
 
                 // For start of open curve, initialize th_in to lineAngle too
-                if i = 0 && not isClosed && Double.IsNaN result.[i].th_in then
-                    result.[i].th_in <- lineAngle
+                if i = 0 && not isClosed && Double.IsNaN result.[ri].th_in then
+                    result.[ri].th_in <- lineAngle
 
                 result.[nextIdx].th_in <- lineAngle
                 result.[nextIdx].ld <- dist / 3.0
-
-                // For end of open curve, initialize th_out to lineAngle too
 
                 // For end of open curve, initialize th_out to lineAngle too
                 if
@@ -785,7 +792,8 @@ type DactylSpline(ctrlPts, isClosed) =
                 result.[nextIdx].y <- ptI1.y.Value
                 i <- i + 1
             else
-                let innerPts, j = this.collectCurveSection (i, length)
+                let innerPts, j = this.collectCurveSection (i, startIdx + length)
+
                 let solver = this.solveSection (innerPts, length, maxIter, flatness, debug)
                 let bezPts = solver.points ()
 
