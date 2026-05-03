@@ -558,8 +558,6 @@ let generateFontGlyphData (axes: Axes) =
     let chars = allChars.Replace("\n", "")
     let thickness = float axes.thickness
 
-    let sw = System.Diagnostics.Stopwatch.StartNew()
-
     // Per-glyph: render outline, capture svg path, optionally sample edge profile.
     let bandY0 = metrics.D - thickness
     let bandY1 = metrics.T + thickness
@@ -591,9 +589,6 @@ let generateFontGlyphData (axes: Axes) =
                    pathData = "" |})
         |> Array.ofSeq
 
-    let glyphsAndProfilesMs = sw.ElapsedMilliseconds
-    sw.Restart()
-
     // Manual overrides — authoritative over optical when present.
     let manualPairs =
         Spacing.kerningOverrides
@@ -619,21 +614,13 @@ let generateFontGlyphData (axes: Axes) =
         else
             [||]
 
-    let kerningMs = sw.ElapsedMilliseconds
-
     let kerningPairs = Array.append manualPairs opticalPairs
 
     {| glyphs = glyphs
        ascender = metrics.T + thickness
        descender = metrics.D - thickness
        unitsPerEm = font.charHeight
-       kerningPairs = kerningPairs
-       perfStats =
-         {| glyphsMs = int glyphsAndProfilesMs
-            kerningMs = int kerningMs
-            glyphCount = glyphs.Length
-            kernCount = kerningPairs.Length
-            opticalCount = opticalPairs.Length |} |}
+       kerningPairs = kerningPairs |}
 
 let private knotToObj (k: Knot) : obj =
     // When x_fit/y_fit is true the solver treats the coordinate as a free variable (None).
