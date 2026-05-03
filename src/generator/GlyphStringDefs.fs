@@ -125,7 +125,7 @@ let glyphMap =
           'S', "thr~tc~ttbl~hc~tbbr~bc~bhl"
           's', "xor~x(c)W~xxbl~xbcE~xbbr~bcW~bol"
           'T', "tl-tr tc-bc"
-          't', "tlc-xblc~bccr xl-xccr"
+          't', "tlc-xblc~bccrW xl-xccr"
           'U', "tl-hl~bc~hr-tr"
           'u', "xl-xbl~b(llcr)~bocr xcr-bcr"
           'V', "tl-bc-tr"
