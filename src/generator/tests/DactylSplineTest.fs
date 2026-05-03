@@ -665,7 +665,7 @@ type LineToCurveTests() =
 
         let spline = DactylSpline(ctrlPts, false)
         let svg = solve_and_print_spline spline
-        let bezPts, _, _, _ = spline.solveAndRenderFull(max_iter, 1.0, false, false, false)
+        let bezPts, _, _, _, _, _ = spline.solveAndRenderFull(max_iter, 1.0, 0.0, false, false, false)
         printfn "bezPts: %A" (bezPts |> Array.map (fun bp -> sprintf "ld=%.2f rd=%.2f" bp.ld bp.rd))
         // First segment should be a line (horizontal)
         Assert.That(svg, Does.Match("L 250(\.0+)?,50(\.0+)?"), "First segment Corner→LineToCurve should be a line")
@@ -683,7 +683,7 @@ type LineToCurveTests() =
 
         let spline = DactylSpline(ctrlPts, true)
         let svg = solve_and_print_spline spline
-        let bezPts, _, _, _ = spline.solveAndRenderFull(max_iter, 1.0, false, false, false)
+        let bezPts, _, _, _, _, _ = spline.solveAndRenderFull(max_iter, 1.0, 0.0, false, false, false)
         printfn "bezPts: %A" (bezPts |> Array.map (fun bp -> sprintf "ld=%.2f rd=%.2f" bp.ld bp.rd))
         // First segment should be a line (horizontal)
         Assert.That(svg, Does.Match("L 250(\.0+)?,50(\.0+)?"), "First segment Corner→LineToCurve should be a line")
@@ -722,7 +722,7 @@ type LineToCurveTests() =
                                 dcp types.[i] x y th)
                         try
                             let spline = DactylSpline(pts, isClosed)
-                            let bezPts, _, _, _ = spline.solveAndRenderFull(200, 1.0, false, false, false)
+                            let bezPts, _, _, _, _, _ = spline.solveAndRenderFull(200, 1.0, 0.0, false, false, false)
 
                             // Arm divergence check
                             let armOk = bezPts |> Array.forall (fun bp -> abs bp.ld < 1e5 && abs bp.rd < 1e5)
@@ -768,7 +768,7 @@ type LineToCurveTests() =
                dcp SplinePointType.Smooth 250. 50. None
                dcp SplinePointType.LineToCurve 150. 200. None |]
         let spline = DactylSpline(ctrlPts, true)
-        let bezPts, _, _, _ = spline.solveAndRenderFull(500, 1.0, false, false, false)
+        let bezPts, _, _, _, _, _ = spline.solveAndRenderFull(500, 1.0, 0.0, false, false, false)
         // P0 must be G1: th_in = th_out (same tangent, no kink)
         let p0 = bezPts.[0]
         let angleDiff = abs (norm (p0.th_in - p0.th_out))
@@ -786,7 +786,7 @@ type LineToCurveTests() =
                dcp SplinePointType.Smooth 250. 50. None
                dcp SplinePointType.CurveToLine 150. 200. None |]
         let spline = DactylSpline(ctrlPts, true)
-        let bezPts, _, _, _ = spline.solveAndRenderFull(500, 1.0, false, false, false)
+        let bezPts, _, _, _, _, _ = spline.solveAndRenderFull(500, 1.0, 0.0, false, false, false)
         // Arms must not blow up (solver must be stable)
         let p0 = bezPts.[0]
         let maxArm = bezPts |> Array.map (fun bp -> max (abs bp.ld) (abs bp.rd)) |> Array.max
@@ -973,7 +973,7 @@ type IntegrationTests() =
                  x = Some 1000.; y = Some 500.
                  th_in = Some(System.Math.PI / 2.0); th_out = Some(System.Math.PI / 2.0) } |]
 
-        let solver3 = Solver(ctrlPts3, false, 1.0, false)
+        let solver3 = Solver(ctrlPts3, false, 1.0, 0.0, false)
         solver3.initialise ()
         try solver3.Solve(5000) with _ -> ()
         let x3 = solver3.points().[1].x
