@@ -491,6 +491,56 @@ type FontTests() =
                 sprintf "kern(%c,%c) should not depend on italic axis" a b)
 
     [<Test>]
+    member this.SvgAndOtfKerns_AgreeForEveryPair() =
+        // The SVG render path calls Font.pairKern per consecutive pair.
+        // The OTF emission in Api.generateFontGlyphData builds a kern table
+        // from the same Spacing overrides + GlyphProfile.pairKern. If the
+        // two diverge (different threshold, different formula, etc.) text
+        // laid out in CSS via the @font-face will differ from text laid
+        // out by the SVG renderer — and you can't tell from looking at
+        // either one alone. This test reproduces both sides on the same
+        // axes and asserts equality across a representative sample.
+        let axes = { Axes.DefaultAxes with opticalKerning = true; outline = true; filled = true }
+        let font = Font.Font(axes)
+        let metrics = FontMetrics(axes)
+        let thickness = float axes.thickness
+        let bandY0 = metrics.D - thickness
+        let bandY1 = metrics.T + thickness
+        let bandCount = 32
+        // Sample profiles for the test characters using the same recipe
+        // generateFontGlyphData uses (pre-italic outline, same band count).
+        let testChars = "AVTLOoaeingdHmMYW.fjyt"
+        let profiles = System.Collections.Generic.Dictionary<char, GlyphProfile.GlyphProfile>()
+        for c in testChars do
+            try
+                let outline = font.CharToOutlinePreItalic c
+                let svg, _, _ = font.elementToSvg outline
+                let path = String.concat " " svg
+                if path <> "" then
+                    let cmds = GlyphProfile.parseSvgCommands path
+                    profiles.[c] <- GlyphProfile.sampleProfile bandY0 bandY1 bandCount cmds
+            with _ -> ()
+        // Compute "OTF kern" exactly as Api would: manual override XOR optical.
+        let otfKern (a: char) (b: char) : int =
+            match Map.tryFind (a, b) Spacing.kerningOverrides with
+            | Some v -> v
+            | None ->
+                if profiles.ContainsKey(a) && profiles.ContainsKey(b) then
+                    GlyphProfile.pairKern (float axes.kerningTarget) (font.charWidth a) profiles.[a] profiles.[b]
+                else 0
+        // Compare across all ordered pairs of test chars.
+        let mismatches = ResizeArray()
+        for a in testChars do
+            for b in testChars do
+                let svgK = int (font.pairKern a b)
+                let otfK = otfKern a b
+                if svgK <> otfK then
+                    mismatches.Add(sprintf "(%c,%c): svg=%d otf=%d" a b svgK otfK)
+        if mismatches.Count > 0 then
+            Assert.Fail(sprintf "SVG and OTF kerns disagree on %d pairs:\n%s"
+                         mismatches.Count (String.concat "\n" mismatches))
+
+    [<Test>]
     member this.OpticalKerning_ProfileSamplerIsItalicInvariant() =
         // Italic shear is X-of-Y so it shifts ink horizontally per band, but
         // the BAND-WISE leftmost / rightmost x at any given y move uniformly

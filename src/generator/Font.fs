@@ -421,7 +421,11 @@ type Font(axes: Axes) =
         | Dot(p) -> p.x
         | EList(elems) -> List.fold max 0.0 (List.map this.elemWidth elems)
         | Space ->
-            let space = axes.height / 4 //according to https://en.wikipedia.org/wiki/Whitespace_character#Variable-width_general-purpose_space
+            // Space ink width. Was height/4 (~150 units at default height=600);
+            // narrowed to height/6 so the space advance comes out closer to
+            // the visual gap between kerned glyph pairs (otherwise space
+            // looks too wide once optical kerning tightens letters).
+            let space = axes.height / 6
 
             (1.0 - axes.monospace) * float space + axes.monospace * _metrics.monospaceWidth
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" e)

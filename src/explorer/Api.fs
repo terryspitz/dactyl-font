@@ -596,9 +596,10 @@ let generateFontGlyphData (axes: Axes) =
         |> Array.map (fun ((l, r), v) ->
             {| left = int l; right = int r; value = v |})
 
-    // Optical kerns for every pair where no manual override exists. Threshold
-    // |k| >= 3 to keep the kern table compact; smaller adjustments are
-    // visually imperceptible at typical sizes.
+    // Optical kerns for every pair where no manual override exists.
+    // Emits ALL non-zero values so the OTF kern table matches what the
+    // SVG render path applies — the SVG path doesn't filter, and any
+    // mismatch shows up as text laid out differently between the two.
     let opticalPairs =
         if axes.opticalKerning then
             let acc = ResizeArray()
@@ -608,7 +609,7 @@ let generateFontGlyphData (axes: Axes) =
                 for KeyValue(cR, pR) in profileMap do
                     if not (manualKeys.ContainsKey(cL, cR)) then
                         let k = GlyphProfile.pairKern (float axes.kerningTarget) advanceL pL pR
-                        if abs k >= 3 then
+                        if k <> 0 then
                             acc.Add({| left = int cL; right = int cR; value = k |})
             acc.ToArray()
         else

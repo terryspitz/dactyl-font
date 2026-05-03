@@ -53,7 +53,7 @@ let kerningOverrides : Map<char * char, int> =
         ('V', 'a'), -45
         ('V', 'e'), -40
         ('V', 'i'), -15
-        ('V', 'o'), -40
+        ('V', 'o'), -65
         ('V', 'r'), -35
         ('V', 'u'), -30
         ('V', 'y'), -30
@@ -69,7 +69,7 @@ let kerningOverrides : Map<char * char, int> =
         ('Y', 'a'), -55
         ('Y', 'e'), -50
         ('Y', 'i'), -20
-        ('Y', 'o'), -50
+        ('Y', 'o'), -75
         ('Y', 'p'), -35
         ('Y', 'u'), -35
         ('K', 'e'), -20
@@ -126,7 +126,9 @@ let kerningOverrides : Map<char * char, int> =
         ('f', 'j'), -30
         ('f', 'a'), -15
         ('f', 'e'), -15
-        ('f', 'o'), -15
+        ('f', 'o'), -30
+        ('M', 'o'), 12   //optical over-tightens (M's vertical stem and o's curve too close)
+        ('M', 'i'), 12
         ('r', 'n'), -18
         ('r', 'm'), -18
         ('r', 'u'), -15
