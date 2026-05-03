@@ -10,7 +10,7 @@ const TYPE_SHORT = ['∧', 'G2', 'L→C', 'C→L']
 // After scale(1,-1) flip to SVG screen coords:
 //   P0 → (50, -50), P1 → (250, -50), P2 → (150, -200)
 // ViewBox covers x:[30,270], y:[-215,-30] with padding
-const VIEWBOX = '30 -215 240 185'
+const VIEWBOX = '-50 -280 400 310'
 const CELL_W = 90
 const CELL_H = 70
 
@@ -18,11 +18,12 @@ const CELL_H = 70
 // which indicate the solver diverged and produced astronomically large coordinates.
 const isValidPath = (p) => p && !p.includes('E+') && !p.includes('E-') && !p.includes('NaN') && !p.includes('Infinity')
 
-const SplineCell = ({ pathSvg }) => {
+const SplineCell = ({ pathSvg, error }) => {
   const valid = isValidPath(pathSvg)
   return (
     <td style={{ border: '1px solid #e0e0e0', padding: '1px', background: '#fff' }}>
       <svg width={CELL_W} height={CELL_H} viewBox={VIEWBOX} style={{ display: 'block' }}>
+        {error && <title>{error}</title>}
         {/* Triangle outline in SVG screen coords (y already flipped) */}
         <polygon
           points="50,-50 250,-50 150,-200"
@@ -32,7 +33,12 @@ const SplineCell = ({ pathSvg }) => {
           strokeDasharray="6,4"
         />
         {/* Spline path is in math y-up coords; flip with scale(1,-1) */}
-        {valid ? (
+        {error ? (
+          <>
+            <text x="150" y="-110" textAnchor="middle" fontSize="70" fill="#cc0000">✗</text>
+            <text x="150" y="-55" textAnchor="middle" fontSize="25" fill="#cc0000">{error.split(':')[0]}</text>
+          </>
+        ) : valid ? (
           <g transform="scale(1,-1)">
             <path d={pathSvg} fill="none" stroke="#3366cc" strokeWidth="5" />
           </g>
@@ -157,7 +163,7 @@ export default function SplineGrid() {
                     {[false, true].map(isClosed =>
                       [0, 1, 2, 3].map(t2 => {
                         const cell = getCell(isClosed, withTangent, t0, t1, t2)
-                        return <SplineCell key={`${isClosed}-${t2}`} pathSvg={cell?.pathSvg ?? ''} />
+                        return <SplineCell key={`${isClosed}-${t2}`} pathSvg={cell?.pathSvg ?? ''} error={cell?.error ?? ''} />
                       })
                     )}
                   </tr>

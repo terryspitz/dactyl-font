@@ -311,6 +311,7 @@ let parse_curve (glyph: FontMetrics) raw_def debug =
                         th_out = Option.orElse k2.th_out k1.th_out
                         label = Option.orElse k1.label k2.label })
 
+        validateKnotSequence knots isClosed
         Curve(knots, isClosed)
 
 let private parse_curves (glyph: FontMetrics) (def: string) debug =

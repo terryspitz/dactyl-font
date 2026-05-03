@@ -53,34 +53,53 @@ const snapToGuide = (value, guideArray, thresholdUnits) => {
 
 // Evaluate a cubic bezier at t: returns {x, y}
 // SVG curvature graph component — data comes pre-computed from F# via solveResult.curvatureData
-function CurvatureGraph({ curvatureData, width = 400, height = 100 }) {
-  const { samples, knotArcs } = curvatureData || { samples: [], knotArcs: [] }
+function CurvatureGraph({ curvatureData }) {
+  const { segments } = curvatureData || { segments: [] }
 
-  if (!samples.length) return null
+  if (!segments || !segments.length) return null
 
-  const totalArc = samples[samples.length - 1]?.arcLen || 1
-  const maxAbs = Math.max(1e-6, ...samples.map(s => Math.abs(s.curvature)))
+  const allSamples = segments.flatMap(seg => seg.samples)
+  if (!allSamples.length) return null
 
+  const totalArc = allSamples[allSamples.length - 1]?.arcLen || 1
+  const maxAbs = Math.max(1e-6, ...allSamples.map(s => Math.abs(s.curvature)))
+
+  // Fixed viewBox coordinate space; SVG scales to fill container via CSS width:100%
+  const W = 800
+  const H = 100
   const pad = { t: 6, b: 6, l: 4, r: 4 }
-  const gw = width - pad.l - pad.r
-  const gh = height - pad.t - pad.b
+  const gw = W - pad.l - pad.r
+  const gh = H - pad.t - pad.b
   const midY = pad.t + gh / 2
 
   const toX = (arc) => pad.l + (arc / totalArc) * gw
   const toY = (k) => midY - (k / maxAbs) * (gh / 2)
 
-  const pts = samples.map(s => `${toX(s.arcLen).toFixed(1)},${toY(s.curvature).toFixed(1)}`).join(' ')
-
   return (
-    <svg className="se-curvature-graph" width={width} height={height}>
+    <svg className="se-curvature-graph" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
       {/* Zero baseline */}
       <line x1={pad.l} y1={midY} x2={pad.l + gw} y2={midY} stroke="#444" strokeWidth="1" />
-      {/* Curvature polyline */}
-      <polyline points={pts} fill="none" stroke="#4af" strokeWidth="1.5" />
-      {/* Knot markers */}
-      {knotArcs.map((arc, i) => {
-        const x = toX(arc)
-        return <line key={i} x1={x} y1={pad.t} x2={x} y2={pad.t + gh} stroke="#f84" strokeWidth="1" strokeDasharray="2,2" />
+      {segments.map((seg, i) => {
+        const arcStart = seg.samples[0].arcLen
+        const arcEnd = seg.samples[seg.samples.length - 1].arcLen
+        const segLen = arcEnd - arcStart
+        const pts = seg.samples.map(s => `${toX(s.arcLen).toFixed(1)},${toY(s.curvature).toFixed(1)}`).join(' ')
+        return (
+          <g key={i}>
+            {/* Fitted line: k(s) = m*s + c over local arc length */}
+            <line
+              x1={toX(arcStart).toFixed(1)} y1={toY(seg.c).toFixed(1)}
+              x2={toX(arcEnd).toFixed(1)} y2={toY(seg.m * segLen + seg.c).toFixed(1)}
+              stroke="#888" strokeWidth="1.5" strokeDasharray="4,3"
+            />
+            {/* Actual curvature polyline for this segment */}
+            <polyline points={pts} fill="none" stroke="#4af" strokeWidth="1.5" />
+            {/* Knot marker at segment start (skip first) */}
+            {i > 0 && (
+              <line x1={toX(arcStart).toFixed(1)} y1={pad.t} x2={toX(arcStart).toFixed(1)} y2={pad.t + gh} stroke="#f84" strokeWidth="1" strokeDasharray="2,2" />
+            )}
+          </g>
+        )
       })}
     </svg>
   )
@@ -102,6 +121,9 @@ function SplineEditor({ axes }) {
   const [showOutline, setShowOutline] = useState(false)
   const [outlinePath, setOutlinePath] = useState(null)
   const [showCurvatureGraph, setShowCurvatureGraph] = useState(false)
+  const [showSpiro, setShowSpiro] = useState(false)
+  const [showSpline2, setShowSpline2] = useState(false)
+  const [altPaths, setAltPaths] = useState(null)
   const [dragRowIdx, setDragRowIdx] = useState(null)    // index of row being dragged to reorder
   const [dragOverRowIdx, setDragOverRowIdx] = useState(null) // row being hovered over during drag
   const svgRef = useRef(null)
@@ -182,6 +204,7 @@ function SplineEditor({ axes }) {
         }
       }
       if (id === -4 && result !== undefined) setOutlinePath(result || null)
+      if (id === -5 && result !== undefined) setAltPaths(result || null)
       if (id <= -100) {
         const ci = -(id + 100)
         if (result?.pathSvg) setAllCurvePaths(prev => ({ ...prev, [ci]: result.pathSvg }))
@@ -237,6 +260,22 @@ function SplineEditor({ axes }) {
     }, 80)
     return () => clearTimeout(timer)
   }, [showOutline, curves, activeCurve, axes])
+
+  // Fetch Spiro and Spline2 paths when either alt-spline checkbox is on (debounced)
+  useEffect(() => {
+    if (!workerRef.current) return
+    const curve = curves[activeCurve]
+    if ((!showSpiro && !showSpline2) || !curve || curve.points.length < 2) { setAltPaths(null); return }
+    const timer = setTimeout(() => {
+      const ctrlPts = curve.points.map(p => ({
+        ty: p.ty, x: p.x, y: p.y,
+        th_in: p.th_in ?? undefined,
+        th_out: p.th_out ?? undefined,
+      }))
+      workerRef.current.postMessage({ id: -5, type: 'solveAltSplines', args: [ctrlPts, curve.isClosed, axes] })
+    }, 20)
+    return () => clearTimeout(timer)
+  }, [showSpiro, showSpline2, curves, activeCurve, axes])
 
   // Solve spline whenever control points change (debounced to avoid queueing solves during drag)
   useEffect(() => {
@@ -720,6 +759,14 @@ function SplineEditor({ axes }) {
             <input type="checkbox" checked={showCurvatureGraph} onChange={e => setShowCurvatureGraph(e.target.checked)} />
             Curvature
           </label>
+          <label className="se-toggle">
+            <input type="checkbox" checked={showSpiro} onChange={e => setShowSpiro(e.target.checked)} />
+            <span style={{ color: '#4af' }}>Spiro</span>
+          </label>
+          <label className="se-toggle">
+            <input type="checkbox" checked={showSpline2} onChange={e => setShowSpline2(e.target.checked)} />
+            <span style={{ color: '#4d4' }}>Spline2</span>
+          </label>
           <label className="se-iter">
             Iter:
             <input
@@ -778,6 +825,14 @@ function SplineEditor({ axes }) {
                 <path key={`ghost-path-${ci}`} d={allCurvePaths[ci]}
                   fill="none" stroke="#555" strokeWidth="2" opacity="0.6" />
               ))}
+
+              {/* Alt splines (Spiro and Spline2) */}
+              {showSpiro && altPaths?.spiroPath && (
+                <path d={altPaths.spiroPath} fill="none" stroke="#4af" strokeWidth="1.5" strokeDasharray="6,3" opacity="0.7" />
+              )}
+              {showSpline2 && altPaths?.spline2Path && (
+                <path d={altPaths.spline2Path} fill="none" stroke="#4d4" strokeWidth="1.5" strokeDasharray="6,3" opacity="0.7" />
+              )}
 
               {/* Active curve solved spline */}
               {solveResult && (
