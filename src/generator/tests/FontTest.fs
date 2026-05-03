@@ -427,9 +427,8 @@ type FontTests() =
 
     [<Test>]
     member this.Kerning_UnknownPair_ReturnsZero() =
-        // Any pair without an entry in Spacing.kerningOverrides must return 0 so
-        // non-kerned strings preserve their pre-kerning widths exactly.
-        let font = Font.Font(Axes.DefaultAxes)
+        // With optical kerning off, any pair without a manual override returns 0.
+        let font = Font.Font({ Axes.DefaultAxes with opticalKerning = false })
         Assert.That(font.pairKern 'X' 'Z', Is.EqualTo(0.0))
         Assert.That(font.pairKern 'A' 'B', Is.EqualTo(0.0))
 
@@ -445,8 +444,9 @@ type FontTests() =
 
     [<Test>]
     member this.Kerning_NoKernPairs_StringWidthUnchanged() =
-        // For a string with no kerning overrides, stringWidth equals Σ charWidth.
-        let font = Font.Font(Axes.DefaultAxes)
+        // For a string with no kerning overrides AND optical kerning off,
+        // stringWidth equals Σ charWidth.
+        let font = Font.Font({ Axes.DefaultAxes with opticalKerning = false })
         let s = "CGJOQSXZ"  // no overrides on left or right for any of these
         let kerns = font.pairKerns s
         Assert.That(List.forall (fun k -> k = 0.0) kerns, Is.True, "no override should apply")
@@ -489,6 +489,96 @@ type FontTests() =
                 upright.pairKern a b,
                 Is.EqualTo(slanted.pairKern a b),
                 sprintf "kern(%c,%c) should not depend on italic axis" a b)
+
+    [<Test>]
+    member this.OpticalKerning_ProfileSamplerIsItalicInvariant() =
+        // Italic shear is X-of-Y so it shifts ink horizontally per band, but
+        // the BAND-WISE leftmost / rightmost x at any given y move uniformly
+        // for both glyphs in a pair. The profile-derived kern is invariant.
+        // (We sample the pre-italicise outline to keep this exact in code.)
+        let upright = Font.Font({ Axes.DefaultAxes with italic = 0.0; opticalKerning = true })
+        let slanted = Font.Font({ Axes.DefaultAxes with italic = 0.3; opticalKerning = true })
+        // pairs without manual overrides — exercise the optical path
+        for (a, b) in [ ('C', 'O'); ('O', 'X'); ('S', 'Q') ] do
+            Assert.That(
+                upright.opticalPairKern a b,
+                Is.EqualTo(slanted.opticalPairKern a b),
+                sprintf "optical kern(%c,%c) should not depend on italic axis" a b)
+
+    [<Test>]
+    [<Explicit("Performance benchmark — invoke with --filter to run")>]
+    member this.Benchmark_OpticalKerning_FullFontBuild() =
+        // Replicates the work generateFontGlyphData does: render every glyph
+        // outline, then (if optical) sample edge profiles and compute kerns
+        // for every glyph pair. Times opticalKerning OFF vs ON for comparison.
+        // Run with: dotnet test --filter "Benchmark_OpticalKerning" \
+        //                       --logger "console;verbosity=detailed"
+        let allChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!\"#$%&'()*+,-./:;<=>?@"
+        let runOnce (opticalOn: bool) =
+            let axes = { Axes.DefaultAxes with opticalKerning = opticalOn; outline = true; filled = true }
+            let font = Font.Font(axes)
+            let metrics = FontMetrics(axes)
+            let thickness = float axes.thickness
+            let bandY0 = metrics.D - thickness
+            let bandY1 = metrics.T + thickness
+            let bandCount = 32
+            let sw = System.Diagnostics.Stopwatch.StartNew()
+            let profiles = System.Collections.Generic.Dictionary<char, GlyphProfile.GlyphProfile>()
+            let mutable glyphCount = 0
+            for c in allChars do
+                try
+                    let outline = font.CharToOutline c
+                    let svg, _, _ = font.elementToSvg outline
+                    let path = String.concat " " svg
+                    glyphCount <- glyphCount + 1
+                    if opticalOn && path <> "" then
+                        let cmds = GlyphProfile.parseSvgCommands path
+                        profiles.[c] <- GlyphProfile.sampleProfile bandY0 bandY1 bandCount cmds
+                with _ -> ()
+            let glyphsMs = sw.ElapsedMilliseconds
+            sw.Restart()
+            let mutable opticalCount = 0
+            if opticalOn then
+                for KeyValue(cL, pL) in profiles do
+                    let advanceL = font.charWidth cL
+                    for KeyValue(cR, pR) in profiles do
+                        if not (Spacing.kerningOverrides.ContainsKey(cL, cR)) then
+                            let k = GlyphProfile.pairKern (float axes.kerningTarget) advanceL pL pR
+                            if abs k >= 3 then opticalCount <- opticalCount + 1
+            let kernMs = sw.ElapsedMilliseconds
+            glyphsMs, kernMs, glyphCount, opticalCount
+        // warm-up
+        let _ = runOnce false
+        let _ = runOnce true
+        let runs = 3
+        let mutable offGlyphs = 0L
+        let mutable onGlyphs = 0L
+        let mutable onKern = 0L
+        let mutable opticalCount = 0
+        let mutable glyphCount = 0
+        for _ in 1 .. runs do
+            let g1, _, n1, _ = runOnce false
+            let g2, k2, n2, oc = runOnce true
+            offGlyphs <- offGlyphs + g1
+            onGlyphs <- onGlyphs + g2
+            onKern <- onKern + k2
+            opticalCount <- oc
+            glyphCount <- n2
+            ignore n1
+        let offAvg = float offGlyphs / float runs
+        let onGAvg = float onGlyphs / float runs
+        let onKAvg = float onKern / float runs
+        let totalOn = onGAvg + onKAvg
+        printfn ""
+        printfn "================ OPTICAL KERNING BENCHMARK ================"
+        printfn "  Per generateFontGlyphData call (avg of %d runs, %d glyphs):" runs glyphCount
+        printfn "    opticalKerning OFF: %.1f ms (outlines only)" offAvg
+        printfn "    opticalKerning ON:  %.1f ms total" totalOn
+        printfn "      outlines + profiles : %.1f ms" onGAvg
+        printfn "      kern computation    : %.1f ms (%d optical pairs emitted)" onKAvg opticalCount
+        printfn "    overhead from optical: +%.1f ms (+%.1f%%)" (totalOn - offAvg) ((totalOn - offAvg) / offAvg * 100.0)
+        printfn "==========================================================="
+        Assert.Pass()
 
     [<Test>]
     member this.SoftCorners_AllGlyphs_RenderWithoutException() =

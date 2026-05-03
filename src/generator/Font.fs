@@ -1338,6 +1338,16 @@ type Font(axes: Axes) =
         |> this.translateByThickness
         |> this.italicise
 
+    /// Pre-italicise variant — used for optical kerning so the italic shear
+    /// doesn't perturb sampled edge profiles (the shear cancels for a pair
+    /// of glyphs both shifted by italic*y, so we work in the design frame).
+    member this.charToElemPreItalic ch =
+        Glyph(ch)
+        |> this.reduce
+        |> applyIf axes.constraints this.constrainTangents
+        |> this.monospace
+        |> this.translateByThickness
+
     member this.charToSvg ch offsetX offsetY colour =
         if axes.debug then
             printfn "%c" ch
@@ -1392,9 +1402,55 @@ type Font(axes: Axes) =
     member this.charWidths str =
         Seq.map this.charWidth str |> List.ofSeq
 
-    /// Kerning for the ordered pair (a, b). Currently just the Spacing manual
-    /// override table.
-    member this.pairKern (a: char) (b: char) : float = Spacing.pairKern a b
+    // Per-instance profile cache for optical kerning. Profiles are sampled
+    // from the outline (post-getOutline, pre-italicise) so an italic axis
+    // change doesn't invalidate them — italic shear is X-of-Y and doesn't
+    // affect band-wise horizontal extents.
+    member val private profileCache : System.Collections.Generic.Dictionary<char, GlyphProfile.GlyphProfile> =
+        System.Collections.Generic.Dictionary<char, GlyphProfile.GlyphProfile>() with get
+
+    member private this.computeProfile (ch: char) : GlyphProfile.GlyphProfile =
+        let bandY0 = _metrics.D - thickness
+        let bandY1 = _metrics.T + thickness
+        let bandCount = 32
+        try
+            let outline = this.CharToOutlinePreItalic ch
+            let svg, _, _ = this.elementToSvg outline
+            let path = String.concat " " svg
+            let cmds = GlyphProfile.parseSvgCommands path
+            GlyphProfile.sampleProfile bandY0 bandY1 bandCount cmds
+        with _ ->
+            { GlyphProfile.BandY0 = bandY0
+              BandHeight = (bandY1 - bandY0) / float bandCount
+              BandCount = bandCount
+              LeftEdges = Array.create bandCount System.Double.PositiveInfinity
+              RightEdges = Array.create bandCount System.Double.NegativeInfinity
+              HasInk = false }
+
+    member this.glyphProfile (ch: char) : GlyphProfile.GlyphProfile =
+        match this.profileCache.TryGetValue(ch) with
+        | true, p -> p
+        | _ ->
+            let p = this.computeProfile ch
+            this.profileCache.[ch] <- p
+            p
+
+    /// Optical kern between two glyphs, in glyph coord units. 0 if either
+    /// glyph has no ink or `axes.opticalKerning` is off.
+    member this.opticalPairKern (a: char) (b: char) : int =
+        if not axes.opticalKerning then 0
+        else
+            let pa = this.glyphProfile a
+            let pb = this.glyphProfile b
+            GlyphProfile.pairKern (float axes.kerningTarget) (this.charWidth a) pa pb
+
+    /// Kerning for the ordered pair (a, b). Manual override (Spacing) is
+    /// authoritative when present; otherwise fall back to outline-sampled
+    /// optical kerning if `axes.opticalKerning` is true.
+    member this.pairKern (a: char) (b: char) : float =
+        let manual = Spacing.pairKernInt a b
+        if manual <> 0 then float manual
+        else float (this.opticalPairKern a b)
 
     /// Pair-kern adjustments for an N-character string, one per adjacent pair.
     /// Length is `max 0 (str.Length - 1)`.
@@ -1471,4 +1527,8 @@ type Font(axes: Axes) =
         toSvgDocument -margin -margin w h svg
 
     member this.CharToOutline ch = this.charToElem ch |> this.getOutline
+
+    /// Outline in the pre-italicise frame (no shear). Used for profile
+    /// sampling in optical kerning.
+    member this.CharToOutlinePreItalic ch = this.charToElemPreItalic ch |> this.getOutline
     member this.Spline2PtsToSvg pts isClosed = spline2ptsToSvg pts isClosed

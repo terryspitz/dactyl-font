@@ -26,6 +26,7 @@
     <Compile Include="SvgHelpers.fs" />
     <Compile Include="SpiroCombContext.fs" />
     <Compile Include="Spacing.fs" />
+    <Compile Include="GlyphProfile.fs" />
     <Compile Include="Font.fs" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' != 'Release'">
