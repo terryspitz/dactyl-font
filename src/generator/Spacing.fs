@@ -124,9 +124,10 @@ let kerningOverrides : Map<char * char, int> =
         ('f', 'i'), -25
         ('f', 'l'), -25
         ('f', 'j'), -30
-        ('f', 'a'), -15
-        ('f', 'e'), -15
-        ('f', 'o'), -30
+        ('f', 'a'), -25
+        ('f', 'e'), -30
+        ('f', 'o'), -45
+        ('f', 'u'), -25
         ('M', 'o'), 12   //optical over-tightens (M's vertical stem and o's curve too close)
         ('M', 'i'), 12
         ('r', 'n'), -18
