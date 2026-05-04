@@ -556,27 +556,72 @@ let generateFontGlyphData (axes: Axes) =
     let font = Font fontAxes
     let metrics = FontMetrics(axes)
     let chars = allChars.Replace("\n", "")
+    let thickness = float axes.thickness
+
+    // Per-glyph: render outline, capture svg path, optionally sample edge profile.
+    let bandY0 = metrics.D - thickness
+    let bandY1 = metrics.T + thickness
+    let bandCount = 32
+    let profileMap = System.Collections.Generic.Dictionary<char, GlyphProfile.GlyphProfile>()
 
     let glyphs =
         chars
         |> Seq.map (fun c ->
+            let advance = font.charWidth c
             try
                 let outline = font.CharToOutline c
                 let svg, _, _ = font.elementToSvg outline
+                let path = String.concat " " svg
+                if axes.opticalKerning && path <> "" then
+                    // Sample profiles from the pre-italic outline so kerns
+                    // hold across italic axis values.
+                    let preItalicOutline = font.CharToOutlinePreItalic c
+                    let svgPI, _, _ = font.elementToSvg preItalicOutline
+                    let pathPI = String.concat " " svgPI
+                    let cmds = GlyphProfile.parseSvgCommands pathPI
+                    profileMap.[c] <- GlyphProfile.sampleProfile bandY0 bandY1 bandCount cmds
                 {| unicode = int c
-                   advanceWidth = font.charWidth c
-                   pathData = String.concat " " svg |}
+                   advanceWidth = advance
+                   pathData = path |}
             with _ ->
                 {| unicode = int c
-                   advanceWidth = font.charWidth c
+                   advanceWidth = advance
                    pathData = "" |})
         |> Array.ofSeq
 
-    let thickness = float axes.thickness
+    // Manual overrides — authoritative over optical when present.
+    let manualPairs =
+        Spacing.kerningOverrides
+        |> Map.toArray
+        |> Array.map (fun ((l, r), v) ->
+            {| left = int l; right = int r; value = v |})
+
+    // Optical kerns for every pair where no manual override exists.
+    // Emits ALL non-zero values so the OTF kern table matches what the
+    // SVG render path applies — the SVG path doesn't filter, and any
+    // mismatch shows up as text laid out differently between the two.
+    let opticalPairs =
+        if axes.opticalKerning then
+            let acc = ResizeArray()
+            let manualKeys = Spacing.kerningOverrides
+            for KeyValue(cL, pL) in profileMap do
+                let advanceL = font.charWidth cL
+                for KeyValue(cR, pR) in profileMap do
+                    if not (manualKeys.ContainsKey(cL, cR)) then
+                        let k = GlyphProfile.pairKern (float axes.kerningTarget) advanceL pL pR
+                        if k <> 0 then
+                            acc.Add({| left = int cL; right = int cR; value = k |})
+            acc.ToArray()
+        else
+            [||]
+
+    let kerningPairs = Array.append manualPairs opticalPairs
+
     {| glyphs = glyphs
        ascender = metrics.T + thickness
        descender = metrics.D - thickness
-       unitsPerEm = font.charHeight |}
+       unitsPerEm = font.charHeight
+       kerningPairs = kerningPairs |}
 
 let private knotToObj (k: Knot) : obj =
     // When x_fit/y_fit is true the solver treats the coordinate as a free variable (None).
