@@ -491,6 +491,63 @@ type FontTests() =
                 sprintf "kern(%c,%c) should not depend on italic axis" a b)
 
     [<Test>]
+    [<Explicit("Diagnostic — print manual vs optical kern for tuned pairs")>]
+    member this.Diagnostic_ManualVsOpticalKern() =
+        // Run with: dotnet test --filter "Diagnostic_ManualVsOpticalKern" \
+        //                       --logger "console;verbosity=detailed"
+        let axes = { Axes.DefaultAxes with opticalKerning = true; outline = true; filled = true }
+        let font = Font.Font(axes)
+        let metrics = FontMetrics(axes)
+        let thickness = float axes.thickness
+        let bandY0 = metrics.D - thickness
+        let bandY1 = metrics.T + thickness
+        let bandCount = 32
+        // Profile every char that appears in the pairs we want to inspect.
+        let chars = "AVTLOWYKfMabceigjlmnoprsuvwy.!,'"
+        let profiles = System.Collections.Generic.Dictionary<char, GlyphProfile.GlyphProfile>()
+        for c in chars do
+            try
+                let outline = font.CharToOutlinePreItalic c
+                let svg, _, _ = font.elementToSvg outline
+                let path = String.concat " " svg
+                if path <> "" then
+                    let cmds = GlyphProfile.parseSvgCommands path
+                    profiles.[c] <- GlyphProfile.sampleProfile bandY0 bandY1 bandCount cmds
+            with _ -> ()
+        let opticalRaw (a: char) (b: char) : int =
+            if profiles.ContainsKey(a) && profiles.ContainsKey(b) then
+                GlyphProfile.pairKern (float axes.kerningTarget) (font.charWidth a) profiles.[a] profiles.[b]
+            else 0
+        // Just-tuned pairs and adjacent comparisons
+        let pairs = [
+            'V', 'o'; 'V', 'a'; 'V', 'e'; 'V', 'u'
+            'Y', 'o'; 'Y', 'a'; 'Y', 'e'; 'Y', 'u'
+            'W', 'o'; 'W', 'a'; 'W', 'e'; 'W', 'u'
+            'T', 'o'; 'T', 'a'; 'T', 'e'; 'T', 'u'
+            'A', 'V'; 'A', 'W'; 'A', 'Y'; 'A', 'T'
+            'L', 'T'; 'L', 'V'; 'L', 'W'; 'L', 'Y'
+            'M', 'o'; 'M', 'i'; 'M', 'a'; 'M', 'e'
+            'f', 'a'; 'f', 'e'; 'f', 'o'; 'f', 'u'; 'f', 'i'; 'f', 'l'; 'f', 'j'
+            'r', 'n'; 'r', 'm'; 'r', 'u'; 'r', 'a'
+        ]
+        printfn ""
+        printfn "================ MANUAL vs OPTICAL KERN ================"
+        printfn "  pair  manual  optical  delta  status"
+        for (a, b) in pairs do
+            let m = Spacing.pairKernInt a b
+            let o = opticalRaw a b
+            let mLabel = if m = 0 then "-" else string m
+            let delta = if m = 0 then "-" else string (m - o)
+            let status =
+                if m = 0 then "(optical only)"
+                else if abs (m - o) < 5 then "agree"
+                else if m < o then "manual TIGHTER by " + string (o - m)
+                else "manual LOOSER by " + string (m - o)
+            printfn "  %c%c    %6s  %6d   %5s  %s" a b mLabel o delta status
+        printfn "========================================================="
+        Assert.Pass()
+
+    [<Test>]
     member this.SvgAndOtfKerns_AgreeForEveryPair() =
         // The SVG render path calls Font.pairKern per consecutive pair.
         // The OTF emission in Api.generateFontGlyphData builds a kern table
