@@ -1380,16 +1380,30 @@ type Font(axes: Axes) =
                       [])
 
     member this.width e =
+        let sidebearing =
+            ((1.0 + this.axes.contrast) * thickness * 2.0 + float this.axes.serif)
+            * this.axes.sidebearingScale
         (e |> this.reduce |> this.monospace |> this.elemWidth)
         + float this.axes.tracking
-        + ((1.0 + this.axes.contrast) * thickness * 2.0 + float this.axes.serif)
+        + sidebearing
 
     member this.charWidth ch = this.width (Glyph(ch))
 
     member this.charWidths str =
         Seq.map this.charWidth str |> List.ofSeq
 
-    member this.stringWidth str = List.sum (this.charWidths str)
+    /// Kerning for the ordered pair (a, b). Currently just the Spacing manual
+    /// override table.
+    member this.pairKern (a: char) (b: char) : float = Spacing.pairKern a b
+
+    /// Pair-kern adjustments for an N-character string, one per adjacent pair.
+    /// Length is `max 0 (str.Length - 1)`.
+    member this.pairKerns (str: string) : float list =
+        if str.Length < 2 then []
+        else [ for i in 0 .. str.Length - 2 -> this.pairKern str.[i] str.[i + 1] ]
+
+    member this.stringWidth str =
+        List.sum (this.charWidths str) + List.sum (this.pairKerns str)
 
     member this.stringToSvgLineInternal
         (lines: string list)
@@ -1406,7 +1420,14 @@ type Font(axes: Axes) =
                 [ for i in 0 .. lines.Length - 1 do
                       let str = lines.[i]
                       let widths = this.charWidths str
-                      let offsetXs = List.scan (+) offsetX widths
+                      // `advances[i] = widths[i] + kern(char_i, char_{i+1})` so
+                      // the kern for a pair shifts the *second* glyph. The
+                      // last char has no following pair, hence the trailing 0.
+                      let kerns =
+                          if str.Length < 2 then List.replicate str.Length 0.0
+                          else this.pairKerns str @ [ 0.0 ]
+                      let advances = List.map2 (+) widths kerns
+                      let offsetXs = List.scan (+) offsetX advances
 
                       let lineOffset =
                           offsetY + this.charHeight * float (i + 1) - this.yBaselineOffset + thickness
@@ -1421,7 +1442,7 @@ type Font(axes: Axes) =
 
                                 yield! this.charToSvg str.[c] (offsetXs.[c]) lineOffset colour ]
 
-                      (svg, List.sum widths) ]
+                      (svg, List.sum advances) ]
 
         (List.collect id svg, lineWidths)
 
