@@ -224,16 +224,22 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
                 else
                     [ sprintf "<g class='%s'>" cls ] @ svgs @ [ "</g>" ]
 
+            let safeElementToSvgPath (font: Font) shape color =
+                try
+                    font.elementToSvgPath shape offsetX offsetY 10 color
+                with _ ->
+                    []
+
             let guidesLayer = wrapClass "guides-layer" guidesSvg
 
             let spiroLayer =
-                wrapClass "spiro-layer" (fontSpiro.elementToSvgPath spiro offsetX offsetY 10 blue)
+                wrapClass "spiro-layer" (safeElementToSvgPath fontSpiro spiro blue)
 
             let spline2Layer =
-                wrapClass "spline2-layer" (fontSpline2.elementToSvgPath spline offsetX offsetY 10 green)
+                wrapClass "spline2-layer" (safeElementToSvgPath fontSpline2 spline green)
 
             let dsplineLayer =
-                wrapClass "dspline-layer" (fontDactylSpline.elementToSvgPath spline offsetX offsetY 10 orange)
+                wrapClass "dspline-layer" (safeElementToSvgPath fontDactylSpline spline orange)
 
             let knotsLayer =
                 (wrapClass
@@ -270,6 +276,12 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
                 with _ ->
                     []
 
+            let safeSpineSvgPath (font: Font) shape color =
+                try
+                    font.elementToSvgPath shape offsetX offsetY 3 color
+                with _ ->
+                    []
+
             let wrapClass (cls: string) (svgs: string list) =
                 if List.isEmpty svgs then
                     []
@@ -294,17 +306,17 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
             let guidesLayer = wrapClass "guides-layer" guidesSvg
 
             let spiroLayer =
-                wrapClass "spiro-layer" (fontSpiroSpine.elementToSvgPath spiro offsetX offsetY 3 blue @ outlineSpiroSvg)
+                wrapClass "spiro-layer" (safeSpineSvgPath fontSpiroSpine spiro blue @ outlineSpiroSvg)
 
             let spline2Layer =
                 wrapClass
                     "spline2-layer"
-                    (fontSpline2Spine.elementToSvgPath spline offsetX offsetY 3 green @ outlineSpline2Svg)
+                    (safeSpineSvgPath fontSpline2Spine spline green @ outlineSpline2Svg)
 
             let dsplineLayer =
                 wrapClass
                     "dspline-layer"
-                    (fontDactylSplineSpine.elementToSvgPath spline offsetX offsetY 3 orange
+                    (safeSpineSvgPath fontDactylSplineSpine spline orange
                      @ outlineDactylSplineSvg)
 
             let knotsLayer =
