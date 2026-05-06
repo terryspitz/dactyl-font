@@ -1450,9 +1450,10 @@ type Font(axes: Axes) =
 
     /// Kerning for the ordered pair (a, b). Manual override (Spacing) is
     /// authoritative when present; otherwise fall back to outline-sampled
-    /// optical kerning if `axes.opticalKerning` is true.
+    /// optical kerning. Each layer is gated by its own axis so they can be
+    /// turned off independently for diff inspection.
     member this.pairKern (a: char) (b: char) : float =
-        let manual = Spacing.pairKernInt a b
+        let manual = if axes.manualKerning then Spacing.pairKernInt a b else 0
         if manual <> 0 then float manual
         else float (this.opticalPairKern a b)
 
