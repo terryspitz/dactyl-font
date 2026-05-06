@@ -72,7 +72,7 @@ let glyphMap =
           '|', "tec-bec"
           '~', "tttthl~tlc~tttthc~ttthhrc~tttthr"
 
-          '0', "hl~tc~hr~bc~ tr-bl"
+          '0', "hlN~tcE~hrS~bcW~ tr-bl"
           '1', "tol-tlllr-blllr"
           '2', "tol~tc~thr~hbc-bl-br"
           '3', "tol~tc~thr~hc-hllr hllr-hc~bhr~bc~bol"
@@ -118,7 +118,7 @@ let glyphMap =
           'o', "xblN~xcE~xbrS~bcW~"
           'P', "bl-tlE~(th)rS~hlE"
           'p', "xl-dl bol~bc~xbr~xc~xol"
-          'Q', "hl~tc~hr~bc~ br-hbc"
+          'Q', "hlN~tcE~hrS~bcW~ br-hbc"
           'q', "xr-dr xor~xc~xbl~bc~bor"
           'R', "bl-tlE~thr~hcl-hl hc-br"
           'r', "xl-bl xol~xlcc~xoccr"
