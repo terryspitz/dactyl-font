@@ -1136,13 +1136,106 @@ type Font(axes: Axes) =
         let results = dactylToOutline (this.reduce e)
         if results.Length = 1 then results.[0] else EList(results)
 
+    /// Prototype: outlines as dense polylines at a constant perpendicular distance
+    /// from the DactylSpline-solved spine. Walks each cubic bezier emitted by the
+    /// solver and offsets each sample by ±thickness perpendicular to the local tangent.
+    /// The result is a polyline (Corner knots), not a refit spline — intended for
+    /// visual comparison against getDactylSansOutlines.
+    member this.getDactylConstantOffsetOutlines e =
+        let fthickness = float thickness
+        // Samples per cubic bezier segment. spiroflatness already adapts segment density,
+        // so a fixed count per segment is fine for a prototype.
+        let samplesPerSeg = 16
+
+        let buildOutlineFromBez (bezPts: BezierPoint array) (isClosed: bool) =
+            if bezPts.Length < 2 then
+                []
+            else
+                let count = if isClosed then bezPts.Length else bezPts.Length - 1
+                let samples = System.Collections.Generic.List<float * float * float>()
+
+                for i in 0 .. count - 1 do
+                    let p1 = bezPts.[i]
+                    let p2 = bezPts.[(i + 1) % bezPts.Length]
+                    let p0x, p0y = p1.x, p1.y
+                    let cp1x = p1.x + p1.rd * cos p1.th_out
+                    let cp1y = p1.y + p1.rd * sin p1.th_out
+                    let cp2x = p2.x - p2.ld * cos p2.th_in
+                    let cp2y = p2.y - p2.ld * sin p2.th_in
+                    let p3x, p3y = p2.x, p2.y
+                    // Sample t in (0,1] for all segments; include t=0 only on the very first
+                    // segment of an open curve (to capture the start point) — closed curves
+                    // would otherwise duplicate the start as the last sample.
+                    let startS = if i = 0 && not isClosed then 0 else 1
+                    for s in startS .. samplesPerSeg do
+                        let t = float s / float samplesPerSeg
+                        let mt = 1.0 - t
+                        let b0 = mt * mt * mt
+                        let b1 = 3.0 * mt * mt * t
+                        let b2 = 3.0 * mt * t * t
+                        let b3 = t * t * t
+                        let x = b0 * p0x + b1 * cp1x + b2 * cp2x + b3 * p3x
+                        let y = b0 * p0y + b1 * cp1y + b2 * cp2y + b3 * p3y
+                        let d0 = 3.0 * mt * mt
+                        let d1 = 6.0 * mt * t
+                        let d2 = 3.0 * t * t
+                        let dx = d0 * (cp1x - p0x) + d1 * (cp2x - cp1x) + d2 * (p3x - cp2x)
+                        let dy = d0 * (cp1y - p0y) + d1 * (cp2y - cp1y) + d2 * (p3y - cp2y)
+                        // At a cusp (zero-length tangent) fall back to chord direction
+                        let th =
+                            if dx * dx + dy * dy < 1e-12 then
+                                atan2 (p3y - p0y) (p3x - p0x)
+                            else
+                                atan2 dy dx
+                        samples.Add(x, y, th)
+
+                let offsetAt (x, y, th) sign =
+                    let p = addPolarContrast x y (th + sign * PI / 2.0) fthickness
+                    { pt = p
+                      ty = Corner
+                      th_in = None
+                      th_out = None
+                      label = None }
+
+                let samplesList = List.ofSeq samples
+                let outer = samplesList |> List.map (fun s -> offsetAt s 1.0)
+                let inner = samplesList |> List.map (fun s -> offsetAt s -1.0) |> List.rev
+
+                if isClosed then
+                    [ Curve(outer, true); Curve(inner, true) ]
+                else
+                    // Flat caps: connect outer tail to inner head and back
+                    [ Curve(outer @ inner, true) ]
+
+        let solveAndOffset (pts: Knot list) isClosed =
+            validateKnotSequence pts isClosed
+            let ctrlPts = toDactylSplineControlPoints pts
+            let spline = DactylSpline(ctrlPts, isClosed)
+            let bezPts = spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.debug)
+            buildOutlineFromBez bezPts isClosed
+
+        let rec dactylToOutline elem =
+            match elem with
+            | Curve(pts, isClosed) -> solveAndOffset pts isClosed
+            | Dot(p) -> [ dotToClosedCurve p.x p.y (thickness + 5.0) ]
+            | EList(elems) -> List.collect dactylToOutline elems
+            | Space -> [ Space ]
+            | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
+
+        let results = dactylToOutline (this.reduce e)
+        if results.Length = 0 then Space
+        elif results.Length = 1 then results.[0]
+        else EList(results)
+
     member this.getOutline =
         if this.axes.stroked then
             this.getStroked
         elif this.axes.scratches then
             this.getScratches
         elif this.axes.outline then
-            (if axes.dactyl_spline then
+            (if axes.constant_offset then
+                 this.getDactylConstantOffsetOutlines
+             elif axes.dactyl_spline then
                  this.getDactylSansOutlines
              else
                  this.getSpiroSansOutlines)

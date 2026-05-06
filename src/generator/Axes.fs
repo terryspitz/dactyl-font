@@ -32,6 +32,7 @@ type Axes =
       outline: bool //use thickness to expand stroke width
       stroked: bool //each stroke is 4 parallel lines
       scratches: bool //horror/paint strokes font
+      constant_offset: bool //prototype: outlines are dense polylines at constant perpendicular distance from the spine
       max_spline_iter: int //max number of iterations to solve spline curves
       show_knots: bool //show small circles for the points used to define lines/curves
       show_tangents: bool //show lines for the tangents at each knot
@@ -64,6 +65,7 @@ type Axes =
           outline = true
           stroked = false
           scratches = false
+          constant_offset = false
           max_spline_iter = 100
           show_knots = false
           show_tangents = false
@@ -98,6 +100,7 @@ type Axes =
           "outline", Checkbox, "default"
           "stroked", Checkbox, "default"
           "scratches", Checkbox, "default"
+          "constant_offset", Checkbox, "experimental"
           "max_spline_iter", Range(0, 200), "experimental"
           "show_knots", Checkbox, "debug"
           "show_tangents", Checkbox, "debug"
