@@ -1136,76 +1136,95 @@ type Font(axes: Axes) =
         let results = dactylToOutline (this.reduce e)
         if results.Length = 1 then results.[0] else EList(results)
 
-    /// Prototype: outlines as dense polylines at a constant perpendicular distance
-    /// from the DactylSpline-solved spine. Walks each cubic bezier emitted by the
-    /// solver and offsets each sample by ±thickness perpendicular to the local tangent.
-    /// The result is a polyline (Corner knots), not a refit spline — intended for
-    /// visual comparison against getDactylSansOutlines.
+    /// Outline generation using dense sampling at a constant perpendicular distance
+    /// from the DactylSpline-solved spine. Walks each cubic bezier at 8 t-steps,
+    /// offsets every sample by ±thickness perpendicular to its local tangent, and
+    /// emits the result as Corner knots (straight-line segments between samples).
+    /// Reuses the same cap/joint/serif/flare/soft_corners logic as getDactylSansOutlines.
     member this.getDactylConstantOffsetOutlines e =
         let fthickness = float thickness
-        // Samples per cubic bezier segment. spiroflatness already adapts segment density,
-        // so a fixed count per segment is fine for a prototype.
-        let samplesPerSeg = 16
+        let samplesPerSeg = 8
+
+        // Build Segment for use with existing cap functions.
+        // Only X, Y, tangentStart, and tangentEnd are read by startCap/endCap.
+        let makeCapSeg (bp: BezierPoint) tStart tEnd =
+            { X = bp.x; Y = bp.y
+              tangentStart = tStart
+              tangentEnd = tEnd
+              seg_ch = 1.0
+              Type = Corner }
+
+        // Use original element (before reduce) so isJoint detects stroke intersections.
+        let startCapFn (seg: Segment) = this.startCap seg e Corner
+        let endCapFn (seg: Segment) (lastSeg: Segment) = this.endCap seg lastSeg e Corner
 
         let buildOutlineFromBez (bezPts: BezierPoint array) (isClosed: bool) =
-            if bezPts.Length < 2 then
-                []
+            if bezPts.Length < 2 then [] else
+
+            let count = if isClosed then bezPts.Length else bezPts.Length - 1
+            let samples = System.Collections.Generic.List<float * float * float>()
+
+            for i in 0 .. count - 1 do
+                let p1 = bezPts.[i]
+                let p2 = bezPts.[(i + 1) % bezPts.Length]
+                let p0x, p0y = p1.x, p1.y
+                let cp1x = p1.x + p1.rd * cos p1.th_out
+                let cp1y = p1.y + p1.rd * sin p1.th_out
+                let cp2x = p2.x - p2.ld * cos p2.th_in
+                let cp2y = p2.y - p2.ld * sin p2.th_in
+                let p3x, p3y = p2.x, p2.y
+                // t=0 of the first segment is the spine start point; include it only
+                // for open curves (closed curves would duplicate the wrap-around point).
+                let startS = if i = 0 && not isClosed then 0 else 1
+                for s in startS .. samplesPerSeg do
+                    let t = float s / float samplesPerSeg
+                    let mt = 1.0 - t
+                    let b0, b1, b2, b3 = mt*mt*mt, 3.*mt*mt*t, 3.*mt*t*t, t*t*t
+                    let x = b0*p0x + b1*cp1x + b2*cp2x + b3*p3x
+                    let y = b0*p0y + b1*cp1y + b2*cp2y + b3*p3y
+                    let d0, d1, d2 = 3.*mt*mt, 6.*mt*t, 3.*t*t
+                    let dx = d0*(cp1x-p0x) + d1*(cp2x-cp1x) + d2*(p3x-cp2x)
+                    let dy = d0*(cp1y-p0y) + d1*(cp2y-cp1y) + d2*(p3y-cp2y)
+                    let th =
+                        if dx*dx + dy*dy < 1e-12 then atan2 (p3y-p0y) (p3x-p0x)
+                        else atan2 dy dx
+                    samples.Add(x, y, th)
+
+            let offsetKnot (x, y, th) sign =
+                let p = addPolarContrast x y (th + sign * PI / 2.) fthickness
+                { pt = p; ty = Corner; th_in = None; th_out = None; label = None }
+
+            let samplesList = List.ofSeq samples
+
+            if isClosed then
+                // Two separate closed contours: outer and inner offset loops.
+                let outer = samplesList |> List.map (fun s -> offsetKnot s 1.)
+                let inner = samplesList |> List.map (fun s -> offsetKnot s -1.) |> List.rev
+                [ Curve(outer, true); Curve(inner, true) ]
+                |> List.map this.applySoftCorners
             else
-                let count = if isClosed then bezPts.Length else bezPts.Length - 1
-                let samples = System.Collections.Generic.List<float * float * float>()
+                // For open strokes, reuse the same cap/joint/serif/flare logic.
+                // startCap and endCap both need a Segment describing the endpoint.
+                // endCap also needs the penultimate Segment for its tangentEnd.
+                let n = bezPts.Length
+                let firstSeg     = makeCapSeg bezPts.[0]   bezPts.[0].th_out   bezPts.[0].th_out
+                let endpointSeg  = makeCapSeg bezPts.[n-1] bezPts.[n-1].th_in  bezPts.[n-1].th_in
+                // penultimateSeg.tangentEnd is the incoming tangent at the final point
+                let penultSeg    = makeCapSeg bezPts.[n-2] bezPts.[n-2].th_out bezPts.[n-1].th_in
 
-                for i in 0 .. count - 1 do
-                    let p1 = bezPts.[i]
-                    let p2 = bezPts.[(i + 1) % bezPts.Length]
-                    let p0x, p0y = p1.x, p1.y
-                    let cp1x = p1.x + p1.rd * cos p1.th_out
-                    let cp1y = p1.y + p1.rd * sin p1.th_out
-                    let cp2x = p2.x - p2.ld * cos p2.th_in
-                    let cp2y = p2.y - p2.ld * sin p2.th_in
-                    let p3x, p3y = p2.x, p2.y
-                    // Sample t in (0,1] for all segments; include t=0 only on the very first
-                    // segment of an open curve (to capture the start point) — closed curves
-                    // would otherwise duplicate the start as the last sample.
-                    let startS = if i = 0 && not isClosed then 0 else 1
-                    for s in startS .. samplesPerSeg do
-                        let t = float s / float samplesPerSeg
-                        let mt = 1.0 - t
-                        let b0 = mt * mt * mt
-                        let b1 = 3.0 * mt * mt * t
-                        let b2 = 3.0 * mt * t * t
-                        let b3 = t * t * t
-                        let x = b0 * p0x + b1 * cp1x + b2 * cp2x + b3 * p3x
-                        let y = b0 * p0y + b1 * cp1y + b2 * cp2y + b3 * p3y
-                        let d0 = 3.0 * mt * mt
-                        let d1 = 6.0 * mt * t
-                        let d2 = 3.0 * t * t
-                        let dx = d0 * (cp1x - p0x) + d1 * (cp2x - cp1x) + d2 * (p3x - cp2x)
-                        let dy = d0 * (cp1y - p0y) + d1 * (cp2y - cp1y) + d2 * (p3y - cp2y)
-                        // At a cusp (zero-length tangent) fall back to chord direction
-                        let th =
-                            if dx * dx + dy * dy < 1e-12 then
-                                atan2 (p3y - p0y) (p3x - p0x)
-                            else
-                                atan2 dy dx
-                        samples.Add(x, y, th)
+                let startCapKnots = startCapFn firstSeg
+                let endCapKnots   = endCapFn endpointSeg penultSeg
 
-                let offsetAt (x, y, th) sign =
-                    let p = addPolarContrast x y (th + sign * PI / 2.0) fthickness
-                    { pt = p
-                      ty = Corner
-                      th_in = None
-                      th_out = None
-                      label = None }
+                // Mid-samples exclude the spine endpoints (handled by the caps).
+                let mid =
+                    if samplesList.Length > 2 then samplesList.[1 .. samplesList.Length - 2]
+                    else []
 
-                let samplesList = List.ofSeq samples
-                let outer = samplesList |> List.map (fun s -> offsetAt s 1.0)
-                let inner = samplesList |> List.map (fun s -> offsetAt s -1.0) |> List.rev
-
-                if isClosed then
-                    [ Curve(outer, true); Curve(inner, true) ]
-                else
-                    // Flat caps: connect outer tail to inner head and back
-                    [ Curve(outer @ inner, true) ]
+                let outer = mid |> List.map (fun s -> offsetKnot s  1.)
+                let inner = mid |> List.map (fun s -> offsetKnot s -1.) |> List.rev
+                // Path: startCap → outer body → endCap → inner body (reversed)
+                [ Curve(startCapKnots @ outer @ endCapKnots @ inner, true) ]
+                |> List.map this.applySoftCorners
 
         let solveAndOffset (pts: Knot list) isClosed =
             validateKnotSequence pts isClosed
