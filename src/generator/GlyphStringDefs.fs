@@ -61,7 +61,7 @@ let glyphMap =
           '=', "xxbl-xxbr xbbl-xbbr"
           '>', "xl-xbr-bl"
           '?', "thl~tc~thr~hhbc-bbhc bc"
-          '@', "bbtrcc~bbbtc~hcl~ttbc~hrcc~bbtrccS~bbbtcrr~hrN~te(c)W~hlS~be(c)E~bor"
+          '@', "bbtrcc~bbbtc~hcl~ttbc~hrcc~bbtrccS~bbbtcrr~hrN~te(c)~hlS~be(c)~bor"
           '[', "tec-tel-bel-bec"
           '\\', "tel-ber"
           ']', "tec-ter-ber-bec"
@@ -87,18 +87,18 @@ let glyphMap =
           '9', "bol~bc~hr~ttbr~tc~ttbl~bbtc~ttbrS"
 
           'A', "bl-tc-br bhlc-bhrc"
-          'a', "xr-br xor~x(c)W~xbl~bc~bor"
-          'B', "hlE~(bh)rS~blW-tlE~(th)rS~hlE"
+          'a', "xr-br xor~x(c)~xbl~bc~bor"
+          'B', "hlE~(bh)r~blW-tlE~(th)r~hlE"
           'b', "tl-bl bol~bc~xbr~xc~xol"
           'C', "tor~tc~hl~bc~bor"
           'c', "xor~xc~xbl~bc~bor"
           'D', "tl-blE~hr~tl"
           'd', "tr-br xor~xc~xbl~bc~bor"
           'E', "tr-tl-bl-br hl-hr"
-          'e', "xbl-xbrN~x(c)W~xblS~b(c)E~bor"
+          'e', "xbl-xbrN~x(c)~xblS~b(c)~bor"
           'F', "bl-tl-tr hl-hrc"
           'f', "bllc-xtllc~tcrW xl-xc"
-          'G', "tor~tc~(h)lS~bc~bhr-hr-hc"
+          'G', "tor~tc~(h)l~bc~bhr-hr-hc"
           'g', "xr-bdr~dcW~dol xor~xcW~xbl~bcE~bor"
           'H', "tl-bl hl-hr tr-br"
           'h', "tl-bl xol~xc~xbr-br"
@@ -113,17 +113,17 @@ let glyphMap =
           'M', "bl-tl-blw-tw-bw"
           'm', "xl-bl xol~xllw~xblw-blw xxblw~xlwwww~xbw-bw"
           'N', "bl-tl-br-tr"
-          'n', "xl-bl xol~x(c)E~xbr-br"
+          'n', "xl-bl xol~x(c)~xbr-br"
           'O', "hlN~tcE~hrS~bcW~"
           'o', "xblN~xcE~xbrS~bcW~"
-          'P', "bl-tlE~(th)rS~hlE"
+          'P', "bl-tlE~(th)r~hlE"
           'p', "xl-dl bol~bc~xbr~xc~xol"
           'Q', "hlN~tcE~hrS~bcW~ br-hbc"
           'q', "xr-dr xor~xc~xbl~bc~bor"
           'R', "bl-tlE~thr~hcl-hl hc-br"
           'r', "xl-bl xol~xlcc~xoccr"
           'S', "thr~tc~ttbl~hc~tbbr~bc~bhl"
-          's', "xor~x(c)W~xxbl~xbcE~xbbr~bcW~bol"
+          's', "xor~x(c)~xxbl~xbcE~xbbr~bcW~bol"
           'T', "tl-tr tc-bc"
           't', "tlc-xbblc~bc~bccr xl-xccr"
           'U', "tl-hl~bc~hr-tr"
@@ -259,21 +259,43 @@ let parse_curve (glyph: FontMetrics) raw_def debug =
         Dot(pts.[0])
     else
         let isClosed = (seps_out.[pts.Length - 1] = "-" || seps_out.[pts.Length - 1] = "~")
-        
+
+        // Auto-assign cardinal tangents to fitted-coordinate points that lack explicit ones.
+        // y_fit means the point slides along a fixed x (left/right extremum) → vertical tangent.
+        // x_fit means the point slides along a fixed y (top/bottom extremum) → horizontal tangent.
+        // Direction (S/N or E/W) is inferred from the sign of the displacement to the next point.
+        let n = pts.Length
+        let explicit_tangents =
+            [ for i in 0 .. n - 1 do
+                let pt = pts.[i]
+                match explicit_tangents.[i] with
+                | Some _ as t -> t
+                | None when pt.y_fit || pt.x_fit ->
+                    let isInterior = isClosed || (i > 0 && i < n - 1)
+                    if isInterior then
+                        let prev = pts.[if i = 0 then n - 1 else i - 1]
+                        let next = pts.[if i = n - 1 then 0 else i + 1]
+                        if pt.y_fit then
+                            Some(if prev.y > next.y then PI * -0.5 else PI * 0.5)
+                        else
+                            Some(if next.x > prev.x then 0.0 else PI)
+                    else None
+                | None -> None ]
+
         let knots =
-            [ for i in 0 .. pts.Length - 1 do
-                  let in_sep = 
-                      if i = 0 then 
-                          if isClosed then seps_out.[pts.Length - 1] else ""
+            [ for i in 0 .. n - 1 do
+                  let in_sep =
+                      if i = 0 then
+                          if isClosed then seps_out.[n - 1] else ""
                       else seps_out.[i - 1]
-                  let out_sep = 
-                      if i = pts.Length - 1 && not isClosed then ""
+                  let out_sep =
+                      if i = n - 1 && not isClosed then ""
                       else seps_out.[i]
-                  
+
                   let has_curve_in = (in_sep = "~")
                   let has_curve_out = (out_sep = "~")
-                  
-                  let tIn, tOut = 
+
+                  let tIn, tOut =
                       match explicit_tangents.[i] with
                       | Some t ->
                           if not has_curve_in && not has_curve_out then
