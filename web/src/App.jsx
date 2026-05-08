@@ -392,7 +392,7 @@ function App() {
 
     // SplineEditor manages its own state/worker — render immediately
     if (activeTab === 'splines') {
-      return <SplineEditor axes={axes} />
+      return <SplineEditor axes={axes} zoom={zoom} />
     }
 
     if (activeTab === 'splineGrid') {
@@ -709,20 +709,20 @@ function App() {
               )}
             </div>
           )}
+          {activeTab !== 'splineGrid' && (
+            <div className="zoom-controls">
+              <button onClick={() => setZoom(z => Math.min(z + 0.1, 5.0))} title="Zoom In">
+                <span className="material-symbols-outlined">add</span>
+              </button>
+              <button onClick={() => setZoom(1.0)} title="Reset Zoom">
+                <span className="material-symbols-outlined">restart_alt</span>
+              </button>
+              <button onClick={() => setZoom(z => Math.max(z - 0.1, 0.1))} title="Zoom Out">
+                <span className="material-symbols-outlined">remove</span>
+              </button>
+            </div>
+          )}
           <div ref={previewRef} className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`} style={activeTab === 'splineGrid' ? { padding: 0 } : undefined}>
-            {activeTab !== 'splines' && activeTab !== 'splineGrid' && (
-              <div className="zoom-controls">
-                <button onClick={() => setZoom(z => Math.min(z + 0.1, 5.0))} title="Zoom In">
-                  <span className="material-symbols-outlined">add</span>
-                </button>
-                <button onClick={() => setZoom(1.0)} title="Reset Zoom">
-                  <span className="material-symbols-outlined">restart_alt</span>
-                </button>
-                <button onClick={() => setZoom(z => Math.max(z - 0.1, 0.1))} title="Zoom Out">
-                  <span className="material-symbols-outlined">remove</span>
-                </button>
-              </div>
-            )}
             <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: (activeTab === 'tweens' || activeTab === 'proofs') ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
               {renderContent()}
             </div>

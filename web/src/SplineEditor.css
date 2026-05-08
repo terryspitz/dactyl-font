@@ -16,11 +16,17 @@
 }
 
 .se-glyph-picker,
-.se-curve-picker,
+.se-curve-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .se-options {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
 .se-glyph-picker label,
