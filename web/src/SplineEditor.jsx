@@ -105,7 +105,7 @@ function CurvatureGraph({ curvatureData }) {
   )
 }
 
-function SplineEditor({ axes }) {
+function SplineEditor({ axes, zoom = 1.0 }) {
   const [glyphList, setGlyphList] = useState([])
   const [selectedChar, setSelectedChar] = useState(
     () => localStorage.getItem('splineSelectedChar') || 'a'
@@ -309,6 +309,15 @@ function SplineEditor({ axes }) {
     viewBoxRef.current = vb
     return vb
   }, [guides])
+
+  // Apply zoom by shrinking/expanding the viewBox around its center
+  const zoomedViewBox = useMemo(() => {
+    const cx = viewBox.x + viewBox.w / 2
+    const cy = viewBox.y + viewBox.h / 2
+    const newW = viewBox.w / zoom
+    const newH = viewBox.h / zoom
+    return { x: cx - newW / 2, y: cy - newH / 2, w: newW, h: newH }
+  }, [viewBox, zoom])
 
   const svgPoint = useCallback((clientX, clientY) => {
     const svg = svgRef.current
@@ -788,7 +797,7 @@ function SplineEditor({ axes }) {
           <svg
             ref={svgRef}
             className="se-canvas"
-            viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
+            viewBox={`${zoomedViewBox.x} ${zoomedViewBox.y} ${zoomedViewBox.w} ${zoomedViewBox.h}`}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerUp}
