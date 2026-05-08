@@ -68,7 +68,8 @@ type FontTests() =
             Font.Font(
                 { Axes.DefaultAxes with
                     dactyl_spline = true
-                    outline = true }
+                    outline = true
+                    constant_offset = false }
             )
 
         // Render 'v' and capture the SVG
@@ -112,7 +113,8 @@ type FontTests() =
             Font.Font(
                 { Axes.DefaultAxes with
                     dactyl_spline = true
-                    outline = true }
+                    outline = true
+                    constant_offset = false }
             )
 
         let svg = font.charToSvg 'P' 0.0 0.0 "black"
@@ -362,7 +364,8 @@ type FontTests() =
                 { Axes.DefaultAxes with
                     dactyl_spline = true
                     outline = true
-                    soft_corners = 0.0 }
+                    soft_corners = 0.0
+                    constant_offset = false }
             )
 
         let fontRound =
@@ -370,7 +373,8 @@ type FontTests() =
                 { Axes.DefaultAxes with
                     dactyl_spline = true
                     outline = true
-                    soft_corners = 0.5 }
+                    soft_corners = 0.5
+                    constant_offset = false }
             )
 
         let svgSharp = fontSharp.charToSvg 'V' 0.0 0.0 "black" |> String.concat " "
@@ -459,7 +463,8 @@ type FontTests() =
             { Axes.DefaultAxes with
                 dactyl_spline = true
                 outline = true
-                thickness = 30 }
+                thickness = 30
+                constant_offset = false }
 
         let font = Font.Font(axes)
 
@@ -534,7 +539,8 @@ type FontTests() =
                     dactyl_spline = true
                     outline = true
                     soft_corners = sc
-                    joints = jt }
+                    joints = jt
+                    constant_offset = false }
             )
 
         let countC (svg: string) =
