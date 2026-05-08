@@ -1211,6 +1211,19 @@ type Font(axes: Axes) =
                 let emitMidSamples (segIdx: int) =
                     let p1 = bezPts.[segIdx]
                     let p2 = bezPts.[(segIdx + 1) % n]
+                    // A straight-line spine segment (both tangents colinear with the chord) has
+                    // a parallel-line perpendicular offset, so interior samples would be
+                    // collinear with the endpoint offsets and add no information. Skip them.
+                    let dxc = p2.x - p1.x
+                    let dyc = p2.y - p1.y
+                    let isStraight =
+                        if dxc * dxc + dyc * dyc < 1e-12 then true
+                        else
+                            let chordAngle = atan2 dyc dxc
+                            abs (norm (p1.th_out - chordAngle)) < 1e-4
+                            && abs (norm (p2.th_in  - chordAngle)) < 1e-4
+                    if isStraight then () else
+
                     let p0x, p0y = p1.x, p1.y
                     let cp1x = p1.x + p1.rd * cos p1.th_out
                     let cp1y = p1.y + p1.rd * sin p1.th_out
