@@ -862,6 +862,7 @@ type DactylSpline(ctrlPts, isClosed) =
 
                     if Double.IsNaN result.[resIdx].x then
                         result.[resIdx].x <- bezPts.[k].x
+                    if Double.IsNaN result.[resIdx].y then
                         result.[resIdx].y <- bezPts.[k].y
 
                     // Selective copy: only update properties relevant for the segment sides this point is on.
