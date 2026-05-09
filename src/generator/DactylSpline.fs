@@ -860,7 +860,7 @@ type DactylSpline(ctrlPts, isClosed) =
                 for k in 0 .. copyCount - 1 do
                     let resIdx = (i + k) % ctrlPts.Length
 
-                    if Double.IsNaN result.[resIdx].x then
+                    if Double.IsNaN result.[resIdx].x || Double.IsNaN result.[resIdx].y then
                         result.[resIdx].x <- bezPts.[k].x
                         result.[resIdx].y <- bezPts.[k].y
 
