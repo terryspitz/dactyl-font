@@ -193,10 +193,12 @@ function SplineEditor({ axes, zoom = 1.0 }) {
     const handler = (e) => {
       const { id, result, error } = e.data
       if (id === -1 && result) setGlyphList(result)
-      if (id === -3 && result) {
-        if (result.length > 0) {
+      if (id === -3) {
+        if (error) console.error('parseGlyph error:', error)
+        if (result && result.length > 0) {
           setCurves(result)
           setAllCurvePaths({})
+          setSolveResult(null)
           undoStackRef.current = []
           redoStackRef.current = []
           setActiveCurve(0)
