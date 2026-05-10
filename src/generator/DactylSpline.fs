@@ -657,6 +657,24 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     _points.[_points.Length - 1].th_in <- _points.[0].th_in
                     _points.[_points.Length - 1].th_out <- _points.[0].th_out
 
+            // Second start: neighbour-average for every free x/y in the mapping.
+            // _points has been initialised (hint-based) before this point, so
+            // _points.[i].x/y already holds a valid float for fixed coords.
+            let initialArr = Array.ofSeq initial
+            let initialAvg = initialArr |> Array.copy
+            for k in 0 .. mapping.Count - 1 do
+                let (ptIdx, paramIdx) = mapping.[k]
+                let inline avg (getCoord: BezierPoint -> float) =
+                    let l = _points.[max (ptIdx - 1) 0]
+                    let r = _points.[min (ptIdx + 1) (_points.Length - 1)]
+                    if ptIdx = 0 then getCoord r
+                    elif ptIdx = _points.Length - 1 then getCoord l
+                    else (getCoord l + getCoord r) / 2.
+                if paramIdx = int BezierIndex.X && Option.isNone ctrlPts.[ptIdx].x then
+                    initialAvg.[k] <- avg (fun p -> p.x)
+                elif paramIdx = int BezierIndex.Y && Option.isNone ctrlPts.[ptIdx].y then
+                    initialAvg.[k] <- avg (fun p -> p.y)
+
 #if FABLE_COMPILER
             let objectiveFunction (x: float[]) =
                 applyParams (fun i -> x[i]) x.Length
@@ -666,31 +684,48 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             // per-parameter budget; at minimum match fmin's own default heuristic (N*200).
             let scaledIter = initial.Count * (max maxIter 200)
             let param = createObj [ "maxIterations" ==> scaledIter ]
-            let best = nelderMead objectiveFunction (Array.ofSeq initial) param
-            applyParams (fun i -> best[i]) best.Length
+
+            // 2-start: run from both the bracket-hint start and the neighbour-average
+            // start; keep whichever achieves a lower objective value.
+            let best1 = nelderMead objectiveFunction initialArr param
+            applyParams (fun i -> best1[i]) best1.Length
+            let err1 = this.computeErr ()
+
+            let best2 = nelderMead objectiveFunction initialAvg param
+            applyParams (fun i -> best2[i]) best2.Length
+            let err2 = this.computeErr ()
+
+            if err1 < err2 then
+                applyParams (fun i -> best1[i]) best1.Length
 #else
             let minimiser: Optimization.NelderMeadSimplex =
                 Optimization.NelderMeadSimplex(1e-5, maxIter)
 
-            let objectiveFunction (x: Vector<float>) =
-                assert (x.Count = mapping.Count)
-                applyParams (fun i -> x.[i]) x.Count
-                this.computeErr ()
-
-            let objModel = Optimization.ObjectiveFunction.Value(objectiveFunction)
-
-            let best = minimiser.FindMinimum(objModel, DenseVector.ofArray (initial.ToArray()))
-
-            let resultVec =
-                if best.MinimizingPoint |> Seq.exists Double.IsNaN then
+            let runFrom (startArr: float array) =
+                let objModel =
+                    Optimization.ObjectiveFunction.Value(fun (x: Vector<float>) ->
+                        assert (x.Count = mapping.Count)
+                        applyParams (fun i -> x.[i]) x.Count
+                        this.computeErr ())
+                let result = minimiser.FindMinimum(objModel, DenseVector.ofArray startArr)
+                if result.MinimizingPoint |> Seq.exists Double.IsNaN then
                     if this.debug then
                         printfn "Optimization returned NaNs! Falling back to initial."
-
-                    DenseVector.ofArray (initial.ToArray())
+                    DenseVector.ofArray startArr
                 else
-                    best.MinimizingPoint
+                    result.MinimizingPoint
 
-            applyParams (fun i -> resultVec.[i]) resultVec.Count
+            // 2-start: hint-based and neighbour-average; keep the lower-error result.
+            let pts1 = runFrom initialArr
+            applyParams (fun i -> pts1.[i]) pts1.Count
+            let err1 = this.computeErr ()
+
+            let pts2 = runFrom initialAvg
+            applyParams (fun i -> pts2.[i]) pts2.Count
+            let err2 = this.computeErr ()
+
+            if err1 < err2 then
+                applyParams (fun i -> pts1.[i]) pts1.Count
 #endif
 
 // DactylSpline handles general sequence of lines & curves, including corners.

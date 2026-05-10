@@ -941,3 +941,25 @@ type BracketFittingTests() =
             "x(c)W: optimised x should not collapse to the right boundary")
         Assert.That(pts2.[1].x, Is.LessThan(metrics.R - 10.0),
             "x(cr)W: optimised x should not collapse to the right boundary")
+
+    [<Test>]
+    member _.BracketX_MultiStartAvoidsDegenerate() =
+        // 2-start optimisation (hint start + neighbour-average start, keep lower error)
+        // must prevent the degenerate "collapsed first segment" solution where the free
+        // point is pulled to the right boundary.  Different hints produce different local
+        // minima with genuinely different objective values; what we guarantee is that
+        // none land at the boundary regardless of starting hint.
+        //   x(c)W  → hint=C=150,       finds local min at ~153
+        //   x(cr)W → hint=(C+R)/2=225, finds local min at ~188  (lower err than ~153)
+        //   x(r)W  → hint=R=300,       finds local min at ~263  (lower err than ~153)
+        // All three are well inside the glyph; none collapsed to R.
+        let defs = [
+            "xor~x(c)W~xbl~bc~bor"     // hint = C = 150
+            "xor~x(cr)W~xbl~bc~bor"    // hint = (C+R)/2 = 225
+            "xor~x(r)W~xbl~bc~bor"     // hint = R = 300 (hardest case)
+        ]
+        let xs = defs |> List.map (fun d -> (solveGlyphCurve d).[1].x)
+        for x in xs do
+            Assert.That(Double.IsFinite(x), Is.True, sprintf "Solved x=%g must be finite" x)
+            Assert.That(x, Is.LessThan(metrics.R - 10.0),
+                sprintf "Solved x=%g must not collapse to right boundary R=%g" x metrics.R)
