@@ -316,23 +316,30 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 point.x <- x
                 point.fit_x <- false
             | None ->
-                // x_init (from the bracket value in the glyph string) is available as a hint.
-                // We still use the neighbour-average as the starting point so that Nelder-Mead
-                // always begins at a value well inside the problem domain regardless of the hint
-                // (a hint of 0 / L would produce a degenerate simplex).
-                point.x <-
+                let neighbourAvgX =
                     if i = 0 then ctrlPts.[i + 1].x.Value
                     elif i = ctrlPts.Length - 1 then ctrlPts.[i - 1].x.Value
                     else (ctrlPts.[i - 1].x.Value + ctrlPts.[i + 1].x.Value) / 2.
+                // Use the bracket hint when it is non-zero; a zero hint (e.g. x='(l)' where left=0)
+                // would produce a near-zero fmin simplex vertex (nonZeroDelta * 0 ≈ 0), so fall back
+                // to the neighbour-average which is always well inside the domain.
+                point.x <-
+                    match ctrlPt.x_init with
+                    | Some hint when abs hint > 1e-6 -> hint
+                    | _ -> neighbourAvgX
             match ctrlPt.y with
             | Some y ->
                 point.y <- y
                 point.fit_y <- false
             | None ->
-                point.y <-
+                let neighbourAvgY =
                     if i = 0 then ctrlPts.[i + 1].y.Value
                     elif i = ctrlPts.Length - 1 then ctrlPts.[i - 1].y.Value
                     else (ctrlPts.[i - 1].y.Value + ctrlPts.[i + 1].y.Value) / 2.
+                point.y <-
+                    match ctrlPt.y_init with
+                    | Some hint when abs hint > 1e-6 -> hint
+                    | _ -> neighbourAvgY
 
         // Initialise tangent angle/distance
         for i in 0 .. ctrlPts.Length - 1 do
@@ -655,7 +662,10 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 applyParams (fun i -> x[i]) x.Length
                 this.computeErr ()
 
-            let param = createObj [ "maxIterations" ==> maxIter ]
+            // Scale iterations by problem size. axes.max_spline_iter is treated as a
+            // per-parameter budget; at minimum match fmin's own default heuristic (N*200).
+            let scaledIter = initial.Count * (max maxIter 200)
+            let param = createObj [ "maxIterations" ==> scaledIter ]
             let best = nelderMead objectiveFunction (Array.ofSeq initial) param
             applyParams (fun i -> best[i]) best.Length
 #else

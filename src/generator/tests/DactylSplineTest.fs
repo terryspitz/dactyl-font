@@ -899,15 +899,19 @@ type BracketFittingTests() =
         | _ -> failwith "expected Curve element"
 
     [<Test>]
-    member _.BracketX_ValueInsideBracketsIsIgnored() =
-        // x(c) and x(cr) both have x_fit=true → DControlPoint.x = None (free variable).
-        // Initialization comes from neighbor average, not the parsed value, so both
-        // produce identical solver inputs and must produce identical solved results.
+    member _.BracketX_BracketsMarkCoordinateAsFree() =
+        // Both x(c) and x(cr) have x_fit=true → DControlPoint.x = None (free variable).
+        // The bracket value is used as the hint for the initial search position, so
+        // different bracket contents may produce different optimised results.
         let pts1 = solveGlyphCurve "xor~x(c)~(xb)l~b(c)~bor"
         let pts2 = solveGlyphCurve "xor~x(cr)~(xb)l~b(c)~bor"
-        // Top point (index 1) x must be the same regardless of c vs cr inside brackets.
-        Assert.That(pts2.[1].x, Is.EqualTo(pts1.[1].x).Within(1e-6),
-            "x(c) and x(cr) should produce identical top-point x — parsed value inside brackets is discarded")
+        // Both should converge to finite values within the glyph bounds.
+        Assert.That(Double.IsFinite(pts1.[1].x), Is.True, "x(c): free top-point x should be finite")
+        Assert.That(Double.IsFinite(pts2.[1].x), Is.True, "x(cr): free top-point x should be finite")
+        Assert.That(pts1.[1].x, Is.InRange(metrics.L - 50.0, metrics.R + 50.0),
+            "x(c): solved x should be within glyph bounds")
+        Assert.That(pts2.[1].x, Is.InRange(metrics.L - 50.0, metrics.R + 50.0),
+            "x(cr): solved x should be within glyph bounds")
 
     [<Test>]
     member _.BracketX_FreesCoordinateFromFixed() =
@@ -923,12 +927,17 @@ type BracketFittingTests() =
             "Free top-point x should be finite after solving")
 
     [<Test>]
-    member _.BracketX_WithExplicitTangent_ContentIsIgnored() =
+    member _.BracketX_WithExplicitTangent_HintGuidesSolverStart() =
         // x(c)W and x(cr)W both have x_fit=true → DControlPoint.x = None.
-        // The West tangent is stored in th_in/th_out, not in x.
-        // Both produce identical DControlPoints and identical solved results.
+        // The bracket hint initialises the search near C=150 and (C+R)/2=225 respectively.
+        // Both should converge to finite, non-degenerate values well inside the glyph.
         // (This is the "glyph tab" scenario the user reported.)
         let pts1 = solveGlyphCurve "xor~x(c)W~xbl~bc~bor"
         let pts2 = solveGlyphCurve "xor~x(cr)W~xbl~bc~bor"
-        Assert.That(pts2.[1].x, Is.EqualTo(pts1.[1].x).Within(1e-6),
-            "x(c)W and x(cr)W should produce identical DactylSpline top-point x")
+        Assert.That(Double.IsFinite(pts1.[1].x), Is.True, "x(c)W: free x should be finite")
+        Assert.That(Double.IsFinite(pts2.[1].x), Is.True, "x(cr)W: free x should be finite")
+        // Neither result should land at the right boundary (degenerate collapsed-segment solution).
+        Assert.That(pts1.[1].x, Is.LessThan(metrics.R - 10.0),
+            "x(c)W: optimised x should not collapse to the right boundary")
+        Assert.That(pts2.[1].x, Is.LessThan(metrics.R - 10.0),
+            "x(cr)W: optimised x should not collapse to the right boundary")
