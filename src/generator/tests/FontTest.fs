@@ -568,6 +568,56 @@ type FontTests() =
             sprintf "soft_corners should still add some rounding even with joints (got %d C, baseline %d)" cWithJoints cNoRounding
         )
 
+    [<Test>]
+    member this.O_And_o_Outline_IsHorizontallyAndVerticallySymmetric() =
+        // The 'O' and 'o' glyphs are ovals defined by 4 symmetric knots.
+        // After stroke expansion, every outline knot (x, y) must have a
+        // corresponding mirror point: (2*cx - x, y) horizontally and
+        // (x, 2*cy - y) vertically, where (cx, cy) is the bounding-box centre.
+        let font =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true }
+            )
+
+        let tol = 1.0  // font-unit tolerance for floating-point rounding
+
+        let rec collectPoints elem =
+            match elem with
+            | Curve(knots, _) -> knots |> List.map (fun k -> k.pt.x, k.pt.y)
+            | EList(elems) -> List.collect collectPoints elems
+            | _ -> []
+
+        let hasMatch (pts: (float * float) list) px py =
+            pts |> List.exists (fun (x, y) -> abs (x - px) < tol && abs (y - py) < tol)
+
+        for ch in [ 'O'; 'o' ] do
+            let outline = font.CharToOutline ch
+            let pts = collectPoints outline
+
+            Assert.That(pts, Is.Not.Empty, sprintf "'%c' outline should have points" ch)
+
+            let xs = pts |> List.map fst
+            let ys = pts |> List.map snd
+            let cx = (List.min xs + List.max xs) / 2.0
+            let cy = (List.min ys + List.max ys) / 2.0
+
+            for (x, y) in pts do
+                let mx = 2.0 * cx - x
+                Assert.That(
+                    hasMatch pts mx y,
+                    Is.True,
+                    sprintf "'%c' outline: (%.2f, %.2f) has no horizontal mirror at (%.2f, %.2f)" ch x y mx y
+                )
+
+                let my = 2.0 * cy - y
+                Assert.That(
+                    hasMatch pts x my,
+                    Is.True,
+                    sprintf "'%c' outline: (%.2f, %.2f) has no vertical mirror at (%.2f, %.2f)" ch x y x my
+                )
+
 [<TestFixture>]
 type KnotSequenceValidationTests() =
     let pt x y = { x = x; y = y; x_fit = false; y_fit = false }
