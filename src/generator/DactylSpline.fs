@@ -49,6 +49,10 @@ type DControlPoint =
     { mutable ty: SplinePointType //Continuity at this point: Smooth, Corner, LineToCurve or CurveToLine
       x: float option // x coord or None to fit x to 'smoothest' curve
       y: float option // same for y
+      // When x/y is None (free to optimise), x_init/y_init provides the starting point for the
+      // Nelder-Mead search.  None here means fall back to the neighbour-average heuristic.
+      x_init: float option
+      y_init: float option
       mutable th_in: float option   // optional incoming tangent angle (from previous segment)
       mutable th_out: float option  // optional outgoing tangent angle (toward next segment)
     }
@@ -61,6 +65,8 @@ let dcp ty x y th =
     { ty = ty
       x = Some x
       y = Some y
+      x_init = None
+      y_init = None
       th_in = th
       th_out = th }
 
@@ -309,27 +315,24 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             | Some x ->
                 point.x <- x
                 point.fit_x <- false
-            // possibly: define fit_x/y separately from none, then use x/y for initialisation
             | None ->
+                // x_init (from the bracket value in the glyph string) is available as a hint.
+                // We still use the neighbour-average as the starting point so that Nelder-Mead
+                // always begins at a value well inside the problem domain regardless of the hint
+                // (a hint of 0 / L would produce a degenerate simplex).
                 point.x <-
-                    if i = 0 then
-                        ctrlPts.[i + 1].x.Value
-                    elif i = ctrlPts.Length - 1 then
-                        ctrlPts.[i - 1].x.Value
-                    else
-                        (ctrlPts.[i - 1].x.Value + ctrlPts.[i + 1].x.Value) / 2.
+                    if i = 0 then ctrlPts.[i + 1].x.Value
+                    elif i = ctrlPts.Length - 1 then ctrlPts.[i - 1].x.Value
+                    else (ctrlPts.[i - 1].x.Value + ctrlPts.[i + 1].x.Value) / 2.
             match ctrlPt.y with
             | Some y ->
                 point.y <- y
                 point.fit_y <- false
             | None ->
                 point.y <-
-                    if i = 0 then
-                        ctrlPts.[i + 1].y.Value
-                    elif i = ctrlPts.Length - 1 then
-                        ctrlPts.[i - 1].y.Value
-                    else
-                        (ctrlPts.[i - 1].y.Value + ctrlPts.[i + 1].y.Value) / 2.
+                    if i = 0 then ctrlPts.[i + 1].y.Value
+                    elif i = ctrlPts.Length - 1 then ctrlPts.[i - 1].y.Value
+                    else (ctrlPts.[i - 1].y.Value + ctrlPts.[i + 1].y.Value) / 2.
 
         // Initialise tangent angle/distance
         for i in 0 .. ctrlPts.Length - 1 do

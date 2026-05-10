@@ -19,6 +19,8 @@ let pointToDcp (p: Point) =
     { ty = SplinePointType.Smooth
       x = x_opt
       y = y_opt
+      x_init = if p.x_fit then Some p.x else None
+      y_init = if p.y_fit then Some p.y else None
       th_in = None
       th_out = None }
 
@@ -330,6 +332,7 @@ type VariablePointTests() =
                { ty = SplinePointType.Smooth
                  x = Some 1.
                  y = None
+                 x_init = None; y_init = None
                  th_in = None
                  th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
@@ -353,6 +356,7 @@ type VariablePointTests() =
                { ty = SplinePointType.Smooth
                  x = None
                  y = Some 1.
+                 x_init = None; y_init = None
                  th_in = None
                  th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
@@ -372,6 +376,7 @@ type VariablePointTests() =
                { ty = SplinePointType.Smooth
                  x = None
                  y = None
+                 x_init = None; y_init = None
                  th_in = None
                  th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
@@ -421,16 +426,19 @@ type AdvancedGeometricTests() =
             [| { ty = SplinePointType.Smooth
                  x = Some -1.0
                  y = Some -1.0
+                 x_init = None; y_init = None
                  th_in = Some 0.0
                  th_out = Some 0.0 }
                { ty = SplinePointType.Smooth
                  x = Some 0.0
                  y = Some 0.0
+                 x_init = None; y_init = None
                  th_in = None
                  th_out = None }
                { ty = SplinePointType.Smooth
                  x = Some 1.0
                  y = Some 1.0
+                 x_init = None; y_init = None
                  th_in = Some 0.0
                  th_out = Some 0.0 } |]
 
@@ -472,6 +480,7 @@ type AdvancedGeometricTests() =
                { ty = SplinePointType.Smooth
                  x = Some 0.
                  y = None
+                 x_init = None; y_init = None
                  th_in = None
                  th_out = None }
                dcp SplinePointType.Smooth 1. 1. None |]
@@ -836,12 +845,15 @@ type IntegrationTests() =
         let ctrlPts3 =
             [| { ty = SplinePointType.LineToCurve
                  x = Some 0.; y = Some 333.
+                 x_init = None; y_init = None
                  th_in = Some(-System.Math.PI / 2.0); th_out = Some(-System.Math.PI / 2.0) }
                { ty = SplinePointType.Smooth
                  x = None; y = Some 0.
+                 x_init = None; y_init = None
                  th_in = None; th_out = None }
                { ty = SplinePointType.CurveToLine
                  x = Some 1000.; y = Some 500.
+                 x_init = None; y_init = None
                  th_in = Some(System.Math.PI / 2.0); th_out = Some(System.Math.PI / 2.0) } |]
 
         let solver3 = Solver(ctrlPts3, false, 1.0, false)
@@ -872,6 +884,8 @@ type BracketFittingTests() =
             { ty = ty
               x = if k.pt.x_fit then None else Some k.pt.x
               y = if k.pt.y_fit then None else Some k.pt.y
+              x_init = if k.pt.x_fit then Some k.pt.x else None
+              y_init = if k.pt.y_fit then Some k.pt.y else None
               th_in = k.th_in
               th_out = k.th_out })
         |> Array.ofList
@@ -907,3 +921,14 @@ type BracketFittingTests() =
         // The free top-point x must be finite (optimizer ran without error)
         Assert.That(Double.IsFinite(ptsFree.[1].x), Is.True,
             "Free top-point x should be finite after solving")
+
+    [<Test>]
+    member _.BracketX_WithExplicitTangent_ContentIsIgnored() =
+        // x(c)W and x(cr)W both have x_fit=true → DControlPoint.x = None.
+        // The West tangent is stored in th_in/th_out, not in x.
+        // Both produce identical DControlPoints and identical solved results.
+        // (This is the "glyph tab" scenario the user reported.)
+        let pts1 = solveGlyphCurve "xor~x(c)W~xbl~bc~bor"
+        let pts2 = solveGlyphCurve "xor~x(cr)W~xbl~bc~bor"
+        Assert.That(pts2.[1].x, Is.EqualTo(pts1.[1].x).Within(1e-6),
+            "x(c)W and x(cr)W should produce identical DactylSpline top-point x")

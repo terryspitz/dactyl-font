@@ -440,6 +440,7 @@ type FontTests() =
             { ty = SplinePointType.Corner
               x = Some 0.
               y = Some 0.
+              x_init = None; y_init = None
               th_in = None
               th_out = Some 0. }
         // th_in = 0 is colinear with chord from (0,0) to (100,0)
@@ -447,6 +448,7 @@ type FontTests() =
             { ty = SplinePointType.Corner
               x = Some 100.
               y = Some 0.
+              x_init = None; y_init = None
               th_in = Some 0.
               th_out = Some 1.57 }
 
