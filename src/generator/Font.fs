@@ -72,6 +72,73 @@ let dotToClosedCurve x y r =
            G2) ]
 
 
+let splitOneSpiroSegment (seg1: SpiroSegment) (seg2: SpiroSegment) : (Point * SpiroPointType) list =
+    if
+        (seg1.Type = Corner || seg1.Type = CurveToLine)
+        && (seg2.Type = Corner || seg2.Type = LineToCurve)
+    then
+        [ ({ y = seg1.Y
+             x = seg1.X
+             y_fit = false
+             x_fit = false },
+           seg1.Type) ]
+    elif seg1.Type = Handle then
+        []
+    else
+        let scale, rot = SpiroImpl.get_scale_rot (seg2.X - seg1.X) (seg2.Y - seg1.Y) seg1.ks
+        let ksub = Array.create 4 0.0
+
+        let xmid, ymid =
+            SpiroImpl.get_mid seg1.X seg1.Y seg2.X seg2.Y scale rot seg1.ks ksub
+
+        let midType =
+            match seg1.Type, seg2.Type with
+            | (SpiroPointType.OpenContour, t) -> t
+            | (SpiroPointType.EndOpenContour, _) -> G2
+            | (_, SpiroPointType.G2)
+            | (_, SpiroPointType.Left) -> G2
+            | (SpiroPointType.G2, _)
+            | (SpiroPointType.Right, _) -> G2
+            | (SpiroPointType.Anchor, _) -> G2
+            | (_, _) -> seg1.Type
+
+        [ ({ y = seg1.Y
+             x = seg1.X
+             y_fit = false
+             x_fit = false },
+           seg1.Type)
+          ({ y = ymid
+             x = xmid
+             y_fit = false
+             x_fit = false },
+           midType) ]
+
+let splitSpiroElement (spiros: SpiroElement) : Element =
+    match spiros with
+    | SpiroOpenCurve(segments) ->
+        Curve(
+            withNoTangents (
+                [ for i in 0 .. segments.Length - 2 do
+                      yield! splitOneSpiroSegment segments.[i] segments.[i + 1] ]
+                @ [ let seg = segments.[segments.Length - 1] in
+
+                    { y = seg.Y
+                      x = seg.X
+                      y_fit = false
+                      x_fit = false },
+                    seg.Type ]
+            ),
+            false
+        )
+    | SpiroClosedCurve(segments) ->
+        Curve(
+            withNoTangents
+                [ for i in 0 .. segments.Length - 1 do
+                      yield! splitOneSpiroSegment segments.[i] segments.[(i + 1) % segments.Length] ],
+            true
+        )
+    | SpiroDot(p) -> Dot(p)
+    | SpiroSpace -> Space
 
 //class
 type Font(axes: Axes) =
@@ -994,75 +1061,7 @@ type Font(axes: Axes) =
     /// Italicising the outlines leads to strange curves.  Attempt to subdivide the original curves so the
     /// italicised versions are closer to a shear. Note: there is a performance cost for more detailed curves.
     member this.subdivide e =
-        let splitOneSegment (seg1: SpiroSegment) (seg2: SpiroSegment) =
-            if
-                (seg1.Type = Corner || seg1.Type = CurveToLine)
-                && (seg2.Type = Corner || seg2.Type = LineToCurve)
-            then
-                [ ({ y = seg1.Y
-                     x = seg1.X
-                     y_fit = false
-                     x_fit = false },
-                   seg1.Type) ]
-            elif seg1.Type = Handle then
-                []
-            else
-                let scale, rot = SpiroImpl.get_scale_rot (seg2.X - seg1.X) (seg2.Y - seg1.Y) seg1.ks
-                let ksub = Array.create 4 0.0
-
-                let xmid, ymid =
-                    SpiroImpl.get_mid seg1.X seg1.Y seg2.X seg2.Y scale rot seg1.ks ksub
-
-                let midType =
-                    match seg1.Type, seg2.Type with
-                    | (SpiroPointType.OpenContour, t) -> t
-                    | (SpiroPointType.EndOpenContour, _) -> G2
-                    | (_, SpiroPointType.G2)
-                    | (_, SpiroPointType.Left) -> G2
-                    | (SpiroPointType.G2, _)
-                    | (SpiroPointType.Right, _) -> G2
-                    | (SpiroPointType.Anchor, _) -> G2
-                    | (_, _) -> seg1.Type
-
-                [ ({ y = seg1.Y
-                     x = seg1.X
-                     y_fit = false
-                     x_fit = false },
-                   seg1.Type)
-                  ({ y = ymid
-                     x = xmid
-                     y_fit = false
-                     x_fit = false },
-                   midType) ]
-
-        let splitSegments spiros =
-            match spiros with
-            | SpiroOpenCurve(segments) ->
-                Curve(
-                    withNoTangents (
-                        [ for i in 0 .. segments.Length - 2 do
-                              yield! splitOneSegment segments.[i] segments.[i + 1] ]
-                        @ [ let seg = segments.[segments.Length - 1] in
-
-                            { y = seg.Y
-                              x = seg.X
-                              y_fit = false
-                              x_fit = false },
-                            seg.Type ]
-                    ),
-                    false
-                )
-            | SpiroClosedCurve(segments) ->
-                Curve(
-                    withNoTangents
-                        [ for i in 0 .. segments.Length - 1 do
-                              yield! splitOneSegment segments.[i] segments.[(i + 1) % segments.Length] ],
-                    true
-                )
-            | SpiroDot(p) -> Dot(p)
-            | SpiroSpace -> Space
-
-        EList(elementToSpiroSegments e |> List.map splitSegments)
+        EList(elementToSpiroSegments e |> List.map splitSpiroElement)
 
     member this.italicise =
         applyIf
