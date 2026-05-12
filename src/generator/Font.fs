@@ -1271,8 +1271,26 @@ type Font(axes: Axes) =
                 // penultimateSeg.tangentEnd is the incoming tangent at the final point
                 let penultSeg    = makeCapSeg bezPts.[n-2] bezPts.[n-2].th_out bezPts.[n-1].th_in
 
-                let startCapKnots = startCapFn firstSeg
-                let endCapKnots   = endCapFn endpointSeg penultSeg
+                // The cap function sets th_in on the first knot and th_out on the last knot
+                // to the spine tangent so the OLD outline can render a smooth cap-to-body
+                // cubic over the whole adjacent segment. In the polyline approach those same
+                // tangents create a tight S-curve over the short chord from cap to first/last
+                // body sample (the "extra sharp points" at curve endings on glyphs like 'c').
+                // Strip them so the cap-to-body edges are straight lines, matching the body
+                // polyline. Intermediate cap knots (serif/flare/bulb) are untouched.
+                let stripBoundaryTangents (caps: Knot list) =
+                    match caps with
+                    | [] -> []
+                    | _ ->
+                        let lastIdx = caps.Length - 1
+                        caps |> List.mapi (fun i k ->
+                            if i = 0 && i = lastIdx then { k with th_in = None; th_out = None }
+                            elif i = 0 then { k with th_in = None }
+                            elif i = lastIdx then { k with th_out = None }
+                            else k)
+
+                let startCapKnots = startCapFn firstSeg |> stripBoundaryTangents
+                let endCapKnots   = endCapFn endpointSeg penultSeg |> stripBoundaryTangents
 
                 let outer = buildSide  1.0
                 let inner = buildSide -1.0 |> List.rev
