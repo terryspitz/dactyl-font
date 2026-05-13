@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, allChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
@@ -242,6 +242,29 @@ function App() {
   const renderIdRef = useRef(0)
   const loadingRef = useRef(false)
   const previewRef = useRef(null)
+  const activeTabRef = useRef(activeTab)
+  useEffect(() => { activeTabRef.current = activeTab }, [activeTab])
+
+  const handleWheelZoom = useCallback((e) => {
+    e.preventDefault()
+    const tab = activeTabRef.current
+    if (tab === 'splineGrid') return
+    // scroll down (deltaY > 0) = zoom in per user preference
+    const clampedDelta = Math.max(-200, Math.min(200, e.deltaY))
+    const scaleFactor = 1 + clampedDelta * 0.001
+    setTabZooms(prev => ({
+      ...prev,
+      [tab]: Math.max(0.1, Math.min(5.0, prev[tab] * scaleFactor))
+    }))
+  }, [])
+
+  useEffect(() => {
+    const el = previewRef.current
+    if (!el) return
+    el.addEventListener('wheel', handleWheelZoom, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheelZoom)
+  }, [handleWheelZoom])
+
   const [loading, setLoading] = useState(false)
   const [showProgress, setShowProgress] = useState(false)
   const [progressValue, setProgressValue] = useState(0)
