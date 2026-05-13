@@ -1157,6 +1157,7 @@ type Font(axes: Axes) =
     member this.getDactylConstantOffsetOutlines e =
         let fthickness = float thickness
         let samplesPerSeg = 8
+        let isFreeCurveEnd ty = ty = G2 || ty = G4
 
         // Build Segment for use with existing cap functions.
         // Only X, Y, tangentStart, and tangentEnd are read by startCap/endCap.
@@ -1167,11 +1168,7 @@ type Font(axes: Axes) =
               seg_ch = 1.0
               Type = Corner }
 
-        // Use original element (before reduce) so isJoint detects stroke intersections.
-        let startCapFn (seg: Segment) = this.startCap seg e Corner
-        let endCapFn (seg: Segment) (lastSeg: Segment) = this.endCap seg lastSeg e Corner
-
-        let buildOutlineFromBez (bezPts: BezierPoint array) (isClosed: bool) =
+        let buildOutlineFromBez (bezPts: BezierPoint array) (isClosed: bool) (startAlign: bool) (endAlign: bool) =
             if bezPts.Length < 2 then [] else
 
             let n = bezPts.Length
@@ -1302,8 +1299,9 @@ type Font(axes: Axes) =
                             elif i = lastIdx then { k with th_out = None }
                             else k)
 
-                let startCapKnots = startCapFn firstSeg |> stripBoundaryTangents
-                let endCapKnots   = endCapFn endpointSeg penultSeg |> stripBoundaryTangents
+                // Use original element (before reduce) so isJoint detects stroke intersections.
+                let startCapKnots = this.startCap firstSeg e startAlign Corner |> stripBoundaryTangents
+                let endCapKnots   = this.endCap endpointSeg penultSeg e endAlign Corner |> stripBoundaryTangents
 
                 let outer = buildSide  1.0
                 let inner = buildSide -1.0 |> List.rev
@@ -1313,10 +1311,12 @@ type Font(axes: Axes) =
 
         let solveAndOffset (pts: Knot list) isClosed =
             validateKnotSequence pts isClosed
+            let startAlign = pts.IsEmpty || isClosed || not (isFreeCurveEnd pts.[0].ty)
+            let endAlign   = pts.IsEmpty || isClosed || not (isFreeCurveEnd (List.last pts).ty)
             let ctrlPts = toDactylSplineControlPoints pts
             let spline = DactylSpline(ctrlPts, isClosed)
             let bezPts = spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.debug)
-            buildOutlineFromBez bezPts isClosed
+            buildOutlineFromBez bezPts isClosed startAlign endAlign
 
         let rec dactylToOutline elem =
             match elem with
