@@ -246,12 +246,13 @@ function App() {
   useEffect(() => { activeTabRef.current = activeTab }, [activeTab])
 
   const handleWheelZoom = useCallback((e) => {
+    if (!e.ctrlKey) return
     e.preventDefault()
     const tab = activeTabRef.current
     if (tab === 'splineGrid') return
-    // scroll down (deltaY > 0) = zoom in per user preference
+    // negate delta: on Mac+Chrome, Ctrl+scroll-down gives negative deltaY; we want down = zoom in
     const clampedDelta = Math.max(-200, Math.min(200, e.deltaY))
-    const scaleFactor = 1 + clampedDelta * 0.001
+    const scaleFactor = 1 - clampedDelta * 0.001
     setTabZooms(prev => ({
       ...prev,
       [tab]: Math.max(0.1, Math.min(5.0, prev[tab] * scaleFactor))
