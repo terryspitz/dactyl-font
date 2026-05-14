@@ -943,26 +943,37 @@ type BracketFittingTests() =
             "x(cr)W: optimised x should not collapse to the right boundary")
 
     [<Test>]
-    member _.BracketX_MultiStartAvoidsDegenerate() =
-        // 2-start optimisation (hint start + neighbour-average start, keep lower error)
-        // must prevent the degenerate "collapsed first segment" solution where the free
-        // point is pulled to the right boundary.  Different hints produce different local
-        // minima with genuinely different objective values; what we guarantee is that
-        // none land at the boundary regardless of starting hint.
-        //   x(c)W  → hint=C=150,       finds local min at ~153
-        //   x(cr)W → hint=(C+R)/2=225, finds local min at ~188  (lower err than ~153)
-        //   x(r)W  → hint=R=300,       finds local min at ~263  (lower err than ~153)
-        // All three are well inside the glyph; none collapsed to R.
+    member _.BracketX_MultiStartConvergesFromAllHints() =
+        // With nonZeroDelta=1.3 the fmin simplex is wide enough to bridge the ~25-unit
+        // bumps in the landscape and find the global minimum (x≈175) from any starting
+        // hint.  All five bracket hints for the 'c' glyph top point should land within
+        // 30 units of each other and well away from the right boundary.
+        //
+        //   hint  raw-x   description
+        //   l       0     left  (zero → zeroDelta fallback → neighbour-avg = C)
+        //   cl     75     centre-left  = (C+L)/2
+        //   c     150     centre
+        //   cr    225     centre-right = (C+R)/2
+        //   r     300     right (near boundary, hardest case)
         let defs = [
+            "xor~x(l)W~xbl~bc~bor"     // hint = L = 0   → zeroDelta path
+            "xor~x(cl)W~xbl~bc~bor"    // hint = (C+L)/2 = 75
             "xor~x(c)W~xbl~bc~bor"     // hint = C = 150
             "xor~x(cr)W~xbl~bc~bor"    // hint = (C+R)/2 = 225
-            "xor~x(r)W~xbl~bc~bor"     // hint = R = 300 (hardest case)
+            "xor~x(r)W~xbl~bc~bor"     // hint = R = 300
         ]
-        let xs = defs |> List.map (fun d -> (solveGlyphCurve d).[1].x)
+        let xs = defs |> List.map (fun d ->
+            let x = (solveGlyphCurve d).[1].x
+            printfn "  %-18s → x = %.1f" d x
+            x)
+        let spread = List.max xs - List.min xs
+        printfn "spread = %.1f" spread
         for x in xs do
-            Assert.That(Double.IsFinite(x), Is.True, sprintf "Solved x=%g must be finite" x)
+            Assert.That(Double.IsFinite(x), Is.True, sprintf "x=%g must be finite" x)
             Assert.That(x, Is.LessThan(metrics.R - 10.0),
-                sprintf "Solved x=%g must not collapse to right boundary R=%g" x metrics.R)
+                sprintf "x=%g must not collapse to right boundary" x)
+        Assert.That(spread, Is.LessThan(30.0),
+            sprintf "all hints should converge within 30 units; spread=%.1f, xs=%A" spread xs)
 
     [<Test; Explicit("Diagnostic: prints objective-function landscape to stdout")>]
     member _.PlotObjectiveVsTopX() =
