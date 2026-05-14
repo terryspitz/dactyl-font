@@ -707,13 +707,18 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                         assert (x.Count = mapping.Count)
                         applyParams (fun i -> x.[i]) x.Count
                         this.computeErr ())
-                let result = minimiser.FindMinimum(objModel, DenseVector.ofArray startArr)
-                if result.MinimizingPoint |> Seq.exists Double.IsNaN then
-                    if this.debug then
-                        printfn "Optimization returned NaNs! Falling back to initial."
-                    DenseVector.ofArray startArr
-                else
-                    result.MinimizingPoint
+                try
+                    let result = minimiser.FindMinimum(objModel, DenseVector.ofArray startArr)
+                    if result.MinimizingPoint |> Seq.exists Double.IsNaN then
+                        if this.debug then
+                            printfn "Optimization returned NaNs! Falling back to initial."
+                        DenseVector.ofArray startArr
+                    else
+                        result.MinimizingPoint
+                with _ ->
+                    // Hit iteration limit or other failure; _points hold the last evaluated
+                    // candidate — accept them as a best-effort result.
+                    DenseVector.ofArray (Array.init startArr.Length (fun i -> _points.[fst mapping.[i]].arr.[snd mapping.[i]]))
 
             // 2-start: hint-based and neighbour-average; keep the lower-error result.
             let pts1 = runFrom initialArr

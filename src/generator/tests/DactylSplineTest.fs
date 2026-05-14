@@ -963,3 +963,56 @@ type BracketFittingTests() =
             Assert.That(Double.IsFinite(x), Is.True, sprintf "Solved x=%g must be finite" x)
             Assert.That(x, Is.LessThan(metrics.R - 10.0),
                 sprintf "Solved x=%g must not collapse to right boundary R=%g" x metrics.R)
+
+    [<Test; Explicit("Diagnostic: prints objective-function landscape to stdout")>]
+    member _.PlotObjectiveVsTopX() =
+        // Fix the top-point x of 'xor~x(c)W~xbl~bc~bor' at each value in [0..R],
+        // run the solver to optimise everything else, and record the error.
+        // Prints CSV + ASCII bar chart so we can see whether there are multiple local minima.
+        let knots =
+            match GlyphStringDefs.parse_curve metrics "xor~x(c)W~xbl~bc~bor" false with
+            | Curve(ks, _) -> ks | _ -> failwith "parse failed"
+
+        let step = 5
+        let points =
+            [| for xVal in 0 .. step .. int metrics.R do
+                let ctrlPts =
+                    knots
+                    |> List.mapi (fun i k ->
+                        let ty =
+                            if k.ty = G2 || k.ty = SpiroPointType.SpiroPointType.G4 then SplinePointType.Smooth
+                            elif k.ty = LineToCurve then SplinePointType.LineToCurve
+                            elif k.ty = CurveToLine then SplinePointType.CurveToLine
+                            else SplinePointType.Corner
+                        let xOpt = if i = 1 then Some(float xVal) else (if k.pt.x_fit then None else Some k.pt.x)
+                        { ty = ty; x = xOpt; y = Some k.pt.y
+                          x_init = None; y_init = None; th_in = k.th_in; th_out = k.th_out })
+                    |> Array.ofList
+                let solver = Solver(ctrlPts, false, 1.0, false)
+                solver.initialise()
+                // Optimize the free parameters (th, ld, rd) while x is fixed.
+                // The exception-safe path in Solve handles non-convergence gracefully.
+                solver.Solve(max_iter)
+                let err = solver.computeErr()
+                yield (xVal, err) |]
+
+        // CSV
+        printfn "x,err"
+        for (x, e) in points do printfn "%d,%.4f" x e
+
+        // ASCII bar chart (log scale so the huge penalties don't dwarf the interesting range)
+        let finite = points |> Array.filter (snd >> Double.IsFinite)
+        if finite.Length > 0 then
+            let minE = finite |> Array.map snd |> Array.min
+            let maxE = finite |> Array.map snd |> Array.max
+            let barWidth = 60
+            printfn "\n--- objective (log-normalised, min=%.2f max=%.2f) ---" minE maxE
+            for (x, e) in points do
+                let bar =
+                    if not (Double.IsFinite e) then String.replicate barWidth "!"
+                    else
+                        let norm = (log(e + 1.) - log(minE + 1.)) / (log(maxE + 1.) - log(minE + 1.) + 1e-12)
+                        String.replicate (int (norm * float barWidth)) "#"
+                printfn "x=%3d |%-60s| %.2f" x bar e
+
+        Assert.Pass()
