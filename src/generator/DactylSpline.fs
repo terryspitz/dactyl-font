@@ -724,56 +724,59 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 elif paramIdx = int BezierIndex.Y && Option.isNone ctrlPts.[ptIdx].y then
                     initialAvg.[k] <- avg (fun p -> p.y)
 
-            // Build a 3rd start: avg x/y positions with geometrically-consistent angles/distances.
-            // initialAvg uses hint-based angles (tuned for the hint x), so we re-init angles
-            // after applying the avg x/y to _points.  Save/restore _points around this.
-            let savedArrs = _points |> Array.map (fun p -> Array.copy p.arr)
-            applyParams (fun k -> initialAvg.[k]) initialAvg.Length
-            this.reinitAnglesAndDistances ()
-            let initialAvgConsistent = Array.init mapping.Count (fun k -> _points.[fst mapping.[k]].arr.[snd mapping.[k]])
-            for i in 0 .. _points.Length - 1 do
-                savedArrs.[i] |> Array.iteri (fun j v -> _points.[i].arr.[j] <- v)
+            // Only pay multi-start cost when bracket syntax has pushed the hint x/y
+            // meaningfully away from the neighbour-average.
+            let hasSignificantDiff =
+                Array.exists2 (fun v1 v2 -> abs(v1 - v2) > 5.0) initialArr initialAvg
+
+            // Build a 3rd start (avg x/y with geometry-consistent angles) only when needed.
+            // initialAvg uses hint-based angles tuned for the hint x, not the avg x.
+            // Recomputing angles after placing x at the avg gives a coherent starting point.
+            let initialAvgConsistent =
+                if not hasSignificantDiff then
+                    initialAvg  // unused; identical to initialAvg in the no-diff case
+                else
+                    let savedArrs = _points |> Array.map (fun p -> Array.copy p.arr)
+                    applyParams (fun k -> initialAvg.[k]) initialAvg.Length
+                    this.reinitAnglesAndDistances ()
+                    let result = Array.init mapping.Count (fun k -> _points.[fst mapping.[k]].arr.[snd mapping.[k]])
+                    for i in 0 .. _points.Length - 1 do
+                        savedArrs.[i] |> Array.iteri (fun j v -> _points.[i].arr.[j] <- v)
+                    result
 
 #if FABLE_COMPILER
             let objectiveFunction (x: float[]) =
                 applyParams (fun i -> x[i]) x.Length
                 this.computeErr ()
 
-            // Scale iterations by problem size. axes.max_spline_iter is treated as a
-            // per-parameter budget; at minimum match fmin's own default heuristic (N*200).
-            let scaledIter = initial.Count * (max maxIter 200)
-            // nonZeroDelta = 1.3 gives a 30% perturbation for the initial simplex instead of
-            // fmin's default 5%.  The wider simplex lets Nelder-Mead bridge the narrow bumps
-            // in the objective-function landscape (~25 unit barriers) without needing more
-            // starting points.  zeroDelta covers the rare case where an initial coordinate is 0.
-            let param = createObj [ "maxIterations" ==> scaledIter; "nonZeroDelta" ==> 1.3; "zeroDelta" ==> 15.0 ]
+            let param = createObj [ "maxIterations" ==> maxIter; "nonZeroDelta" ==> 1.3; "zeroDelta" ==> 15.0 ]
 
-            // 3-start: hint-based, neighbour-avg (hint angles), and avg with consistent angles.
-            // Keep whichever achieves the lowest objective value.
-            let best1 = nelderMead objectiveFunction initialArr param
-            applyParams (fun i -> best1[i]) best1.Length
-            let err1 = this.computeErr ()
-
-            let best2 = nelderMead objectiveFunction initialAvg param
-            applyParams (fun i -> best2[i]) best2.Length
-            let err2 = this.computeErr ()
-
-            // Only use the consistent-geometry 3rd start when it meaningfully differs from
-            // initialArr; otherwise wide nonZeroDelta can find lower-error but unexpected minima.
+            // Only pay the multi-start cost when bracket syntax has pushed the hint x/y
+            // meaningfully away from the neighbour-average.  For ordinary glyph sections
+            // (no free coordinates, or hint ≈ avg) a single run matches main's behaviour.
             let hasSignificantDiff =
-                Array.exists2 (fun v1 v2 -> abs(v1 - v2) > 5.0) initialArr initialAvgConsistent
-            let best3, err3 =
-                if hasSignificantDiff then
-                    let b3 = nelderMead objectiveFunction initialAvgConsistent param
-                    applyParams (fun i -> b3[i]) b3.Length
-                    b3, this.computeErr ()
-                else
-                    best1, err1   // effectively skip run 3
+                Array.exists2 (fun v1 v2 -> abs(v1 - v2) > 5.0) initialArr initialAvg
 
-            let bestErr = min err1 (min err2 err3)
-            if bestErr = err1 then applyParams (fun i -> best1[i]) best1.Length
-            elif bestErr = err2 then applyParams (fun i -> best2[i]) best2.Length
-            // else best3 is already applied
+            if not hasSignificantDiff then
+                let best = nelderMead objectiveFunction initialArr param
+                applyParams (fun i -> best[i]) best.Length
+            else
+                let best1 = nelderMead objectiveFunction initialArr param
+                applyParams (fun i -> best1[i]) best1.Length
+                let err1 = this.computeErr ()
+
+                let best2 = nelderMead objectiveFunction initialAvg param
+                applyParams (fun i -> best2[i]) best2.Length
+                let err2 = this.computeErr ()
+
+                let best3 = nelderMead objectiveFunction initialAvgConsistent param
+                applyParams (fun i -> best3[i]) best3.Length
+                let err3 = this.computeErr ()
+
+                let bestErr = min err1 (min err2 err3)
+                if bestErr = err1 then applyParams (fun i -> best1[i]) best1.Length
+                elif bestErr = err2 then applyParams (fun i -> best2[i]) best2.Length
+                // else best3 is already applied
 #else
             let minimiser: Optimization.NelderMeadSimplex =
                 Optimization.NelderMeadSimplex(1e-5, maxIter)
@@ -819,31 +822,28 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     // Hit iteration limit; return the best point seen during search.
                     DenseVector.ofArray bestPts
 
-            // 3-start: hint-based, neighbour-avg (hint angles), avg with consistent angles.
-            // Starts 1 & 2 use default (5%) perturbation; start 3 uses wide perturbation.
-            let pts1 = runFrom initialArr None
-            applyParams (fun i -> pts1.[i]) pts1.Count
-            let err1 = this.computeErr ()
+            // Single run for ordinary glyphs; 3-start only when hint ≠ avg by > 5 units.
+            if not hasSignificantDiff then
+                let pts = runFrom initialArr None
+                applyParams (fun i -> pts.[i]) pts.Count
+            else
+                let pts1 = runFrom initialArr None
+                applyParams (fun i -> pts1.[i]) pts1.Count
+                let err1 = this.computeErr ()
 
-            let pts2 = runFrom initialAvg None
-            applyParams (fun i -> pts2.[i]) pts2.Count
-            let err2 = this.computeErr ()
+                let pts2 = runFrom initialAvg None
+                applyParams (fun i -> pts2.[i]) pts2.Count
+                let err2 = this.computeErr ()
 
-            // Only use wide perturbation when initialAvgConsistent meaningfully differs
-            // from initialArr (i.e. when the bracket hint pushed initialisation away from
-            // the neighbour-average).  When both starts are the same, wide perturbation
-            // can find lower-error but geometrically-unexpected local minima.
-            let hasSignificantDiff =
-                Array.exists2 (fun v1 v2 -> abs(v1 - v2) > 5.0) initialArr initialAvgConsistent
-            let perturb3 = if hasSignificantDiff then Some(widePerturbVec initialAvgConsistent) else None
-            let pts3 = runFrom initialAvgConsistent perturb3
-            applyParams (fun i -> pts3.[i]) pts3.Count
-            let err3 = this.computeErr ()
+                // 3rd start: avg x with consistent angles + wide perturbation to escape basins.
+                let pts3 = runFrom initialAvgConsistent (Some (widePerturbVec initialAvgConsistent))
+                applyParams (fun i -> pts3.[i]) pts3.Count
+                let err3 = this.computeErr ()
 
-            let bestErr = min err1 (min err2 err3)
-            if bestErr = err1 then applyParams (fun i -> pts1.[i]) pts1.Count
-            elif bestErr = err2 then applyParams (fun i -> pts2.[i]) pts2.Count
-            // else pts3 is already applied (it gave the best result)
+                let bestErr = min err1 (min err2 err3)
+                if bestErr = err1 then applyParams (fun i -> pts1.[i]) pts1.Count
+                elif bestErr = err2 then applyParams (fun i -> pts2.[i]) pts2.Count
+                // else pts3 is already applied
 #endif
 
 // DactylSpline handles general sequence of lines & curves, including corners.
