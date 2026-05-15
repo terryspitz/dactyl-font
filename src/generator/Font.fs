@@ -496,10 +496,10 @@ type Font(axes: Axes) =
     /// Shared cap geometry: given stroke endpoint (X,Y), outgoing angle theta, joint flag,
     /// point-type for the join, and pre-computed tangent pairs for the first and last junction points.
     /// Intermediate cap points get (None, None).
-    member this.cap X Y theta isJoint ty firstThIn firstThOut lastThIn lastThOut =
+    member this.cap X Y theta isJoint ty firstThIn firstThOut lastThIn lastThOut shouldAlign =
         let fthickness = float thickness
         let serif = float this.axes.serif
-        let thetaAligned = this.maybeAlign theta
+        let thetaAligned = if shouldAlign then this.maybeAlign theta else theta
         let nnIn, nnOut = None, None
 
         if this.axes.serif <> 0 && not isJoint then
@@ -613,7 +613,7 @@ type Font(axes: Axes) =
     /// Start-cap knots: points at the beginning of an open stroke.
     /// Outline path: ... revOffset → startCap[first] → ... → startCap[last] → fwdOffset ...
     /// First point faces reversed offset (tangent flipped), last faces forward offset.
-    member this.startCap (seg: Segment) elem ty =
+    member this.startCap (seg: Segment) elem shouldAlign ty =
         let bt = seg.tangentStart
 
         this.cap
@@ -626,11 +626,12 @@ type Font(axes: Axes) =
             None
             None
             (Some bt)
+            shouldAlign
 
     /// End-cap knots: points at the beginning of an open stroke.
     /// Outline path: ... fwdOffset → endCap[first] → ... → endCap[last] → revOffset ...
     /// First point faces forward offset, last faces reversed offset (tangent flipped).
-    member this.endCap (seg: Segment) (lastSeg: Segment) elem ty =
+    member this.endCap (seg: Segment) (lastSeg: Segment) elem shouldAlign ty =
         let bt = lastSeg.tangentEnd
 
         this.cap
@@ -643,6 +644,7 @@ type Font(axes: Axes) =
             None
             None
             (Some(norm (bt + PI)))
+            shouldAlign
 
     member this.reverseSegments(segments: SpiroSegment list) =
         [ for seg in List.rev segments do
@@ -871,29 +873,38 @@ type Font(axes: Axes) =
     member this.getSpiroSansOutlines e =
         let fthickness = float thickness
         let capType (seg: Segment) = if seg.Type = SpiroPointType.Anchor then SpiroPointType.Anchor else Corner
-        let startCap (seg: Segment) = this.startCap seg e (capType seg)
-        let endCap (seg: Segment) (lastSeg: Segment) = this.endCap seg lastSeg e (capType seg)
+        let isFreeCurveEnd ty = ty = G2 || ty = G4
 
-        let spiroToOutline spiro =
-            match spiro with
-            | SpiroOpenCurve(segments) ->
-                let segs = List.map toSegment segments
+        let rec spiroToOutlines elem =
+            match elem with
+            | Curve(pts, isClosed) ->
+                let startAlign = pts.IsEmpty || isClosed || not (isFreeCurveEnd pts.[0].ty)
+                let endAlign = pts.IsEmpty || isClosed || not (isFreeCurveEnd (List.last pts).ty)
+                let startCap (seg: Segment) = this.startCap seg e startAlign (capType seg)
+                let endCap (seg: Segment) (lastSeg: Segment) = this.endCap seg lastSeg e endAlign (capType seg)
+                elementToSpiroSegments (Curve(pts, isClosed))
+                |> List.collect (fun spiro ->
+                    match spiro with
+                    | SpiroOpenCurve(segments) ->
+                        let segs = List.map toSegment segments
+                        this.strokeSegments segs fthickness startCap endCap false
+                        |> List.map clearElemTangents
+                        |> List.map this.applySoftCorners
+                    | SpiroClosedCurve(segments) ->
+                        let segs = List.map toSegment segments
+                        this.strokeSegments segs fthickness startCap endCap true
+                        |> List.map clearElemTangents
+                        |> List.map this.applySoftCorners
+                    | SpiroDot(p) -> [ dotToClosedCurve p.x p.y (thickness + 5.0) ]
+                    | SpiroSpace -> [ Space ]
+                )
+            | Dot(p) -> [ dotToClosedCurve p.x p.y (thickness + 5.0) ]
+            | EList(elems) -> List.collect spiroToOutlines elems
+            | Space -> [ Space ]
+            | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
 
-                this.strokeSegments segs fthickness startCap endCap false
-                |> List.map clearElemTangents
-                |> List.map this.applySoftCorners
-            | SpiroClosedCurve(segments) ->
-                let segs = List.map toSegment segments
-
-                this.strokeSegments segs fthickness startCap endCap true
-                |> List.map clearElemTangents
-                |> List.map this.applySoftCorners
-
-
-            | SpiroDot(p) -> [ dotToClosedCurve p.x p.y (thickness + 5.0) ]
-            | SpiroSpace -> [ Space ]
-
-        applyToSegments spiroToOutline e
+        let results = spiroToOutlines e
+        if results.Length > 1 then EList(results) else results.[0]
 
     member this.spiroToLines lines spiro =
         let thicknessby3 = float thickness / 3.0
@@ -1072,9 +1083,7 @@ type Font(axes: Axes) =
 
     member this.getDactylSansOutlines e =
         let fthickness = float thickness
-
-        let startCap (seg: Segment) = this.startCap seg e Corner
-        let endCap (seg: Segment) (lastSeg: Segment) = this.endCap seg lastSeg e Corner
+        let isFreeCurveEnd ty = ty = G2 || ty = G4
 
         let splineTypeToSpiroType ty =
             match ty with
@@ -1121,6 +1130,10 @@ type Font(axes: Axes) =
             match elem with
             | Curve(pts, isClosed) ->
                 validateKnotSequence pts isClosed
+                let startAlign = pts.IsEmpty || isClosed || not (isFreeCurveEnd pts.[0].ty)
+                let endAlign = pts.IsEmpty || isClosed || not (isFreeCurveEnd (List.last pts).ty)
+                let startCap (seg: Segment) = this.startCap seg e startAlign Corner
+                let endCap (seg: Segment) (lastSeg: Segment) = this.endCap seg lastSeg e endAlign Corner
                 let segs = solveCurveSegs pts isClosed
 
                 if axes.debug then
@@ -1144,6 +1157,7 @@ type Font(axes: Axes) =
     member this.getDactylConstantOffsetOutlines e =
         let fthickness = float thickness
         let samplesPerSeg = 8
+        let isFreeCurveEnd ty = ty = G2 || ty = G4
 
         // Build Segment for use with existing cap functions.
         // Only X, Y, tangentStart, and tangentEnd are read by startCap/endCap.
@@ -1154,11 +1168,7 @@ type Font(axes: Axes) =
               seg_ch = 1.0
               Type = Corner }
 
-        // Use original element (before reduce) so isJoint detects stroke intersections.
-        let startCapFn (seg: Segment) = this.startCap seg e Corner
-        let endCapFn (seg: Segment) (lastSeg: Segment) = this.endCap seg lastSeg e Corner
-
-        let buildOutlineFromBez (bezPts: BezierPoint array) (isClosed: bool) =
+        let buildOutlineFromBez (bezPts: BezierPoint array) (isClosed: bool) (startAlign: bool) (endAlign: bool) =
             if bezPts.Length < 2 then [] else
 
             let n = bezPts.Length
@@ -1289,8 +1299,9 @@ type Font(axes: Axes) =
                             elif i = lastIdx then { k with th_out = None }
                             else k)
 
-                let startCapKnots = startCapFn firstSeg |> stripBoundaryTangents
-                let endCapKnots   = endCapFn endpointSeg penultSeg |> stripBoundaryTangents
+                // Use original element (before reduce) so isJoint detects stroke intersections.
+                let startCapKnots = this.startCap firstSeg e startAlign Corner |> stripBoundaryTangents
+                let endCapKnots   = this.endCap endpointSeg penultSeg e endAlign Corner |> stripBoundaryTangents
 
                 let outer = buildSide  1.0
                 let inner = buildSide -1.0 |> List.rev
@@ -1300,10 +1311,12 @@ type Font(axes: Axes) =
 
         let solveAndOffset (pts: Knot list) isClosed =
             validateKnotSequence pts isClosed
+            let startAlign = pts.IsEmpty || isClosed || not (isFreeCurveEnd pts.[0].ty)
+            let endAlign   = pts.IsEmpty || isClosed || not (isFreeCurveEnd (List.last pts).ty)
             let ctrlPts = toDactylSplineControlPoints pts
             let spline = DactylSpline(ctrlPts, isClosed)
             let bezPts = spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.debug)
-            buildOutlineFromBez bezPts isClosed
+            buildOutlineFromBez bezPts isClosed startAlign endAlign
 
         let rec dactylToOutline elem =
             match elem with
