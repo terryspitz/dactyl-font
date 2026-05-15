@@ -249,7 +249,6 @@ function App() {
     if (!e.ctrlKey) return
     e.preventDefault()
     const tab = activeTabRef.current
-    if (tab === 'splineGrid') return
     // negate delta: on Mac+Chrome, Ctrl+scroll-down gives negative deltaY; we want down = zoom in
     const clampedDelta = Math.max(-200, Math.min(200, e.deltaY))
     const scaleFactor = 1 - clampedDelta * 0.001
@@ -733,19 +732,17 @@ function App() {
               )}
             </div>
           )}
-          {activeTab !== 'splineGrid' && (
-            <div className="zoom-controls">
-              <button onClick={() => setZoom(z => Math.min(z + 0.1, 5.0))} title="Zoom In">
-                <span className="material-symbols-outlined">add</span>
-              </button>
-              <button onClick={() => setZoom(1.0)} title="Reset Zoom">
-                <span className="material-symbols-outlined">restart_alt</span>
-              </button>
-              <button onClick={() => setZoom(z => Math.max(z - 0.1, 0.1))} title="Zoom Out">
-                <span className="material-symbols-outlined">remove</span>
-              </button>
-            </div>
-          )}
+          <div className="zoom-controls">
+            <button onClick={() => setZoom(z => Math.min(z + 0.1, 5.0))} title="Zoom In">
+              <span className="material-symbols-outlined">add</span>
+            </button>
+            <button onClick={() => setZoom(1.0)} title="Reset Zoom">
+              <span className="material-symbols-outlined">restart_alt</span>
+            </button>
+            <button onClick={() => setZoom(z => Math.max(z - 0.1, 0.1))} title="Zoom Out">
+              <span className="material-symbols-outlined">remove</span>
+            </button>
+          </div>
           <div ref={previewRef} className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`} style={activeTab === 'splineGrid' ? { padding: 0 } : undefined}>
             <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: (activeTab === 'tweens' || activeTab === 'proofs') ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
               {renderContent()}
