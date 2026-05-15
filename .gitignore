@@ -349,3 +349,4 @@ ttf/DactylSansBold.sfd/
 explorer/public/fable/
 web/src/lib/fable/
 src/explorer/node_modules/
+web/tests/diffs/
