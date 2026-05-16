@@ -100,6 +100,18 @@ type CubicBez (c : float []) =
         let d2 = this.deriv2 t
         (d.cross d2) / d.norm() ** 3.
 
+    member this.arcLength() =
+        let samples = 100
+        let mutable len = 0.0
+        let mutable prev = this.eval 0.0
+        for i in 1..samples do
+            let pt = this.eval (float i / float samples)
+            let dx = pt.x - prev.x
+            let dy = pt.y - prev.y
+            len <- len + sqrt (dx*dx + dy*dy)
+            prev <- pt
+        len
+
     // Returns n+1 t values uniformly spaced in estimated arc length.
     member this.arcLengthTs(n: int) =
         let samples = 100
