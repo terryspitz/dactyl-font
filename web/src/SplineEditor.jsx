@@ -27,12 +27,14 @@ const toRad = d => Math.round(d * Math.PI / 180 * 1000) / 1000
 
 const deepClone = obj => JSON.parse(JSON.stringify(obj))
 
-// Returns sensible default x/y coordinates based on guide midpoints
+// Returns sensible default x/y coordinates based on guide midpoints.
+// xGuides are [L, C, N, R, W]; we want (L+R)/2, not (L+W)/2, so use index length-2 for R.
 const getDefaultCoords = (guides) => {
   if (!guides) return { cx: 400, cy: 500 }
   const midIdx = Math.floor(guides.yGuides.length / 2)
+  const rGuide = guides.xGuides[guides.xGuides.length - 2] ?? guides.xGuides[guides.xGuides.length - 1]
   return {
-    cx: Math.round((guides.xGuides[0].value + guides.xGuides[guides.xGuides.length - 1].value) / 2),
+    cx: Math.round((guides.xGuides[0].value + rGuide.value) / 2),
     cy: Math.round(guides.yGuides[midIdx].value),
   }
 }
