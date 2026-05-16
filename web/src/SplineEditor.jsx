@@ -471,15 +471,43 @@ function SplineEditor({ axes, zoom = 1.0 }) {
     const pt = curves[activeCurve]?.points[idx]
     if (!pt) return
     pushUndo()
+
+    // When turning off Auto, pick the best concrete starting value:
+    // 1. The current solved position (= "value inside the brackets" from the glyph DSL).
+    // 2. Midpoint of the two neighbouring points (using their solved positions if also fitted).
+    // 3. Guide midpoint as last resort.
+    const getCoord = (ptIdx, axis) => {
+      const p = curves[activeCurve]?.points[ptIdx]
+      if (!p) return undefined
+      const fixed = axis === 'x' ? p.x : p.y
+      if (fixed !== null && fixed !== undefined) return fixed
+      const bp = solveResultRef.current?.bezierPoints?.[ptIdx]
+      return axis === 'x' ? bp?.x : bp?.y
+    }
+
+    const defaultValue = (axis) => {
+      const bp = solveResultRef.current?.bezierPoints?.[idx]
+      const solved = axis === 'x' ? bp?.x : bp?.y
+      if (solved !== undefined && solved !== null && isFinite(solved)) return Math.round(solved)
+      const pts = curves[activeCurve].points
+      const n = pts.length
+      const prev = idx > 0 ? getCoord(idx - 1, axis) : undefined
+      const next = idx < n - 1 ? getCoord(idx + 1, axis) : undefined
+      if (prev !== undefined && next !== undefined) return Math.round((prev + next) / 2)
+      if (prev !== undefined) return Math.round(prev)
+      if (next !== undefined) return Math.round(next)
+      return axis === 'x' ? getDefaultCoords(guides).cx : getDefaultCoords(guides).cy
+    }
+
     if (field === 'x') {
       if (pt.x === null) {
-        updatePoint(activeCurve, idx, { x: getDefaultCoords(guides).cx })
+        updatePoint(activeCurve, idx, { x: defaultValue('x') })
       } else if (pt.y !== null) {
         updatePoint(activeCurve, idx, { x: null })
       }
     } else if (field === 'y') {
       if (pt.y === null) {
-        updatePoint(activeCurve, idx, { y: getDefaultCoords(guides).cy })
+        updatePoint(activeCurve, idx, { y: defaultValue('y') })
       } else if (pt.x !== null) {
         updatePoint(activeCurve, idx, { y: null })
       }
