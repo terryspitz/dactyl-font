@@ -413,8 +413,10 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
 
     member private this.h4perpInit() =
         // H4perp: for each free coordinate, try 6 perpendicular-arc offset candidates
-        // between the two nearest fully-fixed neighbours and pick the lowest-error start.
-        // Wins 83% of cases vs. neighbour-average (mean rank 1.38 vs 1.62).
+        // using direct neighbours (i-1, i+1) as chord endpoints and pick the lowest-error start.
+        // Using direct neighbours (rather than nearest fully-fixed) captures the local chord
+        // geometry; e.g. for 'c' x(c) the chord runs from xor(300,360)→(xb)l(0,180) so the
+        // perpendicular offsets centre on midX≈150-168 rather than the wrong midX=300.
         let hasFreeCoord = _points |> Array.exists (fun p -> p.fit_x || p.fit_y)
 
         if hasFreeCoord then
@@ -429,20 +431,19 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 let pt = _points.[i]
 
                 if pt.fit_x || pt.fit_y then
-                    let prevFixed =
-                        seq { i - 1 .. -1 .. 0 }
-                        |> Seq.tryFind (fun j -> not _points.[j].fit_x && not _points.[j].fit_y)
+                    // Skip endpoints of open curves — only one valid neighbour direction.
+                    let isOpenEndpoint = not isClosed && (i = 0 || i = _points.Length - 1)
 
-                    let nextFixed =
-                        seq { i + 1 .. _points.Length - 1 }
-                        |> Seq.tryFind (fun j -> not _points.[j].fit_x && not _points.[j].fit_y)
+                    if not isOpenEndpoint then
+                        let prevIdx =
+                            if isClosed then (i - 1 + _points.Length) % _points.Length else i - 1
+                        let nextIdx =
+                            if isClosed then (i + 1) % _points.Length else i + 1
 
-                    match prevFixed, nextFixed with
-                    | Some prev, Some next ->
-                        let px = _points.[prev].x
-                        let py = _points.[prev].y
-                        let nx = _points.[next].x
-                        let ny = _points.[next].y
+                        let px = _points.[prevIdx].x
+                        let py = _points.[prevIdx].y
+                        let nx = _points.[nextIdx].x
+                        let ny = _points.[nextIdx].y
                         let chordDx = nx - px
                         let chordDy = ny - py
                         let chordLen = sqrt (chordDx * chordDx + chordDy * chordDy)
@@ -502,7 +503,6 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                             if origFitY then _points.[i].y <- bestY
                             // Update snapshot so subsequent free coords see H4perp-placed position
                             savedArr.[i] <- Array.copy _points.[i].arr
-                    | _ -> () // Not enough fixed context; keep neighbour-average
 
     member this.computeErr() =
         // Piecewise Euler spiral fitting
