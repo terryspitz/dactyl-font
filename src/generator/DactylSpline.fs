@@ -990,8 +990,7 @@ type DactylSpline(ctrlPts, isClosed) =
                         let COMB_STEPS = 20
                         let SCALE = 2000.0
 
-                        for s in 0..COMB_STEPS do
-                            let t = float s / float COMB_STEPS
+                        for t in bez.arcLengthTs COMB_STEPS do
                             let kv = bez.curvature t
                             let pt = bez.eval t
                             let d = bez.deriv t

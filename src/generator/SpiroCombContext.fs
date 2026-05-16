@@ -39,8 +39,7 @@ type SpiroCombContext(showComb: bool, targetCombTeeth: int) =
             let combPath = BezPath()
             for seg in curveSegs do
                 let bez = CubicBez(seg)
-                for s in 0..stepsPerSeg do
-                    let t = float s / float stepsPerSeg
+                for t in bez.arcLengthTs stepsPerSeg do
                     let kv = bez.curvature t
                     let pt = bez.eval t
                     let d = bez.deriv t
