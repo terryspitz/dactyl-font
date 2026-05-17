@@ -634,6 +634,13 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     let gap = startK - prevEndK
                     // Weight this heavily so segments join smoothly in curvature
                     totalErr <- totalErr + gap * gap * 10.0
+                    // Also penalise actual t=0/t=1 curvature gap at the junction.
+                    // The regression-based gap above can be near zero while the Bezier's
+                    // actual endpoint curvatures still differ (because the linear fit is
+                    // not anchored to the endpoints). A lighter second term directly
+                    // reduces the visible discontinuity.
+                    let actualGap = _segmentStartActualK.[i] - _segmentEndActualK.[i - 1]
+                    totalErr <- totalErr + actualGap * actualGap * 2.0
 
         if isClosed && segmentCount > 0 then
             // Continuity between last and first
