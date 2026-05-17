@@ -579,10 +579,11 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
 
                     // 3. Extra flatness at open endpoints: endpoint segments should be
                     //    circular arcs (constant curvature, i.e. m ≈ 0).
-                    //    Weight 2× extra (3× total) was the original intent; using linear
-                    //    |m| rather than quadratic to keep gradients gentle for Nelder-Mead.
+                    //    Weight 5× extra (6× total) to push 'c'/'b'/etc. end arcs toward
+                    //    circular. At 2× the residuals term dominated; 5× breaks the tie
+                    //    toward the rounder position (~x=170 for 'c' vs ~x=155 at 2×).
                     if not isClosed && (i = 0 || i = _points.Length - 2) then
-                        totalErr <- totalErr + abs m * flatness * 2.0
+                        totalErr <- totalErr + abs m * flatness * 5.0
 
                     // Calculate start and end curvature for continuity
                     // k(s) = m*s + c. Start is s=0 (c), End is s=max_dist
