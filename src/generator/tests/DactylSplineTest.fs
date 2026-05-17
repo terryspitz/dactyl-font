@@ -907,3 +907,49 @@ type BracketFittingTests() =
         // The free top-point x must be finite (optimizer ran without error)
         Assert.That(Double.IsFinite(ptsFree.[1].x), Is.True,
             "Free top-point x should be finite after solving")
+
+[<TestFixture>]
+type FlatnessTests() =
+    let axes = Axes.DefaultAxes
+    let metrics = FontMetrics(axes)
+    let max_iter = 500
+
+    let knotsToDcps (knots: Knot list) : DControlPoint array =
+        knots
+        |> List.map (fun k ->
+            let ty =
+                if k.ty = G2 || k.ty = SpiroPointType.SpiroPointType.G4 then SplinePointType.Smooth
+                elif k.ty = LineToCurve then SplinePointType.LineToCurve
+                elif k.ty = CurveToLine then SplinePointType.CurveToLine
+                else SplinePointType.Corner
+            { ty = ty
+              x = if k.pt.x_fit then None else Some k.pt.x
+              y = if k.pt.y_fit then None else Some k.pt.y
+              th_in = k.th_in
+              th_out = k.th_out })
+        |> Array.ofList
+
+    let solveCWithFlatness flatness =
+        match GlyphStringDefs.parse_curve metrics "xor~x(c)~(xb)l~b(c)~bor" false with
+        | Curve(knots, isClosed) ->
+            let ctrlPts = knotsToDcps knots
+            let spline = DactylSpline(ctrlPts, isClosed)
+            spline.solveAndGetPoints(max_iter, flatness, false)
+        | _ -> failwith "expected Curve"
+
+    [<Test; Explicit("Diagnostic: print top-x of c across flatness values")>]
+    member _.PrintFlatnessEffect() =
+        for f in [| 0.0; 0.5; 1.0; 5.0; 20.0; 100.0 |] do
+            let pts = solveCWithFlatness f
+            printfn "flatness=%-6g  top-x=%.2f" f pts.[1].x
+
+    [<Test>]
+    member _.FlatnessZeroVsHighGivesDifferentTopX() =
+        let ptsLow  = solveCWithFlatness 0.0
+        let ptsHigh = solveCWithFlatness 100.0
+        let xLow  = ptsLow.[1].x
+        let xHigh = ptsHigh.[1].x
+        printfn "flatness=0.0   top-x=%.2f" xLow
+        printfn "flatness=100.0 top-x=%.2f" xHigh
+        Assert.That(abs (xLow - xHigh), Is.GreaterThan(5.0),
+            sprintf "Flatness should move top-x by >5 units (got %.2f vs %.2f)" xLow xHigh)
