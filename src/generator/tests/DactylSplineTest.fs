@@ -937,11 +937,20 @@ type FlatnessTests() =
             spline.solveAndGetPoints(max_iter, flatness, false)
         | _ -> failwith "expected Curve"
 
-    [<Test; Explicit("Diagnostic: print top-x of c across flatness values")>]
+    [<Test; Explicit("Diagnostic: print top-x and per-segment curvature of c across flatness values")>]
     member _.PrintFlatnessEffect() =
         for f in [| 0.0; 0.5; 1.0; 5.0; 20.0; 100.0 |] do
             let pts = solveCWithFlatness f
+            let curveData = computeCurvatureData pts false
             printfn "flatness=%-6g  top-x=%.2f" f pts.[1].x
+            for si in 0 .. curveData.segments.Length - 1 do
+                let seg = curveData.segments.[si]
+                let startK = seg.c
+                let endK = seg.m * (seg.samples.[seg.samples.Length-1].arcLen - seg.samples.[0].arcLen) + seg.c
+                let actualStartK = seg.samples.[0].curvature * 10000.0
+                let actualEndK   = seg.samples.[seg.samples.Length-1].curvature * 10000.0
+                printfn "  seg%d  m=%.4f  startK(fit)=%.1f  endK(fit)=%.1f  startK(actual)=%.1f  endK(actual)=%.1f"
+                    si seg.m startK endK actualStartK actualEndK
 
     [<Test>]
     member _.FlatnessZeroVsHighGivesDifferentTopX() =
