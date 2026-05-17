@@ -577,13 +577,16 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     // 2. Penalty for high variation in curvature (flatness)
                     totalErr <- totalErr + abs m * flatness
 
-                    // 3. Extra flatness at open endpoints: endpoint segments should be
-                    //    circular arcs (constant curvature, i.e. m ≈ 0).
-                    //    Weight 5× extra (6× total) to push 'c'/'b'/etc. end arcs toward
-                    //    circular. At 2× the residuals term dominated; 5× breaks the tie
-                    //    toward the rounder position (~x=170 for 'c' vs ~x=155 at 2×).
+                    // 3. G2 self-continuity at open endpoints: end segments should be
+                    //    circular arcs (endK = startK). Formulated as (endK - startK)²
+                    //    where endK - startK = m * max_dist. This is unit-consistent and
+                    //    weight-consistent with the cross-segment G2 continuity penalty
+                    //    (gap² × 10.0) at line ~633 — both measure curvature mismatch in
+                    //    the same units. Quadratic form gives a strong settling preference
+                    //    near m=0 that the previous linear |m| × 5 lacked.
                     if not isClosed && (i = 0 || i = _points.Length - 2) then
-                        totalErr <- totalErr + abs m * flatness * 5.0
+                        let endpointGap = m * max_dist
+                        totalErr <- totalErr + endpointGap * endpointGap * 10.0 * flatness
 
                     // Calculate start and end curvature for continuity
                     // k(s) = m*s + c. Start is s=0 (c), End is s=max_dist
