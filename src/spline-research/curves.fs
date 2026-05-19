@@ -100,6 +100,45 @@ type CubicBez (c : float []) =
         let d2 = this.deriv2 t
         (d.cross d2) / d.norm() ** 3.
 
+    member this.arcLength() =
+        let samples = 100
+        let mutable len = 0.0
+        let mutable prev = this.eval 0.0
+        for i in 1..samples do
+            let pt = this.eval (float i / float samples)
+            let dx = pt.x - prev.x
+            let dy = pt.y - prev.y
+            len <- len + sqrt (dx*dx + dy*dy)
+            prev <- pt
+        len
+
+    // Returns n+1 t values uniformly spaced in estimated arc length.
+    member this.arcLengthTs(n: int) =
+        let samples = 100
+        let pts = Array.init (samples + 1) (fun i -> this.eval (float i / float samples))
+        let arcLens = Array.zeroCreate (samples + 1)
+        for i in 1..samples do
+            let dx = pts.[i].x - pts.[i-1].x
+            let dy = pts.[i].y - pts.[i-1].y
+            arcLens.[i] <- arcLens.[i-1] + sqrt (dx*dx + dy*dy)
+        let totalLen = arcLens.[samples]
+        if totalLen < 1e-10 then
+            Array.init (n + 1) (fun i -> float i / float n)
+        else
+            Array.init (n + 1) (fun i ->
+                let target = totalLen * float i / float n
+                let mutable lo = 0
+                let mutable hi = samples
+                while hi - lo > 1 do
+                    let mid = (lo + hi) / 2
+                    if arcLens.[mid] <= target then lo <- mid
+                    else hi <- mid
+                let frac =
+                    if arcLens.[hi] > arcLens.[lo] then
+                        (target - arcLens.[lo]) / (arcLens.[hi] - arcLens.[lo])
+                    else 0.0
+                min 1.0 ((float lo + frac) / float samples))
+
     member this.atanCurvature(t) =
         let d = this.deriv(t)
         let d2 = this.deriv2(t)
