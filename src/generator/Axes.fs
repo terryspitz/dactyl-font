@@ -35,7 +35,6 @@ type Axes =
       max_spline_iter: int //max number of iterations to solve spline curves
       show_knots: bool //show small circles for the points used to define lines/curves
       show_tangents: bool //show lines for the tangents at each knot
-      show_comb: bool //show curvature comb
       joints: bool //check joints to turn off serifs
       smooth: bool //no corners
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
@@ -67,7 +66,6 @@ type Axes =
           max_spline_iter = 100
           show_knots = false
           show_tangents = false
-          show_comb = false
           joints = true
           constraints = false
           smooth = false
@@ -101,7 +99,6 @@ type Axes =
           "max_spline_iter", Range(0, 200), "experimental"
           "show_knots", Checkbox, "debug"
           "show_tangents", Checkbox, "debug"
-          "show_comb", Checkbox, "debug"
           "joints", Checkbox, "debug"
           "smooth", Checkbox, "default"
           "clip_rect", Checkbox, "debug"

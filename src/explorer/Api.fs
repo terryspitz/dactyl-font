@@ -124,34 +124,38 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
     let axes =
         { inputAxes with
             clip_rect = false
-            show_comb = true
             show_tangents = true }
 
     // Create fonts with specific settings
     let fontSpiro =
-        Font
+        Font(
             { axes with
                 spline2 = false
-                dactyl_spline = false }
+                dactyl_spline = false },
+            true
+        )
 
     let fontSpline2 =
-        Font
+        Font(
             { axes with
                 spline2 = true
-                dactyl_spline = false }
+                dactyl_spline = false },
+            true
+        )
 
     let fontDactylSpline =
-        Font
+        Font(
             { axes with
                 spline2 = false
-                dactyl_spline = true }
+                dactyl_spline = true },
+            true
+        )
 
     let fontGuides =
         Font
             { axes with
                 spline2 = false
                 show_knots = false
-                show_comb = false
                 show_tangents = false
                 debug = false }
 
@@ -299,9 +303,9 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
                 safeElementToSvgPath fontDactylSpline outlineDactylSpline orange
 
             // Spine fonts: never fill the thin centerline paths
-            let fontSpiroSpine = Font { fontSpiro.axes with filled=false }
-            let fontSpline2Spine = Font { fontSpline2.axes with filled=false }
-            let fontDactylSplineSpine = Font { fontDactylSpline.axes with filled=false }
+            let fontSpiroSpine = Font({ fontSpiro.axes with filled=false }, true)
+            let fontSpline2Spine = Font({ fontSpline2.axes with filled=false }, true)
+            let fontDactylSplineSpine = Font({ fontDactylSpline.axes with filled=false }, true)
 
             let guidesLayer = wrapClass "guides-layer" guidesSvg
 
@@ -407,7 +411,7 @@ let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: boo
 
 /// Return SVG path data for Spiro and Spline2 interpretations of the same control points.
 let solveAltSplines (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (inputAxes: Axes) =
-    let baseAxes = { inputAxes with outline = false; filled = false; debug = false; show_comb = false; show_tangents = false }
+    let baseAxes = { inputAxes with outline = false; filled = false; debug = false; show_tangents = false }
     let knots =
         ctrlPts
         |> Array.map (fun cp ->
