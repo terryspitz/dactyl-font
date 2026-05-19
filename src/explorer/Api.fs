@@ -303,9 +303,9 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
                 safeElementToSvgPath fontDactylSpline outlineDactylSpline orange
 
             // Spine fonts: never fill the thin centerline paths
-            let fontSpiroSpine = Font { fontSpiro.axes with filled=false }
-            let fontSpline2Spine = Font { fontSpline2.axes with filled=false }
-            let fontDactylSplineSpine = Font { fontDactylSpline.axes with filled=false }
+            let fontSpiroSpine = Font({ fontSpiro.axes with filled=false }, true)
+            let fontSpline2Spine = Font({ fontSpline2.axes with filled=false }, true)
+            let fontDactylSplineSpine = Font({ fontDactylSpline.axes with filled=false }, true)
 
             let guidesLayer = wrapClass "guides-layer" guidesSvg
 
