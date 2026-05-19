@@ -44,7 +44,7 @@ function App() {
     dspline: true,
     guides: true,
     knots: true,
-    comb: false,
+    comb: true,
     tangents: true,
     labels: true,
   })
