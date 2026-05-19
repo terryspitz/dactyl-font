@@ -34,7 +34,7 @@ type SpiroCombContext(showComb: bool, targetCombTeeth: int) =
     member _.GetCombSvg =
         if not showComb || curveSegs.Count = 0 then []
         else
-            let TOOTH_SPACING = 50.0
+            let TOOTH_SPACING = 10.0
             let SCALE = 2000.0
             let bezSegs = [| for seg in curveSegs -> CubicBez(seg) |]
             let arcLens = Array.map (fun (b: CubicBez) -> b.arcLength()) bezSegs

@@ -987,7 +987,7 @@ type DactylSpline(ctrlPts, isClosed) =
                     if showComb then
                         // Render curvature comb
                         let bez = CubicBez([| p1.x; p1.y; cp1x; cp1y; cp2x; cp2y; p2.x; p2.y |])
-                        let TOOTH_SPACING = 50.0
+                        let TOOTH_SPACING = 10.0
                         let SCALE = 2000.0
                         let steps = max 1 (int (bez.arcLength() / TOOTH_SPACING))
 
