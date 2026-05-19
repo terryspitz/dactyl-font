@@ -74,9 +74,10 @@ let dotToClosedCurve x y r =
 
 
 //class
-type Font(axes: Axes) =
+type Font(axes: Axes, ?showCombOpt: bool) =
     //basic manipulation using class variables
 
+    let showComb = defaultArg showCombOpt false
     let _metrics = FontMetrics(axes)
     let thickness = _metrics.thickness
 
@@ -350,7 +351,7 @@ type Font(axes: Axes) =
                 axes.max_spline_iter,
                 axes.flatness,
                 debug = axes.debug,
-                showComb = axes.show_comb,
+                showComb = showComb,
                 showTangents = axes.show_tangents
             )
 
@@ -1224,11 +1225,11 @@ type Font(axes: Axes) =
     member this.spiroToSvgWithComb spiro =
         match spiro with
         | SpiroOpenCurve(segs) ->
-            let bc = SpiroCombContext(axes.show_comb, segs.Length * 20)
+            let bc = SpiroCombContext(showComb, segs.Length * 20)
             Spiro.SpirosToBezier (Array.ofList segs) false bc |> ignore
             ([ bc.GetPathData ], bc.GetCombSvg)
         | SpiroClosedCurve(segs) ->
-            let bc = SpiroCombContext(axes.show_comb, segs.Length * 20)
+            let bc = SpiroCombContext(showComb, segs.Length * 20)
             Spiro.SpirosToBezier (Array.ofList segs) true bc |> ignore
             ([ bc.GetPathData ], bc.GetCombSvg)
         | SpiroDot(p) -> (svgCircle p.x p.y thickness, [])
