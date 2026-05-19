@@ -47,7 +47,7 @@ NOPQRST UVWXYZ
 <=>?@ [\\]^_`{|}~"
 
 let generateSvg (text: string) (axes: Axes) (autoscale: bool) (progress: (float -> unit) option) =
-    let font = Font axes
+    let font = Font(axes, true)
 
     let lines =
         if System.String.IsNullOrEmpty(text) then
