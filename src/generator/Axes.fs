@@ -72,7 +72,7 @@ type Axes =
           constraints = false
           smooth = false
           clip_rect = true
-          flatness = 1.0
+          flatness = 0.5
           debug = false }
 
     static member controls =

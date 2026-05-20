@@ -958,6 +958,21 @@ type FlatnessTests() =
                 printfn "  seg%d  startK(actual)=%.1f  endK(actual)=%.1f  gap=%.1f"
                     si actualStartK actualEndK (actualEndK - actualStartK)
 
+    [<Test; Explicit("Diagnostic: render c outline SVG for visual inspection")>]
+    member _.PrintCOutlineSvg() =
+        let axes = { Axes.DefaultAxes with max_spline_iter = 500 }
+        let font = Font.Font(axes)
+        let outline = font.CharToOutline 'c'
+        let svg, _, _ = font.elementToSvg outline
+        printfn "=== 'c' outline SVG (font rendering, 500 iters) ==="
+        for line in svg do printfn "%s" line
+        // Also print solved backbone points
+        printfn "=== 'c' backbone bezier points ==="
+        let pts = solveCWithFlatness 1.0
+        for i in 0 .. pts.Length - 1 do
+            printfn "  pt%d  x=%.1f  y=%.1f  th_in=%.3f  th_out=%.3f  ld=%.1f  rd=%.1f"
+                i pts.[i].x pts.[i].y pts.[i].th_in pts.[i].th_out pts.[i].ld pts.[i].rd
+
     [<Test>]
     member _.FlatnessZeroVsHighGivesDifferentTopX() =
         let ptsLow  = solveCWithFlatness 0.0
