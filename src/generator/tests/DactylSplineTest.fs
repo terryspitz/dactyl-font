@@ -929,28 +929,49 @@ type FlatnessTests() =
               th_out = k.th_out })
         |> Array.ofList
 
-    let solveCWithFlatness flatness =
+    let solveCWithFlatnessAndIter (flatness: float) (iters: int) =
         match GlyphStringDefs.parse_curve metrics "xor~x(c)~(xb)l~b(c)~bor" false with
         | Curve(knots, isClosed) ->
             let ctrlPts = knotsToDcps knots
             let spline = DactylSpline(ctrlPts, isClosed)
-            spline.solveAndGetPoints(max_iter, flatness, false)
+            spline.solveAndGetPoints(iters, flatness, false)
         | _ -> failwith "expected Curve"
+
+    let solveCWithFlatness flatness = solveCWithFlatnessAndIter flatness 500
 
     [<Test; Explicit("Diagnostic: print top-x and per-segment curvature of c across flatness values")>]
     member _.PrintFlatnessEffect() =
+        printfn "=== Iteration count sweep (flatness=1.0) ==="
+        for iters in [| 50; 100; 200; 500; 1000 |] do
+            let pts = solveCWithFlatnessAndIter 1.0 iters
+            printfn "iters=%-4d  top-x=%.2f" iters pts.[1].x
+        printfn ""
+        printfn "=== Flatness sweep (500 iters) ==="
         for f in [| 0.0; 0.5; 1.0; 5.0; 20.0; 100.0 |] do
             let pts = solveCWithFlatness f
             let curveData = computeCurvatureData pts false
             printfn "flatness=%-6g  top-x=%.2f" f pts.[1].x
             for si in 0 .. curveData.segments.Length - 1 do
                 let seg = curveData.segments.[si]
-                let startK = seg.c
-                let endK = seg.m * (seg.samples.[seg.samples.Length-1].arcLen - seg.samples.[0].arcLen) + seg.c
                 let actualStartK = seg.samples.[0].curvature * 10000.0
                 let actualEndK   = seg.samples.[seg.samples.Length-1].curvature * 10000.0
-                printfn "  seg%d  m=%.4f  startK(fit)=%.1f  endK(fit)=%.1f  startK(actual)=%.1f  endK(actual)=%.1f"
-                    si seg.m startK endK actualStartK actualEndK
+                printfn "  seg%d  startK(actual)=%.1f  endK(actual)=%.1f  gap=%.1f"
+                    si actualStartK actualEndK (actualEndK - actualStartK)
+
+    [<Test; Explicit("Diagnostic: render c outline SVG for visual inspection")>]
+    member _.PrintCOutlineSvg() =
+        let axes = { Axes.DefaultAxes with max_spline_iter = 500 }
+        let font = Font.Font(axes)
+        let outline = font.CharToOutline 'c'
+        let svg, _, _ = font.elementToSvg outline
+        printfn "=== 'c' outline SVG (font rendering, 500 iters) ==="
+        for line in svg do printfn "%s" line
+        // Also print solved backbone points
+        printfn "=== 'c' backbone bezier points ==="
+        let pts = solveCWithFlatness 1.0
+        for i in 0 .. pts.Length - 1 do
+            printfn "  pt%d  x=%.1f  y=%.1f  th_in=%.3f  th_out=%.3f  ld=%.1f  rd=%.1f"
+                i pts.[i].x pts.[i].y pts.[i].th_in pts.[i].th_out pts.[i].ld pts.[i].rd
 
     [<Test>]
     member _.FlatnessZeroVsHighGivesDifferentTopX() =

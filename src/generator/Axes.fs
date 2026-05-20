@@ -63,14 +63,14 @@ type Axes =
           outline = true
           stroked = false
           scratches = false
-          max_spline_iter = 100
+          max_spline_iter = 500
           show_knots = false
           show_tangents = false
           joints = true
           constraints = false
           smooth = false
           clip_rect = true
-          flatness = 1.0
+          flatness = 0.5
           debug = false }
 
     static member controls =
