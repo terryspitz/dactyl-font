@@ -660,6 +660,74 @@ type FontTests() =
             | _ ->
                 Assert.Fail(sprintf "'%c' backbone has fewer than 4 points" ch)
 
+    // ── Helpers shared by the symmetry tests below ────────────────────────────
+
+    member private this.makeFont() =
+        Font.Font({ Axes.DefaultAxes with dactyl_spline = true; outline = true })
+
+    member private this.hasLRMirror (pts: (float * float) list) cx tol (x, y) =
+        let mx = 2.0 * cx - x
+        pts |> List.exists (fun (px, py) -> abs (px - mx) < tol && abs (py - y) < tol)
+
+    member private this.isFullyLRSymmetric (pts: (float * float) list) tol =
+        if pts.IsEmpty then true
+        else
+            let xs = pts |> List.map fst
+            let cx = (List.min xs + List.max xs) / 2.0
+            pts |> List.forall (this.hasLRMirror pts cx tol)
+
+    // ── Positive symmetry tests ────────────────────────────────────────────────
+
+    [<Test>]
+    member this.GlyphsWithVerticalAxisOfSymmetry_HaveLeftRightSymmetricBackbone() =
+        // These glyphs are designed with a vertical axis of symmetry.
+        // H, I, T, V, A, X are pure straight-line glyphs (no fitted/free coords), so the
+        // DactylSpline solver makes no position adjustments — perfect symmetry is expected.
+        //
+        // Note: open-curve glyphs with a single fitted centrepoint (e.g. 'U') are NOT
+        // included here. The closed-curve symmetrisation fix does not apply to open curves,
+        // so 'U' retains a small (~7 unit) residual asymmetry from the open-curve solver.
+        // That is a known limitation separate from the closed-curve fix in this PR.
+        // 'O'/'o' (closed oval, fitted coords) are covered by O_And_o_Outline_Is*.
+        let font = this.makeFont()
+        let lineTol = 1.0
+        for ch in [ 'H'; 'I'; 'T'; 'V'; 'A'; 'X' ] do
+            let pts = font.charToSolvedBackbonePoints ch
+            Assert.That(pts, Is.Not.Empty, sprintf "'%c' backbone should have points" ch)
+            let xs = pts |> List.map fst
+            let cx = (List.min xs + List.max xs) / 2.0
+            for pt in pts do
+                Assert.That(
+                    this.hasLRMirror pts cx lineTol pt,
+                    Is.True,
+                    sprintf "'%c' backbone: (%.2f, %.2f) has no left-right mirror (cx=%.2f)" ch (fst pt) (snd pt) cx
+                )
+
+    // ── Negative symmetry tests ────────────────────────────────────────────────
+
+    [<Test>]
+    member this.GlyphsWithoutLeftRightSymmetry_BackboneIsNotLeftRightSymmetric() =
+        // These glyphs are structurally asymmetric and must NOT be fully left-right symmetric.
+        // The test guards against the post-solve symmetrisation pass in DactylSpline
+        // accidentally forcing symmetry on non-symmetric glyphs.
+        //
+        //   D – flat left edge, curved right bulge (one fitted knot at right mid-height)
+        //   G – open arc with right-side serif arm (like C but with extra arm)
+        //   S – serpentine: 180° rotational symmetry but no mirror symmetry
+        //   B – flat left edge, two curved bumps on right
+        //   C – open arc, opening is on the right so the backbone is NOT left-right symmetric
+        //       (tor and bor are both at x=R; their mirror at x=0 has no matching y)
+        let font = this.makeFont()
+        let tol = 6.0
+        for ch in [ 'D'; 'G'; 'S'; 'B'; 'C' ] do
+            let pts = font.charToSolvedBackbonePoints ch
+            Assert.That(pts, Is.Not.Empty, sprintf "'%c' backbone should have points" ch)
+            Assert.That(
+                this.isFullyLRSymmetric pts tol,
+                Is.False,
+                sprintf "'%c' backbone appears fully left-right symmetric, but should not be" ch
+            )
+
 [<TestFixture>]
 type KnotSequenceValidationTests() =
     let pt x y = { x = x; y = y; x_fit = false; y_fit = false }
