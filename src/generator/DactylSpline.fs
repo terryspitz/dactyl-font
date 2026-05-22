@@ -607,14 +607,9 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     // 2. Penalty for high curvature variation (flatness).
                     //    Linear base term: small consistent gradient across all curvature levels.
                     totalErr <- totalErr + abs m * flatness
-                    //    Quadratic additional term: unit-consistent with G2 continuity gap² penalties.
-                    //    End-segments of open curves get 10× weight to enforce circular-arc termination;
-                    //    interior segments get 3× to reduce bowl variation without over-constraining
-                    //    legitimately spiralling shapes.
+                    //    Quadratic additional term: 3× weight on all segments.
                     let curvatureSpan = m * max_dist
-                    let curvatureWeight =
-                        if not isClosed && (i = 0 || i = _points.Length - 2) then 10.0
-                        else 3.0
+                    let curvatureWeight = 3.0
                     totalErr <- totalErr + curvatureSpan * curvatureSpan * curvatureWeight * flatness
 
                     // Calculate start and end curvature for continuity
