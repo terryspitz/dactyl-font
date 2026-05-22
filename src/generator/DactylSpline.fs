@@ -948,29 +948,49 @@ type DactylSpline(ctrlPts, isClosed) =
             if cntX > 0 && cntY > 0 then
                 let cx = sumX / float cntX
                 let cy = sumY / float cntY
-                let mirrorTol = 1e-4
                 let mutable symmetrized = false
 
-                for i in 0 .. n - 1 do
-                    for j in i + 1 .. n - 1 do
-                        let pi = pts.[i]
-                        let pj = pts.[j]
+                // Symmetrise free-y knots.  Group them by their (rounded) fixed-x value.
+                // Only average a pair when each mirror-x bucket has EXACTLY ONE knot;
+                // this prevents figure-8 glyphs from being incorrectly collapsed — '8'
+                // has two free-y knots at x=L and two at x=R, so the mirror buckets have
+                // size 2 and are skipped.
+                let freeYByX =
+                    [| 0 .. n - 1 |]
+                    |> Array.filter (fun i -> pts.[i].fit_y && not pts.[i].fit_x)
+                    |> Array.groupBy (fun i -> System.Math.Round(pts.[i].x))
 
-                        // Free-y pair whose fixed-x coords are mirror-symmetric about cx
-                        if pi.fit_y && pj.fit_y && (not pi.fit_x) && (not pj.fit_x) then
-                            if abs (pi.x + pj.x - 2.0 * cx) < mirrorTol then
-                                let avg = (pi.y + pj.y) / 2.0
-                                pts.[i].y <- avg
-                                pts.[j].y <- avg
-                                symmetrized <- true
+                for (px, idxA) in freeYByX do
+                    let mirrorPx = System.Math.Round(2.0 * cx - px)
+                    if mirrorPx > px then
+                        match freeYByX |> Array.tryFind (fun (k, _) -> k = mirrorPx) with
+                        | Some (_, idxB) when idxA.Length = 1 && idxB.Length = 1 ->
+                            let i = idxA.[0]
+                            let j = idxB.[0]
+                            let avg = (pts.[i].y + pts.[j].y) / 2.0
+                            pts.[i].y <- avg
+                            pts.[j].y <- avg
+                            symmetrized <- true
+                        | _ -> ()
 
-                        // Free-x pair whose fixed-y coords are mirror-symmetric about cy
-                        if pi.fit_x && pj.fit_x && (not pi.fit_y) && (not pj.fit_y) then
-                            if abs (pi.y + pj.y - 2.0 * cy) < mirrorTol then
-                                let avg = (pi.x + pj.x) / 2.0
-                                pts.[i].x <- avg
-                                pts.[j].x <- avg
-                                symmetrized <- true
+                // Symmetrise free-x knots by their fixed-y value, same single-per-bucket rule.
+                let freeXByY =
+                    [| 0 .. n - 1 |]
+                    |> Array.filter (fun i -> pts.[i].fit_x && not pts.[i].fit_y)
+                    |> Array.groupBy (fun i -> System.Math.Round(pts.[i].y))
+
+                for (py, idxA) in freeXByY do
+                    let mirrorPy = System.Math.Round(2.0 * cy - py)
+                    if mirrorPy > py then
+                        match freeXByY |> Array.tryFind (fun (k, _) -> k = mirrorPy) with
+                        | Some (_, idxB) when idxA.Length = 1 && idxB.Length = 1 ->
+                            let i = idxA.[0]
+                            let j = idxB.[0]
+                            let avg = (pts.[i].x + pts.[j].x) / 2.0
+                            pts.[i].x <- avg
+                            pts.[j].x <- avg
+                            symmetrized <- true
+                        | _ -> ()
 
                 if symmetrized then
                     // Sync the duplicate last point

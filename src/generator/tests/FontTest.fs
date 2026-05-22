@@ -728,6 +728,38 @@ type FontTests() =
                 sprintf "'%c' backbone appears fully left-right symmetric, but should not be" ch
             )
 
+    [<Test>]
+    member this.Figure8_BackboneSpansBothLoops() =
+        // The '8' glyph is a figure-of-eight defined as a single closed curve whose
+        // upper and lower loops have free-y side knots at x=L and x=R respectively.
+        // Because each x bucket holds TWO free-y knots, the post-solve symmetrisation
+        // must NOT fire for '8' — if it did it would average all four to y=H/2 and
+        // collapse both loops to a flat disc.
+        //
+        // We guard against that regression by asserting the backbone spans most of the
+        // cap height: the topmost point must be above 80% of the height and the
+        // bottommost below 20% (after translateByThickness the expected range is ~30–630
+        // for height=600 axes; we check that max_y > 0.7*T+translate and min_y < 0.3*T).
+        let axes = { Axes.DefaultAxes with dactyl_spline = true; outline = true }
+        let font = Font.Font(axes)
+        let pts = font.charToSolvedBackbonePoints '8'
+        Assert.That(pts, Is.Not.Empty, "'8' backbone should have points")
+        let ys = pts |> List.map snd
+        let maxY = List.max ys
+        let minY = List.min ys
+        let translate = float axes.thickness  // translateByThickness adds thickness to both axes
+        let capT = float axes.height + translate
+        Assert.That(
+            maxY,
+            Is.GreaterThan(capT * 0.7),
+            sprintf "'8' backbone top (%.1f) should reach above 70%% of cap height (%.1f) — loops may have collapsed" maxY (capT * 0.7)
+        )
+        Assert.That(
+            minY,
+            Is.LessThan(capT * 0.3),
+            sprintf "'8' backbone bottom (%.1f) should be below 30%% of cap height (%.1f) — loops may have collapsed" minY (capT * 0.3)
+        )
+
 [<TestFixture>]
 type KnotSequenceValidationTests() =
     let pt x y = { x = x; y = y; x_fit = false; y_fit = false }
