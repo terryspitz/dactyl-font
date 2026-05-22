@@ -312,7 +312,20 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             // possibly: define fit_x/y separately from none, then use x/y for initialisation
             | None ->
                 point.x <-
-                    if i = 0 then
+                    if isClosed && i = 0 then
+                        // Closed solver: point 0's actual prev is index length-2
+                        // (length-1 is the duplicate of point 0, so skip it).
+                        let prev = ctrlPts.[ctrlPts.Length - 2].x
+                        let next = ctrlPts.[1].x
+                        match prev, next with
+                        | Some px, Some nx -> (px + nx) / 2.
+                        | Some px, None -> px
+                        | None, Some nx -> nx
+                        | None, None -> 0.0
+                    elif isClosed && i = ctrlPts.Length - 1 then
+                        // Last point mirrors first; copy from already-initialised point 0.
+                        _points.[0].x
+                    elif i = 0 then
                         ctrlPts.[i + 1].x.Value
                     elif i = ctrlPts.Length - 1 then
                         ctrlPts.[i - 1].x.Value
@@ -324,7 +337,17 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 point.fit_y <- false
             | None ->
                 point.y <-
-                    if i = 0 then
+                    if isClosed && i = 0 then
+                        let prev = ctrlPts.[ctrlPts.Length - 2].y
+                        let next = ctrlPts.[1].y
+                        match prev, next with
+                        | Some py, Some ny -> (py + ny) / 2.
+                        | Some py, None -> py
+                        | None, Some ny -> ny
+                        | None, None -> 0.0
+                    elif isClosed && i = ctrlPts.Length - 1 then
+                        _points.[0].y
+                    elif i = 0 then
                         ctrlPts.[i + 1].y.Value
                     elif i = ctrlPts.Length - 1 then
                         ctrlPts.[i - 1].y.Value
@@ -433,10 +456,17 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 if pt.fit_x || pt.fit_y then
                     // Skip endpoints of open curves — only one valid neighbour direction.
                     let isOpenEndpoint = not isClosed && (i = 0 || i = _points.Length - 1)
+                    // For closed solvers the last point duplicates point 0; its position is
+                    // synchronised in applyParams, so skip h4perp processing for it entirely.
+                    let isClosedDuplicate = isClosed && i = _points.Length - 1
 
-                    if not isOpenEndpoint then
+                    if not isOpenEndpoint && not isClosedDuplicate then
                         let prevIdx =
-                            if isClosed then (i - 1 + _points.Length) % _points.Length else i - 1
+                            if isClosed && i = 0 then
+                                // Actual prev of point 0 is length-2 (length-1 is the duplicate).
+                                _points.Length - 2
+                            elif isClosed then (i - 1 + _points.Length) % _points.Length
+                            else i - 1
                         let nextIdx =
                             if isClosed then (i + 1) % _points.Length else i + 1
 
@@ -732,6 +762,12 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                         elif not isClosed && i = _points.Length - 1 && j = int BezierIndex.ThOut
                              && ctrlPts.[i].ty <> SplinePointType.Smooth then
                             ()
+                        // For closed curves the last point duplicates the first; its x and y
+                        // are synchronised from point 0 in applyParams so don't need
+                        // independent optimizer parameters.
+                        elif isClosed && i = _points.Length - 1
+                             && (j = int BezierIndex.X || j = int BezierIndex.Y) then
+                            ()
                         else
                             mapping.Add((i, j))
                             initial.Add(_points.[i].arr.[j])
@@ -749,8 +785,13 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     _points.[index1].arr.[index2] <- v
                     syncSmooth index1 index2 v
                 if isClosed then
-                    _points.[_points.Length - 1].th_in <- _points.[0].th_in
-                    _points.[_points.Length - 1].th_out <- _points.[0].th_out
+                    let last = _points.Length - 1
+                    // The last point duplicates point 0; keep all position/tangent fields in sync
+                    // so the wrap segment (last→0) shares the same knot as the start of segment 0→1.
+                    _points.[last].x <- _points.[0].x
+                    _points.[last].y <- _points.[0].y
+                    _points.[last].th_in <- _points.[0].th_in
+                    _points.[last].th_out <- _points.[0].th_out
 
 #if FABLE_COMPILER
             let objectiveFunction (x: float[]) =
@@ -866,8 +907,9 @@ type DactylSpline(ctrlPts, isClosed) =
     /// Construct and solve a Solver for the given inner points.
     /// If the optimizer hits its iteration limit the best-so-far state is kept (no exception).
     member this.solveSection(innerPts: DControlPoint list, length: int, maxIter, flatness, debug) =
+        let solverIsClosed = isClosed && innerPts.Length - 1 = length
         let solver =
-            Solver(Array.ofList innerPts, isClosed && innerPts.Length - 1 = length, flatness, debug)
+            Solver(Array.ofList innerPts, solverIsClosed, flatness, debug)
 
         solver.initialise ()
 
@@ -875,6 +917,81 @@ type DactylSpline(ctrlPts, isClosed) =
             solver.Solve(maxIter)
         with _ ->
             () // keep whatever state the optimizer had when it stopped
+
+        // Post-solve symmetrisation for closed smooth curves.
+        // MathNet NelderMeadSimplex breaks symmetry: perturbing parameter i ≠ perturbing
+        // parameter j even when both represent mirror-symmetric free coords, because
+        // floating-point summation order in computeErr differs between segments.  This
+        // causes the solver to converge to an asymmetric local minimum (e.g. O left-y ≠ right-y).
+        // Fix: detect mirror-symmetric free-coord pairs (same free axis, fixed counterpart
+        // equidistant from the fixed-coord centroid), average them, and re-solve from the
+        // symmetric position with positions frozen so only tangents/handles are re-optimised.
+        if solverIsClosed then
+            let pts = solver.points()
+            let n = innerPts.Length - 1  // actual point count; pts[n] duplicates pts[0]
+
+            // Centroid of fixed x coords and fixed y coords separately
+            let mutable sumX = 0.0
+            let mutable cntX = 0
+            let mutable sumY = 0.0
+            let mutable cntY = 0
+
+            for i in 0 .. n - 1 do
+                if not pts.[i].fit_x then
+                    sumX <- sumX + pts.[i].x
+                    cntX <- cntX + 1
+
+                if not pts.[i].fit_y then
+                    sumY <- sumY + pts.[i].y
+                    cntY <- cntY + 1
+
+            if cntX > 0 && cntY > 0 then
+                let cx = sumX / float cntX
+                let cy = sumY / float cntY
+                let mirrorTol = 1e-4
+                let mutable symmetrized = false
+
+                for i in 0 .. n - 1 do
+                    for j in i + 1 .. n - 1 do
+                        let pi = pts.[i]
+                        let pj = pts.[j]
+
+                        // Free-y pair whose fixed-x coords are mirror-symmetric about cx
+                        if pi.fit_y && pj.fit_y && (not pi.fit_x) && (not pj.fit_x) then
+                            if abs (pi.x + pj.x - 2.0 * cx) < mirrorTol then
+                                let avg = (pi.y + pj.y) / 2.0
+                                pts.[i].y <- avg
+                                pts.[j].y <- avg
+                                symmetrized <- true
+
+                        // Free-x pair whose fixed-y coords are mirror-symmetric about cy
+                        if pi.fit_x && pj.fit_x && (not pi.fit_y) && (not pj.fit_y) then
+                            if abs (pi.y + pj.y - 2.0 * cy) < mirrorTol then
+                                let avg = (pi.x + pj.x) / 2.0
+                                pts.[i].x <- avg
+                                pts.[j].x <- avg
+                                symmetrized <- true
+
+                if symmetrized then
+                    // Sync the duplicate last point
+                    pts.[n].x <- pts.[0].x
+                    pts.[n].y <- pts.[0].y
+                    // Freeze positions; re-solve only for tangents and handles
+                    let savedFitX = Array.init n (fun i -> pts.[i].fit_x)
+                    let savedFitY = Array.init n (fun i -> pts.[i].fit_y)
+
+                    for i in 0 .. n - 1 do
+                        pts.[i].fit_x <- false
+                        pts.[i].fit_y <- false
+
+                    try
+                        solver.Solve(min maxIter 200)
+                    with _ ->
+                        ()
+
+                    for i in 0 .. n - 1 do
+                        pts.[i].fit_x <- savedFitX.[i]
+                        pts.[i].fit_y <- savedFitY.[i]
 
         solver
 

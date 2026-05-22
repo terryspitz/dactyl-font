@@ -983,3 +983,81 @@ type FlatnessTests() =
         printfn "flatness=100.0 top-x=%.2f" xHigh
         Assert.That(abs (xLow - xHigh), Is.GreaterThan(5.0),
             sprintf "Flatness should move top-x by >5 units (got %.2f vs %.2f)" xLow xHigh)
+
+    [<Test>]
+    member _.SolveIsTranslationInvariant() =
+        // The same curve solved at two different absolute positions must produce
+        // the same SHAPE. charToElem translates glyphs by (thickness,thickness)
+        // before solving, so any position-dependence makes the Font tab diverge
+        // from the Splines tab.
+        match GlyphStringDefs.parse_curve metrics "xor~x(c)~(xb)l~b(c)~bor" false with
+        | Curve(knots, isClosed) ->
+            let solveAt dx dy =
+                let shifted =
+                    knots
+                    |> List.map (fun k ->
+                        { k with pt = { k.pt with x = k.pt.x + dx; y = k.pt.y + dy } })
+                let ctrlPts = knotsToDcps shifted
+                let spline = DactylSpline(ctrlPts, isClosed)
+                spline.solveAndGetPoints(500, 0.5, false)
+            let basePts = solveAt 0.0 0.0
+            let shiftPts = solveAt 30.0 30.0
+            // Compare free top-x relative to the left edge (pt2.x), which is fixed.
+            let baseTopRel  = basePts.[1].x  - basePts.[2].x
+            let shiftTopRel = shiftPts.[1].x - shiftPts.[2].x
+            printfn "untranslated  top-x relative = %.2f" baseTopRel
+            printfn "translated+30 top-x relative = %.2f" shiftTopRel
+            Assert.That(abs (baseTopRel - shiftTopRel), Is.LessThan(2.0),
+                sprintf "Solve must be translation-invariant: relative top-x differs by %.1f"
+                    (abs (baseTopRel - shiftTopRel)))
+        | _ -> failwith "expected Curve"
+
+    [<Test; Explicit("Diagnostic: print C/c/O/o solved backbone for symmetry inspection")>]
+    member _.PrintSymmetryBackbones() =
+        for iters in [| 500; 1000; 2000; 5000 |] do
+            let font = Font.Font({ Axes.DefaultAxes with dactyl_spline = true; outline = true; max_spline_iter = iters })
+            printfn "=== max_spline_iter = %d ===" iters
+            for ch in [ 'C'; 'O' ] do
+                let pts = font.charToSolvedBackbonePoints ch
+                printfn "  '%c': %s" ch
+                    (pts |> List.map (fun (x, y) -> sprintf "(%.1f,%.1f)" x y) |> String.concat " ")
+
+    [<Test; Explicit("Diagnostic: render 'c' from Splines-tab path and Font-tab path to SVG files")>]
+    member _.RenderBothPathsToSvg() =
+        let wrap (color: string) (fill: string) (body: string) =
+            sprintf "<svg xmlns='http://www.w3.org/2000/svg' viewBox='-80 -80 520 580'>\n\
+                     <g transform='matrix(1 0 0 -1 0 440)'>\n\
+                     <path d='%s' fill='%s' stroke='%s' stroke-width='3'/>\n\
+                     </g></svg>" body fill color
+
+        // --- Splines-tab path: solveSplineEditor — backbone only, flatness=1.0, 1000 iters ---
+        match GlyphStringDefs.parse_curve metrics "xor~x(c)~(xb)l~b(c)~bor" false with
+        | Curve(knots, isClosed) ->
+            let ctrlPts = knotsToDcps knots
+            let spline = DactylSpline(ctrlPts, isClosed)
+            let _, pathSvg, _, _ = spline.solveAndRenderFull(1000, 1.0, false, false, false)
+            let body = String.concat " " pathSvg
+            System.IO.File.WriteAllText("/tmp/c_splines_backbone.svg", wrap "blue" "none" body)
+            printfn "Splines backbone path: %s" body
+        | _ -> failwith "expected Curve"
+
+        // --- Font-tab path: CharToOutline — full stroked outline, axes.flatness, max_spline_iter ---
+        let axes = { Axes.DefaultAxes with max_spline_iter = 500 }
+        let font = Font.Font(axes)
+        let outline = font.CharToOutline 'c'
+        let svg, _, _ = font.elementToSvg outline
+        let body = String.concat " " svg
+        System.IO.File.WriteAllText("/tmp/c_font_outline.svg", wrap "black" "#00000030" body)
+        printfn "Font outline path: %s" body
+
+        // --- Splines-tab outline (getSplineOutlinePath equivalent): same as Font path? ---
+        match GlyphStringDefs.parse_curve metrics "xor~x(c)~(xb)l~b(c)~bor" false with
+        | Curve(knots, isClosed) ->
+            let outlineFont = Font.Font({ axes with outline = true; filled = true; dactyl_spline = true })
+            let outline2 = outlineFont.getDactylSansOutlines (Curve(knots, isClosed))
+            let svg2, _, _ = outlineFont.elementToSvg outline2
+            let body2 = String.concat " " svg2
+            System.IO.File.WriteAllText("/tmp/c_splines_outline.svg", wrap "green" "#00800030" body2)
+            printfn "Splines outline path: %s" body2
+        | _ -> failwith "expected Curve"
+
