@@ -274,7 +274,7 @@ let computeCurvatureData (bezPts: BezierPoint array) (isClosed: bool) =
         arcLen <- arcLen + segArcLen
     {| segments = segments.ToArray() |}
 
-type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug: bool) =
+type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, endWeight: float, debug: bool) =
     let _points: BezierPoint array = Array.init ctrlPts.Length (fun _ -> BezierPoint())
     let STEPS = 8
     let _ks = Array.create (STEPS + 1) 0.0
@@ -607,9 +607,12 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     // 2. Penalty for high curvature variation (flatness).
                     //    Linear base term: small consistent gradient across all curvature levels.
                     totalErr <- totalErr + abs m * flatness
-                    //    Quadratic additional term: 3× weight on all segments.
+                    //    Quadratic additional term: endWeight on open-curve endpoint segments,
+                    //    3× on all others (interior segments and closed curves).
                     let curvatureSpan = m * max_dist
-                    let curvatureWeight = 3.0
+                    let curvatureWeight =
+                        if not isClosed && (i = 0 || i = _points.Length - 2) then endWeight
+                        else 3.0
                     totalErr <- totalErr + curvatureSpan * curvatureSpan * curvatureWeight * flatness
 
                     // Calculate start and end curvature for continuity
@@ -901,10 +904,10 @@ type DactylSpline(ctrlPts, isClosed) =
 
     /// Construct and solve a Solver for the given inner points.
     /// If the optimizer hits its iteration limit the best-so-far state is kept (no exception).
-    member this.solveSection(innerPts: DControlPoint list, length: int, maxIter, flatness, debug) =
+    member this.solveSection(innerPts: DControlPoint list, length: int, maxIter, flatness, endWeight, debug) =
         let solverIsClosed = isClosed && innerPts.Length - 1 = length
         let solver =
-            Solver(Array.ofList innerPts, solverIsClosed, flatness, debug)
+            Solver(Array.ofList innerPts, solverIsClosed, flatness, endWeight, debug)
 
         solver.initialise ()
 
@@ -1010,7 +1013,7 @@ type DactylSpline(ctrlPts, isClosed) =
 
         solver
 
-    member this.solveAndGetPoints(maxIter, flatness, debug) : BezierPoint[] =
+    member this.solveAndGetPoints(maxIter, flatness, endWeight, debug) : BezierPoint[] =
         /// Returns one BezierPoint per ctrlPts entry with solved x, y, th values.
         let length = ctrlPts.Length - if isClosed then 0 else 1
 
@@ -1095,7 +1098,7 @@ type DactylSpline(ctrlPts, isClosed) =
             else
                 let innerPts, j = this.collectCurveSection (i, startIdx + length)
 
-                let solver = this.solveSection (innerPts, length, maxIter, flatness, debug)
+                let solver = this.solveSection (innerPts, length, maxIter, flatness, endWeight, debug)
                 let bezPts = solver.points ()
 
                 // Copy solver results back.
@@ -1278,12 +1281,12 @@ type DactylSpline(ctrlPts, isClosed) =
 
         (path.tostringlist (), combPath.tostringlist (), tangentPath.tostringlist ())
 
-    member this.solveAndRenderSvg(maxIter, flatness, debug, showComb, showTangents) =
-        let bezPts = this.solveAndGetPoints (maxIter, flatness, debug)
+    member this.solveAndRenderSvg(maxIter, flatness, endWeight, debug, showComb, showTangents) =
+        let bezPts = this.solveAndGetPoints (maxIter, flatness, endWeight, debug)
         this.renderFromPoints(bezPts, showComb, showTangents)
 
-    member this.solveAndRenderFull(maxIter, flatness, debug, showComb, showTangents) =
-        let bezPts = this.solveAndGetPoints (maxIter, flatness, debug)
+    member this.solveAndRenderFull(maxIter, flatness, endWeight, debug, showComb, showTangents) =
+        let bezPts = this.solveAndGetPoints (maxIter, flatness, endWeight, debug)
         let pathSvg, combSvg, tangentSvg = this.renderFromPoints(bezPts, showComb, showTangents)
         (bezPts, pathSvg, combSvg, tangentSvg)
 

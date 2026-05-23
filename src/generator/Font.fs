@@ -350,6 +350,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             spline.solveAndRenderSvg (
                 axes.max_spline_iter,
                 axes.flatness,
+                axes.end_flatness,
                 debug = axes.debug,
                 showComb = showComb,
                 showTangents = axes.show_tangents
@@ -1105,7 +1106,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             let spline = DactylSpline(ctrlPts, isClosed)
 
             let bezPts =
-                spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.debug)
+                spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.end_flatness, axes.debug)
 
             let n = bezPts.Length
 
@@ -1474,7 +1475,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             | Curve(pts, isClosed) ->
                 let ctrlPts = toDactylSplineControlPoints pts
                 let spline = DactylSpline(ctrlPts, isClosed)
-                let bezPts = spline.solveAndGetPoints(axes.max_spline_iter, axes.flatness, false)
+                let bezPts = spline.solveAndGetPoints(axes.max_spline_iter, axes.flatness, axes.end_flatness, false)
                 bezPts |> Array.toList |> List.map (fun bp -> bp.x, bp.y)
             | EList(elems) -> List.collect collect elems
             | _ -> []

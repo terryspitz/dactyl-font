@@ -26,7 +26,7 @@ let pointToDcp (p: Point) =
 type TestClass() =
 
     let solve_and_print_spline (spline: DactylSpline) =
-        let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, false, false, false)
+        let svg, _, _ = spline.solveAndRenderSvg(max_iter, 1.0, 10.0, false, false, false)
         let svg = (String.Join(" ", svg))
         printfn "%A" svg
         svg.Trim()
@@ -155,10 +155,10 @@ type TestClass() =
             )
 
         let svgFlat0 =
-            let svg, _, _ = spline.solveAndRenderSvg (5000, 0.0, false, false, false) in svg |> String.concat " "
+            let svg, _, _ = spline.solveAndRenderSvg(5000, 0.0, 10.0, false, false, false) in svg |> String.concat " "
 
         let svgFlat10 =
-            let svg, _, _ = spline.solveAndRenderSvg (5000, 1000.0, false, false, false) in svg |> String.concat " "
+            let svg, _, _ = spline.solveAndRenderSvg(5000, 1000.0, 10.0, false, false, false) in svg |> String.concat " "
 
         printfn "Flatness 0.0: %s" svgFlat0
         printfn "Flatness 10.0: %s" svgFlat10
@@ -176,7 +176,7 @@ type TestClass() =
                dcp SplinePointType.Corner 1. 0. (Some PI) |]
 
         let spline = DactylSpline(ctrlPts, false)
-        let bezPts = spline.solveAndGetPoints(max_iter, 1.0, false)
+        let bezPts = spline.solveAndGetPoints(max_iter, 1.0, 10.0, false)
         
         // check that th_in at the end is 0 (East), after being flipped from PI (West)
         Assert.That(bezPts.[1].th_in, Is.EqualTo(0.0).Within(1e-10))
@@ -192,7 +192,7 @@ type TestClass() =
                dcp SplinePointType.Corner 1. 0. None |]
 
         let splineStart = DactylSpline(ctrlPtsStart, false)
-        let bezPtsStart = splineStart.solveAndGetPoints(max_iter, 1.0, false)
+        let bezPtsStart = splineStart.solveAndGetPoints(max_iter, 1.0, 10.0, false)
         
         Assert.That(bezPtsStart.[0].th_out, Is.EqualTo(0.0).Within(1e-10))
         let rpt = bezPtsStart.[0].rpt()
@@ -209,7 +209,7 @@ type TestClass() =
                dcp SplinePointType.Corner 255. 630. (Some PI) |]
 
         let spline = DactylSpline(ctrlPts, false)
-        let bezPts = spline.solveAndGetPoints(500, 1.0, true)
+        let bezPts = spline.solveAndGetPoints(500, 1.0, 10.0, true)
         
         // Point 0 (xtllc) should NOT be flipped. It should point North.
         Assert.That(bezPts.[0].th_out, Is.EqualTo(PI / 2.0).Within(1e-10), "xtllc should point North")
@@ -226,7 +226,7 @@ type TestClass() =
                dcp SplinePointType.Corner 255. 630. (Some PI) |]
 
         let spline = DactylSpline(ctrlPts, false)
-        let bezPts = spline.solveAndGetPoints(500, 1.0, true)
+        let bezPts = spline.solveAndGetPoints(500, 1.0, 10.0, true)
         
         // xtllc (pt 1) should point North (from stem line)
         Assert.That(bezPts.[1].th_in, Is.EqualTo(PI / 2.0).Within(1e-10), "xtllc in should be North")
@@ -302,7 +302,7 @@ type SolverTests() =
                dcp SplinePointType.Smooth 1. 0. None
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 1.0, false)
+        let solver = Solver(ctrlPts, false, 1.0, 10.0, false)
         solver.initialise ()
         let err = solver.computeErr ()
         Assert.That(err, Is.EqualTo(0.0).Within(1e-9))
@@ -314,7 +314,7 @@ type SolverTests() =
                dcp SplinePointType.Smooth 1. 1. None
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 1.0, false)
+        let solver = Solver(ctrlPts, false, 1.0, 10.0, false)
         solver.initialise ()
         let err = solver.computeErr ()
         Assert.That(err, Is.GreaterThan(0.0))
@@ -334,7 +334,7 @@ type VariablePointTests() =
                  th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 10.0, false)
         solver.initialise ()
 
         let initialPts = solver.points ()
@@ -357,7 +357,7 @@ type VariablePointTests() =
                  th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 10.0, false)
         solver.initialise ()
         solver.Solve 5000
         let pts = solver.points ()
@@ -376,7 +376,7 @@ type VariablePointTests() =
                  th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 10.0, false)
         solver.initialise ()
         solver.Solve(5000)
         let pts = solver.points ()
@@ -398,7 +398,7 @@ type AdvancedGeometricTests() =
                dcp SplinePointType.Smooth s45 s45 None
                dcp SplinePointType.Smooth 0. 1. (Some(PI)) |] // Tangent left
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 10.0, false)
         solver.initialise ()
         solver.Solve(5000)
 
@@ -434,7 +434,7 @@ type AdvancedGeometricTests() =
                  th_in = Some 0.0
                  th_out = Some 0.0 } |]
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 10.0, false)
         solver.initialise ()
         solver.Solve(5000)
 
@@ -460,7 +460,7 @@ type AdvancedGeometricTests() =
                dcp SplinePointType.Smooth 0. 0. None
                dcp SplinePointType.Smooth 1. 1. None |]
 
-        let solverFixed = Solver(ctrlPtsFixed, false, 1.0, false)
+        let solverFixed = Solver(ctrlPtsFixed, false, 1.0, 10.0, false)
         solverFixed.initialise ()
         solverFixed.Solve(5000)
         let ptsFixed = solverFixed.points ()
@@ -476,7 +476,7 @@ type AdvancedGeometricTests() =
                  th_out = None }
                dcp SplinePointType.Smooth 1. 1. None |]
 
-        let solverOpt = Solver(ctrlPtsOpt, false, 1.0, false)
+        let solverOpt = Solver(ctrlPtsOpt, false, 1.0, 10.0, false)
         solverOpt.initialise ()
         solverOpt.Solve(500) // Lower iter for faster test, should be enough to move
         let ptsOpt = solverOpt.points ()
@@ -493,7 +493,7 @@ type AdvancedGeometricTests() =
 [<TestFixture>]
 type LineToCurveTests() =
     let solve_and_print_spline (spline: DactylSpline) =
-        let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, false, false, false)
+        let svg, _, _ = spline.solveAndRenderSvg(max_iter, 1.0, 10.0, false, false, false)
         let svg = (String.Join(" ", svg))
         printfn "%A" svg
         svg.Trim()
@@ -535,7 +535,7 @@ type LineToCurveTests() =
 
         let spline = DactylSpline(ctrlPts, false)
         let svg = solve_and_print_spline spline
-        let bezPts, _, _, _ = spline.solveAndRenderFull(max_iter, 1.0, false, false, false)
+        let bezPts, _, _, _ = spline.solveAndRenderFull(max_iter, 1.0, 10.0, false, false, false)
         printfn "bezPts: %A" (bezPts |> Array.map (fun bp -> sprintf "ld=%.2f rd=%.2f" bp.ld bp.rd))
         // First segment should be a line (horizontal)
         Assert.That(svg, Does.Match("L 250(\.0+)?,50(\.0+)?"), "First segment Corner→LineToCurve should be a line")
@@ -553,7 +553,7 @@ type LineToCurveTests() =
 
         let spline = DactylSpline(ctrlPts, true)
         let svg = solve_and_print_spline spline
-        let bezPts, _, _, _ = spline.solveAndRenderFull(max_iter, 1.0, false, false, false)
+        let bezPts, _, _, _ = spline.solveAndRenderFull(max_iter, 1.0, 10.0, false, false, false)
         printfn "bezPts: %A" (bezPts |> Array.map (fun bp -> sprintf "ld=%.2f rd=%.2f" bp.ld bp.rd))
         // First segment should be a line (horizontal)
         Assert.That(svg, Does.Match("L 250(\.0+)?,50(\.0+)?"), "First segment Corner→LineToCurve should be a line")
@@ -592,7 +592,7 @@ type LineToCurveTests() =
                                 dcp types.[i] x y th)
                         try
                             let spline = DactylSpline(pts, isClosed)
-                            let bezPts, _, _, _ = spline.solveAndRenderFull(200, 1.0, false, false, false)
+                            let bezPts, _, _, _ = spline.solveAndRenderFull(200, 1.0, 10.0, false, false, false)
 
                             // Arm divergence check
                             let armOk = bezPts |> Array.forall (fun bp -> abs bp.ld < 1e5 && abs bp.rd < 1e5)
@@ -638,7 +638,7 @@ type LineToCurveTests() =
                dcp SplinePointType.Smooth 250. 50. None
                dcp SplinePointType.LineToCurve 150. 200. None |]
         let spline = DactylSpline(ctrlPts, true)
-        let bezPts, _, _, _ = spline.solveAndRenderFull(500, 1.0, false, false, false)
+        let bezPts, _, _, _ = spline.solveAndRenderFull(500, 1.0, 10.0, false, false, false)
         // P0 must be G1: th_in = th_out (same tangent, no kink)
         let p0 = bezPts.[0]
         let angleDiff = abs (norm (p0.th_in - p0.th_out))
@@ -656,7 +656,7 @@ type LineToCurveTests() =
                dcp SplinePointType.Smooth 250. 50. None
                dcp SplinePointType.CurveToLine 150. 200. None |]
         let spline = DactylSpline(ctrlPts, true)
-        let bezPts, _, _, _ = spline.solveAndRenderFull(500, 1.0, false, false, false)
+        let bezPts, _, _, _ = spline.solveAndRenderFull(500, 1.0, 10.0, false, false, false)
         // Arms must not blow up (solver must be stable)
         let p0 = bezPts.[0]
         let maxArm = bezPts |> Array.map (fun bp -> max (abs bp.ld) (abs bp.rd)) |> Array.max
@@ -701,7 +701,7 @@ type IntegrationTests() =
         // Fixed points at (0,1000) and (1000,1000) y.
         // Middle point nominal x=0 (left), y=0 (bottom).
         // Solver should move x towards 500 (center) to minimize curvature of (0,1000)->(x,0)->(1000,1000).
-        let solver = Solver([| cp1; cp2; cp3 |], false, 1.0, false)
+        let solver = Solver([| cp1; cp2; cp3 |], false, 1.0, 10.0, false)
         solver.initialise ()
 
         solver.Solve(2000)
@@ -734,7 +734,7 @@ type IntegrationTests() =
         // Check initial assumptions
         Assert.That(cp3.x, Is.EqualTo(None), "Middle point x should be optional")
 
-        let solver = Solver([| cp1; cp2; cp3; cp4 |], false, 1.0, false)
+        let solver = Solver([| cp1; cp2; cp3; cp4 |], false, 1.0, 10.0, false)
         solver.initialise ()
 
         // Solve; use best-so-far if max iterations reached (mirrors solveSection behaviour)
@@ -805,7 +805,7 @@ type IntegrationTests() =
             { pointToDcp p5 with
                 ty = SplinePointType.Corner }
 
-        let solver = Solver([| cp1; cp2; cp3; cp4; cp5 |], false, 1.0, false)
+        let solver = Solver([| cp1; cp2; cp3; cp4; cp5 |], false, 1.0, 10.0, false)
         solver.initialise ()
         // Use best-so-far if max iterations reached (mirrors solveSection behaviour)
         try solver.Solve(10000) with _ -> ()
@@ -844,7 +844,7 @@ type IntegrationTests() =
                  x = Some 1000.; y = Some 500.
                  th_in = Some(System.Math.PI / 2.0); th_out = Some(System.Math.PI / 2.0) } |]
 
-        let solver3 = Solver(ctrlPts3, false, 1.0, false)
+        let solver3 = Solver(ctrlPts3, false, 1.0, 10.0, false)
         solver3.initialise ()
         try solver3.Solve(5000) with _ -> ()
         let x3 = solver3.points().[1].x
@@ -881,7 +881,7 @@ type BracketFittingTests() =
         | Curve(knots, isClosed) ->
             let ctrlPts = knotsToDcps knots
             let spline = DactylSpline(ctrlPts, isClosed)
-            spline.solveAndGetPoints(max_iter, 1.0, false)
+            spline.solveAndGetPoints(max_iter, 1.0, 10.0, false)
         | _ -> failwith "expected Curve element"
 
     [<Test>]
@@ -934,7 +934,7 @@ type FlatnessTests() =
         | Curve(knots, isClosed) ->
             let ctrlPts = knotsToDcps knots
             let spline = DactylSpline(ctrlPts, isClosed)
-            spline.solveAndGetPoints(iters, flatness, false)
+            spline.solveAndGetPoints(iters, flatness, 10.0, false)
         | _ -> failwith "expected Curve"
 
     let solveCWithFlatness flatness = solveCWithFlatnessAndIter flatness 500
@@ -999,7 +999,7 @@ type FlatnessTests() =
                         { k with pt = { k.pt with x = k.pt.x + dx; y = k.pt.y + dy } })
                 let ctrlPts = knotsToDcps shifted
                 let spline = DactylSpline(ctrlPts, isClosed)
-                spline.solveAndGetPoints(500, 0.5, false)
+                spline.solveAndGetPoints(500, 0.5, 10.0, false)
             let basePts = solveAt 0.0 0.0
             let shiftPts = solveAt 30.0 30.0
             // Compare free top-x relative to the left edge (pt2.x), which is fixed.
@@ -1037,7 +1037,7 @@ type FlatnessTests() =
         | Curve(knots, isClosed) ->
             let ctrlPts = knotsToDcps knots
             let spline = DactylSpline(ctrlPts, isClosed)
-            let _, pathSvg, _, _ = spline.solveAndRenderFull(1000, 1.0, false, false, false)
+            let _, pathSvg, _, _ = spline.solveAndRenderFull(1000, 1.0, 10.0, false, false, false)
             let body = String.concat " " pathSvg
             System.IO.File.WriteAllText("/tmp/c_splines_backbone.svg", wrap "blue" "none" body)
             printfn "Splines backbone path: %s" body
