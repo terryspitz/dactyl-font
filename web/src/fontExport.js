@@ -43,7 +43,7 @@ export function parseSvgPath(pathData) {
  * values go up), which matches the opentype.js coordinate convention directly.
  */
 function buildFont(glyphData, familyName = 'Dactyl') {
-  const { glyphs: glyphsData, ascender, descender, unitsPerEm } = glyphData
+  const { glyphs: glyphsData, ascender, descender, unitsPerEm, kerningPairs } = glyphData
 
   const notdef = new opentype.Glyph({
     name: '.notdef',
@@ -76,7 +76,7 @@ function buildFont(glyphData, familyName = 'Dactyl') {
       }),
   ]
 
-  return new opentype.Font({
+  const font = new opentype.Font({
     familyName,
     styleName: 'Regular',
     unitsPerEm: Math.round(unitsPerEm),
@@ -84,6 +84,21 @@ function buildFont(glyphData, familyName = 'Dactyl') {
     descender: Math.round(descender),
     glyphs,
   })
+
+  // Emit the pair-kern overrides as a `kern` table. opentype.js keys
+  // kerningPairs by "leftGlyphIndex,rightGlyphIndex"; we map from unicode
+  // via charToGlyphIndex. Pairs whose chars aren't in the font are dropped.
+  if (kerningPairs && kerningPairs.length) {
+    const pairs = {}
+    for (const kp of kerningPairs) {
+      const li = font.charToGlyphIndex(String.fromCodePoint(kp.left))
+      const ri = font.charToGlyphIndex(String.fromCodePoint(kp.right))
+      if (li > 0 && ri > 0) pairs[`${li},${ri}`] = Math.round(kp.value)
+    }
+    font.kerningPairs = pairs
+  }
+
+  return font
 }
 
 /**
