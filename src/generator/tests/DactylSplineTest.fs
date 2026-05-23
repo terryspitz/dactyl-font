@@ -853,3 +853,57 @@ type IntegrationTests() =
         // The right junction is higher (500 vs 333), so equal arc lengths put x right of centre.
         Assert.That(x3, Is.GreaterThan(500.0),
             "right junction is higher → equal-arc-length optimum is right of centre")
+
+[<TestFixture>]
+type BracketFittingTests() =
+    let axes = Axes.DefaultAxes
+    let metrics = FontMetrics(axes)
+
+    // Mirrors Font.toDactylSplineControlPoints for G2/Smooth-only open curves.
+    let knotsToDcps (knots: Knot list) : DControlPoint array =
+        knots
+        |> List.map (fun k ->
+            // Use equality on the enum values imported from GeneratorTypes (G2, LineToCurve, CurveToLine)
+            let ty =
+                if k.ty = G2 || k.ty = SpiroPointType.SpiroPointType.G4 then SplinePointType.Smooth
+                elif k.ty = LineToCurve then SplinePointType.LineToCurve
+                elif k.ty = CurveToLine then SplinePointType.CurveToLine
+                else SplinePointType.Corner
+            { ty = ty
+              x = if k.pt.x_fit then None else Some k.pt.x
+              y = if k.pt.y_fit then None else Some k.pt.y
+              th_in = k.th_in
+              th_out = k.th_out })
+        |> Array.ofList
+
+    let solveGlyphCurve (def: string) : BezierPoint array =
+        match GlyphStringDefs.parse_curve metrics def false with
+        | Curve(knots, isClosed) ->
+            let ctrlPts = knotsToDcps knots
+            let spline = DactylSpline(ctrlPts, isClosed)
+            spline.solveAndGetPoints(max_iter, 1.0, false)
+        | _ -> failwith "expected Curve element"
+
+    [<Test>]
+    member _.BracketX_ValueInsideBracketsIsIgnored() =
+        // x(c) and x(cr) both have x_fit=true → DControlPoint.x = None (free variable).
+        // Initialization comes from neighbor average, not the parsed value, so both
+        // produce identical solver inputs and must produce identical solved results.
+        let pts1 = solveGlyphCurve "xor~x(c)~(xb)l~b(c)~bor"
+        let pts2 = solveGlyphCurve "xor~x(cr)~(xb)l~b(c)~bor"
+        // Top point (index 1) x must be the same regardless of c vs cr inside brackets.
+        Assert.That(pts2.[1].x, Is.EqualTo(pts1.[1].x).Within(1e-6),
+            "x(c) and x(cr) should produce identical top-point x — parsed value inside brackets is discarded")
+
+    [<Test>]
+    member _.BracketX_FreesCoordinateFromFixed() =
+        // A free x (None) is optimized; a fixed x stays at its parsed value.
+        // So after solving, "xc" (fixed) should have the top-point x equal to C,
+        // while "x(c)" (free) may differ.
+        let ptsFixed = solveGlyphCurve "xor~xc~(xb)l~bc~bor"
+        let ptsFree  = solveGlyphCurve "xor~x(c)~(xb)l~b(c)~bor"
+        Assert.That(ptsFixed.[1].x, Is.EqualTo(metrics.C).Within(1e-6),
+            "Fixed x=C must stay at C after solving")
+        // The free top-point x must be finite (optimizer ran without error)
+        Assert.That(Double.IsFinite(ptsFree.[1].x), Is.True,
+            "Free top-point x should be finite after solving")
