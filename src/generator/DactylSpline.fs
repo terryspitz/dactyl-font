@@ -860,8 +860,9 @@ type DactylSpline(ctrlPts, isClosed) =
                 for k in 0 .. copyCount - 1 do
                     let resIdx = (i + k) % ctrlPts.Length
 
-                    if Double.IsNaN result.[resIdx].x then
+                    if Double.IsNaN result.[resIdx].x || Double.IsNaN result.[resIdx].y then
                         result.[resIdx].x <- bezPts.[k].x
+                    if Double.IsNaN result.[resIdx].y then
                         result.[resIdx].y <- bezPts.[k].y
 
                     // Selective copy: only update properties relevant for the segment sides this point is on.
