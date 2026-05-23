@@ -19,6 +19,8 @@ let pointToDcp (p: Point) =
     { ty = SplinePointType.Smooth
       x = x_opt
       y = y_opt
+      x_init = if p.x_fit then Some p.x else None
+      y_init = if p.y_fit then Some p.y else None
       th_in = None
       th_out = None }
 
@@ -330,6 +332,7 @@ type VariablePointTests() =
                { ty = SplinePointType.Smooth
                  x = Some 1.
                  y = None
+                 x_init = None; y_init = None
                  th_in = None
                  th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
@@ -353,6 +356,7 @@ type VariablePointTests() =
                { ty = SplinePointType.Smooth
                  x = None
                  y = Some 1.
+                 x_init = None; y_init = None
                  th_in = None
                  th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
@@ -372,6 +376,7 @@ type VariablePointTests() =
                { ty = SplinePointType.Smooth
                  x = None
                  y = None
+                 x_init = None; y_init = None
                  th_in = None
                  th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
@@ -421,16 +426,19 @@ type AdvancedGeometricTests() =
             [| { ty = SplinePointType.Smooth
                  x = Some -1.0
                  y = Some -1.0
+                 x_init = None; y_init = None
                  th_in = Some 0.0
                  th_out = Some 0.0 }
                { ty = SplinePointType.Smooth
                  x = Some 0.0
                  y = Some 0.0
+                 x_init = None; y_init = None
                  th_in = None
                  th_out = None }
                { ty = SplinePointType.Smooth
                  x = Some 1.0
                  y = Some 1.0
+                 x_init = None; y_init = None
                  th_in = Some 0.0
                  th_out = Some 0.0 } |]
 
@@ -472,6 +480,7 @@ type AdvancedGeometricTests() =
                { ty = SplinePointType.Smooth
                  x = Some 0.
                  y = None
+                 x_init = None; y_init = None
                  th_in = None
                  th_out = None }
                dcp SplinePointType.Smooth 1. 1. None |]
@@ -836,12 +845,15 @@ type IntegrationTests() =
         let ctrlPts3 =
             [| { ty = SplinePointType.LineToCurve
                  x = Some 0.; y = Some 333.
+                 x_init = None; y_init = None
                  th_in = Some(-System.Math.PI / 2.0); th_out = Some(-System.Math.PI / 2.0) }
                { ty = SplinePointType.Smooth
                  x = None; y = Some 0.
+                 x_init = None; y_init = None
                  th_in = None; th_out = None }
                { ty = SplinePointType.CurveToLine
                  x = Some 1000.; y = Some 500.
+                 x_init = None; y_init = None
                  th_in = Some(System.Math.PI / 2.0); th_out = Some(System.Math.PI / 2.0) } |]
 
         let solver3 = Solver(ctrlPts3, false, 1.0, false)
@@ -853,3 +865,423 @@ type IntegrationTests() =
         // The right junction is higher (500 vs 333), so equal arc lengths put x right of centre.
         Assert.That(x3, Is.GreaterThan(500.0),
             "right junction is higher → equal-arc-length optimum is right of centre")
+
+[<TestFixture>]
+type BracketFittingTests() =
+    let axes = Axes.DefaultAxes
+    let metrics = FontMetrics(axes)
+
+    // Mirrors Font.toDactylSplineControlPoints for G2/Smooth-only open curves.
+    let knotsToDcps (knots: Knot list) : DControlPoint array =
+        knots
+        |> List.map (fun k ->
+            // Use equality on the enum values imported from GeneratorTypes (G2, LineToCurve, CurveToLine)
+            let ty =
+                if k.ty = G2 || k.ty = SpiroPointType.SpiroPointType.G4 then SplinePointType.Smooth
+                elif k.ty = LineToCurve then SplinePointType.LineToCurve
+                elif k.ty = CurveToLine then SplinePointType.CurveToLine
+                else SplinePointType.Corner
+            { ty = ty
+              x = if k.pt.x_fit then None else Some k.pt.x
+              y = if k.pt.y_fit then None else Some k.pt.y
+              x_init = if k.pt.x_fit then Some k.pt.x else None
+              y_init = if k.pt.y_fit then Some k.pt.y else None
+              th_in = k.th_in
+              th_out = k.th_out })
+        |> Array.ofList
+
+    let solveGlyphCurve (def: string) : BezierPoint array =
+        match GlyphStringDefs.parse_curve metrics def false with
+        | Curve(knots, isClosed) ->
+            let ctrlPts = knotsToDcps knots
+            let spline = DactylSpline(ctrlPts, isClosed)
+            spline.solveAndGetPoints(max_iter, 1.0, false)
+        | _ -> failwith "expected Curve element"
+
+    [<Test>]
+    member _.BracketX_BracketsMarkCoordinateAsFree() =
+        // Both x(c) and x(cr) have x_fit=true → DControlPoint.x = None (free variable).
+        // The bracket value is used as the hint for the initial search position, so
+        // different bracket contents may produce different optimised results.
+        let pts1 = solveGlyphCurve "xor~x(c)~(xb)l~b(c)~bor"
+        let pts2 = solveGlyphCurve "xor~x(cr)~(xb)l~b(c)~bor"
+        // Both should converge to finite values within the glyph bounds.
+        Assert.That(Double.IsFinite(pts1.[1].x), Is.True, "x(c): free top-point x should be finite")
+        Assert.That(Double.IsFinite(pts2.[1].x), Is.True, "x(cr): free top-point x should be finite")
+        Assert.That(pts1.[1].x, Is.InRange(metrics.L - 50.0, metrics.R + 50.0),
+            "x(c): solved x should be within glyph bounds")
+        Assert.That(pts2.[1].x, Is.InRange(metrics.L - 50.0, metrics.R + 50.0),
+            "x(cr): solved x should be within glyph bounds")
+
+    [<Test>]
+    member _.BracketX_FreesCoordinateFromFixed() =
+        // A free x (None) is optimized; a fixed x stays at its parsed value.
+        // So after solving, "xc" (fixed) should have the top-point x equal to C,
+        // while "x(c)" (free) may differ.
+        let ptsFixed = solveGlyphCurve "xor~xc~(xb)l~bc~bor"
+        let ptsFree  = solveGlyphCurve "xor~x(c)~(xb)l~b(c)~bor"
+        Assert.That(ptsFixed.[1].x, Is.EqualTo(metrics.C).Within(1e-6),
+            "Fixed x=C must stay at C after solving")
+        // The free top-point x must be finite (optimizer ran without error)
+        Assert.That(Double.IsFinite(ptsFree.[1].x), Is.True,
+            "Free top-point x should be finite after solving")
+
+    [<Test>]
+    member _.BracketX_WithExplicitTangent_HintGuidesSolverStart() =
+        // x(c)W and x(cr)W both have x_fit=true → DControlPoint.x = None.
+        // The bracket hint initialises the search near C=150 and (C+R)/2=225 respectively.
+        // Both should converge to finite, non-degenerate values well inside the glyph.
+        // (This is the "glyph tab" scenario the user reported.)
+        let pts1 = solveGlyphCurve "xor~x(c)W~xbl~bc~bor"
+        let pts2 = solveGlyphCurve "xor~x(cr)W~xbl~bc~bor"
+        Assert.That(Double.IsFinite(pts1.[1].x), Is.True, "x(c)W: free x should be finite")
+        Assert.That(Double.IsFinite(pts2.[1].x), Is.True, "x(cr)W: free x should be finite")
+        // Neither result should land at the right boundary (degenerate collapsed-segment solution).
+        Assert.That(pts1.[1].x, Is.LessThan(metrics.R - 10.0),
+            "x(c)W: optimised x should not collapse to the right boundary")
+        Assert.That(pts2.[1].x, Is.LessThan(metrics.R - 10.0),
+            "x(cr)W: optimised x should not collapse to the right boundary")
+
+    [<Test>]
+    member _.BracketX_MultiStartConvergesFromAllHints() =
+        // With nonZeroDelta=1.3 the fmin simplex is wide enough to bridge the ~25-unit
+        // bumps in the landscape and find the global minimum (x≈175) from any starting
+        // hint.  All five bracket hints for the 'c' glyph top point should land within
+        // 30 units of each other and well away from the right boundary.
+        //
+        //   hint  raw-x   description
+        //   l       0     left  (zero → zeroDelta fallback → neighbour-avg = C)
+        //   cl     75     centre-left  = (C+L)/2
+        //   c     150     centre
+        //   cr    225     centre-right = (C+R)/2
+        //   r     300     right (near boundary, hardest case)
+        let defs = [
+            "xor~x(l)W~xbl~bc~bor"     // hint = L = 0   → zeroDelta path
+            "xor~x(cl)W~xbl~bc~bor"    // hint = (C+L)/2 = 75
+            "xor~x(c)W~xbl~bc~bor"     // hint = C = 150
+            "xor~x(cr)W~xbl~bc~bor"    // hint = (C+R)/2 = 225
+            "xor~x(r)W~xbl~bc~bor"     // hint = R = 300
+        ]
+        let xs = defs |> List.map (fun d ->
+            let x = (solveGlyphCurve d).[1].x
+            printfn "  %-18s → x = %.1f" d x
+            x)
+        let spread = List.max xs - List.min xs
+        printfn "spread = %.1f" spread
+        for x in xs do
+            Assert.That(Double.IsFinite(x), Is.True, sprintf "x=%g must be finite" x)
+            Assert.That(x, Is.LessThan(metrics.R - 10.0),
+                sprintf "x=%g must not collapse to right boundary" x)
+        Assert.That(spread, Is.LessThan(30.0),
+            sprintf "all hints should converge within 30 units; spread=%.1f, xs=%A" spread xs)
+
+    [<Test; Explicit("Diagnostic: prints objective-function landscape to stdout")>]
+    member _.PlotObjectiveVsTopX() =
+        // Fix the top-point x of 'xor~x(c)W~xbl~bc~bor' at each value in [0..R],
+        // run the solver to optimise everything else, and record the error.
+        // Prints CSV + ASCII bar chart so we can see whether there are multiple local minima.
+        let knots =
+            match GlyphStringDefs.parse_curve metrics "xor~x(c)W~xbl~bc~bor" false with
+            | Curve(ks, _) -> ks | _ -> failwith "parse failed"
+
+        let step = 5
+        let points =
+            [| for xVal in 0 .. step .. int metrics.R do
+                let ctrlPts =
+                    knots
+                    |> List.mapi (fun i k ->
+                        let ty =
+                            if k.ty = G2 || k.ty = SpiroPointType.SpiroPointType.G4 then SplinePointType.Smooth
+                            elif k.ty = LineToCurve then SplinePointType.LineToCurve
+                            elif k.ty = CurveToLine then SplinePointType.CurveToLine
+                            else SplinePointType.Corner
+                        let xOpt = if i = 1 then Some(float xVal) else (if k.pt.x_fit then None else Some k.pt.x)
+                        { ty = ty; x = xOpt; y = Some k.pt.y
+                          x_init = None; y_init = None; th_in = k.th_in; th_out = k.th_out })
+                    |> Array.ofList
+                let solver = Solver(ctrlPts, false, 1.0, false)
+                solver.initialise()
+                // Optimize the free parameters (th, ld, rd) while x is fixed.
+                // The exception-safe path in Solve handles non-convergence gracefully.
+                solver.Solve(max_iter)
+                let err = solver.computeErr()
+                yield (xVal, err) |]
+
+        // CSV
+        printfn "x,err"
+        for (x, e) in points do printfn "%d,%.4f" x e
+
+        // ASCII bar chart (log scale so the huge penalties don't dwarf the interesting range)
+        let finite = points |> Array.filter (snd >> Double.IsFinite)
+        if finite.Length > 0 then
+            let minE = finite |> Array.map snd |> Array.min
+            let maxE = finite |> Array.map snd |> Array.max
+            let barWidth = 60
+            printfn "\n--- objective (log-normalised, min=%.2f max=%.2f) ---" minE maxE
+            for (x, e) in points do
+                let bar =
+                    if not (Double.IsFinite e) then String.replicate barWidth "!"
+                    else
+                        let norm = (log(e + 1.) - log(minE + 1.)) / (log(maxE + 1.) - log(minE + 1.) + 1e-12)
+                        String.replicate (int (norm * float barWidth)) "#"
+                printfn "x=%3d |%-60s| %.2f" x bar e
+
+        Assert.Pass()
+
+[<TestFixture>]
+type FreeCoordSweepDiagnostic() =
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    let knotsToDcps (knots: Knot list) : DControlPoint array =
+        knots |> List.map (fun k ->
+            let ty =
+                if k.ty = G2 || k.ty = SpiroPointType.SpiroPointType.G4 then SplinePointType.Smooth
+                elif k.ty = LineToCurve then SplinePointType.LineToCurve
+                elif k.ty = CurveToLine then SplinePointType.CurveToLine
+                else SplinePointType.Corner
+            { ty = ty
+              x = if k.pt.x_fit then None else Some k.pt.x
+              y = if k.pt.y_fit then None else Some k.pt.y
+              x_init = if k.pt.x_fit then Some k.pt.x else None
+              y_init = if k.pt.y_fit then Some k.pt.y else None
+              th_in = k.th_in; th_out = k.th_out }) |> Array.ofList
+
+    let parseDcps (metrics: FontMetrics) (def: string) =
+        match GlyphStringDefs.parse_curve metrics def false with
+        | Curve(knots, isClosed) -> knotsToDcps knots, isClosed
+        | _ -> failwithf "expected Curve for '%s'" def
+
+    let freeCoords (dcps: DControlPoint array) =
+        [| for i in 0 .. dcps.Length - 1 do
+               if dcps.[i].x.IsNone then yield (i, true,  dcps.[i].x_init)
+               if dcps.[i].y.IsNone then yield (i, false, dcps.[i].y_init) |]
+
+    let neighborMid (dcps: DControlPoint array) (freeIdx: int) (isX: bool) =
+        let getV (cp: DControlPoint) = if isX then cp.x else cp.y
+        let prev = [ for j in freeIdx-1 .. -1 .. 0 do match getV dcps.[j] with Some v -> yield v | None -> () ] |> List.tryHead
+        let next = [ for j in freeIdx+1 .. dcps.Length-1 do match getV dcps.[j] with Some v -> yield v | None -> () ] |> List.tryHead
+        match prev, next with
+        | Some p, Some n -> (p + n) / 2.0
+        | Some p, None -> p | None, Some n -> n | None, None -> 0.0
+
+    let neighborRange (dcps: DControlPoint array) (freeIdx: int) (isX: bool) =
+        let getV (cp: DControlPoint) = if isX then cp.x else cp.y
+        let prev = [ for j in freeIdx-1 .. -1 .. 0 do match getV dcps.[j] with Some v -> yield v | None -> () ] |> List.tryHead
+        let next = [ for j in freeIdx+1 .. dcps.Length-1 do match getV dcps.[j] with Some v -> yield v | None -> () ] |> List.tryHead
+        let mid = neighborMid dcps freeIdx isX
+        let pv = Option.defaultValue mid prev
+        let nv = Option.defaultValue mid next
+        (min pv nv, max pv nv)
+
+    // Fix one coord and run a short solve; returns the error.
+    let quickScore (dcps: DControlPoint array) isClosed freeIdx isX fixedVal nIter =
+        let dcpsCopy = dcps |> Array.mapi (fun j cp ->
+            if j = freeIdx then
+                if isX then { cp with x = Some fixedVal; x_init = None }
+                else         { cp with y = Some fixedVal; y_init = None }
+            else cp)
+        let s = Solver(dcpsCopy, isClosed, 1.0, false)
+        s.initialise(); try s.Solve(nIter) with _ -> ()
+        let e = s.computeErr()
+        if Double.IsFinite e then e else 1e18
+
+    // Set x_init (or y_init) to startHint and run a full solve; returns (finalPos, err).
+    let solveFrom (dcps: DControlPoint array) isClosed freeIdx isX startHint nIter =
+        let dcpsCopy = dcps |> Array.mapi (fun j cp ->
+            if j = freeIdx then
+                if isX then { cp with x_init = Some startHint }
+                else         { cp with y_init = Some startHint }
+            else cp)
+        let s = Solver(dcpsCopy, isClosed, 1.0, false)
+        s.initialise(); try s.Solve(nIter) with _ -> ()
+        let pt = s.points().[freeIdx]
+        let pos = if isX then pt.x else pt.y
+        let e = s.computeErr()
+        (pos, if Double.IsFinite e then e else 1e18)
+
+    // H3: 7-point grid scan, fix coord, short solve each, return best grid value.
+    let heurGridscan (dcps: DControlPoint array) isClosed freeIdx isX =
+        let lo, hi = neighborRange dcps freeIdx isX
+        if abs (hi - lo) < 1.0 then (lo + hi) / 2.0
+        else
+            let mutable bestV = (lo + hi) / 2.0
+            let mutable bestE = 1e18
+            for k in 0 .. 6 do
+                let gv = lo + float k * (hi - lo) / 6.0
+                let e = quickScore dcps isClosed freeIdx isX gv 30
+                if e < bestE then bestE <- e; bestV <- gv
+            bestV
+
+    // H4: try 6 perpendicular offsets from chord midpoint; pick by short solve.
+    let heurArcPerp (dcps: DControlPoint array) isClosed freeIdx isX =
+        let n = Array.length dcps
+        let fullPrev = [ for j in freeIdx-1 .. -1 .. 0 do
+                             match dcps.[j].x, dcps.[j].y with
+                             | Some px, Some py -> yield (px, py) | _ -> () ] |> List.tryHead
+        let fullNext = [ for j in freeIdx+1 .. n-1 do
+                             match dcps.[j].x, dcps.[j].y with
+                             | Some px, Some py -> yield (px, py) | _ -> () ] |> List.tryHead
+        let fallback = neighborMid dcps freeIdx isX
+        match fullPrev, fullNext with
+        | Some (px, py), Some (nx, ny) ->
+            let chLen = sqrt ((nx-px)*(nx-px) + (ny-py)*(ny-py)) + 1e-10
+            let mx = (px + nx) / 2.0
+            let my = (py + ny) / 2.0
+            let perpX = -(ny - py) / chLen
+            let perpY = (nx - px) / chLen
+            let mutable bestV = fallback
+            let mutable bestE = 1e18
+            for sign in [-1.0; 1.0] do
+                for factor in [0.1; 0.2; 0.35] do
+                    let c =
+                        if isX then mx + sign * perpX * chLen * factor
+                        else        my + sign * perpY * chLen * factor
+                    let e = quickScore dcps isClosed freeIdx isX c 20
+                    if e < bestE then
+                        bestE <- e
+                        bestV <- c
+            bestV
+        | _ -> fallback
+
+    // H5: if a neighbor has a non-cardinal tangent, project it onto the free axis.
+    let heurTangentIntersect (dcps: DControlPoint array) freeIdx isX =
+        let n = dcps.Length
+        let fallback = neighborMid dcps freeIdx isX
+        let tryLine (cp: DControlPoint) thOpt =
+            match thOpt, cp.x, cp.y with
+            | Some th, Some px, Some py when abs (cos th) > 0.05 && abs (sin th) > 0.05 ->
+                if isX then
+                    match dcps.[freeIdx].y with
+                    | Some fy ->
+                        let t = (fy - py) / sin th
+                        let v = px + t * cos th
+                        if Double.IsFinite v then Some v else None
+                    | None -> None
+                else
+                    match dcps.[freeIdx].x with
+                    | Some fx ->
+                        let t = (fx - px) / cos th
+                        let v = py + t * sin th
+                        if Double.IsFinite v then Some v else None
+                    | None -> None
+            | _ -> None
+        let p1 = if freeIdx > 0   then tryLine dcps.[freeIdx-1] dcps.[freeIdx-1].th_out else None
+        let p2 = if freeIdx < n-1 then tryLine dcps.[freeIdx+1] dcps.[freeIdx+1].th_in  else None
+        match p1, p2 with
+        | Some v1, Some v2 -> (v1 + v2) / 2.0
+        | Some v, None | None, Some v -> v
+        | None, None -> fallback
+
+    // ── glyph / axis config tables ────────────────────────────────────────────
+
+    let bracketGlyphs = [|
+        ("c",    "xor~x(c)~(xb)l~b(c)~bor")
+        ("o",    "(xb)l~x(c)~(xb)r~b(c)~")
+        ("b",    "bol~b(c)~(xb)r~x(c)~xol")
+        ("0",    "(h)l~t(c)~(h)r~b(c)~")
+        ("3top", "tol~t(c)~(th)r~hc-hllr")
+        ("3bot", "hllr-hc~(bh)r~b(c)~bol")
+        ("6",    "tor~t(c)~(h)l~bbtl~b(c)~bbtr~ttbc~bbtlN")
+        ("8",    "hc~(th)l~t(c)~(th)r~hc~(bh)l~b(c)~(bh)r~")
+        ("S",    "thr~t(c)~(ttb)l~hc~(tbb)r~b(c)~bhl")
+        ("?",    "thl~t(c)~(th)r~hhbc-bbhc")
+        ("u",    "xl-xbl~b(llcr)~bocr")
+    |]
+
+    let axisConfigs =
+        let d = Axes.DefaultAxes
+        [| "default",   d
+           "wide_xh",   { d with x_height = 1.0 }
+           "narrow_xh", { d with x_height = 0.3 }
+           "italic",    { d with italic = 0.8 }
+           "thick",     { d with thickness = 100; contrast = 0.4 } |]
+
+    let tweenWidths = [| 150; 225; 300; 450; 600 |]
+    let hlabels = [| "H1hint"; "H2mid "; "H3scan"; "H4perp"; "H5tang" |]
+
+    // ── core sweep ────────────────────────────────────────────────────────────
+
+    let runGlyph (metrics: FontMetrics) (name: string) (def: string) : (string * float) list list =
+        let (dcps: DControlPoint array), isClosed =
+            try parseDcps metrics def
+            with ex -> printfn "  [parse-error %s: %s]" name ex.Message; [||], false
+        if dcps.Length = 0 then []
+        else
+        let frees = freeCoords dcps
+        [ for (idx, isX, hintOpt) in frees do
+            let hint   = hintOpt |> Option.defaultValue (neighborMid dcps idx isX)
+            let mid    = neighborMid dcps idx isX
+            let scan   = heurGridscan       dcps isClosed idx isX
+            let perp   = heurArcPerp        dcps isClosed idx isX
+            let tang   = heurTangentIntersect dcps idx isX
+            let candidates = [| hint; mid; scan; perp; tang |]
+            let results =
+                Array.map2 (fun lbl cand ->
+                    let (pos, err) = solveFrom dcps isClosed idx isX cand max_iter
+                    printfn "    %-7s %s%d start=%7.1f → pos=%7.1f  err=%12.4f" name (if isX then "x" else "y") idx cand pos err
+                    (lbl, err)) hlabels candidates
+                |> Array.toList
+            yield results ]
+
+    // ── the test ─────────────────────────────────────────────────────────────
+
+    [<Test; Explicit("Diagnostic: free-coord init heuristic sweep across axes and width tweens")>]
+    member _.SweepBracketGlyphsAcrossAxes() =
+        // wins.(hIdx) = (strict_wins, within_1pct, total_cases, rank_sum)
+        let wins  = Array.create 5 0
+        let near1 = Array.create 5 0
+        let total = Array.create 5 0
+        let rankS = Array.create 5 0.0
+
+        let record (caseName: string) (results: (string * float) list) =
+            let errs = results |> List.map snd
+            let best = List.min errs
+            let sorted = errs |> List.sort
+            for (k, (lbl, err)) in List.indexed results do
+                let rank = sorted |> List.findIndex (fun e -> abs (e - err) < 1e-9)
+                wins.[k]  <- wins.[k]  + (if err = best then 1 else 0)
+                near1.[k] <- near1.[k] + (if err <= best * 1.01 + 1e-6 then 1 else 0)
+                total.[k] <- total.[k] + 1
+                rankS.[k] <- rankS.[k] + float (rank + 1)
+
+        // ── phase 1: axis sweep ───────────────────────────────────────────────
+        for (axisName, axes) in axisConfigs do
+            let metrics = FontMetrics(axes)
+            printfn "\n=== axes=%-12s ===" axisName
+            for (name, def) in bracketGlyphs do
+                printfn "  glyph=%s" name
+                let caseResults = runGlyph metrics name def
+                for results in caseResults do
+                    let best = results |> List.map snd |> List.min
+                    for (lbl, err) in results do
+                        let star = if err <= best * 1.01 + 1e-6 then " ←" else ""
+                        printfn "      %-7s err=%10.4f%s" lbl err star
+                    record (sprintf "%s/%s/%s" axisName name "x") results
+
+        // ── phase 2: width tween for 'c' and 'S' ─────────────────────────────
+        for tweenGlyph in [| "c"; "S" |] do
+            let (_, def) = bracketGlyphs |> Array.find (fun (n, _) -> n = tweenGlyph)
+            printfn "\n=== width tween for '%s' ===" tweenGlyph
+            for w in tweenWidths do
+                let axes = { Axes.DefaultAxes with width = w }
+                let metrics = FontMetrics(axes)
+                printfn "  width=%d" w
+                let caseResults = runGlyph metrics tweenGlyph def
+                for results in caseResults do
+                    let best   = results |> List.map snd |> List.min
+                    let winner = results |> List.minBy snd |> fst
+                    let parts  = results |> List.map (fun (l, e) ->
+                        sprintf "%s(%.2f)" (l.Trim()) e)
+                    printfn "    winner=%-7s | %s" winner (String.concat " | " parts)
+
+        // ── summary ───────────────────────────────────────────────────────────
+        printfn "\n=== SUMMARY (axis sweep only) ==="
+        printfn "%-8s  %6s  %8s  %9s  %9s" "heuristic" "wins" "within1%" "cases" "mean-rank"
+        for k in 0 .. 4 do
+            let n = total.[k]
+            printfn "%-8s  %6d  %8d  %9d  %9.2f"
+                (hlabels.[k].Trim()) wins.[k] near1.[k] n
+                (if n > 0 then rankS.[k] / float n else 0.0)
+
+        Assert.Pass()

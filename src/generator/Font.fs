@@ -337,6 +337,8 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                    { ty = ty
                      x = x_opt
                      y = y_opt
+                     x_init = if k.pt.x_fit then Some k.pt.x else None
+                     y_init = if k.pt.y_fit then Some k.pt.y else None
                      th_in = k.th_in
                      th_out = k.th_out } |]
 
