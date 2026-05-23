@@ -39,6 +39,10 @@ type Axes =
       smooth: bool //no corners
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
       flatness: float //weight of flatness (abs m) in objective function
+      sidebearingScale: float //multiplier on the per-glyph thickness sidebearing padding
+      manualKerning: bool //apply hand-tuned pair overrides from Spacing.fs
+      opticalKerning: bool //sample glyph outlines and add optical kern pairs
+      kerningTarget: int //target minimum gap (glyph coord units) for optical kerning
       debug: bool } //show debug info in console
 
     static member DefaultAxes =
@@ -71,6 +75,10 @@ type Axes =
           smooth = false
           clip_rect = true
           flatness = 1.0
+          sidebearingScale = 1.2
+          manualKerning = true
+          opticalKerning = true
+          kerningTarget = 30
           debug = false }
 
     static member controls =
@@ -103,4 +111,8 @@ type Axes =
           "smooth", Checkbox, "default"
           "clip_rect", Checkbox, "debug"
           "flatness", FracRange(0.0, 200.0), "experimental"
+          "sidebearingScale", FracRange(0.0, 2.0), "experimental"
+          "manualKerning", Checkbox, "experimental"
+          "opticalKerning", Checkbox, "experimental"
+          "kerningTarget", Range(0, 100), "experimental"
           "debug", Checkbox, "debug" ]
