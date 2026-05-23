@@ -839,3 +839,29 @@ type KnotSequenceValidationTests() =
         // and the internal pairs (LineToCurve→G2 = curve out / curve in, G2→CurveToLine = curve out / curve in) are valid
         let ks = [ knot LineToCurve 0. 0.; knot G2 1. 0.; knot CurveToLine 2. 0. ]
         Assert.DoesNotThrow(fun () -> validateKnotSequence ks false)
+
+    [<Test>]
+    member _.Flatness_And_EndFlatness_AffectOutput() =
+        // Verify that the flatness and end_flatness axes actually change the solved backbone.
+        // charToSolvedBackbonePoints returns the free-coord knot positions after optimization;
+        // if an axis has no effect these lists will be identical.
+        let baseAxes = { Axes.DefaultAxes with dactyl_spline = true; outline = true }
+
+        let backboneFor (axes: Axes) ch =
+            Font(axes).charToSolvedBackbonePoints ch
+
+        // 1. flatness: vary from 0.0 to 50.0 on 'S' (open curve, many segments)
+        let ptsLowFlat  = backboneFor { baseAxes with flatness =  0.0 } 'S'
+        let ptsHighFlat = backboneFor { baseAxes with flatness = 50.0 } 'S'
+        printfn "flatness=0.0  S backbone: %A" ptsLowFlat
+        printfn "flatness=50.0 S backbone: %A" ptsHighFlat
+        Assert.That(ptsLowFlat, Is.Not.EqualTo(ptsHighFlat),
+            "flatness should change the solved 'S' backbone")
+
+        // 2. end_flatness: vary from 0.5 to 20.0 on 'S'
+        let ptsLowEnd  = backboneFor { baseAxes with end_flatness =  0.5 } 'S'
+        let ptsHighEnd = backboneFor { baseAxes with end_flatness = 20.0 } 'S'
+        printfn "end_flatness=0.5  S backbone: %A" ptsLowEnd
+        printfn "end_flatness=20.0 S backbone: %A" ptsHighEnd
+        Assert.That(ptsLowEnd, Is.Not.EqualTo(ptsHighEnd),
+            "end_flatness should change the solved 'S' backbone")
