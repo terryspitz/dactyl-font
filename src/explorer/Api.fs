@@ -396,9 +396,9 @@ let splineToSpiroPointType (ty: Curves.SplinePointType) =
 
 let computeCurvatureData = DactylSpline.computeCurvatureData
 
-let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (maxIter: int) =
+let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (maxIter: int) (flatness: float) (endWeight: float) =
     let spline = DactylSpline.DactylSpline(ctrlPts, isClosed)
-    let bezPts, pathSvg, combSvg, tangentSvg = spline.solveAndRenderFull(maxIter, 1.0, 10.0, false, true, true)
+    let bezPts, pathSvg, combSvg, tangentSvg = spline.solveAndRenderFull(maxIter, flatness, endWeight, false, true, true)
     {| pathSvg = pathSvg |> String.concat ""
        combSvg = combSvg |> String.concat ""
        tangentSvg = tangentSvg |> String.concat ""
