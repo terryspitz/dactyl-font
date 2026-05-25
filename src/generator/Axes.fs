@@ -39,6 +39,7 @@ type Axes =
       smooth: bool //no corners
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
       flatness: float //weight of flatness (abs m) in objective function
+      end_flatness: float //quadratic curvature-span weight for open-curve endpoint segments (higher = more circular arc at stroke tips)
       debug: bool } //show debug info in console
 
     static member DefaultAxes =
@@ -63,14 +64,15 @@ type Axes =
           outline = true
           stroked = false
           scratches = false
-          max_spline_iter = 100
+          max_spline_iter = 500
           show_knots = false
           show_tangents = false
           joints = true
           constraints = false
           smooth = false
           clip_rect = true
-          flatness = 1.0
+          flatness = 0.5
+          end_flatness = 10.0
           debug = false }
 
     static member controls =
@@ -102,5 +104,6 @@ type Axes =
           "joints", Checkbox, "debug"
           "smooth", Checkbox, "default"
           "clip_rect", Checkbox, "debug"
-          "flatness", FracRange(0.0, 200.0), "experimental"
+          "flatness", FracRange(0.0, 10.0), "experimental"
+          "end_flatness", FracRange(0.0, 30.0), "experimental"
           "debug", Checkbox, "debug" ]

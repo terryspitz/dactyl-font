@@ -350,6 +350,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             spline.solveAndRenderSvg (
                 axes.max_spline_iter,
                 axes.flatness,
+                axes.end_flatness,
                 debug = axes.debug,
                 showComb = showComb,
                 showTangents = axes.show_tangents
@@ -1105,7 +1106,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             let spline = DactylSpline(ctrlPts, isClosed)
 
             let bezPts =
-                spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.debug)
+                spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.end_flatness, axes.debug)
 
             let n = bezPts.Length
 
@@ -1464,4 +1465,20 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         toSvgDocument -margin -margin w h svg
 
     member this.CharToOutline ch = this.charToElem ch |> this.getOutline
+
+    /// Returns the solved backbone (x, y) positions for every Curve in the glyph.
+    /// Uses the DactylSpline solver, so call this with dactyl_spline = true.
+    member this.charToSolvedBackbonePoints ch =
+        let elem = this.charToElem ch
+        let rec collect elem =
+            match elem with
+            | Curve(pts, isClosed) ->
+                let ctrlPts = toDactylSplineControlPoints pts
+                let spline = DactylSpline(ctrlPts, isClosed)
+                let bezPts = spline.solveAndGetPoints(axes.max_spline_iter, axes.flatness, axes.end_flatness, false)
+                bezPts |> Array.toList |> List.map (fun bp -> bp.x, bp.y)
+            | EList(elems) -> List.collect collect elems
+            | _ -> []
+        collect elem
+
     member this.Spline2PtsToSvg pts isClosed = spline2ptsToSvg pts isClosed

@@ -29,7 +29,7 @@ type FontTests() =
 
         let spline = DactylSpline(ctrlPts, true)
         // Should not throw IndexOutOfRangeException
-        let bezPts = spline.solveAndGetPoints (500, 1.0, false)
+        let bezPts = spline.solveAndGetPoints (500, 1.0, 10.0, false)
 
         // Result must have exactly N points, one per control point
         Assert.That(bezPts.Length, Is.EqualTo(ctrlPts.Length), "BezierPoint count must match ctrlPts count")
@@ -566,6 +566,200 @@ type FontTests() =
             sprintf "soft_corners should still add some rounding even with joints (got %d C, baseline %d)" cWithJoints cNoRounding
         )
 
+    [<Test>]
+    member this.O_And_o_Outline_IsHorizontallyAndVerticallySymmetric() =
+        // The 'O' and 'o' glyphs are ovals defined by 4 symmetric knots.
+        // Both the solved backbone bezier points and the stroke-expanded outline knots
+        // must have corresponding mirror points: (2*cx - x, y) horizontally and
+        // (x, 2*cy - y) vertically, where (cx, cy) is the bounding-box centre.
+        let font =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true }
+            )
+
+        // 6.0 rather than 1.0: the DactylSpline Euler-spiral optimum for oval
+        // side-points lands ~1-2 units off the geometric centre, so the
+        // vertical-mirror residual can be up to ~4 units (more for 'o' which is
+        // smaller).  6.0 gives headroom while still catching regressions (the
+        // pre-fix asymmetry was >100 units).
+        let tol = 6.0
+
+        let rec collectOutlinePoints elem =
+            match elem with
+            | Curve(knots, _) -> knots |> List.map (fun k -> k.pt.x, k.pt.y)
+            | EList(elems) -> List.collect collectOutlinePoints elems
+            | _ -> []
+
+        let hasMatch (pts: (float * float) list) px py =
+            pts |> List.exists (fun (x, y) -> abs (x - px) < tol && abs (y - py) < tol)
+
+        let checkSymmetry (label: string) (pts: (float * float) list) =
+            Assert.That(pts, Is.Not.Empty, sprintf "%s should have points" label)
+            let xs = pts |> List.map fst
+            let ys = pts |> List.map snd
+            let cx = (List.min xs + List.max xs) / 2.0
+            let cy = (List.min ys + List.max ys) / 2.0
+            for (x, y) in pts do
+                let mx = 2.0 * cx - x
+                Assert.That(
+                    hasMatch pts mx y,
+                    Is.True,
+                    sprintf "%s: (%.2f, %.2f) has no horizontal mirror at (%.2f, %.2f)" label x y mx y
+                )
+                let my = 2.0 * cy - y
+                Assert.That(
+                    hasMatch pts x my,
+                    Is.True,
+                    sprintf "%s: (%.2f, %.2f) has no vertical mirror at (%.2f, %.2f)" label x y x my
+                )
+
+        for ch in [ 'O'; 'o' ] do
+            // Test backbone bezier points (solved positions, pre-stroke)
+            let backbonePts = font.charToSolvedBackbonePoints ch
+            checkSymmetry (sprintf "'%c' backbone" ch) backbonePts
+
+            // Test stroke-expanded outline knots
+            let outline = font.CharToOutline ch
+            let outlinePts = collectOutlinePoints outline
+            checkSymmetry (sprintf "'%c' outline" ch) outlinePts
+
+    [<Test>]
+    member this.C_And_c_Backbone_ArmTipsAreAtSimilarX() =
+        // 'C' and 'c' are open arcs. The DactylSpline Euler-spiral optimum for the
+        // left-side free point does NOT land exactly at cy, so full vertical-mirror
+        // symmetry is not a meaningful invariant.  What IS meaningful is that the
+        // top-arm tip and bottom-arm tip reach roughly the same x extent, i.e. the
+        // arc is not lopsided.  For the default axes the two arm-tip x values differ
+        // by ~7 units; we allow up to 30 units before calling it a regression.
+        let font =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true }
+            )
+
+        let armTipTol = 30.0
+
+        for ch in [ 'C'; 'c' ] do
+            let pts = font.charToSolvedBackbonePoints ch
+
+            Assert.That(pts, Is.Not.Empty, sprintf "'%c' backbone should have points" ch)
+
+            // pts is ordered along the open arc: pt0=top-right, pt1=top-arm, pt2=left,
+            // pt3=bottom-arm, pt4=bottom-right (5 points for default axes).
+            // Arm tips are index 1 (top) and index 3 (bottom).
+            match List.tryItem 1 pts, List.tryItem 3 pts with
+            | Some (x1, _), Some (x3, _) ->
+                Assert.That(
+                    abs (x1 - x3),
+                    Is.LessThan(armTipTol),
+                    sprintf "'%c' arm-tip x values differ too much: top=%.2f bottom=%.2f diff=%.2f" ch x1 x3 (abs (x1 - x3))
+                )
+            | _ ->
+                Assert.Fail(sprintf "'%c' backbone has fewer than 4 points" ch)
+
+    // ── Helpers shared by the symmetry tests below ────────────────────────────
+
+    member private this.makeFont() =
+        Font.Font({ Axes.DefaultAxes with dactyl_spline = true; outline = true })
+
+    member private this.hasLRMirror (pts: (float * float) list) cx tol (x, y) =
+        let mx = 2.0 * cx - x
+        pts |> List.exists (fun (px, py) -> abs (px - mx) < tol && abs (py - y) < tol)
+
+    member private this.isFullyLRSymmetric (pts: (float * float) list) tol =
+        if pts.IsEmpty then true
+        else
+            let xs = pts |> List.map fst
+            let cx = (List.min xs + List.max xs) / 2.0
+            pts |> List.forall (this.hasLRMirror pts cx tol)
+
+    // ── Positive symmetry tests ────────────────────────────────────────────────
+
+    [<Test>]
+    member this.GlyphsWithVerticalAxisOfSymmetry_HaveLeftRightSymmetricBackbone() =
+        // These glyphs are designed with a vertical axis of symmetry.
+        // H, I, T, V, A, X are pure straight-line glyphs (no fitted/free coords), so the
+        // DactylSpline solver makes no position adjustments — perfect symmetry is expected.
+        //
+        // Note: open-curve glyphs with a single fitted centrepoint (e.g. 'U') are NOT
+        // included here. The closed-curve symmetrisation fix does not apply to open curves,
+        // so 'U' retains a small (~7 unit) residual asymmetry from the open-curve solver.
+        // That is a known limitation separate from the closed-curve fix in this PR.
+        // 'O'/'o' (closed oval, fitted coords) are covered by O_And_o_Outline_Is*.
+        let font = this.makeFont()
+        let lineTol = 1.0
+        for ch in [ 'H'; 'I'; 'T'; 'V'; 'A'; 'X' ] do
+            let pts = font.charToSolvedBackbonePoints ch
+            Assert.That(pts, Is.Not.Empty, sprintf "'%c' backbone should have points" ch)
+            let xs = pts |> List.map fst
+            let cx = (List.min xs + List.max xs) / 2.0
+            for pt in pts do
+                Assert.That(
+                    this.hasLRMirror pts cx lineTol pt,
+                    Is.True,
+                    sprintf "'%c' backbone: (%.2f, %.2f) has no left-right mirror (cx=%.2f)" ch (fst pt) (snd pt) cx
+                )
+
+    // ── Negative symmetry tests ────────────────────────────────────────────────
+
+    [<Test>]
+    member this.GlyphsWithoutLeftRightSymmetry_BackboneIsNotLeftRightSymmetric() =
+        // These glyphs are structurally asymmetric and must NOT be fully left-right symmetric.
+        // The test guards against the post-solve symmetrisation pass in DactylSpline
+        // accidentally forcing symmetry on non-symmetric glyphs.
+        //
+        //   D – flat left edge, curved right bulge (one fitted knot at right mid-height)
+        //   G – open arc with right-side serif arm (like C but with extra arm)
+        //   S – serpentine: 180° rotational symmetry but no mirror symmetry
+        //   B – flat left edge, two curved bumps on right
+        //   C – open arc, opening is on the right so the backbone is NOT left-right symmetric
+        //       (tor and bor are both at x=R; their mirror at x=0 has no matching y)
+        let font = this.makeFont()
+        let tol = 6.0
+        for ch in [ 'D'; 'G'; 'S'; 'B'; 'C' ] do
+            let pts = font.charToSolvedBackbonePoints ch
+            Assert.That(pts, Is.Not.Empty, sprintf "'%c' backbone should have points" ch)
+            Assert.That(
+                this.isFullyLRSymmetric pts tol,
+                Is.False,
+                sprintf "'%c' backbone appears fully left-right symmetric, but should not be" ch
+            )
+
+    [<Test>]
+    member this.Figure8_BackboneSpansBothLoops() =
+        // The '8' glyph is a figure-of-eight defined as a single closed curve whose
+        // upper and lower loops have free-y side knots at x=L and x=R respectively.
+        // Because each x bucket holds TWO free-y knots, the post-solve symmetrisation
+        // must NOT fire for '8' — if it did it would average all four to y=H/2 and
+        // collapse both loops to a flat disc.
+        //
+        // We guard against that regression by asserting the backbone spans most of the
+        // cap height: the topmost point must be above 80% of the height and the
+        // bottommost below 20% (after translateByThickness the expected range is ~30–630
+        // for height=600 axes; we check that max_y > 0.7*T+translate and min_y < 0.3*T).
+        let axes = { Axes.DefaultAxes with dactyl_spline = true; outline = true }
+        let font = Font.Font(axes)
+        let pts = font.charToSolvedBackbonePoints '8'
+        Assert.That(pts, Is.Not.Empty, "'8' backbone should have points")
+        let ys = pts |> List.map snd
+        let maxY = List.max ys
+        let minY = List.min ys
+        let translate = float axes.thickness  // translateByThickness adds thickness to both axes
+        let capT = float axes.height + translate
+        Assert.That(
+            maxY,
+            Is.GreaterThan(capT * 0.7),
+            sprintf "'8' backbone top (%.1f) should reach above 70%% of cap height (%.1f) — loops may have collapsed" maxY (capT * 0.7)
+        )
+        Assert.That(
+            minY,
+            Is.LessThan(capT * 0.3),
+            sprintf "'8' backbone bottom (%.1f) should be below 30%% of cap height (%.1f) — loops may have collapsed" minY (capT * 0.3)
+        )
+
 [<TestFixture>]
 type KnotSequenceValidationTests() =
     let pt x y = { x = x; y = y; x_fit = false; y_fit = false }
@@ -645,3 +839,29 @@ type KnotSequenceValidationTests() =
         // and the internal pairs (LineToCurve→G2 = curve out / curve in, G2→CurveToLine = curve out / curve in) are valid
         let ks = [ knot LineToCurve 0. 0.; knot G2 1. 0.; knot CurveToLine 2. 0. ]
         Assert.DoesNotThrow(fun () -> validateKnotSequence ks false)
+
+    [<Test>]
+    member _.Flatness_And_EndFlatness_AffectOutput() =
+        // Verify that the flatness and end_flatness axes actually change the solved backbone.
+        // charToSolvedBackbonePoints returns the free-coord knot positions after optimization;
+        // if an axis has no effect these lists will be identical.
+        let baseAxes = { Axes.DefaultAxes with dactyl_spline = true; outline = true }
+
+        let backboneFor (axes: Axes) ch =
+            Font(axes).charToSolvedBackbonePoints ch
+
+        // 1. flatness: vary from 0.0 to 50.0 on 'S' (open curve, many segments)
+        let ptsLowFlat  = backboneFor { baseAxes with flatness =  0.0 } 'S'
+        let ptsHighFlat = backboneFor { baseAxes with flatness = 50.0 } 'S'
+        printfn "flatness=0.0  S backbone: %A" ptsLowFlat
+        printfn "flatness=50.0 S backbone: %A" ptsHighFlat
+        Assert.That(ptsLowFlat, Is.Not.EqualTo(ptsHighFlat),
+            "flatness should change the solved 'S' backbone")
+
+        // 2. end_flatness: vary from 0.5 to 20.0 on 'S'
+        let ptsLowEnd  = backboneFor { baseAxes with end_flatness =  0.5 } 'S'
+        let ptsHighEnd = backboneFor { baseAxes with end_flatness = 20.0 } 'S'
+        printfn "end_flatness=0.5  S backbone: %A" ptsLowEnd
+        printfn "end_flatness=20.0 S backbone: %A" ptsHighEnd
+        Assert.That(ptsLowEnd, Is.Not.EqualTo(ptsHighEnd),
+            "end_flatness should change the solved 'S' backbone")
