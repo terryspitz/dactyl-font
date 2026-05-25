@@ -104,6 +104,6 @@ type Axes =
           "joints", Checkbox, "debug"
           "smooth", Checkbox, "default"
           "clip_rect", Checkbox, "debug"
-          "flatness", FracRange(0.0, 200.0), "experimental"
+          "flatness", FracRange(0.0, 10.0), "experimental"
           "end_flatness", FracRange(0.0, 30.0), "experimental"
           "debug", Checkbox, "debug" ]
