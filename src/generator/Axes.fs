@@ -36,11 +36,11 @@ type Axes =
       max_spline_iter: int //max number of iterations to solve spline curves
       show_knots: bool //show small circles for the points used to define lines/curves
       show_tangents: bool //show lines for the tangents at each knot
-      show_comb: bool //show curvature comb
       joints: bool //check joints to turn off serifs
       smooth: bool //no corners
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
       flatness: float //weight of flatness (abs m) in objective function
+      end_flatness: float //quadratic curvature-span weight for open-curve endpoint segments (higher = more circular arc at stroke tips)
       debug: bool } //show debug info in console
 
     static member DefaultAxes =
@@ -66,15 +66,15 @@ type Axes =
           stroked = false
           scratches = false
           constant_offset = true
-          max_spline_iter = 100
+          max_spline_iter = 500
           show_knots = false
           show_tangents = false
-          show_comb = false
           joints = true
           constraints = false
           smooth = false
           clip_rect = true
-          flatness = 1.0
+          flatness = 0.5
+          end_flatness = 10.0
           debug = false }
 
     static member controls =
@@ -104,9 +104,9 @@ type Axes =
           "max_spline_iter", Range(0, 200), "experimental"
           "show_knots", Checkbox, "debug"
           "show_tangents", Checkbox, "debug"
-          "show_comb", Checkbox, "debug"
           "joints", Checkbox, "debug"
           "smooth", Checkbox, "default"
           "clip_rect", Checkbox, "debug"
-          "flatness", FracRange(0.0, 200.0), "experimental"
+          "flatness", FracRange(0.0, 10.0), "experimental"
+          "end_flatness", FracRange(0.0, 30.0), "experimental"
           "debug", Checkbox, "debug" ]

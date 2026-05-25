@@ -124,34 +124,38 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
     let axes =
         { inputAxes with
             clip_rect = false
-            show_comb = true
             show_tangents = true }
 
     // Create fonts with specific settings
     let fontSpiro =
-        Font
+        Font(
             { axes with
                 spline2 = false
-                dactyl_spline = false }
+                dactyl_spline = false },
+            true
+        )
 
     let fontSpline2 =
-        Font
+        Font(
             { axes with
                 spline2 = true
-                dactyl_spline = false }
+                dactyl_spline = false },
+            true
+        )
 
     let fontDactylSpline =
-        Font
+        Font(
             { axes with
                 spline2 = false
-                dactyl_spline = true }
+                dactyl_spline = true },
+            true
+        )
 
     let fontGuides =
         Font
             { axes with
                 spline2 = false
                 show_knots = false
-                show_comb = false
                 show_tangents = false
                 debug = false }
 
@@ -299,9 +303,9 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
                 safeElementToSvgPath fontDactylSpline outlineDactylSpline orange
 
             // Spine fonts: never fill the thin centerline paths
-            let fontSpiroSpine = Font { fontSpiro.axes with filled=false }
-            let fontSpline2Spine = Font { fontSpline2.axes with filled=false }
-            let fontDactylSplineSpine = Font { fontDactylSpline.axes with filled=false }
+            let fontSpiroSpine = Font({ fontSpiro.axes with filled=false }, true)
+            let fontSpline2Spine = Font({ fontSpline2.axes with filled=false }, true)
+            let fontDactylSplineSpine = Font({ fontDactylSpline.axes with filled=false }, true)
 
             let guidesLayer = wrapClass "guides-layer" guidesSvg
 
@@ -392,9 +396,9 @@ let splineToSpiroPointType (ty: Curves.SplinePointType) =
 
 let computeCurvatureData = DactylSpline.computeCurvatureData
 
-let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (maxIter: int) =
+let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (maxIter: int) (flatness: float) (endWeight: float) =
     let spline = DactylSpline.DactylSpline(ctrlPts, isClosed)
-    let bezPts, pathSvg, combSvg, tangentSvg = spline.solveAndRenderFull(maxIter, 1.0, false, true, true)
+    let bezPts, pathSvg, combSvg, tangentSvg = spline.solveAndRenderFull(maxIter, flatness, endWeight, false, true, true)
     {| pathSvg = pathSvg |> String.concat ""
        combSvg = combSvg |> String.concat ""
        tangentSvg = tangentSvg |> String.concat ""
@@ -407,7 +411,7 @@ let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: boo
 
 /// Return SVG path data for Spiro and Spline2 interpretations of the same control points.
 let solveAltSplines (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (inputAxes: Axes) =
-    let baseAxes = { inputAxes with outline = false; filled = false; debug = false; show_comb = false; show_tangents = false }
+    let baseAxes = { inputAxes with outline = false; filled = false; debug = false; show_tangents = false }
     let knots =
         ctrlPts
         |> Array.map (fun cp ->
@@ -550,7 +554,7 @@ let solveSplineGrid () =
                             | None ->
                                 try
                                     let spline = DactylSpline.DactylSpline(pts, isClosed)
-                                    let bezPts, svg, _, _ = spline.solveAndRenderFull(200, 1.0, false, false, false)
+                                    let bezPts, svg, _, _ = spline.solveAndRenderFull(200, 1.0, 10.0, false, false, false)
                                     // Reject if any arm length is unreasonably large (solver diverged)
                                     let ok = bezPts |> Array.forall (fun bp -> abs bp.ld < 1e5 && abs bp.rd < 1e5)
                                     "", if ok then svg |> String.concat "" else ""

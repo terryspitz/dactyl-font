@@ -74,9 +74,10 @@ let dotToClosedCurve x y r =
 
 
 //class
-type Font(axes: Axes) =
+type Font(axes: Axes, ?showCombOpt: bool) =
     //basic manipulation using class variables
 
+    let showComb = defaultArg showCombOpt false
     let _metrics = FontMetrics(axes)
     let thickness = _metrics.thickness
 
@@ -349,8 +350,9 @@ type Font(axes: Axes) =
             spline.solveAndRenderSvg (
                 axes.max_spline_iter,
                 axes.flatness,
+                axes.end_flatness,
                 debug = axes.debug,
-                showComb = axes.show_comb,
+                showComb = showComb,
                 showTangents = axes.show_tangents
             )
 
@@ -1104,7 +1106,7 @@ type Font(axes: Axes) =
             let spline = DactylSpline(ctrlPts, isClosed)
 
             let bezPts =
-                spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.debug)
+                spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.end_flatness, axes.debug)
 
             let n = bezPts.Length
 
@@ -1315,7 +1317,7 @@ type Font(axes: Axes) =
             let endAlign   = pts.IsEmpty || isClosed || not (isFreeCurveEnd (List.last pts).ty)
             let ctrlPts = toDactylSplineControlPoints pts
             let spline = DactylSpline(ctrlPts, isClosed)
-            let bezPts = spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.debug)
+            let bezPts = spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.end_flatness, axes.debug)
             buildOutlineFromBez bezPts isClosed startAlign endAlign
 
         let rec dactylToOutline elem =
@@ -1408,11 +1410,11 @@ type Font(axes: Axes) =
     member this.spiroToSvgWithComb spiro =
         match spiro with
         | SpiroOpenCurve(segs) ->
-            let bc = SpiroCombContext(axes.show_comb, segs.Length * 20)
+            let bc = SpiroCombContext(showComb, segs.Length * 20)
             Spiro.SpirosToBezier (Array.ofList segs) false bc |> ignore
             ([ bc.GetPathData ], bc.GetCombSvg)
         | SpiroClosedCurve(segs) ->
-            let bc = SpiroCombContext(axes.show_comb, segs.Length * 20)
+            let bc = SpiroCombContext(showComb, segs.Length * 20)
             Spiro.SpirosToBezier (Array.ofList segs) true bc |> ignore
             ([ bc.GetPathData ], bc.GetCombSvg)
         | SpiroDot(p) -> (svgCircle p.x p.y thickness, [])
@@ -1647,4 +1649,20 @@ type Font(axes: Axes) =
         toSvgDocument -margin -margin w h svg
 
     member this.CharToOutline ch = this.charToElem ch |> this.getOutline
+
+    /// Returns the solved backbone (x, y) positions for every Curve in the glyph.
+    /// Uses the DactylSpline solver, so call this with dactyl_spline = true.
+    member this.charToSolvedBackbonePoints ch =
+        let elem = this.charToElem ch
+        let rec collect elem =
+            match elem with
+            | Curve(pts, isClosed) ->
+                let ctrlPts = toDactylSplineControlPoints pts
+                let spline = DactylSpline(ctrlPts, isClosed)
+                let bezPts = spline.solveAndGetPoints(axes.max_spline_iter, axes.flatness, axes.end_flatness, false)
+                bezPts |> Array.toList |> List.map (fun bp -> bp.x, bp.y)
+            | EList(elems) -> List.collect collect elems
+            | _ -> []
+        collect elem
+
     member this.Spline2PtsToSvg pts isClosed = spline2ptsToSvg pts isClosed
