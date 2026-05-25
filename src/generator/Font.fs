@@ -74,10 +74,11 @@ let dotToClosedCurve x y r =
 
 
 //class
-type Font(axes: Axes, ?showCombOpt: bool) =
+type Font(axes: Axes, ?showCombOpt: bool, ?showTangentsOpt: bool) =
     //basic manipulation using class variables
 
     let showComb = defaultArg showCombOpt false
+    let showTangents = defaultArg showTangentsOpt false
     let _metrics = FontMetrics(axes)
     let thickness = _metrics.thickness
 
@@ -282,7 +283,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     let spline2ctrlPtsToSvg ctrlPts isClosed =
         let spline = Spline2(ctrlPts, isClosed)
         spline.solve (axes.max_spline_iter)
-        ([ spline.renderSvg ], [], if axes.show_tangents then spline.renderTangents else [])
+        ([ spline.renderSvg ], [], if showTangents then spline.renderTangents else [])
 
     let spline2ptsToSvg pts isClosed =
         spline2ctrlPtsToSvg (pts |> withNoTangents |> toSpline2ControlPoints) isClosed
@@ -352,7 +353,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 axes.flatness,
                 debug = axes.debug,
                 showComb = showComb,
-                showTangents = axes.show_tangents
+                showTangents = showTangents
             )
 
         match elem with
@@ -1358,8 +1359,6 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
         (sprintf "<!-- %c -->" ch)
         :: let backbone = this.charToElem ch in
-           let knotColour = if this.axes.outline then lightBlue else pink in
-           let knotSize = if this.axes.outline then 10.0 else 20.0 in
 
            try
                // render outline glyph
@@ -1368,12 +1367,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                if axes.debug then
                    printfn "outline: %A" outline
 
-               (this.elementToSvgPath outline offsetX offsetY 5.0 colour)
-               @ (if this.axes.show_knots && this.axes.outline then
-                      outline
-                      |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour this.isJoint
-                  else
-                      [])
+               this.elementToSvgPath outline offsetX offsetY 5.0 colour
            with ex ->
                printfn "EXCEPTION IN getOutline: %O\nFallback backbone only" ex
 
@@ -1388,10 +1382,6 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                    offsetY
                    5.0
                    red
-               @ (if this.axes.show_knots then
-                      backbone |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour this.isJoint
-                  else
-                      [])
 
     member this.width e =
         (e |> this.reduce |> this.monospace |> this.elemWidth)

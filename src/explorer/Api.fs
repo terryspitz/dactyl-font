@@ -123,8 +123,7 @@ let generateTweenDiffSvg (text: string) (axesOff: Axes) (axesOn: Axes) =
 let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progress: (float -> unit) option) =
     let axes =
         { inputAxes with
-            clip_rect = false
-            show_tangents = true }
+            clip_rect = false }
 
     // Create fonts with specific settings
     let fontSpiro =
@@ -132,6 +131,7 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
             { axes with
                 spline2 = false
                 dactyl_spline = false },
+            true,
             true
         )
 
@@ -140,6 +140,7 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
             { axes with
                 spline2 = true
                 dactyl_spline = false },
+            true,
             true
         )
 
@@ -148,6 +149,7 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
             { axes with
                 spline2 = false
                 dactyl_spline = true },
+            true,
             true
         )
 
@@ -155,8 +157,6 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
         Font
             { axes with
                 spline2 = false
-                show_knots = false
-                show_tangents = false
                 debug = false }
 
 
@@ -411,7 +411,7 @@ let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: boo
 
 /// Return SVG path data for Spiro and Spline2 interpretations of the same control points.
 let solveAltSplines (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (inputAxes: Axes) =
-    let baseAxes = { inputAxes with outline = false; filled = false; debug = false; show_tangents = false }
+    let baseAxes = { inputAxes with outline = false; filled = false; debug = false }
     let knots =
         ctrlPts
         |> Array.map (fun cp ->

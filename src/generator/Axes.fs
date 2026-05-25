@@ -33,8 +33,6 @@ type Axes =
       stroked: bool //each stroke is 4 parallel lines
       scratches: bool //horror/paint strokes font
       max_spline_iter: int //max number of iterations to solve spline curves
-      show_knots: bool //show small circles for the points used to define lines/curves
-      show_tangents: bool //show lines for the tangents at each knot
       joints: bool //check joints to turn off serifs
       smooth: bool //no corners
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
@@ -64,8 +62,6 @@ type Axes =
           stroked = false
           scratches = false
           max_spline_iter = 100
-          show_knots = false
-          show_tangents = false
           joints = true
           constraints = false
           smooth = false
@@ -97,8 +93,6 @@ type Axes =
           "stroked", Checkbox, "default"
           "scratches", Checkbox, "default"
           "max_spline_iter", Range(0, 200), "experimental"
-          "show_knots", Checkbox, "debug"
-          "show_tangents", Checkbox, "debug"
           "joints", Checkbox, "debug"
           "smooth", Checkbox, "default"
           "clip_rect", Checkbox, "debug"
