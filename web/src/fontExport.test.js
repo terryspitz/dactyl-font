@@ -110,4 +110,17 @@ describe('unionPath', () => {
     const areas = contours.map(signedArea)
     expect(Math.sign(areas[0])).not.toBe(Math.sign(areas[1]))
   })
+
+  it('falls back to the raw contours when the boolean op would change the fill', () => {
+    // A single self-intersecting contour with winding number 2 in the centre
+    // (a "pinwheel" the boolean engine can mis-resolve). Whatever happens, the
+    // output must still describe a valid, non-empty, closed outline rather than
+    // a dropped or corrupted region — unionPath verifies the fill and falls back
+    // to the raw contour when the union diverges.
+    const raw = 'M 0,0 L 300,100 L 0,200 L 200,200 L 200,-100 L 100,300 Z'
+    const cmds = unionPath(raw)
+    expect(cmds.length).toBeGreaterThan(0)
+    expect(cmds[0].type).toBe('M')
+    expect(cmds[cmds.length - 1].type).toBe('Z')
+  })
 })

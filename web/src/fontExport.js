@@ -25,6 +25,14 @@ function ensurePaper() {
  * other.  A non-zero self-union therefore merges overlapping strokes while
  * preserving counters.
  *
+ * paper.js's boolean engine can mis-resolve a *single* self-intersecting
+ * contour whose winding number reaches ±2/±3 (e.g. 'B', drawn as one pen
+ * stroke whose stem overlaps both bowls).  We therefore verify the union still
+ * fills the same region as the original under the non-zero rule, and fall back
+ * to the raw contours when it does not.  The raw contours are themselves
+ * non-zero-correct (that is exactly what the on-screen preview renders), so the
+ * fallback always renders correctly — it just keeps the overlap.
+ *
  * Returns an array of command objects ({type:'M'|'C'|'Z', …}) ready to feed to
  * an opentype.Path.  Falls back to the raw parsed path if anything goes wrong.
  */
@@ -32,19 +40,43 @@ export function unionPath(pathData) {
   if (!pathData) return []
   try {
     ensurePaper()
-    const compound = new paper.CompoundPath(pathData)
-    compound.fillRule = 'nonzero'
+    const original = new paper.CompoundPath(pathData)
+    original.fillRule = 'nonzero'
     // unite() with no operand resolves self-intersections / overlaps in place.
-    const united = compound.unite()
-    const cmds = paperItemToCommands(united)
+    const united = original.unite()
+    united.fillRule = 'nonzero'
+
+    const ok = unionMatchesFill(original, united)
+    const cmds = ok ? paperItemToCommands(united) : parseSvgPath(pathData)
+
     united.remove()
-    compound.remove()
+    original.remove()
     return cmds.length ? cmds : parseSvgPath(pathData)
   } catch (err) {
     // Geometry libraries can choke on degenerate input; never lose a glyph over it.
     console.warn('unionPath failed, using raw outline', err)
     return parseSvgPath(pathData)
   }
+}
+
+/**
+ * Sanity-check that `united` covers the same filled region as `original` under
+ * the non-zero rule, by sampling a grid over the glyph's bounding box.  Returns
+ * false if any sample disagrees, which signals the boolean op produced a wrong
+ * outline and we should keep the raw contours instead.
+ */
+function unionMatchesFill(original, united, grid = 24) {
+  const b = original.bounds
+  if (!b.width || !b.height) return true
+  for (let i = 0; i < grid; i++) {
+    for (let j = 0; j < grid; j++) {
+      const x = b.left + (b.width * (i + 0.5)) / grid
+      const y = b.top + (b.height * (j + 0.5)) / grid
+      const p = new paper.Point(x, y)
+      if (original.contains(p) !== united.contains(p)) return false
+    }
+  }
+  return true
 }
 
 /** Convert a paper Path / CompoundPath into absolute M/C/Z command objects. */
