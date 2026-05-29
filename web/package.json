@@ -21,6 +21,7 @@
     "test:font-download:update": "playwright test tests/font-download.spec.js --update-snapshots"
   },
   "dependencies": {
+    "paper": "^0.12.18",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },

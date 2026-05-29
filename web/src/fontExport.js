@@ -1,4 +1,78 @@
 import opentype from 'opentype.js'
+import paper from 'paper'
+
+// paper.js needs a project/scope set up once before any geometry can be built.
+// We run it headlessly (no canvas) — only boolean geometry is used, never rendering.
+let paperReady = false
+function ensurePaper() {
+  if (!paperReady) {
+    paper.setup(new paper.Size(1, 1))
+    paperReady = true
+  }
+}
+
+/**
+ * Remove overlaps from a glyph's outline.
+ *
+ * The F# generator strokes each spiro curve into its own closed "ribbon"
+ * contour, so where two strokes meet (the bowl and stem of 'a', 'b', 'd', …)
+ * the ribbons overlap.  OTF/CFF expects non-self-intersecting outlines, so we
+ * union all the contours into a single set of non-overlapping paths.
+ *
+ * The union is computed with the non-zero winding rule, which matches how the
+ * generator already orients its contours: solid strokes wind one way and the
+ * inner contours of closed bowls (the counters of 'o', 'a', 'b', …) wind the
+ * other.  A non-zero self-union therefore merges overlapping strokes while
+ * preserving counters.
+ *
+ * Returns an array of command objects ({type:'M'|'C'|'Z', …}) ready to feed to
+ * an opentype.Path.  Falls back to the raw parsed path if anything goes wrong.
+ */
+export function unionPath(pathData) {
+  if (!pathData) return []
+  try {
+    ensurePaper()
+    const compound = new paper.CompoundPath(pathData)
+    compound.fillRule = 'nonzero'
+    // unite() with no operand resolves self-intersections / overlaps in place.
+    const united = compound.unite()
+    const cmds = paperItemToCommands(united)
+    united.remove()
+    compound.remove()
+    return cmds.length ? cmds : parseSvgPath(pathData)
+  } catch (err) {
+    // Geometry libraries can choke on degenerate input; never lose a glyph over it.
+    console.warn('unionPath failed, using raw outline', err)
+    return parseSvgPath(pathData)
+  }
+}
+
+/** Convert a paper Path / CompoundPath into absolute M/C/Z command objects. */
+function paperItemToCommands(item) {
+  const paths = item.children && item.children.length ? item.children : [item]
+  const cmds = []
+  for (const p of paths) {
+    const segs = p.segments
+    if (!segs || segs.length === 0) continue
+    cmds.push({ type: 'M', x: segs[0].point.x, y: segs[0].point.y })
+    const n = p.closed ? segs.length : segs.length - 1
+    for (let i = 0; i < n; i++) {
+      const a = segs[i]
+      const b = segs[(i + 1) % segs.length]
+      cmds.push({
+        type: 'C',
+        x1: a.point.x + a.handleOut.x,
+        y1: a.point.y + a.handleOut.y,
+        x2: b.point.x + b.handleIn.x,
+        y2: b.point.y + b.handleIn.y,
+        x: b.point.x,
+        y: b.point.y,
+      })
+    }
+    cmds.push({ type: 'Z' })
+  }
+  return cmds
+}
 
 /**
  * Parse a SVG path data string (as produced by the F# generator) into an array
@@ -59,7 +133,7 @@ function buildFont(glyphData, familyName = 'Dactyl') {
       .filter((g, i, arr) => i === 0 || g.unicode !== arr[i - 1].unicode)
       .map(g => {
         const path = new opentype.Path()
-        for (const cmd of parseSvgPath(g.pathData)) {
+        for (const cmd of unionPath(g.pathData)) {
           switch (cmd.type) {
             case 'M': path.moveTo(cmd.x, cmd.y); break
             case 'L': path.lineTo(cmd.x, cmd.y); break
