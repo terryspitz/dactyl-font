@@ -19,53 +19,132 @@ function ensurePaper() {
  * the ribbons overlap.  OTF/CFF expects non-self-intersecting outlines, so we
  * union all the contours into a single set of non-overlapping paths.
  *
- * The union is computed with the non-zero winding rule, which matches how the
- * generator already orients its contours: solid strokes wind one way and the
- * inner contours of closed bowls (the counters of 'o', 'a', 'b', …) wind the
- * other.  A non-zero self-union therefore merges overlapping strokes while
- * preserving counters.
+ * The target fill is the non-zero winding of all the raw contours together —
+ * that is exactly what the on-screen preview renders (Font.fs uses
+ * `fill-rule: nonzero`).  We try two strategies and verify each against that
+ * target before accepting it, falling back to the raw contours if neither
+ * works:
  *
- * paper.js's boolean engine can mis-resolve a *single* self-intersecting
- * contour whose winding number reaches ±2/±3 (e.g. 'B', drawn as one pen
- * stroke whose stem overlaps both bowls).  We therefore verify the union still
- * fills the same region as the original under the non-zero rule, and fall back
- * to the raw contours when it does not.  The raw contours are themselves
- * non-zero-correct (that is exactly what the on-screen preview renders), so the
- * fallback always renders correctly — it just keeps the overlap.
+ *   1. A single non-zero self-union (`CompoundPath.unite()`).  This is correct
+ *      and cheap for the vast majority of glyphs.  paper.js's boolean operator
+ *      table only covers winding numbers ±1/±2, though, so it mis-resolves
+ *      places where three strokes overlap (e.g. the middle bar of 'B', where
+ *      the stem and both bowls meet → winding 3).
+ *   2. An iterative union: each contour is self-resolved, then accumulated with
+ *      pairwise unite.  Because the accumulator is normalised to winding ≤ 1
+ *      after every step, no individual boolean op ever sees winding 3, so this
+ *      cleans the winding-3 joins that strategy 1 drops.  Contours that bound a
+ *      counter (the reversed inner offset of a closed bowl like 'o') are
+ *      detected by sampling just inside their edge and subtracted instead.
  *
  * Returns an array of command objects ({type:'M'|'C'|'Z', …}) ready to feed to
  * an opentype.Path.  Falls back to the raw parsed path if anything goes wrong.
  */
 export function unionPath(pathData) {
   if (!pathData) return []
+  let original
   try {
     ensurePaper()
-    const original = new paper.CompoundPath(pathData)
+    original = new paper.CompoundPath(pathData)
     original.fillRule = 'nonzero'
-    // unite() with no operand resolves self-intersections / overlaps in place.
-    const united = original.unite()
-    united.fillRule = 'nonzero'
 
-    const ok = unionMatchesFill(original, united)
-    const cmds = ok ? paperItemToCommands(united) : parseSvgPath(pathData)
+    // Strategy 1: a single non-zero self-union.
+    const simple = original.clone().unite()
+    simple.fillRule = 'nonzero'
+    if (unionMatchesFill(original, simple)) return paperItemToCommands(simple)
+    simple.remove()
 
-    united.remove()
-    original.remove()
-    return cmds.length ? cmds : parseSvgPath(pathData)
+    // Strategy 2: iterative union (handles winding-3 joins like 'B').
+    const iterative = iterativeUnion(original, pathData)
+    if (iterative && unionMatchesFill(original, iterative)) {
+      return paperItemToCommands(iterative)
+    }
+    iterative?.remove()
+
+    // Neither matched: keep the raw contours, which are themselves non-zero
+    // correct (they are what the preview renders) — they just keep the overlap.
+    return parseSvgPath(pathData)
   } catch (err) {
     // Geometry libraries can choke on degenerate input; never lose a glyph over it.
     console.warn('unionPath failed, using raw outline', err)
     return parseSvgPath(pathData)
+  } finally {
+    original?.remove()
   }
 }
 
 /**
- * Sanity-check that `united` covers the same filled region as `original` under
- * the non-zero rule, by sampling a grid over the glyph's bounding box.  Returns
- * false if any sample disagrees, which signals the boolean op produced a wrong
- * outline and we should keep the raw contours instead.
+ * Union a glyph's contours one at a time so paper.js never sees a winding ≥ 3.
+ * Each contour is self-resolved first (winding ≤ 2, which paper handles) and
+ * then united into the accumulator (winding ≤ 1) → every op stays within the
+ * supported range.  Contours whose interior is empty in the target fill bound a
+ * counter and are subtracted rather than added.
  */
-function unionMatchesFill(original, united, grid = 24) {
+function iterativeUnion(original, pathData) {
+  const contours = contourPaths(pathData)
+  if (!contours.length) return null
+
+  const solids = []
+  const holes = []
+  for (const c of contours) {
+    ;(original.contains(interiorEdgePoint(c)) ? solids : holes).push(c)
+  }
+
+  let acc = new paper.Path()
+  for (const s of solids) {
+    const resolved = s.unite()
+    const next = acc.unite(resolved)
+    acc.remove()
+    resolved.remove()
+    acc = next
+  }
+  for (const h of holes) {
+    const resolved = h.unite()
+    const next = acc.subtract(resolved)
+    acc.remove()
+    resolved.remove()
+    acc = next
+  }
+  // Final self-union: merges contours that meet only at a point (e.g. the two
+  // bowls of 'B' touching the stem at the waist), removing residual crossings.
+  acc.fillRule = 'nonzero'
+  const cleaned = acc.unite()
+  acc.remove()
+  cleaned.fillRule = 'nonzero'
+  return cleaned
+}
+
+/** Split a glyph's path data into one paper.Path per contour. */
+function contourPaths(pathData) {
+  const paths = []
+  let cur = null
+  for (const cmd of parseSvgPath(pathData)) {
+    switch (cmd.type) {
+      case 'M': cur = new paper.Path(); cur.moveTo(new paper.Point(cmd.x, cmd.y)); paths.push(cur); break
+      case 'L': cur.lineTo(new paper.Point(cmd.x, cmd.y)); break
+      case 'C': cur.cubicCurveTo(new paper.Point(cmd.x1, cmd.y1), new paper.Point(cmd.x2, cmd.y2), new paper.Point(cmd.x, cmd.y)); break
+      case 'Z': cur.closePath(); break
+    }
+  }
+  return paths.filter(p => p.segments.length > 1)
+}
+
+/** A point a hair inside a contour's edge, used to test whether it bounds solid or counter. */
+function interiorEdgePoint(contour) {
+  const at = contour.length * 0.37
+  const point = contour.getPointAt(at)
+  const normal = contour.getNormalAt(at).multiply(0.5)
+  const a = point.add(normal)
+  return contour.contains(a) ? a : point.subtract(normal)
+}
+
+/**
+ * Sanity-check that `candidate` covers the same filled region as `original`
+ * under the non-zero rule, by sampling a grid over the glyph's bounding box.
+ * Returns false if any sample disagrees, which signals the boolean op produced
+ * a wrong outline and we should try the next strategy instead.
+ */
+function unionMatchesFill(original, candidate, grid = 32) {
   const b = original.bounds
   if (!b.width || !b.height) return true
   for (let i = 0; i < grid; i++) {
@@ -73,7 +152,7 @@ function unionMatchesFill(original, united, grid = 24) {
       const x = b.left + (b.width * (i + 0.5)) / grid
       const y = b.top + (b.height * (j + 0.5)) / grid
       const p = new paper.Point(x, y)
-      if (original.contains(p) !== united.contains(p)) return false
+      if (original.contains(p) !== candidate.contains(p)) return false
     }
   }
   return true
