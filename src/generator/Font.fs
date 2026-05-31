@@ -1447,7 +1447,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             let combPaths = results |> List.collect snd
             (svgPaths, combPaths, [])
 
-    member this.elementToSvgPath (element: Element) (offsetX: float) (offsetY: float) (strokeWidth: float) fillColour =
+    member this.elementToSvgPath (element: Element) (offsetX: float) (offsetY: float) (strokeWidth: float) fillColour (suppressTangents: bool) =
         let GetStableHash (str: string) =
 #if FABLE_COMPILER
             let mutable hash = 5381
@@ -1514,8 +1514,8 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                   sprintf "style='fill:none;stroke:%s;stroke-width:1'" combStroke
                   "/>"
                   "</g>" ]
-        // Add separate path for tangents if present
-        @ if List.isEmpty tangentSvg then
+        // Add separate path for tangents if present (suppressed for outline/inferred elements)
+        @ if suppressTangents || List.isEmpty tangentSvg then
               []
           else
               [ "<g class='tangent-layer'>"; "<path "; "d='" ]
@@ -1544,7 +1544,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         (sprintf "<!-- %c -->" ch)
         :: let backbone = this.charToElem ch in
            let knotColour = if this.axes.outline then lightBlue else pink in
-           let knotSize = if this.axes.outline then 10.0 else 20.0 in
+           let knotSize = if this.axes.outline then 4.0 else 20.0 in
 
            try
                // render outline glyph
@@ -1553,7 +1553,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                if axes.debug then
                    printfn "outline: %A" outline
 
-               (this.elementToSvgPath outline offsetX offsetY 5.0 colour)
+               (this.elementToSvgPath outline offsetX offsetY 5.0 colour true)
                @ (if this.axes.show_knots && this.axes.outline then
                       outline
                       |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour this.isJoint
@@ -1573,6 +1573,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                    offsetY
                    5.0
                    red
+                   false
                @ (if this.axes.show_knots then
                       backbone |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour this.isJoint
                   else

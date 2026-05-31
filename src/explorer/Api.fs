@@ -230,7 +230,7 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
 
             let safeElementToSvgPath (font: Font) shape color =
                 try
-                    font.elementToSvgPath shape offsetX offsetY 10 color
+                    font.elementToSvgPath shape offsetX offsetY 10 color false
                 with _ ->
                     []
 
@@ -276,13 +276,13 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
 
             let safeElementToSvgPath (font: Font) shape color =
                 try
-                    font.elementToSvgPath shape offsetX offsetY 10 color
+                    font.elementToSvgPath shape offsetX offsetY 10 color false
                 with _ ->
                     []
 
             let safeSpineSvgPath (font: Font) shape color =
                 try
-                    font.elementToSvgPath shape offsetX offsetY 3 color
+                    font.elementToSvgPath shape offsetX offsetY 3 color false
                 with _ ->
                     []
 
