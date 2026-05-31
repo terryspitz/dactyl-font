@@ -1553,7 +1553,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                if axes.debug then
                    printfn "outline: %A" outline
 
-               (this.elementToSvgPath outline offsetX offsetY 5.0 colour true)
+               (this.elementToSvgPath outline offsetX offsetY 5.0 colour false)
                @ (if this.axes.show_knots && this.axes.outline then
                       outline
                       |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour this.isJoint
