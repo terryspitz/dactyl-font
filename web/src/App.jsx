@@ -243,6 +243,7 @@ function App() {
   const loadingRef = useRef(false)
   const previewRef = useRef(null)
   const activeTabRef = useRef(activeTab)
+  const prevEffectTabRef = useRef(null)
   useEffect(() => { activeTabRef.current = activeTab }, [activeTab])
 
   const handleWheelZoom = useCallback((e) => {
@@ -297,7 +298,10 @@ function App() {
     }
 
     const id = ++renderIdRef.current
-    setWorkerResult(null)
+    if (activeTab !== prevEffectTabRef.current) {
+      setWorkerResult(null)
+      prevEffectTabRef.current = activeTab
+    }
     setLoading(true)
     loadingRef.current = true
     setProgressValue(0)
