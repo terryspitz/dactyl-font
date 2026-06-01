@@ -785,3 +785,22 @@ type Spline2 (ctrlPts, isClosed) =
                     path.moveto(ptI.pt.x, ptI.pt.y)
                     path.lineto(ptI.pt.x + offset*cos(ptI.rTh), ptI.pt.y + offset*sin(ptI.rTh))
         path.tostringlist()
+
+    /// Like renderTangents but only for control points with explicitly-set tangents
+    /// (lth or rth is Some). Skips inferred/sampled points that have no explicit input.
+    member this.renderExplicitTangents =
+        let path = BezPath()
+        let length = this.ctrlPts.Length - if this.isClosed then 0 else 1
+        for i in 0..length do
+            if i < this.ctrlPts.Length then
+                let cp = ctrlPts.[i]
+                if cp.lth.IsSome || cp.rth.IsSome then
+                    let ptI = this.pt(i, 0)
+                    let offset = 100.
+                    if not (isnan ptI.lTh) then
+                        path.moveto(ptI.pt.x, ptI.pt.y)
+                        path.lineto(ptI.pt.x + offset*cos(ptI.lTh), ptI.pt.y + offset*sin(ptI.lTh))
+                    if not (isnan ptI.rTh) then
+                        path.moveto(ptI.pt.x, ptI.pt.y)
+                        path.lineto(ptI.pt.x + offset*cos(ptI.rTh), ptI.pt.y + offset*sin(ptI.rTh))
+        path.tostringlist()

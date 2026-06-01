@@ -282,7 +282,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     let spline2ctrlPtsToSvg ctrlPts isClosed =
         let spline = Spline2(ctrlPts, isClosed)
         spline.solve (axes.max_spline_iter)
-        ([ spline.renderSvg ], [], if axes.show_tangents then spline.renderTangents else [])
+        ([ spline.renderSvg ], [], if axes.show_tangents then spline.renderExplicitTangents else [])
 
     let spline2ptsToSvg pts isClosed =
         spline2ctrlPtsToSvg (pts |> withNoTangents |> toSpline2ControlPoints) isClosed
