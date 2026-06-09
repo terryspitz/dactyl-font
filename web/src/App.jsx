@@ -131,7 +131,9 @@ function App() {
   }, [])
 
   const categoryIcons = {
-    default: 'settings',
+    backbone: 'straighten',
+    outline: 'brush',
+    artistic: 'palette',
     experimental: 'science',
     debug: 'pest_control'
   }
@@ -143,7 +145,7 @@ function App() {
     const cats = {}
     controlDefinitions.forEach(ctrl => {
       const cat = ctrl.category || 'default'
-      if (cat === 'experimental') cats[cat] = false
+      if (cat === 'experimental' || cat === 'debug') cats[cat] = false
       else cats[cat] = true
     })
     return cats
