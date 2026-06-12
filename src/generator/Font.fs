@@ -1174,8 +1174,85 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             if bezPts.Length < 2 then [] else
 
             let n = bezPts.Length
+            let segCount = if isClosed then n else n - 1
             let plainKnot pt =
                 { pt = pt; ty = Corner; th_in = None; th_out = None; label = None }
+
+            // --- Spine sampling with cumulative arc length ---
+
+            /// Position and tangent of the spine cubic for segment segIdx at parameter t.
+            let bezEval (segIdx: int) (t: float) =
+                let p1 = bezPts.[segIdx]
+                let p2 = bezPts.[(segIdx + 1) % n]
+                let p0x, p0y = p1.x, p1.y
+                let cp1x = p1.x + p1.rd * cos p1.th_out
+                let cp1y = p1.y + p1.rd * sin p1.th_out
+                let cp2x = p2.x - p2.ld * cos p2.th_in
+                let cp2y = p2.y - p2.ld * sin p2.th_in
+                let p3x, p3y = p2.x, p2.y
+                let mt = 1.0 - t
+                let b0, b1, b2, b3 = mt*mt*mt, 3.*mt*mt*t, 3.*mt*t*t, t*t*t
+                let x = b0*p0x + b1*cp1x + b2*cp2x + b3*p3x
+                let y = b0*p0y + b1*cp1y + b2*cp2y + b3*p3y
+                let d0, d1, d2 = 3.*mt*mt, 6.*mt*t, 3.*t*t
+                let dx = d0*(cp1x-p0x) + d1*(cp2x-cp1x) + d2*(p3x-cp2x)
+                let dy = d0*(cp1y-p0y) + d1*(cp2y-cp1y) + d2*(p3y-cp2y)
+                let th =
+                    if dx*dx + dy*dy < 1e-12 then atan2 (p3y-p0y) (p3x-p0x)
+                    else atan2 dy dx
+                x, y, th
+
+            // A straight-line spine segment (both tangents colinear with the chord) has
+            // a parallel-line perpendicular offset, so interior samples would be
+            // collinear with the endpoint offsets and add no information. Skip them
+            // (the chord is also the exact arc length in that case).
+            let isStraightSeg (segIdx: int) =
+                let p1 = bezPts.[segIdx]
+                let p2 = bezPts.[(segIdx + 1) % n]
+                let dxc = p2.x - p1.x
+                let dyc = p2.y - p1.y
+                if dxc * dxc + dyc * dyc < 1e-12 then true
+                else
+                    let chordAngle = atan2 dyc dxc
+                    abs (norm (p1.th_out - chordAngle)) < 1e-4
+                    && abs (norm (p2.th_in - chordAngle)) < 1e-4
+
+            // Interior samples (x, y, th, arc length within segment) for each spine
+            // segment, plus the chord-sum arc length of the whole segment.
+            let segData =
+                [| for segIdx in 0 .. segCount - 1 ->
+                       let p1 = bezPts.[segIdx]
+                       let p2 = bezPts.[(segIdx + 1) % n]
+                       let interior =
+                           if isStraightSeg segIdx then [||]
+                           else [| for s in 1 .. samplesPerSeg - 1 -> bezEval segIdx (float s / float samplesPerSeg) |]
+                       let mutable len = 0.0
+                       let mutable px, py = p1.x, p1.y
+                       let withLen =
+                           [| for (x, y, th) in interior do
+                                  len <- len + hypot (x - px) (y - py)
+                                  px <- x
+                                  py <- y
+                                  yield (x, y, th, len) |]
+                       withLen, len + hypot (p2.x - px) (p2.y - py) |]
+
+            /// Cumulative arc length at each bez point (entry segCount = whole-curve length).
+            let cumLenAtBez =
+                let arr = Array.zeroCreate (segCount + 1)
+                for i in 0 .. segCount - 1 do
+                    arr.[i + 1] <- arr.[i] + snd segData.[i]
+                arr
+
+            let totalLen = max cumLenAtBez.[segCount] 1e-9
+
+            /// Spine samples (x, y, th, arc length from curve start), shared by both sides.
+            let spineSamples =
+                [| for segIdx in 0 .. segCount - 1 ->
+                       [| for (x, y, th, localLen) in fst segData.[segIdx] ->
+                              (x, y, th, cumLenAtBez.[segIdx] + localLen) |] |]
+
+            /// Stroke half-width at a given arc length and spine tangent direction.
+            let widthAt (sLen: float) (th: float) = fthickness
 
             // Build one side (outer when sign=+1, inner when sign=-1) of the offset polyline.
             // Smooth bezier points emit a single perpendicular offset. Corner bezier points
@@ -1187,15 +1264,17 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 let perpAngle = sign * PI / 2.
                 let knots = System.Collections.Generic.List<Knot>()
 
-                let emitPerp x y th =
-                    knots.Add(plainKnot (addPolarContrast x y (th + perpAngle) fthickness))
+                let emitPerp x y th sLen =
+                    knots.Add(plainKnot (addPolarContrast x y (th + perpAngle) (widthAt sLen th)))
 
                 let emitAtBezPt (i: int) =
                     let bp = bezPts.[i]
+                    let sLen = cumLenAtBez.[i]
                     let isCorner = abs (norm (bp.th_out - bp.th_in)) > 1e-3
                     if not isCorner then
-                        emitPerp bp.x bp.y bp.th_in
+                        emitPerp bp.x bp.y bp.th_in sLen
                     else
+                        let w = widthAt sLen bp.th_in
                         let prev = bezPts.[(i - 1 + n) % n]
                         let nxt  = bezPts.[(i + 1) % n]
                         let prevLen = hypot (bp.x - prev.x) (bp.y - prev.y)
@@ -1209,52 +1288,20 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                             || (reverse && bend > PI / 8.0)
                         if isOuter && isSharperThanRight then
                             // Two miter points (mirrors offsetSegment Corner outer-bend case).
-                            let pa = addPolarContrast bp.x bp.y (this.maybeAlign th1 - perpAngle / 2.0) (fthickness * sqrt 2.0)
-                            let pb = addPolarContrast bp.x bp.y (this.maybeAlign th2 + perpAngle / 2.0) (fthickness * sqrt 2.0)
+                            let pa = addPolarContrast bp.x bp.y (this.maybeAlign th1 - perpAngle / 2.0) (w * sqrt 2.0)
+                            let pb = addPolarContrast bp.x bp.y (this.maybeAlign th2 + perpAngle / 2.0) (w * sqrt 2.0)
                             knots.Add(plainKnot pa)
                             knots.Add(plainKnot pb)
                         else
                             // Single sharp miter, clamped to chord lengths to avoid overshoot.
                             let alpha = bend / 2.0
-                            let offset = min (min (fthickness / cos alpha) prevLen) nextLen
+                            let offset = min (min (w / cos alpha) prevLen) nextLen
                             let p = addPolarContrast bp.x bp.y (th1 + alpha) offset
                             knots.Add(plainKnot p)
 
                 let emitMidSamples (segIdx: int) =
-                    let p1 = bezPts.[segIdx]
-                    let p2 = bezPts.[(segIdx + 1) % n]
-                    // A straight-line spine segment (both tangents colinear with the chord) has
-                    // a parallel-line perpendicular offset, so interior samples would be
-                    // collinear with the endpoint offsets and add no information. Skip them.
-                    let dxc = p2.x - p1.x
-                    let dyc = p2.y - p1.y
-                    let isStraight =
-                        if dxc * dxc + dyc * dyc < 1e-12 then true
-                        else
-                            let chordAngle = atan2 dyc dxc
-                            abs (norm (p1.th_out - chordAngle)) < 1e-4
-                            && abs (norm (p2.th_in  - chordAngle)) < 1e-4
-                    if isStraight then () else
-
-                    let p0x, p0y = p1.x, p1.y
-                    let cp1x = p1.x + p1.rd * cos p1.th_out
-                    let cp1y = p1.y + p1.rd * sin p1.th_out
-                    let cp2x = p2.x - p2.ld * cos p2.th_in
-                    let cp2y = p2.y - p2.ld * sin p2.th_in
-                    let p3x, p3y = p2.x, p2.y
-                    for s in 1 .. samplesPerSeg - 1 do
-                        let t = float s / float samplesPerSeg
-                        let mt = 1.0 - t
-                        let b0, b1, b2, b3 = mt*mt*mt, 3.*mt*mt*t, 3.*mt*t*t, t*t*t
-                        let x = b0*p0x + b1*cp1x + b2*cp2x + b3*p3x
-                        let y = b0*p0y + b1*cp1y + b2*cp2y + b3*p3y
-                        let d0, d1, d2 = 3.*mt*mt, 6.*mt*t, 3.*t*t
-                        let dx = d0*(cp1x-p0x) + d1*(cp2x-cp1x) + d2*(p3x-cp2x)
-                        let dy = d0*(cp1y-p0y) + d1*(cp2y-cp1y) + d2*(p3y-cp2y)
-                        let th =
-                            if dx*dx + dy*dy < 1e-12 then atan2 (p3y-p0y) (p3x-p0x)
-                            else atan2 dy dx
-                        emitPerp x y th
+                    for (x, y, th, sLen) in spineSamples.[segIdx] do
+                        emitPerp x y th sLen
 
                 if isClosed then
                     for i in 0 .. n - 1 do
