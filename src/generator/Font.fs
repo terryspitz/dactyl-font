@@ -1168,8 +1168,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         // Axes whose width or displacement varies with arc length need interior samples
         // even on straight spine segments (nib width is constant along a straight line).
         let widthVariesAlongStroke = taper > 0.0 || wobble > 0.0 || mobius > 0.0
-        // Artistic axes vary the width along curved strokes, so walk them more densely.
-        let samplesPerSeg = if axes.sampledArtistic then 16 else 8
+        let samplesPerSeg = 16
         let isFreeCurveEnd ty = ty = G2 || ty = G4
 
         // Build Segment for use with existing cap functions.
@@ -1815,23 +1814,27 @@ type Font(axes: Axes, ?showCombOpt: bool) =
            let knotColour = if this.axes.outline then lightBlue else pink in
            let knotSize = if this.axes.outline then 4.0 else 20.0 in
 
+           // Outline knots are all inferred/sampled Corner points — forcing smooth on them
+           // would make DactylSpline run NelderMead on 100+ G2 knots (O(n²) per glyph).
+           let outlineFont = if axes.smooth then Font({ axes with smooth = false }) else this in
+
            try
-               // render outline glyph
+               // Spine is solved with smooth (this), outline knots rendered without smooth (outlineFont).
                let outline = this.getOutline backbone
 
                if axes.debug then
                    printfn "outline: %A" outline
 
-               (this.elementToSvgPath outline offsetX offsetY 5.0 colour false)
+               (outlineFont.elementToSvgPath outline offsetX offsetY 5.0 colour false)
                @ (if this.axes.show_knots && this.axes.outline then
                       outline
-                      |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour this.isJoint
+                      |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour outlineFont.isJoint
                   else
                       [])
            with ex ->
                printfn "EXCEPTION IN getOutline: %O\nFallback backbone only" ex
 
-               this.elementToSvgPath
+               outlineFont.elementToSvgPath
                    (Dot(
                        { y = _metrics.H
                          x = _metrics.C
