@@ -1158,7 +1158,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     /// Reuses the same cap/joint/serif/flare/soft_corners logic as getDactylSansOutlines.
     member this.getDactylConstantOffsetOutlines e =
         let fthickness = float thickness
-        let samplesPerSeg = 8
+        let samplesPerSeg = 16
         let isFreeCurveEnd ty = ty = G2 || ty = G4
 
         // Build Segment for use with existing cap functions.
