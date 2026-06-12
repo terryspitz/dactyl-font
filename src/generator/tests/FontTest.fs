@@ -903,6 +903,26 @@ type ArtisticAxesTests() =
             "horizontal stroke should be a thin sliver")
 
     [<Test>]
+    member _.TaperAxis_EndsNarrowerThanMiddle() =
+        let font = Font.Font({ baseAxes with taper = 1.0 })
+
+        let outlineKnots =
+            match font.getOutline (strokeTo 0. 600.) with
+            | Curve(ks, _) -> ks
+            | e -> failwithf "expected single Curve outline, got %A" e
+
+        let widthNear yLo yHi =
+            outlineKnots
+            |> List.filter (fun k -> k.pt.y >= yLo && k.pt.y <= yHi)
+            |> List.map (fun k -> abs k.pt.x)
+            |> List.max
+
+        Assert.That(widthNear 0. 100., Is.LessThan(0.4 * fthickness),
+            "stroke should be narrow near its pointed ends")
+        Assert.That(widthNear 250. 350., Is.EqualTo(fthickness).Within(1.0),
+            "stroke should be full width at its middle")
+
+    [<Test>]
     member _.NibAxis_GlyphsRenderWithoutException() =
         let font = Font.Font({ baseAxes with nib = 0.8 })
         for ch in [ 'o'; 'l'; 'v'; 'S' ] do

@@ -1160,6 +1160,10 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         let fthickness = float thickness
         let nib = axes.nib
         let nibAngle = float axes.nib_angle * PI / 180.0
+        let taper = axes.taper
+        // Axes whose width varies with arc length need interior samples even on
+        // straight spine segments (nib width is constant along a straight line).
+        let widthVariesAlongStroke = taper > 0.0
         // Artistic axes vary the width along curved strokes, so walk them more densely.
         let samplesPerSeg = if axes.sampledArtistic then 16 else 8
         let isFreeCurveEnd ty = ty = G2 || ty = G4
@@ -1227,7 +1231,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                        let p1 = bezPts.[segIdx]
                        let p2 = bezPts.[(segIdx + 1) % n]
                        let interior =
-                           if isStraightSeg segIdx then [||]
+                           if isStraightSeg segIdx && not widthVariesAlongStroke then [||]
                            else [| for s in 1 .. samplesPerSeg - 1 -> bezEval segIdx (float s / float samplesPerSeg) |]
                        let mutable len = 0.0
                        let mutable px, py = p1.x, p1.y
@@ -1256,13 +1260,22 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
             /// Stroke half-width at a given arc length and spine tangent direction.
             let widthAt (sLen: float) (th: float) =
+                let mutable w = fthickness
+
                 if nib > 0.0 then
                     // Broad-nib pen: the ribbon width is the projection of the nib onto the
                     // stroke's perpendicular, so strokes along the nib angle nearly vanish.
                     // Clamp to 5% so the outline never degenerates completely.
-                    fthickness * max (1.0 - nib * (1.0 - abs (sin (th - nibAngle)))) 0.05
-                else
-                    fthickness
+                    w <- w * max (1.0 - nib * (1.0 - abs (sin (th - nibAngle)))) 0.05
+
+                if taper > 0.0 && not isClosed then
+                    // Pointed-brush ends: shrink to a point over the first and last
+                    // (taper/2) fraction of the stroke's arc length.
+                    let sFrac = sLen / totalLen
+                    let ramp = 0.5 * taper
+                    w <- w * min 1.0 (min sFrac (1.0 - sFrac) / ramp)
+
+                w
 
             // Build one side (outer when sign=+1, inner when sign=-1) of the offset polyline.
             // Smooth bezier points emit a single perpendicular offset. Corner bezier points
@@ -1335,6 +1348,15 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 let outer = buildSide  1.0 false
                 let inner = buildSide -1.0 false |> List.rev
                 [ Curve(outer, true); Curve(inner, true) ]
+                |> List.map this.applySoftCorners
+            elif taper > 0.0 then
+                // Pointed ends: the width shrinks to nothing at the spine endpoints, so
+                // the two sides simply meet there — a pointed-brush lift. No cap geometry.
+                let startPt = plainKnot { x = bezPts.[0].x; y = bezPts.[0].y; x_fit = false; y_fit = false }
+                let endPt = plainKnot { x = bezPts.[n - 1].x; y = bezPts.[n - 1].y; x_fit = false; y_fit = false }
+                let outer = buildSide  1.0 false
+                let inner = buildSide -1.0 false |> List.rev
+                [ Curve([ startPt ] @ outer @ [ endPt ] @ inner, true) ]
                 |> List.map this.applySoftCorners
             elif nib > 0.0 then
                 // Chisel ends: close the outline with straight edges straight across the
