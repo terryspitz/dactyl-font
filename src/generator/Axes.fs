@@ -35,6 +35,7 @@ type Axes =
       nib: float //broad-nib pen: stroke width follows stroke direction (0=off, 1=full nib effect)
       nib_angle: int //nib angle in degrees anticlockwise from horizontal
       taper: float //strokes taper to points at their ends (0=off, 1=pointed all the way to the middle)
+      wobble: float //hand-drawn waviness: spine displacement amplitude in units of thickness (0=off)
       constant_offset: bool //prototype: outlines are dense polylines at constant perpendicular distance from the spine
       max_spline_iter: int //max number of iterations to solve spline curves
       show_knots: bool //show small circles for the points used to define lines/curves
@@ -71,6 +72,7 @@ type Axes =
           nib = 0.0
           nib_angle = 30
           taper = 0.0
+          wobble = 0.0
           constant_offset = true
           max_spline_iter = 500
           show_knots = false
@@ -108,6 +110,7 @@ type Axes =
           "nib", FracRange(0.0, 1.0), "artistic"
           "nib_angle", Range(0, 180), "artistic"
           "taper", FracRange(0.0, 1.0), "artistic"
+          "wobble", FracRange(0.0, 2.0), "artistic"
           "serif", Range(0, 70), "artistic"
           "constraints", Checkbox, "experimental"
           "constant_offset", Checkbox, "experimental"
@@ -122,4 +125,4 @@ type Axes =
 
     /// True when an artistic axis that varies stroke width (or displaces the spine)
     /// along the stroke is active; these require the arc-length sampled outline path.
-    member this.sampledArtistic = this.nib > 0.0 || this.taper > 0.0
+    member this.sampledArtistic = this.nib > 0.0 || this.taper > 0.0 || this.wobble > 0.0

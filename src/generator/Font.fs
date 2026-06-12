@@ -1161,9 +1161,11 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         let nib = axes.nib
         let nibAngle = float axes.nib_angle * PI / 180.0
         let taper = axes.taper
-        // Axes whose width varies with arc length need interior samples even on
-        // straight spine segments (nib width is constant along a straight line).
-        let widthVariesAlongStroke = taper > 0.0
+        let wobble = axes.wobble
+        let wobbleWavelength = 200.0
+        // Axes whose width or displacement varies with arc length need interior samples
+        // even on straight spine segments (nib width is constant along a straight line).
+        let widthVariesAlongStroke = taper > 0.0 || wobble > 0.0
         // Artistic axes vary the width along curved strokes, so walk them more densely.
         let samplesPerSeg = if axes.sampledArtistic then 16 else 8
         let isFreeCurveEnd ty = ty = G2 || ty = G4
@@ -1252,11 +1254,44 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
             let totalLen = max cumLenAtBez.[segCount] 1e-9
 
+            let wobbleCycles = max 1.0 (Math.Round(totalLen / wobbleWavelength))
+
+            /// Hand-drawn waviness: displace a spine sample perpendicular to its tangent.
+            /// An integer cycle count makes the displacement vanish at open-stroke
+            /// endpoints (so caps fit) and stay continuous around closed curves. The
+            /// tangent is corrected by the displacement slope so offsets remain
+            /// perpendicular to the displaced spine.
+            let displace (x: float, y: float, th: float, sLen: float) =
+                if wobble = 0.0 then
+                    (x, y, th, sLen)
+                else
+                    let amp = wobble * fthickness
+                    let phase = 2.0 * PI * wobbleCycles * sLen / totalLen
+                    let d = amp * sin phase
+                    let slope = amp * 2.0 * PI * wobbleCycles / totalLen * cos phase
+                    (x + d * cos (th + PI / 2.0), y + d * sin (th + PI / 2.0), th + atan slope, sLen)
+
             /// Spine samples (x, y, th, arc length from curve start), shared by both sides.
             let spineSamples =
                 [| for segIdx in 0 .. segCount - 1 ->
                        [| for (x, y, th, localLen) in fst segData.[segIdx] ->
-                              (x, y, th, cumLenAtBez.[segIdx] + localLen) |] |]
+                              displace (x, y, th, cumLenAtBez.[segIdx] + localLen) |] |]
+
+            /// Bez points displaced like the interior samples; (x, y, tangent delta, arc
+            /// length). Corners use the tangent bisector as the displacement direction so
+            /// both sides share a single displaced point.
+            let dispBez =
+                [| for i in 0 .. n - 1 ->
+                       let bp = bezPts.[i]
+                       let sLen = cumLenAtBez.[min i segCount]
+
+                       let thMid =
+                           if not isClosed && i = 0 then bp.th_out
+                           elif not isClosed && i = n - 1 then bp.th_in
+                           else norm (bp.th_in + norm (bp.th_out - bp.th_in) / 2.0)
+
+                       let (x, y, th, _) = displace (bp.x, bp.y, thMid, sLen)
+                       (x, y, th - thMid, sLen) |]
 
             /// Stroke half-width at a given arc length and spine tangent direction.
             let widthAt (sLen: float) (th: float) =
@@ -1292,18 +1327,18 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
                 let emitAtBezPt (i: int) =
                     let bp = bezPts.[i]
-                    let sLen = cumLenAtBez.[i]
+                    let (bx, by, dTh, sLen) = dispBez.[i]
                     let isCorner = abs (norm (bp.th_out - bp.th_in)) > 1e-3
                     if not isCorner then
-                        emitPerp bp.x bp.y bp.th_in sLen
+                        emitPerp bx by (bp.th_in + dTh) sLen
                     else
-                        let w = widthAt sLen bp.th_in
+                        let w = widthAt sLen (bp.th_in + dTh)
                         let prev = bezPts.[(i - 1 + n) % n]
                         let nxt  = bezPts.[(i + 1) % n]
                         let prevLen = hypot (bp.x - prev.x) (bp.y - prev.y)
                         let nextLen = hypot (nxt.x - bp.x) (nxt.y - bp.y)
-                        let th1 = norm (bp.th_in  + perpAngle)
-                        let th2 = norm (bp.th_out + perpAngle)
+                        let th1 = norm (bp.th_in + dTh + perpAngle)
+                        let th2 = norm (bp.th_out + dTh + perpAngle)
                         let bend = norm (th2 - th1)
                         let isSharperThanRight = abs bend >= 2.0
                         let isOuter =
@@ -1311,15 +1346,15 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                             || (reverse && bend > PI / 8.0)
                         if isOuter && isSharperThanRight then
                             // Two miter points (mirrors offsetSegment Corner outer-bend case).
-                            let pa = addPolarContrast bp.x bp.y (this.maybeAlign th1 - perpAngle / 2.0) (w * sqrt 2.0)
-                            let pb = addPolarContrast bp.x bp.y (this.maybeAlign th2 + perpAngle / 2.0) (w * sqrt 2.0)
+                            let pa = addPolarContrast bx by (this.maybeAlign th1 - perpAngle / 2.0) (w * sqrt 2.0)
+                            let pb = addPolarContrast bx by (this.maybeAlign th2 + perpAngle / 2.0) (w * sqrt 2.0)
                             knots.Add(plainKnot pa)
                             knots.Add(plainKnot pb)
                         else
                             // Single sharp miter, clamped to chord lengths to avoid overshoot.
                             let alpha = bend / 2.0
                             let offset = min (min (w / cos alpha) prevLen) nextLen
-                            let p = addPolarContrast bp.x bp.y (th1 + alpha) offset
+                            let p = addPolarContrast bx by (th1 + alpha) offset
                             knots.Add(plainKnot p)
 
                 let emitMidSamples (segIdx: int) =
@@ -1334,13 +1369,15 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     // Open: caps own bp[0] and bp[n-1]; emit only interior bezier points,
                     // unless the end style needs the body to reach the stroke endpoints.
                     if includeEnds then
-                        emitPerp bezPts.[0].x bezPts.[0].y bezPts.[0].th_out 0.0
+                        let (bx, by, dTh, _) = dispBez.[0]
+                        emitPerp bx by (bezPts.[0].th_out + dTh) 0.0
                     emitMidSamples 0
                     for i in 1 .. n - 2 do
                         emitAtBezPt i
                         emitMidSamples i
                     if includeEnds then
-                        emitPerp bezPts.[n - 1].x bezPts.[n - 1].y bezPts.[n - 1].th_in totalLen
+                        let (bx, by, dTh, _) = dispBez.[n - 1]
+                        emitPerp bx by (bezPts.[n - 1].th_in + dTh) totalLen
 
                 List.ofSeq knots
 

@@ -923,6 +923,29 @@ type ArtisticAxesTests() =
             "stroke should be full width at its middle")
 
     [<Test>]
+    member _.WobbleAxis_DisplacesSpineButNotEndpoints() =
+        let font = Font.Font({ baseAxes with wobble = 1.0 })
+
+        let outlineKnots =
+            match font.getOutline (strokeTo 0. 600.) with
+            | Curve(ks, _) -> ks
+            | e -> failwithf "expected single Curve outline, got %A" e
+
+        // The wave swings the stroke well beyond its straight-line bounds...
+        let maxX = outlineKnots |> List.map (fun k -> abs k.pt.x) |> List.max
+        Assert.That(maxX, Is.GreaterThan(1.5 * fthickness),
+            "wobble should displace the stroke beyond its plain width")
+
+        // ...but the displacement vanishes at the stroke ends so caps stay centred.
+        let maxXAtEnds =
+            outlineKnots
+            |> List.filter (fun k -> k.pt.y <= 0.0 || k.pt.y >= 600.0)
+            |> List.map (fun k -> abs k.pt.x)
+            |> List.max
+        Assert.That(maxXAtEnds, Is.LessThan(1.2 * fthickness),
+            "wobble should vanish at stroke endpoints")
+
+    [<Test>]
     member _.NibAxis_GlyphsRenderWithoutException() =
         let font = Font.Font({ baseAxes with nib = 0.8 })
         for ch in [ 'o'; 'l'; 'v'; 'S' ] do
