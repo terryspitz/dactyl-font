@@ -1163,9 +1163,11 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         let taper = axes.taper
         let wobble = axes.wobble
         let wobbleWavelength = 200.0
+        let mobius = axes.mobius
+        let mobiusHalfTwistLen = 300.0
         // Axes whose width or displacement varies with arc length need interior samples
         // even on straight spine segments (nib width is constant along a straight line).
-        let widthVariesAlongStroke = taper > 0.0 || wobble > 0.0
+        let widthVariesAlongStroke = taper > 0.0 || wobble > 0.0 || mobius > 0.0
         // Artistic axes vary the width along curved strokes, so walk them more densely.
         let samplesPerSeg = if axes.sampledArtistic then 16 else 8
         let isFreeCurveEnd ty = ty = G2 || ty = G4
@@ -1381,7 +1383,173 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
                 List.ofSeq knots
 
-            if isClosed then
+            // For open strokes, reuse the same cap/joint/serif/flare logic.
+            // startCap and endCap both need a Segment describing the endpoint.
+            // endCap also needs the penultimate Segment for its tangentEnd.
+            //
+            // The cap function sets th_in on the first knot and th_out on the last knot
+            // to the spine tangent so the OLD outline can render a smooth cap-to-body
+            // cubic over the whole adjacent segment. In the polyline approach those same
+            // tangents create a tight S-curve over the short chord from cap to first/last
+            // body sample (the "extra sharp points" at curve endings on glyphs like 'c').
+            // Strip them so the cap-to-body edges are straight lines, matching the body
+            // polyline. Intermediate cap knots (serif/flare/bulb) are untouched.
+            let makeCaps () =
+                let firstSeg     = makeCapSeg bezPts.[0]   bezPts.[0].th_out   bezPts.[0].th_out
+                let endpointSeg  = makeCapSeg bezPts.[n-1] bezPts.[n-1].th_in  bezPts.[n-1].th_in
+                // penultimateSeg.tangentEnd is the incoming tangent at the final point
+                let penultSeg    = makeCapSeg bezPts.[n-2] bezPts.[n-2].th_out bezPts.[n-1].th_in
+
+                let stripBoundaryTangents (caps: Knot list) =
+                    match caps with
+                    | [] -> []
+                    | _ ->
+                        let lastIdx = caps.Length - 1
+                        caps |> List.mapi (fun i k ->
+                            if i = 0 && i = lastIdx then { k with th_in = None; th_out = None }
+                            elif i = 0 then { k with th_in = None }
+                            elif i = lastIdx then { k with th_out = None }
+                            else k)
+
+                // Use original element (before reduce) so isJoint detects stroke intersections.
+                let startCapKnots = this.startCap firstSeg e startAlign Corner |> stripBoundaryTangents
+                let endCapKnots   = this.endCap endpointSeg penultSeg e endAlign Corner |> stripBoundaryTangents
+                startCapKnots, endCapKnots
+
+            // --- Möbius ribbon panels ---
+            // The stroke is drawn as a ribbon twisting about its spine: in 2D projection
+            // the apparent width is |cos θ(s)| of the full width, where the twist angle θ
+            // advances by π per half-twist along the arc length. Each span between the
+            // zero-width pinch points becomes its own closed panel, so the glyph reads as
+            // a ribbon seen alternately from the front and the back (and the panels are
+            // ready for per-panel front/back shading later).
+            let buildMobiusPanels () =
+                let halfTwists = max 1 (int (Math.Round(totalLen * mobius / mobiusHalfTwistLen)))
+
+                let widthMobius sLen th =
+                    let theta = PI * float halfTwists * sLen / totalLen
+                    // Keep a hairline width right at the pinch so panels never degenerate.
+                    widthAt sLen th * max (abs (cos theta)) 0.02
+
+                // Ordered spine samples over the whole curve. Corners contribute one
+                // entry per tangent so panel edges turn with the corner.
+                let flatSamples =
+                    let bezEntries (i: int) =
+                        let bp = bezPts.[i]
+                        let (bx, by, dTh, sLen) = dispBez.[i]
+                        let isCorner = abs (norm (bp.th_out - bp.th_in)) > 1e-3
+                        if isCorner then
+                            [ (bx, by, bp.th_in + dTh, sLen); (bx, by, bp.th_out + dTh, sLen) ]
+                        else
+                            [ (bx, by, bp.th_in + dTh, sLen) ]
+
+                    if isClosed then
+                        [ for i in 0 .. n - 1 do
+                              yield! bezEntries i
+                              yield! spineSamples.[i] ]
+                    else
+                        [ let (bx, by, dTh, _) = dispBez.[0]
+                          yield (bx, by, bezPts.[0].th_out + dTh, 0.0)
+                          yield! spineSamples.[0]
+                          for i in 1 .. n - 2 do
+                              yield! bezEntries i
+                              yield! spineSamples.[i]
+                          let (ex, ey, edTh, _) = dispBez.[n - 1]
+                          yield (ex, ey, bezPts.[n - 1].th_in + edTh, totalLen) ]
+
+                let samplesArr = Array.ofList flatSamples
+
+                /// Spine point at arc length target, interpolated between adjacent samples.
+                let pinchKnotAt (target: float) =
+                    let m = samplesArr.Length
+                    let sOf j = let (_, _, _, s) = samplesArr.[j] in s
+                    let mutable i = -1
+                    let mutable j = 0
+                    while i < 0 && j < m - 1 do
+                        if sOf j <= target && target <= sOf (j + 1) then i <- j
+                        j <- j + 1
+                    let (x1, y1, _, s1), (x2, y2, _, s2) =
+                        if i < 0 then
+                            // wrap (closed curves): between the last sample and the curve start
+                            let (x1, y1, th1, s1) = samplesArr.[m - 1]
+                            let (x2, y2, th2, _) = samplesArr.[0]
+                            (x1, y1, th1, s1), (x2, y2, th2, totalLen)
+                        else
+                            samplesArr.[i], samplesArr.[i + 1]
+                    let t = if s2 - s1 < 1e-9 then 0.5 else (target - s1) / (s2 - s1)
+                    plainKnot { x = x1 + (x2 - x1) * t; y = y1 + (y2 - y1) * t; x_fit = false; y_fit = false }
+
+                let edgeKnots sign samples =
+                    [ for (x, y, th, s) in samples ->
+                          plainKnot (addPolarContrast x y (th + sign * PI / 2.0) (widthMobius s th)) ]
+
+                let pinches =
+                    [ for j in 0 .. halfTwists - 1 -> (float j + 0.5) / float halfTwists * totalLen ]
+
+                if not isClosed then
+                    // Standard caps only fit a full-width stroke end; pinch to the spine
+                    // endpoint instead when nib/taper have altered the end width.
+                    let startCapKnots, endCapKnots =
+                        if taper > 0.0 || nib > 0.0 then [], [] else makeCaps ()
+
+                    let boundsList = 0.0 :: pinches @ [ totalLen ]
+
+                    [ for pi in 0 .. List.length boundsList - 2 do
+                          let a = boundsList.[pi]
+                          let b = boundsList.[pi + 1]
+
+                          let inside =
+                              flatSamples
+                              |> List.filter (fun (_, _, _, s) -> s > a + 1e-6 && s < b - 1e-6)
+
+                          if not inside.IsEmpty then
+                              let startKnots =
+                                  if pi = 0 && not startCapKnots.IsEmpty then startCapKnots
+                                  else [ pinchKnotAt a ]
+
+                              let endKnots =
+                                  if pi = List.length boundsList - 2 && not endCapKnots.IsEmpty then endCapKnots
+                                  else [ pinchKnotAt b ]
+
+                              yield
+                                  Curve(
+                                      startKnots
+                                      @ edgeKnots 1.0 inside
+                                      @ endKnots
+                                      @ (edgeKnots -1.0 inside |> List.rev),
+                                      true
+                                  ) ]
+                else
+                    // Panels wrap around the closed curve from pinch to pinch.
+                    [ for pi in 0 .. halfTwists - 1 do
+                          let a = pinches.[pi]
+                          let b =
+                              if pi = halfTwists - 1 then pinches.[0] + totalLen
+                              else pinches.[pi + 1]
+
+                          let inside =
+                              flatSamples
+                              |> List.map (fun (x, y, th, s) ->
+                                  (x, y, th, s, (if s > a + 1e-6 then s else s + totalLen)))
+                              |> List.filter (fun (_, _, _, _, s') -> s' > a + 1e-6 && s' < b - 1e-6)
+                              |> List.sortBy (fun (_, _, _, _, s') -> s')
+                              |> List.map (fun (x, y, th, s, _) -> (x, y, th, s))
+
+                          if not inside.IsEmpty then
+                              let bWrapped = if b > totalLen then b - totalLen else b
+
+                              yield
+                                  Curve(
+                                      [ pinchKnotAt a ]
+                                      @ edgeKnots 1.0 inside
+                                      @ [ pinchKnotAt bWrapped ]
+                                      @ (edgeKnots -1.0 inside |> List.rev),
+                                      true
+                                  ) ]
+
+            if mobius > 0.0 then
+                buildMobiusPanels () |> List.map this.applySoftCorners
+            elif isClosed then
                 let outer = buildSide  1.0 false
                 let inner = buildSide -1.0 false |> List.rev
                 [ Curve(outer, true); Curve(inner, true) ]
@@ -1405,36 +1573,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 [ Curve(outer @ inner, true) ]
                 |> List.map this.applySoftCorners
             else
-                // For open strokes, reuse the same cap/joint/serif/flare logic.
-                // startCap and endCap both need a Segment describing the endpoint.
-                // endCap also needs the penultimate Segment for its tangentEnd.
-                let firstSeg     = makeCapSeg bezPts.[0]   bezPts.[0].th_out   bezPts.[0].th_out
-                let endpointSeg  = makeCapSeg bezPts.[n-1] bezPts.[n-1].th_in  bezPts.[n-1].th_in
-                // penultimateSeg.tangentEnd is the incoming tangent at the final point
-                let penultSeg    = makeCapSeg bezPts.[n-2] bezPts.[n-2].th_out bezPts.[n-1].th_in
-
-                // The cap function sets th_in on the first knot and th_out on the last knot
-                // to the spine tangent so the OLD outline can render a smooth cap-to-body
-                // cubic over the whole adjacent segment. In the polyline approach those same
-                // tangents create a tight S-curve over the short chord from cap to first/last
-                // body sample (the "extra sharp points" at curve endings on glyphs like 'c').
-                // Strip them so the cap-to-body edges are straight lines, matching the body
-                // polyline. Intermediate cap knots (serif/flare/bulb) are untouched.
-                let stripBoundaryTangents (caps: Knot list) =
-                    match caps with
-                    | [] -> []
-                    | _ ->
-                        let lastIdx = caps.Length - 1
-                        caps |> List.mapi (fun i k ->
-                            if i = 0 && i = lastIdx then { k with th_in = None; th_out = None }
-                            elif i = 0 then { k with th_in = None }
-                            elif i = lastIdx then { k with th_out = None }
-                            else k)
-
-                // Use original element (before reduce) so isJoint detects stroke intersections.
-                let startCapKnots = this.startCap firstSeg e startAlign Corner |> stripBoundaryTangents
-                let endCapKnots   = this.endCap endpointSeg penultSeg e endAlign Corner |> stripBoundaryTangents
-
+                let startCapKnots, endCapKnots = makeCaps ()
                 let outer = buildSide  1.0 false
                 let inner = buildSide -1.0 false |> List.rev
                 // Path: startCap → outer body → endCap → inner body (reversed)
