@@ -1158,7 +1158,10 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     /// Reuses the same cap/joint/serif/flare/soft_corners logic as getDactylSansOutlines.
     member this.getDactylConstantOffsetOutlines e =
         let fthickness = float thickness
-        let samplesPerSeg = 8
+        let nib = axes.nib
+        let nibAngle = float axes.nib_angle * PI / 180.0
+        // Artistic axes vary the width along curved strokes, so walk them more densely.
+        let samplesPerSeg = if axes.sampledArtistic then 16 else 8
         let isFreeCurveEnd ty = ty = G2 || ty = G4
 
         // Build Segment for use with existing cap functions.
@@ -1252,14 +1255,21 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                               (x, y, th, cumLenAtBez.[segIdx] + localLen) |] |]
 
             /// Stroke half-width at a given arc length and spine tangent direction.
-            let widthAt (sLen: float) (th: float) = fthickness
+            let widthAt (sLen: float) (th: float) =
+                if nib > 0.0 then
+                    // Broad-nib pen: the ribbon width is the projection of the nib onto the
+                    // stroke's perpendicular, so strokes along the nib angle nearly vanish.
+                    // Clamp to 5% so the outline never degenerates completely.
+                    fthickness * max (1.0 - nib * (1.0 - abs (sin (th - nibAngle)))) 0.05
+                else
+                    fthickness
 
             // Build one side (outer when sign=+1, inner when sign=-1) of the offset polyline.
             // Smooth bezier points emit a single perpendicular offset. Corner bezier points
             // (th_in ≠ th_out) reuse the offsetSegment-Corner logic: outer convex bends get a
             // pair of miter points, inner convex bends collapse to a single bisector point
             // clamped to the chord lengths, avoiding self-intersection on sharp inner corners.
-            let buildSide (sign: float) =
+            let buildSide (sign: float) (includeEnds: bool) =
                 let reverse = sign < 0.
                 let perpAngle = sign * PI / 2.
                 let knots = System.Collections.Generic.List<Knot>()
@@ -1308,18 +1318,32 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                         emitAtBezPt i
                         emitMidSamples i
                 else
-                    // Open: caps own bp[0] and bp[n-1]; emit only interior bezier points.
+                    // Open: caps own bp[0] and bp[n-1]; emit only interior bezier points,
+                    // unless the end style needs the body to reach the stroke endpoints.
+                    if includeEnds then
+                        emitPerp bezPts.[0].x bezPts.[0].y bezPts.[0].th_out 0.0
                     emitMidSamples 0
                     for i in 1 .. n - 2 do
                         emitAtBezPt i
                         emitMidSamples i
+                    if includeEnds then
+                        emitPerp bezPts.[n - 1].x bezPts.[n - 1].y bezPts.[n - 1].th_in totalLen
 
                 List.ofSeq knots
 
             if isClosed then
-                let outer = buildSide  1.0
-                let inner = buildSide -1.0 |> List.rev
+                let outer = buildSide  1.0 false
+                let inner = buildSide -1.0 false |> List.rev
                 [ Curve(outer, true); Curve(inner, true) ]
+                |> List.map this.applySoftCorners
+            elif nib > 0.0 then
+                // Chisel ends: close the outline with straight edges straight across the
+                // stroke endpoints — the mark left by lifting a broad-nib pen. The standard
+                // caps (serif/flare/bulb) assume a full-thickness stroke end, which no
+                // longer holds when the width follows the stroke direction.
+                let outer = buildSide  1.0 true
+                let inner = buildSide -1.0 true |> List.rev
+                [ Curve(outer @ inner, true) ]
                 |> List.map this.applySoftCorners
             else
                 // For open strokes, reuse the same cap/joint/serif/flare logic.
@@ -1352,8 +1376,8 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 let startCapKnots = this.startCap firstSeg e startAlign Corner |> stripBoundaryTangents
                 let endCapKnots   = this.endCap endpointSeg penultSeg e endAlign Corner |> stripBoundaryTangents
 
-                let outer = buildSide  1.0
-                let inner = buildSide -1.0 |> List.rev
+                let outer = buildSide  1.0 false
+                let inner = buildSide -1.0 false |> List.rev
                 // Path: startCap → outer body → endCap → inner body (reversed)
                 [ Curve(startCapKnots @ outer @ endCapKnots @ inner, true) ]
                 |> List.map this.applySoftCorners
@@ -1386,7 +1410,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         elif this.axes.scratches then
             this.getScratches
         elif this.axes.outline then
-            (if axes.constant_offset then
+            (if axes.constant_offset || (axes.dactyl_spline && axes.sampledArtistic) then
                  this.getDactylConstantOffsetOutlines
              elif axes.dactyl_spline then
                  this.getDactylSansOutlines

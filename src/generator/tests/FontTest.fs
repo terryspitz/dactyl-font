@@ -877,3 +877,35 @@ type KnotSequenceValidationTests() =
         printfn "end_flatness=20.0 S backbone: %A" ptsHighEnd
         Assert.That(ptsLowEnd, Is.Not.EqualTo(ptsHighEnd),
             "end_flatness should change the solved 'S' backbone")
+
+[<TestFixture>]
+type ArtisticAxesTests() =
+    let pt x y = { x = x; y = y; x_fit = false; y_fit = false }
+    let knot ty x y = { pt = pt x y; ty = ty; th_in = None; th_out = None; label = None }
+
+    /// A straight open stroke from (0,0) to (x,y).
+    let strokeTo x y = Curve([ knot Corner 0. 0.; knot Corner x y ], false)
+
+    // contrast=0 keeps offsets exactly perpendicular so widths are easy to assert
+    let baseAxes = { Axes.DefaultAxes with contrast = 0.0 }
+    let fthickness = float Axes.DefaultAxes.thickness
+
+    [<Test>]
+    member _.NibAxis_WidthFollowsStrokeDirection() =
+        // nib_angle=0 → horizontal nib edge: vertical strokes get the full width,
+        // horizontal strokes (drawn along the nib) collapse to a thin sliver.
+        let font = Font.Font({ baseAxes with nib = 1.0; nib_angle = 0 })
+        let vl, vr, _, _ = bounds (font.getOutline (strokeTo 0. 600.))
+        let _, _, hb, ht = bounds (font.getOutline (strokeTo 600. 0.))
+        Assert.That(vr - vl, Is.EqualTo(2.0 * fthickness).Within(1.0),
+            "vertical stroke should be drawn at full width")
+        Assert.That(ht - hb, Is.LessThan(0.5 * fthickness),
+            "horizontal stroke should be a thin sliver")
+
+    [<Test>]
+    member _.NibAxis_GlyphsRenderWithoutException() =
+        let font = Font.Font({ baseAxes with nib = 0.8 })
+        for ch in [ 'o'; 'l'; 'v'; 'S' ] do
+            let svg = font.charToSvg ch 0.0 0.0 "black" |> String.concat " "
+            Assert.That(svg, Does.Contain("M "), sprintf "nib outline for '%c' should render" ch)
+
