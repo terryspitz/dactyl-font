@@ -4,12 +4,12 @@
 - flare with tangents wrong way round
 - move outline point inward only
 - improve serifs
-- join lines properly
+- join lines properly, including in m and A
+- fix italic 8
 - correct tight bend in '5'
 - render animation
 - try merging with https://magenta.tensorflow.org/svg-vae
 - add punctuation chars
-- 'bowtie' where lines all cross
 - mark joins to remove serifs
 - generate proofs, ideally using @font-face
 - calculate kerning
@@ -22,10 +22,11 @@
 - Optional debug mode to show coordinates/curves
 - debug 'sharp bend' duplicate points in 'e'
 - mobius strip font
+- generated FontForge fonts
 -
 **DONE: Implemented Features**
+- 'bowtie' where lines all cross
 - Backscratch font (made of 4 parallel lines)
-- Generated FontForge fonts
 - Variable font explorer: https://terryspitz.github.io/dactyl-font/
 - Mono (fixed-width) font
 - Horiz/vertical endcaps using axis_align_caps
