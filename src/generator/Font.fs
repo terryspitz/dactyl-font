@@ -1546,23 +1546,27 @@ type Font(axes: Axes, ?showCombOpt: bool) =
            let knotColour = if this.axes.outline then lightBlue else pink in
            let knotSize = if this.axes.outline then 4.0 else 20.0 in
 
+           // Outline knots are all inferred/sampled Corner points — forcing smooth on them
+           // would make DactylSpline run NelderMead on 100+ G2 knots (O(n²) per glyph).
+           let outlineFont = if axes.smooth then Font({ axes with smooth = false }) else this in
+
            try
                // render outline glyph
-               let outline = this.getOutline backbone
+               let outline = outlineFont.getOutline backbone
 
                if axes.debug then
                    printfn "outline: %A" outline
 
-               (this.elementToSvgPath outline offsetX offsetY 5.0 colour false)
+               (outlineFont.elementToSvgPath outline offsetX offsetY 5.0 colour false)
                @ (if this.axes.show_knots && this.axes.outline then
                       outline
-                      |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour this.isJoint
+                      |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour outlineFont.isJoint
                   else
                       [])
            with ex ->
                printfn "EXCEPTION IN getOutline: %O\nFallback backbone only" ex
 
-               this.elementToSvgPath
+               outlineFont.elementToSvgPath
                    (Dot(
                        { y = _metrics.H
                          x = _metrics.C
