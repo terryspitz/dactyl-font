@@ -1551,8 +1551,8 @@ type Font(axes: Axes, ?showCombOpt: bool) =
            let outlineFont = if axes.smooth then Font({ axes with smooth = false }) else this in
 
            try
-               // render outline glyph
-               let outline = outlineFont.getOutline backbone
+               // Spine is solved with smooth (this), outline knots rendered without smooth (outlineFont).
+               let outline = this.getOutline backbone
 
                if axes.debug then
                    printfn "outline: %A" outline
