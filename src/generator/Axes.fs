@@ -41,6 +41,7 @@ type Axes =
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
       flatness: float //weight of flatness (abs m) in objective function
       end_flatness: float //quadratic curvature-span weight for open-curve endpoint segments (higher = more circular arc at stroke tips)
+      curvature_balance: float //weight pulling arc curvatures toward shared font-wide targets (0 = off)
       debug: bool } //show debug info in console
 
     static member DefaultAxes =
@@ -75,6 +76,7 @@ type Axes =
           clip_rect = true
           flatness = 0.5
           end_flatness = 10.0
+          curvature_balance = 0.0
           debug = false }
 
     static member controls =
@@ -109,4 +111,5 @@ type Axes =
           "clip_rect", Checkbox, "debug"
           "flatness", FracRange(0.0, 10.0), "experimental"
           "end_flatness", FracRange(0.0, 30.0), "experimental"
+          "curvature_balance", FracRange(0.0, 20.0), "experimental"
           "debug", Checkbox, "debug" ]

@@ -274,6 +274,68 @@ let computeCurvatureData (bezPts: BezierPoint array) (isClosed: bool) =
         arcLen <- arcLen + segArcLen
     {| segments = segments.ToArray() |}
 
+// Global curvature balancing.
+//
+// The solver fits each segment in isolation, so two arcs that "want" to be the
+// same radius (e.g. the bowls of 'b' and 'd', or the shoulders of 'n' and 'm')
+// end up at slightly different curvatures.  CurvatureBalance carries a set of
+// shared target curvature magnitudes ("attractors") derived from the whole font
+// in a pre-pass, plus a penalty weight.  In computeErr each curved segment is
+// softly pulled toward the nearest attractor, but only when it is already within
+// captureRel of that attractor — so genuinely unique arcs (no near neighbours)
+// are left untouched, and only arcs that already roughly agree get snapped into
+// exact agreement.  Curvatures are in the solver's internal scaled units
+// (10000 / radius); attractors must be supplied in those same units.
+type CurvatureBalance =
+    { attractors: float[]  // positive curvature magnitudes, scaled (10000 / radius)
+      weight: float        // penalty weight (0 = disabled)
+      captureRel: float }  // relative capture radius around an attractor
+
+let curvatureBalanceDisabled =
+    { attractors = [||]
+      weight = 0.0
+      captureRel = 0.25 }
+
+/// Cluster signed curvatures (in raw 1/radius units) into shared attractor
+/// magnitudes.  Works in magnitude space so mirror arcs (opposite sign, equal
+/// radius) cluster together.  Near-straight segments below minMag are dropped,
+/// and only clusters with at least minMembers members become attractors so that
+/// one-off arcs without siblings are not forced to match anything.
+let clusterCurvatures (samples: (float * float)[]) (relTol: float) (minMag: float) (minMembers: int) : float[] =
+    let mags =
+        samples
+        |> Array.map (fun (k, w) -> (abs k, w))
+        |> Array.filter (fun (a, _) -> a > minMag)
+        |> Array.sortBy fst
+
+    if mags.Length = 0 then
+        [||]
+    else
+        let clusters = ResizeArray<ResizeArray<float * float>>()
+        let mutable cur = ResizeArray<float * float>()
+        cur.Add(mags.[0])
+
+        for idx in 1 .. mags.Length - 1 do
+            let (a, w) = mags.[idx]
+            let (prevA, _) = cur.[cur.Count - 1]
+            // Chain into the current cluster while the relative gap stays small.
+            if a - prevA <= relTol * a then
+                cur.Add((a, w))
+            else
+                clusters.Add(cur)
+                cur <- ResizeArray<float * float>()
+                cur.Add((a, w))
+
+        clusters.Add(cur)
+
+        [| for cl in clusters do
+               if cl.Count >= minMembers then
+                   // Arc-length-weighted mean magnitude of the cluster.
+                   let sw = cl |> Seq.sumBy snd
+                   let swa = cl |> Seq.sumBy (fun (a, w) -> a * w)
+                   if sw > 0.0 then
+                       yield swa / sw |]
+
 type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, endWeight: float, debug: bool) =
     let _points: BezierPoint array = Array.init ctrlPts.Length (fun _ -> BezierPoint())
     let STEPS = 8
@@ -294,6 +356,8 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, endWe
     member this.points() = _points
     member this.flatness = flatness
     member this.debug = debug
+    // Shared global curvature targets; defaults to disabled (no cross-glyph pull).
+    member val balance = curvatureBalanceDisabled with get, set
 
     member this.initialise() =
         //initialise points
@@ -620,6 +684,24 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, endWe
                     let startK = c
                     let endK = m * max_dist + c
 
+                    // Global curvature balancing: pull this segment's mean curvature
+                    // toward the nearest shared attractor, but only when already close
+                    // enough (within captureRel) so unique arcs are left free.
+                    if this.balance.weight > 0.0 && this.balance.attractors.Length > 0 then
+                        let kbar = (startK + endK) / 2.0
+                        let a = abs kbar
+                        let mutable bestA = 0.0
+                        let mutable bestD = Double.PositiveInfinity
+                        for att in this.balance.attractors do
+                            let d = abs (a - att)
+                            if d < bestD then
+                                bestD <- d
+                                bestA <- att
+                        if bestA > 0.0 && bestD < this.balance.captureRel * bestA then
+                            let target = (if kbar >= 0.0 then bestA else -bestA)
+                            let gap = kbar - target
+                            totalErr <- totalErr + gap * gap * this.balance.weight
+
                     // Store start/end indices for continuity check
                     _segmentStartK.[segmentCount] <- startK
                     _segmentEndK.[segmentCount] <- endK
@@ -836,6 +918,8 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, endWe
 type DactylSpline(ctrlPts, isClosed) =
     member this.ctrlPts: DControlPoint array = ctrlPts
     member this.isClosed = isClosed
+    // Shared global curvature targets, forwarded to each section's Solver.
+    member val balance = curvatureBalanceDisabled with get, set
 
     /// Pre-process LineToCurve/CurveToLine points: fix their tangent to the line direction.
     /// Must be called before segment iteration in both solveAndGetPoints and solveAndRenderTuple.
@@ -909,6 +993,7 @@ type DactylSpline(ctrlPts, isClosed) =
         let solver =
             Solver(Array.ofList innerPts, solverIsClosed, flatness, endWeight, debug)
 
+        solver.balance <- this.balance
         solver.initialise ()
 
         try

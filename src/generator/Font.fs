@@ -391,6 +391,9 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         elif angle > 0.0 then PI / 2.
         else -PI / 2.
 
+    // Cache for the font-wide curvature attractors (computed once on first use).
+    let mutable _balanceCache: CurvatureBalance option = None
+
     //MEMBERS
 
     member this.metrics = _metrics
@@ -413,6 +416,68 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         | Dot(p) -> e
         | EList(elems) -> EList(List.map this.reduce elems)
         | Space -> e
+
+    /// Font-wide curvature attractors used to balance arc curvatures across glyphs.
+    /// Disabled (no-op) unless the curvature_balance axis is positive. The first
+    /// access runs a measuring pass over every glyph: each spine is solved with
+    /// balancing off, the per-segment mean curvatures are collected and clustered
+    /// into shared target levels, and the result is cached for the Font's lifetime.
+    member this.curvatureBalance: CurvatureBalance =
+        if axes.curvature_balance <= 0.0 then
+            curvatureBalanceDisabled
+        else
+            match _balanceCache with
+            | Some b -> b
+            | None ->
+                let samples = ResizeArray<float * float>()
+
+                let rec collect elem =
+                    match elem with
+                    | Curve(pts, isClosed) ->
+                        try
+                            let ctrlPts = toDactylSplineControlPoints pts
+                            let spline = DactylSpline(ctrlPts, isClosed)
+                            // Measuring pass: balancing stays off so we read the
+                            // glyph's natural, unbalanced curvatures.
+                            let bezPts =
+                                spline.solveAndGetPoints (
+                                    axes.max_spline_iter,
+                                    axes.flatness,
+                                    axes.end_flatness,
+                                    false
+                                )
+
+                            let data = computeCurvatureData bezPts isClosed
+
+                            for seg in data.segments do
+                                let s = seg.samples
+
+                                if s.Length > 1 then
+                                    let meanK = s |> Array.averageBy (fun p -> p.curvature)
+                                    let arc = s.[s.Length - 1].arcLen - s.[0].arcLen
+                                    samples.Add((meanK, max arc 1e-6))
+                        with _ ->
+                            ()
+                    | EList(elems) -> List.iter collect elems
+                    | _ -> ()
+
+                for KeyValue(ch, _) in GlyphStringDefs.glyphMap do
+                    try
+                        collect (this.reduce (Glyph ch))
+                    with _ ->
+                        ()
+
+                // Cluster in raw 1/radius units, then scale to the solver's internal
+                // units (curvature is scaled by 10000 inside computeErr).
+                let rawAttractors = clusterCurvatures (samples.ToArray()) 0.15 0.001 2
+
+                let balance =
+                    { attractors = rawAttractors |> Array.map (fun a -> a * 10000.0)
+                      weight = axes.curvature_balance
+                      captureRel = 0.25 }
+
+                _balanceCache <- Some balance
+                balance
 
     member this.elemWidth e =
         let maxX2 (pts: Knot list) =
@@ -1104,6 +1169,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 printfn "solveCurveSegs ctrlPts: %A" ctrlPts
 
             let spline = DactylSpline(ctrlPts, isClosed)
+            spline.balance <- this.curvatureBalance
 
             let bezPts =
                 spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.end_flatness, axes.debug)
@@ -1317,6 +1383,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             let endAlign   = pts.IsEmpty || isClosed || not (isFreeCurveEnd (List.last pts).ty)
             let ctrlPts = toDactylSplineControlPoints pts
             let spline = DactylSpline(ctrlPts, isClosed)
+            spline.balance <- this.curvatureBalance
             let bezPts = spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.end_flatness, axes.debug)
             buildOutlineFromBez bezPts isClosed startAlign endAlign
 
@@ -1664,6 +1731,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             | Curve(pts, isClosed) ->
                 let ctrlPts = toDactylSplineControlPoints pts
                 let spline = DactylSpline(ctrlPts, isClosed)
+                spline.balance <- this.curvatureBalance
                 let bezPts = spline.solveAndGetPoints(axes.max_spline_iter, axes.flatness, axes.end_flatness, false)
                 bezPts |> Array.toList |> List.map (fun bp -> bp.x, bp.y)
             | EList(elems) -> List.collect collect elems

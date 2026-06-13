@@ -1063,3 +1063,91 @@ type FlatnessTests() =
             printfn "Splines outline path: %s" body2
         | _ -> failwith "expected Curve"
 
+[<TestFixture>]
+type CurvatureBalanceTests() =
+
+    [<Test>]
+    member _.ClusterMergesNearbyAndDropsSingletons() =
+        // Three magnitudes near 0.010 (within 15% of each other) should merge into
+        // one attractor; a lone 0.050 has no siblings and must be dropped.
+        let samples =
+            [| (0.0100, 1.0); (0.0105, 1.0); (0.0098, 1.0); (0.0500, 1.0) |]
+        let attractors = clusterCurvatures samples 0.15 0.001 2
+        Assert.That(attractors.Length, Is.EqualTo(1),
+            "expected a single merged cluster, lone value dropped")
+        Assert.That(attractors.[0], Is.EqualTo(0.0101).Within(0.0005),
+            "attractor should be the weighted mean of the merged cluster")
+
+    [<Test>]
+    member _.ClusterIsSignAndStraightAware() =
+        // Opposite-sign equal-magnitude arcs cluster together (matched radius);
+        // near-straight magnitudes below minMag are excluded.
+        let samples =
+            [| (0.0100, 1.0); (-0.0102, 1.0); (0.0001, 5.0); (-0.0001, 5.0) |]
+        let attractors = clusterCurvatures samples 0.15 0.001 2
+        Assert.That(attractors.Length, Is.EqualTo(1),
+            "mirror arcs should form one magnitude cluster; near-straight excluded")
+        Assert.That(attractors.[0], Is.EqualTo(0.0101).Within(0.0005))
+
+    [<Test>]
+    member _.DisabledAxisYieldsNoAttractors() =
+        let font = Font.Font(Axes.DefaultAxes)
+        Assert.That(font.curvatureBalance.weight, Is.EqualTo(0.0),
+            "default axis (0) leaves balancing disabled")
+        Assert.That(font.curvatureBalance.attractors.Length, Is.EqualTo(0))
+
+    [<Test>]
+    member _.EnabledAxisProducesAttractors() =
+        let font = Font.Font({ Axes.DefaultAxes with curvature_balance = 5.0 })
+        let balance = font.curvatureBalance
+        Assert.That(balance.weight, Is.EqualTo(5.0))
+        Assert.That(balance.attractors.Length, Is.GreaterThan(0),
+            "font-wide measuring pass should find shared curvature levels")
+        Assert.That(balance.attractors |> Array.forall (fun a -> a > 0.0), Is.True,
+            "attractors are positive magnitudes")
+
+    [<Test>]
+    member _.BalancingChangesSomeGlyphOutline() =
+        // Enabling balancing should perturb at least one curved glyph's outline,
+        // while leaving overall rendering finite and valid.
+        let axesOff = { Axes.DefaultAxes with max_spline_iter = 500 }
+        let axesOn = { axesOff with curvature_balance = 8.0 }
+        let fontOff = Font.Font(axesOff)
+        let fontOn = Font.Font(axesOn)
+
+        let render (font: Font.Font) ch =
+            let svg, _, _ = font.elementToSvg (font.CharToOutline ch)
+            String.concat " " svg
+
+        let anyDifferent =
+            [ 'o'; 'b'; 'd'; 'n'; 'e'; 'c'; 'a' ]
+            |> List.exists (fun ch -> render fontOff ch <> render fontOn ch)
+
+        Assert.That(anyDifferent, Is.True,
+            "expected balancing to alter at least one glyph's outline")
+
+    [<Test; Explicit("Diagnostic: print font-wide attractors and count of glyphs changed by balancing")>]
+    member _.PrintBalanceSummary() =
+        for weight in [ 2.0; 5.0; 10.0 ] do
+            let axesOff = { Axes.DefaultAxes with max_spline_iter = 500 }
+            let axesOn = { axesOff with curvature_balance = weight }
+            let fontOff = Font.Font(axesOff)
+            let fontOn = Font.Font(axesOn)
+            let balance = fontOn.curvatureBalance
+            printfn "=== curvature_balance = %g ===" weight
+            printfn "  attractors (radius units): %s"
+                (balance.attractors
+                 |> Array.map (fun a -> sprintf "%.0f" (10000.0 / a))
+                 |> String.concat ", ")
+
+            let render (font: Font.Font) ch =
+                let svg, _, _ = font.elementToSvg (font.CharToOutline ch)
+                String.concat " " svg
+
+            let chars =
+                [ 'a' .. 'z' ] @ [ 'A' .. 'Z' ] @ [ '0' .. '9' ]
+            let changed =
+                chars |> List.filter (fun ch -> render fontOff ch <> render fontOn ch)
+            printfn "  changed %d / %d glyphs: %s"
+                changed.Length chars.Length (System.String(List.toArray changed))
+
