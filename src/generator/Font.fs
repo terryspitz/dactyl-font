@@ -397,6 +397,18 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
     member this.axes = axes
 
+    // Cached Font with smooth=false for rendering outline knots (all sampled Corner points).
+    // Avoids O(n²) NelderMead when the user has smooth=true: we solve the spine with smooth
+    // and render the outline polyline with smooth=false so DactylSpline stays O(n).
+    member val private outlineFontCachedOpt : Font option =
+        (if axes.smooth then Some(Font({ axes with smooth = false })) else None)
+        with get
+
+    member this.outlineFont =
+        match this.outlineFontCachedOpt with
+        | Some f -> f
+        | None -> this
+
     member this.reduce(e: Element) =
         match e with
         | Glyph(ch) ->
@@ -1546,9 +1558,9 @@ type Font(axes: Axes, ?showCombOpt: bool) =
            let knotColour = if this.axes.outline then lightBlue else pink in
            let knotSize = if this.axes.outline then 4.0 else 20.0 in
 
-           // Outline knots are all inferred/sampled Corner points — forcing smooth on them
-           // would make DactylSpline run NelderMead on 100+ G2 knots (O(n²) per glyph).
-           let outlineFont = if axes.smooth then Font({ axes with smooth = false }) else this in
+           // outlineFont has smooth=false so DactylSpline stays O(n) on the dense outline
+           // Corner knots; cached on the Font instance to avoid per-character allocation.
+           let outlineFont = this.outlineFont in
 
            try
                // Spine is solved with smooth (this), outline knots rendered without smooth (outlineFont).

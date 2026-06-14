@@ -741,6 +741,52 @@ type FontTests() =
             )
 
     [<Test>]
+    member this.ConstantOffset_ClosedGlyph_ProducesTwoContours() =
+        // A closed glyph (like 'o') with constant_offset=true should produce exactly
+        // two contours: one outer and one inner, forming the filled stroke ring.
+        let font =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true
+                    constant_offset = true }
+            )
+
+        let svg = font.charToSvg 'o' 0.0 0.0 "black"
+        let svgStr = String.concat " " svg
+
+        Assert.That(svgStr, Does.Contain("M "), "Constant-offset 'o' should contain a moveto")
+        Assert.That(svgStr, Does.Not.Contain("NaN"), "Constant-offset 'o' should not contain NaN")
+        Assert.That(svgStr, Does.Not.Contain("stroke:#e00000"), "Constant-offset 'o' should not indicate failure")
+
+        // A filled stroke ring requires exactly 2 closed contours (outer oval + inner oval).
+        let mCount = svgStr.Split([| "M " |], System.StringSplitOptions.None).Length - 1
+        Assert.That(mCount, Is.EqualTo(2), sprintf "Constant-offset 'o' should have 2 contours, got %d" mCount)
+
+    [<Test>]
+    member this.ConstantOffset_OpenGlyph_ProducesSingleClosedContour() =
+        // An open stroke glyph (like 'l') with constant_offset=true should produce a single
+        // closed contour: the two offset sides joined by caps at each end.
+        let font =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true
+                    constant_offset = true }
+            )
+
+        let svg = font.charToSvg 'l' 0.0 0.0 "black"
+        let svgStr = String.concat " " svg
+
+        Assert.That(svgStr, Does.Contain("M "), "Constant-offset 'l' should contain a moveto")
+        Assert.That(svgStr, Does.Not.Contain("NaN"), "Constant-offset 'l' should not contain NaN")
+        Assert.That(svgStr, Does.Not.Contain("stroke:#e00000"), "Constant-offset 'l' should not indicate failure")
+
+        // An open stroke forms a single pill-shaped closed contour.
+        let mCount = svgStr.Split([| "M " |], System.StringSplitOptions.None).Length - 1
+        Assert.That(mCount, Is.EqualTo(1), sprintf "Constant-offset 'l' should have 1 closed contour, got %d" mCount)
+
+    [<Test>]
     member this.Figure8_BackboneSpansBothLoops() =
         // The '8' glyph is a figure-of-eight defined as a single closed curve whose
         // upper and lower loops have free-y side knots at x=L and x=R respectively.
