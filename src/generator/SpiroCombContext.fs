@@ -34,13 +34,17 @@ type SpiroCombContext(showComb: bool, targetCombTeeth: int) =
     member _.GetCombSvg =
         if not showComb || curveSegs.Count = 0 then []
         else
-            let stepsPerSeg = max 1 (targetCombTeeth / curveSegs.Count)
+            let TOOTH_SPACING = 10.0
             let SCALE = 2000.0
+            let bezSegs = [| for seg in curveSegs -> CubicBez(seg) |]
+            let arcLens = Array.map (fun (b: CubicBez) -> b.arcLength()) bezSegs
+            let totalArcLen = Array.sum arcLens
+            let totalTeeth = max 1 (int (totalArcLen / TOOTH_SPACING))
             let combPath = BezPath()
-            for seg in curveSegs do
-                let bez = CubicBez(seg)
-                for s in 0..stepsPerSeg do
-                    let t = float s / float stepsPerSeg
+            for i in 0 .. bezSegs.Length - 1 do
+                let bez = bezSegs.[i]
+                let stepsI = max 1 (int (round (float totalTeeth * arcLens.[i] / totalArcLen)))
+                for t in bez.arcLengthTs stepsI do
                     let kv = bez.curvature t
                     let pt = bez.eval t
                     let d = bez.deriv t

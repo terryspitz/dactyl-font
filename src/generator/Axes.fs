@@ -35,7 +35,6 @@ type Axes =
       max_spline_iter: int //max number of iterations to solve spline curves
       show_knots: bool //show small circles for the points used to define lines/curves
       show_tangents: bool //show lines for the tangents at each knot
-      show_comb: bool //show curvature comb
       joints: bool //check joints to turn off serifs
       smooth: bool //no corners
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
@@ -67,7 +66,6 @@ type Axes =
           max_spline_iter = 100
           show_knots = false
           show_tangents = false
-          show_comb = false
           joints = true
           constraints = false
           smooth = false
@@ -78,32 +76,31 @@ type Axes =
     static member controls =
         [ "dactyl_spline", Checkbox, "experimental"
           "spline2", Checkbox, "experimental"
-          "width", Range(100, 1000), "default"
-          "height", Range(100, 1000), "default"
-          "x_height", FracRange(0.2, 1.1), "default"
-          "thickness", Range(1, 200), "default"
-          "contrast", FracRange(-0.5, 0.5), "default"
-          "roundedness", Range(0, 100), "default"
-          "soft_corners", FracRange(0.0, 1.0), "default"
-          "tracking", Range(0, 200), "default"
-          "leading", Range(-100, 200), "default"
-          "monospace", FracRange(0.0, 1.0), "default"
-          "italic", FracRange(0.0, 1.0), "default"
-          "serif", Range(0, 70), "default"
-          "end_bulb", FracRange(-1.0, 3.0), "default"
-          "flare", FracRange(-1.0, 1.0), "default"
-          "axis_align_caps", Checkbox, "default"
+          "width", Range(100, 1000), "backbone"
+          "height", Range(100, 1000), "backbone"
+          "x_height", FracRange(0.2, 1.1), "backbone"
+          "tracking", Range(0, 200), "backbone"
+          "leading", Range(-100, 200), "backbone"
+          "monospace", FracRange(0.0, 1.0), "backbone"
+          "italic", FracRange(0.0, 1.0), "backbone"
+          "thickness", Range(1, 200), "outline"
+          "contrast", FracRange(-0.5, 0.5), "outline"
+          "roundedness", Range(0, 100), "outline"
+          "soft_corners", FracRange(0.0, 1.0), "outline"
+          "axis_align_caps", Checkbox, "outline"
+          "outline", Checkbox, "outline"
+          "filled", Checkbox, "outline"
+          "smooth", Checkbox, "outline"
+          "end_bulb", FracRange(-1.0, 3.0), "artistic"
+          "flare", FracRange(-1.0, 1.0), "artistic"
+          "stroked", Checkbox, "artistic"
+          "scratches", Checkbox, "artistic"
+          "serif", Range(0, 70), "artistic"
           "constraints", Checkbox, "experimental"
-          "filled", Checkbox, "default"
-          "outline", Checkbox, "default"
-          "stroked", Checkbox, "default"
-          "scratches", Checkbox, "default"
           "max_spline_iter", Range(0, 200), "experimental"
           "show_knots", Checkbox, "debug"
           "show_tangents", Checkbox, "debug"
-          "show_comb", Checkbox, "debug"
           "joints", Checkbox, "debug"
-          "smooth", Checkbox, "default"
           "clip_rect", Checkbox, "debug"
           "flatness", FracRange(0.0, 200.0), "experimental"
           "debug", Checkbox, "debug" ]
