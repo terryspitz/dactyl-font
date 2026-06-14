@@ -99,7 +99,9 @@ function App() {
   const [legendPos, setLegendPos] = useState({ x: 0, y: 0 })
   const isDraggingRef = useRef(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
-
+  const [tweenFilter, setTweenFilter] = useState(
+    () => new URLSearchParams(window.location.search).get('tween') || ''
+  )
 
   // Check URL on mount
   useEffect(() => {
@@ -116,6 +118,14 @@ function App() {
       const book = (!isNaN(idx) && idx >= 0 && idx < classicBooks.length) ? classicBooks[idx] : null
       if (book) setTabTexts(prev => ({ ...prev, proofs: book.text }))
     }
+  }, [])
+
+  // Keep tweenFilter in sync with URL when the test changes it via pushState+popstate
+  useEffect(() => {
+    const onPopState = () =>
+      setTweenFilter(new URLSearchParams(window.location.search).get('tween') || '')
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
   // Update URL helper
@@ -555,9 +565,7 @@ function App() {
       } else if (activeTab === 'tweens') {
         if (typeof content !== 'object') return null
         // content is { [ctrlName]: [ { val, svg } ] }
-        // Optional URL param ?tween=axisName to show only one axis
-        const params = new URLSearchParams(window.location.search)
-        const tweenFilter = params.get('tween')
+        // tweenFilter is kept in sync with ?tween= URL param via popstate listener
 
         return (
           <div className="tweens-grid">
