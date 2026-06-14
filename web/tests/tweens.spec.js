@@ -18,6 +18,7 @@ test.describe('Tweens visual tests', () => {
 
   // Snapshot each axis separately, discovered from the rendered page
   test('individual tweens', async ({ page }) => {
+    test.setTimeout(360_000); // ~30 axes × 6s each ≈ 180s; 360s gives comfortable headroom
     // Load all tweens to discover which axes the app generates
     await page.goto('/?view=tweens&zoom=0.85');
     await waitForTweens(page);
