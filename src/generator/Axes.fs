@@ -32,6 +32,7 @@ type Axes =
       outline: bool //use thickness to expand stroke width
       stroked: bool //each stroke is 4 parallel lines
       scratches: bool //horror/paint strokes font
+      constant_offset: bool //prototype: outlines are dense polylines at constant perpendicular distance from the spine
       max_spline_iter: int //max number of iterations to solve spline curves
       show_knots: bool //show small circles for the points used to define lines/curves
       show_tangents: bool //show lines for the tangents at each knot
@@ -39,6 +40,7 @@ type Axes =
       smooth: bool //no corners
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
       flatness: float //weight of flatness (abs m) in objective function
+      end_flatness: float //quadratic curvature-span weight for open-curve endpoint segments (higher = more circular arc at stroke tips)
       debug: bool } //show debug info in console
 
     static member DefaultAxes =
@@ -63,14 +65,16 @@ type Axes =
           outline = true
           stroked = false
           scratches = false
-          max_spline_iter = 100
+          constant_offset = true
+          max_spline_iter = 500
           show_knots = false
           show_tangents = false
           joints = true
           constraints = false
           smooth = false
           clip_rect = true
-          flatness = 1.0
+          flatness = 0.5
+          end_flatness = 10.0
           debug = false }
 
     static member controls =
@@ -83,9 +87,9 @@ type Axes =
           "leading", Range(-100, 200), "backbone"
           "monospace", FracRange(0.0, 1.0), "backbone"
           "italic", FracRange(0.0, 1.0), "backbone"
+          "roundedness", Range(0, 100), "backbone"
           "thickness", Range(1, 200), "outline"
           "contrast", FracRange(-0.5, 0.5), "outline"
-          "roundedness", Range(0, 100), "outline"
           "soft_corners", FracRange(0.0, 1.0), "outline"
           "axis_align_caps", Checkbox, "outline"
           "outline", Checkbox, "outline"
@@ -97,10 +101,12 @@ type Axes =
           "scratches", Checkbox, "artistic"
           "serif", Range(0, 70), "artistic"
           "constraints", Checkbox, "experimental"
+          "constant_offset", Checkbox, "experimental"
           "max_spline_iter", Range(0, 200), "experimental"
           "show_knots", Checkbox, "debug"
           "show_tangents", Checkbox, "debug"
           "joints", Checkbox, "debug"
           "clip_rect", Checkbox, "debug"
-          "flatness", FracRange(0.0, 200.0), "experimental"
+          "flatness", FracRange(0.0, 10.0), "experimental"
+          "end_flatness", FracRange(0.0, 30.0), "experimental"
           "debug", Checkbox, "debug" ]

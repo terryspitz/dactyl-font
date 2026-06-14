@@ -274,7 +274,7 @@ let computeCurvatureData (bezPts: BezierPoint array) (isClosed: bool) =
         arcLen <- arcLen + segArcLen
     {| segments = segments.ToArray() |}
 
-type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug: bool) =
+type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, endWeight: float, debug: bool) =
     let _points: BezierPoint array = Array.init ctrlPts.Length (fun _ -> BezierPoint())
     let STEPS = 8
     let _ks = Array.create (STEPS + 1) 0.0
@@ -312,7 +312,20 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             // possibly: define fit_x/y separately from none, then use x/y for initialisation
             | None ->
                 point.x <-
-                    if i = 0 then
+                    if isClosed && i = 0 then
+                        // Closed solver: point 0's actual prev is index length-2
+                        // (length-1 is the duplicate of point 0, so skip it).
+                        let prev = ctrlPts.[ctrlPts.Length - 2].x
+                        let next = ctrlPts.[1].x
+                        match prev, next with
+                        | Some px, Some nx -> (px + nx) / 2.
+                        | Some px, None -> px
+                        | None, Some nx -> nx
+                        | None, None -> 0.0
+                    elif isClosed && i = ctrlPts.Length - 1 then
+                        // Last point mirrors first; copy from already-initialised point 0.
+                        _points.[0].x
+                    elif i = 0 then
                         ctrlPts.[i + 1].x.Value
                     elif i = ctrlPts.Length - 1 then
                         ctrlPts.[i - 1].x.Value
@@ -324,7 +337,17 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                 point.fit_y <- false
             | None ->
                 point.y <-
-                    if i = 0 then
+                    if isClosed && i = 0 then
+                        let prev = ctrlPts.[ctrlPts.Length - 2].y
+                        let next = ctrlPts.[1].y
+                        match prev, next with
+                        | Some py, Some ny -> (py + ny) / 2.
+                        | Some py, None -> py
+                        | None, Some ny -> ny
+                        | None, None -> 0.0
+                    elif isClosed && i = ctrlPts.Length - 1 then
+                        _points.[0].y
+                    elif i = 0 then
                         ctrlPts.[i + 1].y.Value
                     elif i = ctrlPts.Length - 1 then
                         ctrlPts.[i - 1].y.Value
@@ -403,11 +426,113 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
             elif i = ctrlPts.Length - 1 then
                 point.fit_rd <- false
 
+        this.h4perpInit()
+
         if this.debug then
             printfn "solver post init:"
 
             for p in _points do
                 printfn "%s" (p.tostring ())
+
+    member private this.h4perpInit() =
+        // H4perp: for each free coordinate, try 6 perpendicular-arc offset candidates
+        // using direct neighbours (i-1, i+1) as chord endpoints and pick the lowest-error start.
+        // Using direct neighbours (rather than nearest fully-fixed) captures the local chord
+        // geometry; e.g. for 'c' x(c) the chord runs from xor(300,360)→(xb)l(0,180) so the
+        // perpendicular offsets centre on midX≈150-168 rather than the wrong midX=300.
+        let hasFreeCoord = _points |> Array.exists (fun p -> p.fit_x || p.fit_y)
+
+        if hasFreeCoord then
+            // Snapshot after Phases 1-3; restore between candidate trials
+            let savedArr = [| for p in _points -> Array.copy p.arr |]
+
+            let restore () =
+                for i in 0 .. _points.Length - 1 do
+                    Array.blit savedArr.[i] 0 _points.[i].arr 0 BEZIER_ARGS
+
+            for i in 0 .. _points.Length - 1 do
+                let pt = _points.[i]
+
+                if pt.fit_x || pt.fit_y then
+                    // Skip endpoints of open curves — only one valid neighbour direction.
+                    let isOpenEndpoint = not isClosed && (i = 0 || i = _points.Length - 1)
+                    // For closed solvers the last point duplicates point 0; its position is
+                    // synchronised in applyParams, so skip h4perp processing for it entirely.
+                    let isClosedDuplicate = isClosed && i = _points.Length - 1
+
+                    if not isOpenEndpoint && not isClosedDuplicate then
+                        let prevIdx =
+                            if isClosed && i = 0 then
+                                // Actual prev of point 0 is length-2 (length-1 is the duplicate).
+                                _points.Length - 2
+                            elif isClosed then (i - 1 + _points.Length) % _points.Length
+                            else i - 1
+                        let nextIdx =
+                            if isClosed then (i + 1) % _points.Length else i + 1
+
+                        let px = _points.[prevIdx].x
+                        let py = _points.[prevIdx].y
+                        let nx = _points.[nextIdx].x
+                        let ny = _points.[nextIdx].y
+                        let chordDx = nx - px
+                        let chordDy = ny - py
+                        let chordLen = sqrt (chordDx * chordDx + chordDy * chordDy)
+
+                        if chordLen > 1.0 then
+                            let midX = (px + nx) / 2.0
+                            let midY = (py + ny) / 2.0
+                            // Unit vector perpendicular to chord
+                            let perpX = -chordDy / chordLen
+                            let perpY = chordDx / chordLen
+
+                            let origFitX = pt.fit_x
+                            let origFitY = pt.fit_y
+                            let mutable midpointErr = Double.MaxValue
+                            let mutable bestErr = Double.MaxValue
+                            let mutable bestX = pt.x
+                            let mutable bestY = pt.y
+
+                            // Candidates: chord midpoint (baseline) + 6 perpendicular offsets.
+                            // Midpoint is evaluated first so we can compare perp candidates against it.
+                            let candidates = [|
+                                yield (if origFitX then midX else pt.x),
+                                      (if origFitY then midY else pt.y)
+                                for sign in [| 1.0; -1.0 |] do
+                                    for factor in [| 0.1; 0.2; 0.35 |] do
+                                        yield (if origFitX then midX + sign * perpX * chordLen * factor else pt.x),
+                                              (if origFitY then midY + sign * perpY * chordLen * factor else pt.y)
+                            |]
+
+                            for idx in 0 .. candidates.Length - 1 do
+                                let (cx, cy) = candidates.[idx]
+                                restore ()
+                                _points.[i].x <- cx
+                                _points.[i].y <- cy
+                                pt.fit_x <- false
+                                pt.fit_y <- false
+                                this.Solve(50)
+                                let err = this.computeErr()
+                                pt.fit_x <- origFitX
+                                pt.fit_y <- origFitY
+
+                                if idx = 0 then midpointErr <- err
+
+                                if err < bestErr then
+                                    bestErr <- err
+                                    bestX <- cx
+                                    bestY <- cy
+
+                            // Only use perp candidate if it clearly beats the midpoint (>10% better).
+                            // This prevents noise-driven decisions that move away from the correct basin.
+                            if bestErr >= midpointErr * 0.9 then
+                                bestX <- (if origFitX then midX else pt.x)
+                                bestY <- (if origFitY then midY else pt.y)
+
+                            restore ()
+                            if origFitX then _points.[i].x <- bestX
+                            if origFitY then _points.[i].y <- bestY
+                            // Update snapshot so subsequent free coords see H4perp-placed position
+                            savedArr.[i] <- Array.copy _points.[i].arr
 
     member this.computeErr() =
         // Piecewise Euler spiral fitting
@@ -479,15 +604,16 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     // 1. Residuals from being an Euler spiral
                     totalErr <- totalErr + residuals
 
-                    // 2. Penalty for high variation in curvature (flatness)
+                    // 2. Penalty for high curvature variation (flatness).
+                    //    Linear base term: small consistent gradient across all curvature levels.
                     totalErr <- totalErr + abs m * flatness
-
-                    // 3. Extra flatness at open endpoints: endpoint segments should be
-                    //    circular arcs (constant curvature, i.e. m ≈ 0).
-                    //    Weight 2× extra (3× total) was the original intent; using linear
-                    //    |m| rather than quadratic to keep gradients gentle for Nelder-Mead.
-                    if not isClosed && (i = 0 || i = _points.Length - 2) then
-                        totalErr <- totalErr + abs m * flatness * 2.0
+                    //    Quadratic additional term: endWeight on open-curve endpoint segments,
+                    //    3× on all others (interior segments and closed curves).
+                    let curvatureSpan = m * max_dist
+                    let curvatureWeight =
+                        if not isClosed && (i = 0 || i = _points.Length - 2) then endWeight
+                        else 3.0
+                    totalErr <- totalErr + curvatureSpan * curvatureSpan * curvatureWeight * flatness
 
                     // Calculate start and end curvature for continuity
                     // k(s) = m*s + c. Start is s=0 (c), End is s=max_dist
@@ -535,6 +661,13 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     let gap = startK - prevEndK
                     // Weight this heavily so segments join smoothly in curvature
                     totalErr <- totalErr + gap * gap * 10.0
+                    // Also penalise actual t=0/t=1 curvature gap at the junction.
+                    // The regression-based gap above can be near zero while the Bezier's
+                    // actual endpoint curvatures still differ (because the linear fit is
+                    // not anchored to the endpoints). A lighter second term directly
+                    // reduces the visible discontinuity.
+                    let actualGap = _segmentStartActualK.[i] - _segmentEndActualK.[i - 1]
+                    totalErr <- totalErr + actualGap * actualGap * 2.0
 
         if isClosed && segmentCount > 0 then
             // Continuity between last and first
@@ -627,6 +760,12 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                         elif not isClosed && i = _points.Length - 1 && j = int BezierIndex.ThOut
                              && ctrlPts.[i].ty <> SplinePointType.Smooth then
                             ()
+                        // For closed curves the last point duplicates the first; its x and y
+                        // are synchronised from point 0 in applyParams so don't need
+                        // independent optimizer parameters.
+                        elif isClosed && i = _points.Length - 1
+                             && (j = int BezierIndex.X || j = int BezierIndex.Y) then
+                            ()
                         else
                             mapping.Add((i, j))
                             initial.Add(_points.[i].arr.[j])
@@ -644,8 +783,13 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
                     _points.[index1].arr.[index2] <- v
                     syncSmooth index1 index2 v
                 if isClosed then
-                    _points.[_points.Length - 1].th_in <- _points.[0].th_in
-                    _points.[_points.Length - 1].th_out <- _points.[0].th_out
+                    let last = _points.Length - 1
+                    // The last point duplicates point 0; keep all position/tangent fields in sync
+                    // so the wrap segment (last→0) shares the same knot as the start of segment 0→1.
+                    _points.[last].x <- _points.[0].x
+                    _points.[last].y <- _points.[0].y
+                    _points.[last].th_in <- _points.[0].th_in
+                    _points.[last].th_out <- _points.[0].th_out
 
 #if FABLE_COMPILER
             let objectiveFunction (x: float[]) =
@@ -666,18 +810,26 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, debug
 
             let objModel = Optimization.ObjectiveFunction.Value(objectiveFunction)
 
-            let best = minimiser.FindMinimum(objModel, DenseVector.ofArray (initial.ToArray()))
+            let bestOpt =
+                try
+                    Some(minimiser.FindMinimum(objModel, DenseVector.ofArray (initial.ToArray())))
+                with
+                | :? Optimization.MaximumIterationsException ->
+                    None // _points left in last-evaluated state; acceptable for early exit
 
-            let resultVec =
-                if best.MinimizingPoint |> Seq.exists Double.IsNaN then
-                    if this.debug then
-                        printfn "Optimization returned NaNs! Falling back to initial."
+            match bestOpt with
+            | Some best ->
+                let resultVec =
+                    if best.MinimizingPoint |> Seq.exists Double.IsNaN then
+                        if this.debug then
+                            printfn "Optimization returned NaNs! Falling back to initial."
 
-                    DenseVector.ofArray (initial.ToArray())
-                else
-                    best.MinimizingPoint
+                        DenseVector.ofArray (initial.ToArray())
+                    else
+                        best.MinimizingPoint
 
-            applyParams (fun i -> resultVec.[i]) resultVec.Count
+                applyParams (fun i -> resultVec.[i]) resultVec.Count
+            | None -> ()
 #endif
 
 // DactylSpline handles general sequence of lines & curves, including corners.
@@ -752,9 +904,10 @@ type DactylSpline(ctrlPts, isClosed) =
 
     /// Construct and solve a Solver for the given inner points.
     /// If the optimizer hits its iteration limit the best-so-far state is kept (no exception).
-    member this.solveSection(innerPts: DControlPoint list, length: int, maxIter, flatness, debug) =
+    member this.solveSection(innerPts: DControlPoint list, length: int, maxIter, flatness, endWeight, debug) =
+        let solverIsClosed = isClosed && innerPts.Length - 1 = length
         let solver =
-            Solver(Array.ofList innerPts, isClosed && innerPts.Length - 1 = length, flatness, debug)
+            Solver(Array.ofList innerPts, solverIsClosed, flatness, endWeight, debug)
 
         solver.initialise ()
 
@@ -763,9 +916,104 @@ type DactylSpline(ctrlPts, isClosed) =
         with _ ->
             () // keep whatever state the optimizer had when it stopped
 
+        // Post-solve symmetrisation for closed smooth curves.
+        // MathNet NelderMeadSimplex breaks symmetry: perturbing parameter i ≠ perturbing
+        // parameter j even when both represent mirror-symmetric free coords, because
+        // floating-point summation order in computeErr differs between segments.  This
+        // causes the solver to converge to an asymmetric local minimum (e.g. O left-y ≠ right-y).
+        // Fix: detect mirror-symmetric free-coord pairs (same free axis, fixed counterpart
+        // equidistant from the fixed-coord centroid), average them, and re-solve from the
+        // symmetric position with positions frozen so only tangents/handles are re-optimised.
+        if solverIsClosed then
+            let pts = solver.points()
+            let n = innerPts.Length - 1  // actual point count; pts[n] duplicates pts[0]
+
+            // Centroid of fixed x coords and fixed y coords separately
+            let mutable sumX = 0.0
+            let mutable cntX = 0
+            let mutable sumY = 0.0
+            let mutable cntY = 0
+
+            for i in 0 .. n - 1 do
+                if not pts.[i].fit_x then
+                    sumX <- sumX + pts.[i].x
+                    cntX <- cntX + 1
+
+                if not pts.[i].fit_y then
+                    sumY <- sumY + pts.[i].y
+                    cntY <- cntY + 1
+
+            if cntX > 0 && cntY > 0 then
+                let cx = sumX / float cntX
+                let cy = sumY / float cntY
+                let mutable symmetrized = false
+
+                // Symmetrise free-y knots.  Group them by their (rounded) fixed-x value.
+                // Only average a pair when each mirror-x bucket has EXACTLY ONE knot;
+                // this prevents figure-8 glyphs from being incorrectly collapsed — '8'
+                // has two free-y knots at x=L and two at x=R, so the mirror buckets have
+                // size 2 and are skipped.
+                let freeYByX =
+                    [| 0 .. n - 1 |]
+                    |> Array.filter (fun i -> pts.[i].fit_y && not pts.[i].fit_x)
+                    |> Array.groupBy (fun i -> System.Math.Round(pts.[i].x))
+
+                for (px, idxA) in freeYByX do
+                    let mirrorPx = System.Math.Round(2.0 * cx - px)
+                    if mirrorPx > px then
+                        match freeYByX |> Array.tryFind (fun (k, _) -> k = mirrorPx) with
+                        | Some (_, idxB) when idxA.Length = 1 && idxB.Length = 1 ->
+                            let i = idxA.[0]
+                            let j = idxB.[0]
+                            let avg = (pts.[i].y + pts.[j].y) / 2.0
+                            pts.[i].y <- avg
+                            pts.[j].y <- avg
+                            symmetrized <- true
+                        | _ -> ()
+
+                // Symmetrise free-x knots by their fixed-y value, same single-per-bucket rule.
+                let freeXByY =
+                    [| 0 .. n - 1 |]
+                    |> Array.filter (fun i -> pts.[i].fit_x && not pts.[i].fit_y)
+                    |> Array.groupBy (fun i -> System.Math.Round(pts.[i].y))
+
+                for (py, idxA) in freeXByY do
+                    let mirrorPy = System.Math.Round(2.0 * cy - py)
+                    if mirrorPy > py then
+                        match freeXByY |> Array.tryFind (fun (k, _) -> k = mirrorPy) with
+                        | Some (_, idxB) when idxA.Length = 1 && idxB.Length = 1 ->
+                            let i = idxA.[0]
+                            let j = idxB.[0]
+                            let avg = (pts.[i].x + pts.[j].x) / 2.0
+                            pts.[i].x <- avg
+                            pts.[j].x <- avg
+                            symmetrized <- true
+                        | _ -> ()
+
+                if symmetrized then
+                    // Sync the duplicate last point
+                    pts.[n].x <- pts.[0].x
+                    pts.[n].y <- pts.[0].y
+                    // Freeze positions; re-solve only for tangents and handles
+                    let savedFitX = Array.init n (fun i -> pts.[i].fit_x)
+                    let savedFitY = Array.init n (fun i -> pts.[i].fit_y)
+
+                    for i in 0 .. n - 1 do
+                        pts.[i].fit_x <- false
+                        pts.[i].fit_y <- false
+
+                    try
+                        solver.Solve(min maxIter 200)
+                    with _ ->
+                        ()
+
+                    for i in 0 .. n - 1 do
+                        pts.[i].fit_x <- savedFitX.[i]
+                        pts.[i].fit_y <- savedFitY.[i]
+
         solver
 
-    member this.solveAndGetPoints(maxIter, flatness, debug) : BezierPoint[] =
+    member this.solveAndGetPoints(maxIter, flatness, endWeight, debug) : BezierPoint[] =
         /// Returns one BezierPoint per ctrlPts entry with solved x, y, th values.
         let length = ctrlPts.Length - if isClosed then 0 else 1
 
@@ -850,7 +1098,7 @@ type DactylSpline(ctrlPts, isClosed) =
             else
                 let innerPts, j = this.collectCurveSection (i, startIdx + length)
 
-                let solver = this.solveSection (innerPts, length, maxIter, flatness, debug)
+                let solver = this.solveSection (innerPts, length, maxIter, flatness, endWeight, debug)
                 let bezPts = solver.points ()
 
                 // Copy solver results back.
@@ -860,8 +1108,9 @@ type DactylSpline(ctrlPts, isClosed) =
                 for k in 0 .. copyCount - 1 do
                     let resIdx = (i + k) % ctrlPts.Length
 
-                    if Double.IsNaN result.[resIdx].x then
+                    if Double.IsNaN result.[resIdx].x || Double.IsNaN result.[resIdx].y then
                         result.[resIdx].x <- bezPts.[k].x
+                    if Double.IsNaN result.[resIdx].y then
                         result.[resIdx].y <- bezPts.[k].y
 
                     // Selective copy: only update properties relevant for the segment sides this point is on.
@@ -969,16 +1218,20 @@ type DactylSpline(ctrlPts, isClosed) =
                     path.lineto (p2.x, p2.y)
 
                     if showTangents then
-                        let dx = p2.x - p1.x
-                        let dy = p2.y - p1.y
-                        let lineAngle = atan2 dy dx
-                        let dist = sqrt (dx * dx + dy * dy) / 3.0
-                        // Draw outgoing tangent from p1
-                        tangentPath.moveto (p1.x, p1.y)
-                        tangentPath.lineto (p1.x + dist * cos lineAngle, p1.y + dist * sin lineAngle)
-                        // Draw incoming tangent to p2
-                        tangentPath.moveto (p2.x, p2.y)
-                        tangentPath.lineto (p2.x - dist * cos lineAngle, p2.y - dist * sin lineAngle)
+                        let hasExplicitTangent =
+                            ptI.th_in.IsSome || ptI.th_out.IsSome
+                            || ptI1.th_in.IsSome || ptI1.th_out.IsSome
+                        if hasExplicitTangent then
+                            let dx = p2.x - p1.x
+                            let dy = p2.y - p1.y
+                            let lineAngle = atan2 dy dx
+                            let dist = sqrt (dx * dx + dy * dy) / 3.0
+                            // Draw outgoing tangent from p1
+                            tangentPath.moveto (p1.x, p1.y)
+                            tangentPath.lineto (p1.x + dist * cos lineAngle, p1.y + dist * sin lineAngle)
+                            // Draw incoming tangent to p2
+                            tangentPath.moveto (p2.x, p2.y)
+                            tangentPath.lineto (p2.x - dist * cos lineAngle, p2.y - dist * sin lineAngle)
                 else
                     let cp1x, cp1y = p1.rpt().x, p1.rpt().y
                     let cp2x, cp2y = p2.lpt().x, p2.lpt().y
@@ -1032,12 +1285,12 @@ type DactylSpline(ctrlPts, isClosed) =
 
         (path.tostringlist (), combPath.tostringlist (), tangentPath.tostringlist ())
 
-    member this.solveAndRenderSvg(maxIter, flatness, debug, showComb, showTangents) =
-        let bezPts = this.solveAndGetPoints (maxIter, flatness, debug)
+    member this.solveAndRenderSvg(maxIter, flatness, endWeight, debug, showComb, showTangents) =
+        let bezPts = this.solveAndGetPoints (maxIter, flatness, endWeight, debug)
         this.renderFromPoints(bezPts, showComb, showTangents)
 
-    member this.solveAndRenderFull(maxIter, flatness, debug, showComb, showTangents) =
-        let bezPts = this.solveAndGetPoints (maxIter, flatness, debug)
+    member this.solveAndRenderFull(maxIter, flatness, endWeight, debug, showComb, showTangents) =
+        let bezPts = this.solveAndGetPoints (maxIter, flatness, endWeight, debug)
         let pathSvg, combSvg, tangentSvg = this.renderFromPoints(bezPts, showComb, showTangents)
         (bezPts, pathSvg, combSvg, tangentSvg)
 

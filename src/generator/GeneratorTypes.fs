@@ -200,10 +200,14 @@ let rec bounds elem =
     | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
 
 let translateBy dx dy =
+    // Preserve x_fit/y_fit: a free (to-be-solved) coordinate must stay free after a
+    // translation. Clobbering the flags to false froze free coordinates at their
+    // bracket-placeholder value, so glyphs with free coords (e.g. 'c') were never
+    // solved in the Font/Glyph/Proofs tabs (which translate via translateByThickness),
+    // while the Splines tab — which skips translation — solved them correctly.
     let shift (p: Point) =
-        { y = p.y + dy
-          x = p.x + dx
-          y_fit = false
-          x_fit = false }
+        { p with
+            y = p.y + dy
+            x = p.x + dx }
 
     movePoints shift None

@@ -26,7 +26,7 @@ let pointToDcp (p: Point) =
 type TestClass() =
 
     let solve_and_print_spline (spline: DactylSpline) =
-        let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, false, false, false)
+        let svg, _, _ = spline.solveAndRenderSvg(max_iter, 1.0, 10.0, false, false, false)
         let svg = (String.Join(" ", svg))
         printfn "%A" svg
         svg.Trim()
@@ -155,10 +155,10 @@ type TestClass() =
             )
 
         let svgFlat0 =
-            let svg, _, _ = spline.solveAndRenderSvg (5000, 0.0, false, false, false) in svg |> String.concat " "
+            let svg, _, _ = spline.solveAndRenderSvg(5000, 0.0, 10.0, false, false, false) in svg |> String.concat " "
 
         let svgFlat10 =
-            let svg, _, _ = spline.solveAndRenderSvg (5000, 1000.0, false, false, false) in svg |> String.concat " "
+            let svg, _, _ = spline.solveAndRenderSvg(5000, 1000.0, 10.0, false, false, false) in svg |> String.concat " "
 
         printfn "Flatness 0.0: %s" svgFlat0
         printfn "Flatness 10.0: %s" svgFlat10
@@ -176,7 +176,7 @@ type TestClass() =
                dcp SplinePointType.Corner 1. 0. (Some PI) |]
 
         let spline = DactylSpline(ctrlPts, false)
-        let bezPts = spline.solveAndGetPoints(max_iter, 1.0, false)
+        let bezPts = spline.solveAndGetPoints(max_iter, 1.0, 10.0, false)
         
         // check that th_in at the end is 0 (East), after being flipped from PI (West)
         Assert.That(bezPts.[1].th_in, Is.EqualTo(0.0).Within(1e-10))
@@ -192,7 +192,7 @@ type TestClass() =
                dcp SplinePointType.Corner 1. 0. None |]
 
         let splineStart = DactylSpline(ctrlPtsStart, false)
-        let bezPtsStart = splineStart.solveAndGetPoints(max_iter, 1.0, false)
+        let bezPtsStart = splineStart.solveAndGetPoints(max_iter, 1.0, 10.0, false)
         
         Assert.That(bezPtsStart.[0].th_out, Is.EqualTo(0.0).Within(1e-10))
         let rpt = bezPtsStart.[0].rpt()
@@ -209,7 +209,7 @@ type TestClass() =
                dcp SplinePointType.Corner 255. 630. (Some PI) |]
 
         let spline = DactylSpline(ctrlPts, false)
-        let bezPts = spline.solveAndGetPoints(500, 1.0, true)
+        let bezPts = spline.solveAndGetPoints(500, 1.0, 10.0, true)
         
         // Point 0 (xtllc) should NOT be flipped. It should point North.
         Assert.That(bezPts.[0].th_out, Is.EqualTo(PI / 2.0).Within(1e-10), "xtllc should point North")
@@ -226,7 +226,7 @@ type TestClass() =
                dcp SplinePointType.Corner 255. 630. (Some PI) |]
 
         let spline = DactylSpline(ctrlPts, false)
-        let bezPts = spline.solveAndGetPoints(500, 1.0, true)
+        let bezPts = spline.solveAndGetPoints(500, 1.0, 10.0, true)
         
         // xtllc (pt 1) should point North (from stem line)
         Assert.That(bezPts.[1].th_in, Is.EqualTo(PI / 2.0).Within(1e-10), "xtllc in should be North")
@@ -302,7 +302,7 @@ type SolverTests() =
                dcp SplinePointType.Smooth 1. 0. None
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 1.0, false)
+        let solver = Solver(ctrlPts, false, 1.0, 10.0, false)
         solver.initialise ()
         let err = solver.computeErr ()
         Assert.That(err, Is.EqualTo(0.0).Within(1e-9))
@@ -314,7 +314,7 @@ type SolverTests() =
                dcp SplinePointType.Smooth 1. 1. None
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 1.0, false)
+        let solver = Solver(ctrlPts, false, 1.0, 10.0, false)
         solver.initialise ()
         let err = solver.computeErr ()
         Assert.That(err, Is.GreaterThan(0.0))
@@ -334,7 +334,7 @@ type VariablePointTests() =
                  th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 10.0, false)
         solver.initialise ()
 
         let initialPts = solver.points ()
@@ -357,7 +357,7 @@ type VariablePointTests() =
                  th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 10.0, false)
         solver.initialise ()
         solver.Solve 5000
         let pts = solver.points ()
@@ -376,7 +376,7 @@ type VariablePointTests() =
                  th_out = None }
                dcp SplinePointType.Smooth 2. 0. None |]
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 10.0, false)
         solver.initialise ()
         solver.Solve(5000)
         let pts = solver.points ()
@@ -398,7 +398,7 @@ type AdvancedGeometricTests() =
                dcp SplinePointType.Smooth s45 s45 None
                dcp SplinePointType.Smooth 0. 1. (Some(PI)) |] // Tangent left
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 10.0, false)
         solver.initialise ()
         solver.Solve(5000)
 
@@ -434,7 +434,7 @@ type AdvancedGeometricTests() =
                  th_in = Some 0.0
                  th_out = Some 0.0 } |]
 
-        let solver = Solver(ctrlPts, false, 0.0, false)
+        let solver = Solver(ctrlPts, false, 0.0, 10.0, false)
         solver.initialise ()
         solver.Solve(5000)
 
@@ -460,7 +460,7 @@ type AdvancedGeometricTests() =
                dcp SplinePointType.Smooth 0. 0. None
                dcp SplinePointType.Smooth 1. 1. None |]
 
-        let solverFixed = Solver(ctrlPtsFixed, false, 1.0, false)
+        let solverFixed = Solver(ctrlPtsFixed, false, 1.0, 10.0, false)
         solverFixed.initialise ()
         solverFixed.Solve(5000)
         let ptsFixed = solverFixed.points ()
@@ -476,7 +476,7 @@ type AdvancedGeometricTests() =
                  th_out = None }
                dcp SplinePointType.Smooth 1. 1. None |]
 
-        let solverOpt = Solver(ctrlPtsOpt, false, 1.0, false)
+        let solverOpt = Solver(ctrlPtsOpt, false, 1.0, 10.0, false)
         solverOpt.initialise ()
         solverOpt.Solve(500) // Lower iter for faster test, should be enough to move
         let ptsOpt = solverOpt.points ()
@@ -493,7 +493,7 @@ type AdvancedGeometricTests() =
 [<TestFixture>]
 type LineToCurveTests() =
     let solve_and_print_spline (spline: DactylSpline) =
-        let svg, _, _ = spline.solveAndRenderSvg (max_iter, 1.0, false, false, false)
+        let svg, _, _ = spline.solveAndRenderSvg(max_iter, 1.0, 10.0, false, false, false)
         let svg = (String.Join(" ", svg))
         printfn "%A" svg
         svg.Trim()
@@ -535,7 +535,7 @@ type LineToCurveTests() =
 
         let spline = DactylSpline(ctrlPts, false)
         let svg = solve_and_print_spline spline
-        let bezPts, _, _, _ = spline.solveAndRenderFull(max_iter, 1.0, false, false, false)
+        let bezPts, _, _, _ = spline.solveAndRenderFull(max_iter, 1.0, 10.0, false, false, false)
         printfn "bezPts: %A" (bezPts |> Array.map (fun bp -> sprintf "ld=%.2f rd=%.2f" bp.ld bp.rd))
         // First segment should be a line (horizontal)
         Assert.That(svg, Does.Match("L 250(\.0+)?,50(\.0+)?"), "First segment Corner→LineToCurve should be a line")
@@ -553,7 +553,7 @@ type LineToCurveTests() =
 
         let spline = DactylSpline(ctrlPts, true)
         let svg = solve_and_print_spline spline
-        let bezPts, _, _, _ = spline.solveAndRenderFull(max_iter, 1.0, false, false, false)
+        let bezPts, _, _, _ = spline.solveAndRenderFull(max_iter, 1.0, 10.0, false, false, false)
         printfn "bezPts: %A" (bezPts |> Array.map (fun bp -> sprintf "ld=%.2f rd=%.2f" bp.ld bp.rd))
         // First segment should be a line (horizontal)
         Assert.That(svg, Does.Match("L 250(\.0+)?,50(\.0+)?"), "First segment Corner→LineToCurve should be a line")
@@ -592,7 +592,7 @@ type LineToCurveTests() =
                                 dcp types.[i] x y th)
                         try
                             let spline = DactylSpline(pts, isClosed)
-                            let bezPts, _, _, _ = spline.solveAndRenderFull(200, 1.0, false, false, false)
+                            let bezPts, _, _, _ = spline.solveAndRenderFull(200, 1.0, 10.0, false, false, false)
 
                             // Arm divergence check
                             let armOk = bezPts |> Array.forall (fun bp -> abs bp.ld < 1e5 && abs bp.rd < 1e5)
@@ -638,7 +638,7 @@ type LineToCurveTests() =
                dcp SplinePointType.Smooth 250. 50. None
                dcp SplinePointType.LineToCurve 150. 200. None |]
         let spline = DactylSpline(ctrlPts, true)
-        let bezPts, _, _, _ = spline.solveAndRenderFull(500, 1.0, false, false, false)
+        let bezPts, _, _, _ = spline.solveAndRenderFull(500, 1.0, 10.0, false, false, false)
         // P0 must be G1: th_in = th_out (same tangent, no kink)
         let p0 = bezPts.[0]
         let angleDiff = abs (norm (p0.th_in - p0.th_out))
@@ -656,7 +656,7 @@ type LineToCurveTests() =
                dcp SplinePointType.Smooth 250. 50. None
                dcp SplinePointType.CurveToLine 150. 200. None |]
         let spline = DactylSpline(ctrlPts, true)
-        let bezPts, _, _, _ = spline.solveAndRenderFull(500, 1.0, false, false, false)
+        let bezPts, _, _, _ = spline.solveAndRenderFull(500, 1.0, 10.0, false, false, false)
         // Arms must not blow up (solver must be stable)
         let p0 = bezPts.[0]
         let maxArm = bezPts |> Array.map (fun bp -> max (abs bp.ld) (abs bp.rd)) |> Array.max
@@ -701,7 +701,7 @@ type IntegrationTests() =
         // Fixed points at (0,1000) and (1000,1000) y.
         // Middle point nominal x=0 (left), y=0 (bottom).
         // Solver should move x towards 500 (center) to minimize curvature of (0,1000)->(x,0)->(1000,1000).
-        let solver = Solver([| cp1; cp2; cp3 |], false, 1.0, false)
+        let solver = Solver([| cp1; cp2; cp3 |], false, 1.0, 10.0, false)
         solver.initialise ()
 
         solver.Solve(2000)
@@ -734,7 +734,7 @@ type IntegrationTests() =
         // Check initial assumptions
         Assert.That(cp3.x, Is.EqualTo(None), "Middle point x should be optional")
 
-        let solver = Solver([| cp1; cp2; cp3; cp4 |], false, 1.0, false)
+        let solver = Solver([| cp1; cp2; cp3; cp4 |], false, 1.0, 10.0, false)
         solver.initialise ()
 
         // Solve; use best-so-far if max iterations reached (mirrors solveSection behaviour)
@@ -805,7 +805,7 @@ type IntegrationTests() =
             { pointToDcp p5 with
                 ty = SplinePointType.Corner }
 
-        let solver = Solver([| cp1; cp2; cp3; cp4; cp5 |], false, 1.0, false)
+        let solver = Solver([| cp1; cp2; cp3; cp4; cp5 |], false, 1.0, 10.0, false)
         solver.initialise ()
         // Use best-so-far if max iterations reached (mirrors solveSection behaviour)
         try solver.Solve(10000) with _ -> ()
@@ -844,7 +844,7 @@ type IntegrationTests() =
                  x = Some 1000.; y = Some 500.
                  th_in = Some(System.Math.PI / 2.0); th_out = Some(System.Math.PI / 2.0) } |]
 
-        let solver3 = Solver(ctrlPts3, false, 1.0, false)
+        let solver3 = Solver(ctrlPts3, false, 1.0, 10.0, false)
         solver3.initialise ()
         try solver3.Solve(5000) with _ -> ()
         let x3 = solver3.points().[1].x
@@ -853,3 +853,213 @@ type IntegrationTests() =
         // The right junction is higher (500 vs 333), so equal arc lengths put x right of centre.
         Assert.That(x3, Is.GreaterThan(500.0),
             "right junction is higher → equal-arc-length optimum is right of centre")
+
+[<TestFixture>]
+type BracketFittingTests() =
+    let axes = Axes.DefaultAxes
+    let metrics = FontMetrics(axes)
+
+    // Mirrors Font.toDactylSplineControlPoints for G2/Smooth-only open curves.
+    let knotsToDcps (knots: Knot list) : DControlPoint array =
+        knots
+        |> List.map (fun k ->
+            // Use equality on the enum values imported from GeneratorTypes (G2, LineToCurve, CurveToLine)
+            let ty =
+                if k.ty = G2 || k.ty = SpiroPointType.SpiroPointType.G4 then SplinePointType.Smooth
+                elif k.ty = LineToCurve then SplinePointType.LineToCurve
+                elif k.ty = CurveToLine then SplinePointType.CurveToLine
+                else SplinePointType.Corner
+            { ty = ty
+              x = if k.pt.x_fit then None else Some k.pt.x
+              y = if k.pt.y_fit then None else Some k.pt.y
+              th_in = k.th_in
+              th_out = k.th_out })
+        |> Array.ofList
+
+    let solveGlyphCurve (def: string) : BezierPoint array =
+        match GlyphStringDefs.parse_curve metrics def false with
+        | Curve(knots, isClosed) ->
+            let ctrlPts = knotsToDcps knots
+            let spline = DactylSpline(ctrlPts, isClosed)
+            spline.solveAndGetPoints(max_iter, 1.0, 10.0, false)
+        | _ -> failwith "expected Curve element"
+
+    [<Test>]
+    member _.BracketX_ValueInsideBracketsIsIgnored() =
+        // x(c) and x(cr) both have x_fit=true → DControlPoint.x = None (free variable).
+        // Initialization comes from neighbor average, not the parsed value, so both
+        // produce identical solver inputs and must produce identical solved results.
+        let pts1 = solveGlyphCurve "xor~x(c)~(xb)l~b(c)~bor"
+        let pts2 = solveGlyphCurve "xor~x(cr)~(xb)l~b(c)~bor"
+        // Top point (index 1) x must be the same regardless of c vs cr inside brackets.
+        Assert.That(pts2.[1].x, Is.EqualTo(pts1.[1].x).Within(1e-6),
+            "x(c) and x(cr) should produce identical top-point x — parsed value inside brackets is discarded")
+
+    [<Test>]
+    member _.BracketX_FreesCoordinateFromFixed() =
+        // A free x (None) is optimized; a fixed x stays at its parsed value.
+        // So after solving, "xc" (fixed) should have the top-point x equal to C,
+        // while "x(c)" (free) may differ.
+        let ptsFixed = solveGlyphCurve "xor~xc~(xb)l~bc~bor"
+        let ptsFree  = solveGlyphCurve "xor~x(c)~(xb)l~b(c)~bor"
+        Assert.That(ptsFixed.[1].x, Is.EqualTo(metrics.C).Within(1e-6),
+            "Fixed x=C must stay at C after solving")
+        // The free top-point x must be finite (optimizer ran without error)
+        Assert.That(Double.IsFinite(ptsFree.[1].x), Is.True,
+            "Free top-point x should be finite after solving")
+
+[<TestFixture>]
+type FlatnessTests() =
+    let axes = Axes.DefaultAxes
+    let metrics = FontMetrics(axes)
+    let max_iter = 500
+
+    let knotsToDcps (knots: Knot list) : DControlPoint array =
+        knots
+        |> List.map (fun k ->
+            let ty =
+                if k.ty = G2 || k.ty = SpiroPointType.SpiroPointType.G4 then SplinePointType.Smooth
+                elif k.ty = LineToCurve then SplinePointType.LineToCurve
+                elif k.ty = CurveToLine then SplinePointType.CurveToLine
+                else SplinePointType.Corner
+            { ty = ty
+              x = if k.pt.x_fit then None else Some k.pt.x
+              y = if k.pt.y_fit then None else Some k.pt.y
+              th_in = k.th_in
+              th_out = k.th_out })
+        |> Array.ofList
+
+    let solveCWithFlatnessAndIter (flatness: float) (iters: int) =
+        match GlyphStringDefs.parse_curve metrics "xor~x(c)~(xb)l~b(c)~bor" false with
+        | Curve(knots, isClosed) ->
+            let ctrlPts = knotsToDcps knots
+            let spline = DactylSpline(ctrlPts, isClosed)
+            spline.solveAndGetPoints(iters, flatness, 10.0, false)
+        | _ -> failwith "expected Curve"
+
+    let solveCWithFlatness flatness = solveCWithFlatnessAndIter flatness 500
+
+    [<Test; Explicit("Diagnostic: print top-x and per-segment curvature of c across flatness values")>]
+    member _.PrintFlatnessEffect() =
+        printfn "=== Iteration count sweep (flatness=1.0) ==="
+        for iters in [| 50; 100; 200; 500; 1000 |] do
+            let pts = solveCWithFlatnessAndIter 1.0 iters
+            printfn "iters=%-4d  top-x=%.2f" iters pts.[1].x
+        printfn ""
+        printfn "=== Flatness sweep (500 iters) ==="
+        for f in [| 0.0; 0.5; 1.0; 5.0; 20.0; 100.0 |] do
+            let pts = solveCWithFlatness f
+            let curveData = computeCurvatureData pts false
+            printfn "flatness=%-6g  top-x=%.2f" f pts.[1].x
+            for si in 0 .. curveData.segments.Length - 1 do
+                let seg = curveData.segments.[si]
+                let actualStartK = seg.samples.[0].curvature * 10000.0
+                let actualEndK   = seg.samples.[seg.samples.Length-1].curvature * 10000.0
+                printfn "  seg%d  startK(actual)=%.1f  endK(actual)=%.1f  gap=%.1f"
+                    si actualStartK actualEndK (actualEndK - actualStartK)
+
+    [<Test; Explicit("Diagnostic: render c outline SVG for visual inspection")>]
+    member _.PrintCOutlineSvg() =
+        let axes = { Axes.DefaultAxes with max_spline_iter = 500 }
+        let font = Font.Font(axes)
+        let outline = font.CharToOutline 'c'
+        let svg, _, _ = font.elementToSvg outline
+        printfn "=== 'c' outline SVG (font rendering, 500 iters) ==="
+        for line in svg do printfn "%s" line
+        // Also print solved backbone points
+        printfn "=== 'c' backbone bezier points ==="
+        let pts = solveCWithFlatness 1.0
+        for i in 0 .. pts.Length - 1 do
+            printfn "  pt%d  x=%.1f  y=%.1f  th_in=%.3f  th_out=%.3f  ld=%.1f  rd=%.1f"
+                i pts.[i].x pts.[i].y pts.[i].th_in pts.[i].th_out pts.[i].ld pts.[i].rd
+
+    [<Test>]
+    member _.FlatnessZeroVsHighGivesDifferentTopX() =
+        let ptsLow  = solveCWithFlatness 0.0
+        let ptsHigh = solveCWithFlatness 100.0
+        let xLow  = ptsLow.[1].x
+        let xHigh = ptsHigh.[1].x
+        printfn "flatness=0.0   top-x=%.2f" xLow
+        printfn "flatness=100.0 top-x=%.2f" xHigh
+        Assert.That(abs (xLow - xHigh), Is.GreaterThan(5.0),
+            sprintf "Flatness should move top-x by >5 units (got %.2f vs %.2f)" xLow xHigh)
+
+    [<Test>]
+    member _.SolveIsTranslationInvariant() =
+        // The same curve solved at two different absolute positions must produce
+        // the same SHAPE. charToElem translates glyphs by (thickness,thickness)
+        // before solving, so any position-dependence makes the Font tab diverge
+        // from the Splines tab.
+        match GlyphStringDefs.parse_curve metrics "xor~x(c)~(xb)l~b(c)~bor" false with
+        | Curve(knots, isClosed) ->
+            let solveAt dx dy =
+                let shifted =
+                    knots
+                    |> List.map (fun k ->
+                        { k with pt = { k.pt with x = k.pt.x + dx; y = k.pt.y + dy } })
+                let ctrlPts = knotsToDcps shifted
+                let spline = DactylSpline(ctrlPts, isClosed)
+                spline.solveAndGetPoints(500, 0.5, 10.0, false)
+            let basePts = solveAt 0.0 0.0
+            let shiftPts = solveAt 30.0 30.0
+            // Compare free top-x relative to the left edge (pt2.x), which is fixed.
+            let baseTopRel  = basePts.[1].x  - basePts.[2].x
+            let shiftTopRel = shiftPts.[1].x - shiftPts.[2].x
+            printfn "untranslated  top-x relative = %.2f" baseTopRel
+            printfn "translated+30 top-x relative = %.2f" shiftTopRel
+            // Tolerance 5.0: solver is approximately translation-invariant (Nelder-Mead is not
+            // exactly deterministic across positions). 5.0 still catches large regressions.
+            Assert.That(abs (baseTopRel - shiftTopRel), Is.LessThan(5.0),
+                sprintf "Solve must be translation-invariant: relative top-x differs by %.1f"
+                    (abs (baseTopRel - shiftTopRel)))
+        | _ -> failwith "expected Curve"
+
+    [<Test; Explicit("Diagnostic: print backbone points for symmetry glyphs across iteration counts")>]
+    member _.PrintSymmetryBackbones() =
+        for iters in [| 500; 1000; 2000; 5000 |] do
+            let font = Font.Font({ Axes.DefaultAxes with dactyl_spline = true; outline = true; max_spline_iter = iters })
+            printfn "=== max_spline_iter = %d ===" iters
+            for ch in [ 'C'; 'O' ] do
+                let pts = font.charToSolvedBackbonePoints ch
+                printfn "  '%c': %s" ch
+                    (pts |> List.map (fun (x, y) -> sprintf "(%.1f,%.1f)" x y) |> String.concat " ")
+
+    [<Test; Explicit("Diagnostic: render 'c' from Splines-tab path and Font-tab path to SVG files")>]
+    member _.RenderBothPathsToSvg() =
+        let wrap (color: string) (fill: string) (body: string) =
+            sprintf "<svg xmlns='http://www.w3.org/2000/svg' viewBox='-80 -80 520 580'>\n\
+                     <g transform='matrix(1 0 0 -1 0 440)'>\n\
+                     <path d='%s' fill='%s' stroke='%s' stroke-width='3'/>\n\
+                     </g></svg>" body fill color
+
+        // --- Splines-tab path: solveSplineEditor — backbone only, flatness=1.0, 1000 iters ---
+        match GlyphStringDefs.parse_curve metrics "xor~x(c)~(xb)l~b(c)~bor" false with
+        | Curve(knots, isClosed) ->
+            let ctrlPts = knotsToDcps knots
+            let spline = DactylSpline(ctrlPts, isClosed)
+            let _, pathSvg, _, _ = spline.solveAndRenderFull(1000, 1.0, 10.0, false, false, false)
+            let body = String.concat " " pathSvg
+            System.IO.File.WriteAllText("/tmp/c_splines_backbone.svg", wrap "blue" "none" body)
+            printfn "Splines backbone path: %s" body
+        | _ -> failwith "expected Curve"
+
+        // --- Font-tab path: CharToOutline — full stroked outline, axes.flatness, max_spline_iter ---
+        let axes = { Axes.DefaultAxes with max_spline_iter = 500 }
+        let font = Font.Font(axes)
+        let outline = font.CharToOutline 'c'
+        let svg, _, _ = font.elementToSvg outline
+        let body = String.concat " " svg
+        System.IO.File.WriteAllText("/tmp/c_font_outline.svg", wrap "black" "#00000030" body)
+        printfn "Font outline path: %s" body
+
+        // --- Splines-tab outline (getSplineOutlinePath equivalent): same as Font path? ---
+        match GlyphStringDefs.parse_curve metrics "xor~x(c)~(xb)l~b(c)~bor" false with
+        | Curve(knots, isClosed) ->
+            let outlineFont = Font.Font({ axes with outline = true; filled = true; dactyl_spline = true })
+            let outline2 = outlineFont.getDactylSansOutlines (Curve(knots, isClosed))
+            let svg2, _, _ = outlineFont.elementToSvg outline2
+            let body2 = String.concat " " svg2
+            System.IO.File.WriteAllText("/tmp/c_splines_outline.svg", wrap "green" "#00800030" body2)
+            printfn "Splines outline path: %s" body2
+        | _ -> failwith "expected Curve"
+
