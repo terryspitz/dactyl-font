@@ -575,12 +575,10 @@ type FontTests() =
     [<Test>]
     member this.O_And_o_Outline_IsHorizontallyAndVerticallySymmetric() =
         // The 'O' and 'o' glyphs are ovals defined by 4 symmetric knots with fitted coords.
-        // We verify the backbone's structural symmetry (left/right at similar y, top/bottom at
-        // similar x) rather than checking every knot has an exact mirror point. The latter
-        // approach fails on this branch because the Nelder-Mead solver converges to off-centre
-        // fitted coords (top/bottom x ~176 vs cx=180, left/right y ~333 vs cy=330), and the
-        // constant-offset outline sampling then produces irregular knot spacing that has no
-        // exact mirror. The structural check is still a meaningful regression guard.
+        // We verify structural symmetry: left and right backbone knots should have similar y
+        // (horizontal mirror), and top and bottom knots should have similar x (vertical mirror).
+        // knotTol=8.0 gives enough headroom for NelderMead asymmetry while still catching
+        // regressions (the pre-fix asymmetry was >100 units).
         let font =
             Font.Font(
                 { Axes.DefaultAxes with
@@ -592,36 +590,33 @@ type FontTests() =
 
         let knotTol = 8.0
 
+        let rec collectOutlinePoints elem =
+            match elem with
+            | Curve(knots, _) -> knots |> List.map (fun k -> k.pt.x, k.pt.y)
+            | EList(elems) -> List.collect collectOutlinePoints elems
+            | _ -> []
+
         for ch in [ 'O'; 'o' ] do
-            // Backbone: 4 knots, left/right at similar y, top/bottom at similar x.
             let backbonePts = font.charToSolvedBackbonePoints ch
             Assert.That(backbonePts, Is.Not.Empty, sprintf "'%c' backbone should have points" ch)
-
             let sortedByX = backbonePts |> List.sortBy fst
             let sortedByY = backbonePts |> List.sortBy snd
             let leftY = snd sortedByX.[0]
             let rightY = snd sortedByX.[sortedByX.Length - 1]
             let bottomX = fst sortedByY.[0]
             let topX = fst sortedByY.[sortedByY.Length - 1]
-
             Assert.That(
                 abs (leftY - rightY),
                 Is.LessThan knotTol,
-                sprintf "'%c' backbone left/right knots should be at similar y (%.2f vs %.2f)" ch leftY rightY
+                sprintf "'%c' left/right backbone y-coords differ too much: left=%.2f right=%.2f diff=%.2f" ch leftY rightY (abs (leftY - rightY))
             )
             Assert.That(
                 abs (topX - bottomX),
                 Is.LessThan knotTol,
-                sprintf "'%c' backbone top/bottom knots should be at similar x (%.2f vs %.2f)" ch topX bottomX
+                sprintf "'%c' top/bottom backbone x-coords differ too much: top=%.2f bottom=%.2f diff=%.2f" ch topX bottomX (abs (topX - bottomX))
             )
 
-            // Outline: verify it is non-empty (contour count is checked in ConstantOffset_ClosedGlyph_ProducesTwoContours).
             let outline = font.CharToOutline ch
-            let rec collectOutlinePoints elem =
-                match elem with
-                | Curve(knots, _) -> knots |> List.map (fun k -> k.pt.x, k.pt.y)
-                | EList(elems) -> List.collect collectOutlinePoints elems
-                | _ -> []
             let outlinePts = collectOutlinePoints outline
             Assert.That(outlinePts, Is.Not.Empty, sprintf "'%c' outline should have points" ch)
 
