@@ -447,6 +447,44 @@
     border-color: var(--accent-color);
 }
 
+.diff-config {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: 12px;
+    font-size: 0.85em;
+    white-space: nowrap;
+}
+
+.diff-config select {
+    padding: 4px 8px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--panel-bg);
+    color: var(--text-primary);
+    font-size: 1em;
+}
+
+.diff-config input[type="number"] {
+    width: 70px;
+    padding: 4px 6px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--panel-bg);
+    color: var(--text-primary);
+    font-size: 1em;
+}
+
+.diff-label-a {
+    color: #e05252;
+    font-weight: 600;
+}
+
+.diff-label-b {
+    color: #5c7cfa;
+    font-weight: 600;
+}
+
 .proof-book-title {
     margin-left: 10px;
     font-size: 0.75em;

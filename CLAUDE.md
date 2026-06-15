@@ -53,6 +53,11 @@ npm run test:tabs:update     # regenerate snapshots
 intentional visual changes, trigger the `Visual Tests` CI workflow manually
 with `update_snapshots: true` to regenerate and auto-commit them.
 
+**IMPORTANT: Never regenerate or rebase visual test snapshots** — do not run
+`npm run test:tabs:update`, commit snapshot files yourself, or trigger the
+`Visual Tests` workflow with `update_snapshots: true`.  The user reviews visual
+diffs and runs the rebase action manually.
+
 ### CI workflows
 
 | CI workflow | Trigger | What it does |
