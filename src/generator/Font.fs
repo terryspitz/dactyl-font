@@ -1256,13 +1256,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     let p3x, p3y = p2.x, p2.y
                     for s in 1 .. samplesPerSeg - 1 do
                         let t = float s / float samplesPerSeg
-                        let mt = 1.0 - t
-                        let b0, b1, b2, b3 = mt*mt*mt, 3.*mt*mt*t, 3.*mt*t*t, t*t*t
-                        let x = b0*p0x + b1*cp1x + b2*cp2x + b3*p3x
-                        let y = b0*p0y + b1*cp1y + b2*cp2y + b3*p3y
-                        let d0, d1, d2 = 3.*mt*mt, 6.*mt*t, 3.*t*t
-                        let dx = d0*(cp1x-p0x) + d1*(cp2x-cp1x) + d2*(p3x-cp2x)
-                        let dy = d0*(cp1y-p0y) + d1*(cp2y-cp1y) + d2*(p3y-cp2y)
+                        let x, y, dx, dy = getBezPtAndTangent (p0x, p0y) (cp1x, cp1y) (cp2x, cp2y) (p3x, p3y) t
                         let th =
                             if dx*dx + dy*dy < 1e-12 then atan2 (p3y-p0y) (p3x-p0x)
                             else atan2 dy dx
