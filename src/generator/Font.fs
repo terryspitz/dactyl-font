@@ -397,6 +397,18 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
     member this.axes = axes
 
+    // Cached Font with smooth=false for rendering outline knots (all sampled Corner points).
+    // Avoids O(n²) NelderMead when the user has smooth=true: we solve the spine with smooth
+    // and render the outline polyline with smooth=false so DactylSpline stays O(n).
+    member val private outlineFontCachedOpt : Font option =
+        (if axes.smooth then Some(Font({ axes with smooth = false })) else None)
+        with get
+
+    member this.outlineFont =
+        match this.outlineFontCachedOpt with
+        | Some f -> f
+        | None -> this
+
     member this.reduce(e: Element) =
         match e with
         | Glyph(ch) ->
@@ -1194,21 +1206,13 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             let bezEval (segIdx: int) (t: float) =
                 let p1 = bezPts.[segIdx]
                 let p2 = bezPts.[(segIdx + 1) % n]
-                let p0x, p0y = p1.x, p1.y
-                let cp1x = p1.x + p1.rd * cos p1.th_out
-                let cp1y = p1.y + p1.rd * sin p1.th_out
-                let cp2x = p2.x - p2.ld * cos p2.th_in
-                let cp2y = p2.y - p2.ld * sin p2.th_in
-                let p3x, p3y = p2.x, p2.y
-                let mt = 1.0 - t
-                let b0, b1, b2, b3 = mt*mt*mt, 3.*mt*mt*t, 3.*mt*t*t, t*t*t
-                let x = b0*p0x + b1*cp1x + b2*cp2x + b3*p3x
-                let y = b0*p0y + b1*cp1y + b2*cp2y + b3*p3y
-                let d0, d1, d2 = 3.*mt*mt, 6.*mt*t, 3.*t*t
-                let dx = d0*(cp1x-p0x) + d1*(cp2x-cp1x) + d2*(p3x-cp2x)
-                let dy = d0*(cp1y-p0y) + d1*(cp2y-cp1y) + d2*(p3y-cp2y)
+                let p0 = p1.x, p1.y
+                let cp1 = p1.x + p1.rd * cos p1.th_out, p1.y + p1.rd * sin p1.th_out
+                let cp2 = p2.x - p2.ld * cos p2.th_in, p2.y - p2.ld * sin p2.th_in
+                let p3 = p2.x, p2.y
+                let x, y, dx, dy = getBezPtAndTangent p0 cp1 cp2 p3 t
                 let th =
-                    if dx*dx + dy*dy < 1e-12 then atan2 (p3y-p0y) (p3x-p0x)
+                    if dx*dx + dy*dy < 1e-12 then atan2 (snd p3 - snd p0) (fst p3 - fst p0)
                     else atan2 dy dx
                 x, y, th
 
@@ -1814,9 +1818,9 @@ type Font(axes: Axes, ?showCombOpt: bool) =
            let knotColour = if this.axes.outline then lightBlue else pink in
            let knotSize = if this.axes.outline then 4.0 else 20.0 in
 
-           // Outline knots are all inferred/sampled Corner points — forcing smooth on them
-           // would make DactylSpline run NelderMead on 100+ G2 knots (O(n²) per glyph).
-           let outlineFont = if axes.smooth then Font({ axes with smooth = false }) else this in
+           // outlineFont has smooth=false so DactylSpline stays O(n) on the dense outline
+           // Corner knots; cached on the Font instance to avoid per-character allocation.
+           let outlineFont = this.outlineFont in
 
            try
                // Spine is solved with smooth (this), outline knots rendered without smooth (outlineFont).

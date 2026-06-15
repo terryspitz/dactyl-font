@@ -222,12 +222,35 @@ export function parseSvgPath(pathData) {
   return commands
 }
 
+/** Find axes whose values differ from the defaults. */
+function getOverriddenAxes(axes, defaultAxes) {
+  return Object.entries(axes).filter(([key, val]) => val !== defaultAxes[key])
+}
+
+/** Format one axis override as a compact string for filenames and style names. */
+function formatAxisOverride(key, val) {
+  if (typeof val === 'boolean') return val ? key : `no_${key}`
+  const n = typeof val === 'number' ? val : Number(val)
+  const s = Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')
+  return `${key}${s}`
+}
+
+function buildStyleName(overrides) {
+  if (!overrides.length) return 'Regular'
+  return overrides.map(([k, v]) => formatAxisOverride(k, v)).join(' ')
+}
+
+function buildFilename(overrides, family = 'Dactyl') {
+  if (!overrides.length) return `${family}-Regular.otf`
+  return `${family}-${overrides.map(([k, v]) => formatAxisOverride(k, v)).join('-')}.otf`
+}
+
 /**
  * Build an opentype.Font from the glyph data returned by generateFontGlyphData.
  * Coordinates from the F# generator are already Y-up (baseline at 0, positive
  * values go up), which matches the opentype.js coordinate convention directly.
  */
-function buildFont(glyphData, familyName = 'Dactyl') {
+function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular') {
   const { glyphs: glyphsData, ascender, descender, unitsPerEm } = glyphData
 
   const notdef = new opentype.Glyph({
@@ -263,10 +286,14 @@ function buildFont(glyphData, familyName = 'Dactyl') {
 
   return new opentype.Font({
     familyName,
-    styleName: 'Regular',
+    styleName,
     unitsPerEm: Math.round(unitsPerEm),
     ascender: Math.round(ascender),
     descender: Math.round(descender),
+    copyright: `Copyright ${new Date().getFullYear()} Terry Spitz`,
+    designer: 'Terry Spitz',
+    license: 'This Font Software is licensed under the SIL Open Font License, Version 1.1.',
+    licenseURL: 'https://openfontlicense.org',
     glyphs,
   })
 }
@@ -286,9 +313,13 @@ export function buildFontDataUrl(glyphData, familyName = 'DactylPreview') {
 
 /**
  * Build a font from the glyph data and trigger a browser download of the OTF file.
+ * Pass axes and defaultAxes to embed overridden axis values in the filename and style name.
  */
-export function downloadFont(glyphData, filename = 'dactyl.otf') {
-  const font = buildFont(glyphData)
+export function downloadFont(glyphData, axes, defaultAxes) {
+  const overrides = axes && defaultAxes ? getOverriddenAxes(axes, defaultAxes) : []
+  const styleName = buildStyleName(overrides)
+  const filename = buildFilename(overrides)
+  const font = buildFont(glyphData, 'Dactyl', styleName)
   const buffer = font.toArrayBuffer()
   const blob = new Blob([buffer], { type: 'font/otf' })
   const url = URL.createObjectURL(blob)

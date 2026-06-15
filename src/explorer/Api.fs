@@ -296,11 +296,13 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
             let outlineSpline2 = getOutline fontSpline2 spline
             let outlineDactylSpline = getOutline fontDactylSpline spline
 
-            let outlineSpiroSvg = safeElementToSvgPath fontSpiro outlineSpiro blue
-            let outlineSpline2Svg = safeElementToSvgPath fontSpline2 outlineSpline2 green
+            // Use outlineFont (smooth=false) so the dense sampled Corner knots don't
+            // trigger O(n²) NelderMead when the user has smooth=true.
+            let outlineSpiroSvg = safeElementToSvgPath fontSpiro.outlineFont outlineSpiro blue
+            let outlineSpline2Svg = safeElementToSvgPath fontSpline2.outlineFont outlineSpline2 green
 
             let outlineDactylSplineSvg =
-                safeElementToSvgPath fontDactylSpline outlineDactylSpline orange
+                safeElementToSvgPath fontDactylSpline.outlineFont outlineDactylSpline orange
 
             // Spine fonts: never fill the thin centerline paths
             let fontSpiroSpine = Font({ fontSpiro.axes with filled=false }, true)
@@ -573,12 +575,16 @@ let generateFontGlyphData (axes: Axes) =
     let metrics = FontMetrics(axes)
     let chars = allChars.Replace("\n", "")
 
+    // outlineFont has smooth=false so rendering the sampled Corner outline knots
+    // does not trigger O(n²) NelderMead; cached on the font instance.
+    let outlineFont = font.outlineFont
+
     let glyphs =
         chars
         |> Seq.map (fun c ->
             try
                 let outline = font.CharToOutline c
-                let svg, _, _ = font.elementToSvg outline
+                let svg, _, _ = outlineFont.elementToSvg outline
                 {| unicode = int c
                    advanceWidth = font.charWidth c
                    pathData = String.concat " " svg |}
@@ -630,22 +636,17 @@ let parseGlyphToControlPoints (char: string) (axes: Axes) =
         extractCurves elem
 
 
-let generateVisualDiffsSvg (text: string) (axes: Axes) (progress: (float -> unit) option) =
+let generateVisualDiffsSvg
+    (text: string)
+    (axesA: Axes)
+    (axesB: Axes)
+    (labelA: string)
+    (labelB: string)
+    (progress: (float -> unit) option)
+    =
 
-    let fontOff =
-        Font
-            { axes with
-                debug = false
-                dactyl_spline = false
-                spline2 = true }
-
-    let fontOn =
-        Font
-            { axes with
-                debug = false
-                dactyl_spline = true
-                spline2 = false }
-
+    let fontA = Font { axesA with debug = false }
+    let fontB = Font { axesB with debug = false }
 
     let chars =
         if System.String.IsNullOrEmpty(text) then
@@ -655,20 +656,27 @@ let generateVisualDiffsSvg (text: string) (axes: Axes) (progress: (float -> unit
 
     let totalChars = chars.Length
 
-    let marginX = max 200 (axes.thickness * 2)
-    let marginY = max 200 (axes.thickness * 2)
+    // Size cells to fit whichever variant is larger
+    let width = max axesA.width axesB.width
+    let thickness = max axesA.thickness axesB.thickness
+    let marginX = max 200 (thickness * 2)
+    let marginY = max 200 (thickness * 2)
 
     let cols = 5
-    let cellWidth = (axes.width + marginX) * 3 + marginX
-    let cellHeight = fontOn.charHeight + float (marginY * 2)
+    let cellWidth = (width + marginX) * 3 + marginX
+    let cellHeight = (max fontA.charHeight fontB.charHeight) + float (marginY * 2)
 
-    let keyFontSize = (axes.width / 3) |> string
+    let keyFontSize = (width / 3) |> string
 
     let keySvg =
         [ sprintf
-              "<text x='0' y='%.0f' font-size='%s' fill='black'>Key:\nLeft = Old Spline, Middle = New Spline, Right = Overlaid Diff (Red=Old, Blue=New)</text>"
+              "<text x='0' y='%.0f' font-size='%s' fill='black'>Key: Left = %s, Middle = %s, Right = Overlaid Diff (Red=%s, Blue=%s)</text>"
               (cellHeight / 2.0)
-              keyFontSize ]
+              keyFontSize
+              labelA
+              labelB
+              labelA
+              labelB ]
 
     let svgs =
         keySvg
@@ -684,30 +692,30 @@ let generateVisualDiffsSvg (text: string) (axes: Axes) (progress: (float -> unit
                let xOffset = float col * float cellWidth
                let yOffset = float (row + 1) * cellHeight
 
-               // Col 1: off
-               let svgOff = fontOff.charToSvg ch xOffset yOffset "black"
+               // Col 1: A
+               let svgA = fontA.charToSvg ch xOffset yOffset "black"
 
-               // Col 2: on
-               let svgOn =
-                   fontOn.charToSvg ch (xOffset + float axes.width + float marginX) yOffset "black"
+               // Col 2: B
+               let svgB =
+                   fontB.charToSvg ch (xOffset + float width + float marginX) yOffset "black"
 
                // Col 3: overlaid
-               let overlayX = xOffset + (float axes.width + float marginX) * 2.0
-               let svgOffRed = fontOff.charToSvg ch overlayX yOffset "rgba(255, 0, 0, 0.5)"
-               let svgOnBlue = fontOn.charToSvg ch overlayX yOffset "rgba(0, 0, 255, 0.5)"
+               let overlayX = xOffset + (float width + float marginX) * 2.0
+               let svgARed = fontA.charToSvg ch overlayX yOffset "rgba(255, 0, 0, 0.5)"
+               let svgBBlue = fontB.charToSvg ch overlayX yOffset "rgba(0, 0, 255, 0.5)"
 
                // Add labels
-               let fontSize = (axes.width / 5) |> string
+               let fontSize = (width / 5) |> string
 
                let labels =
                    [ sprintf
                          "<text x='%f' y='%f' font-size='%s' fill='gray'>%c</text>"
                          xOffset
-                         (yOffset - float axes.thickness)
+                         (yOffset - float thickness)
                          fontSize
                          ch ]
 
-               labels @ svgOff @ svgOn @ svgOffRed @ svgOnBlue)
+               labels @ svgA @ svgB @ svgARed @ svgBBlue)
            |> List.concat)
 
     let totalWidth = float cols * float cellWidth

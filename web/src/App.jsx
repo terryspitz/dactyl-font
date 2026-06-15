@@ -6,6 +6,35 @@ import { downloadFont } from './fontExport'
 import { proofTexts, proofLabels, proofCases, classicBooks } from './proofs'
 import './App.css'
 
+// Special Visual Diffs option: compare the old spiro/spline2 engine vs the new dactyl spline
+const SPLINE_ENGINE = 'spline_engine'
+
+// Build the two axes variants (and key labels) for the Visual Diffs tab
+function getDiffAxes(axes, diffConfig) {
+  if (diffConfig.axis === SPLINE_ENGINE) {
+    return {
+      axesA: { ...axes, dactyl_spline: false, spline2: true },
+      axesB: { ...axes, dactyl_spline: true, spline2: false },
+      labelA: 'Old Spline',
+      labelB: 'New Spline',
+    }
+  }
+  const ctrl = controlDefinitions.find(c => c.name === diffConfig.axis)
+  if (ctrl.type_ === 'checkbox') {
+    return {
+      axesA: { ...axes, [diffConfig.axis]: Boolean(diffConfig.valueA) },
+      axesB: { ...axes, [diffConfig.axis]: Boolean(diffConfig.valueB) },
+      labelA: `${diffConfig.axis}=${diffConfig.valueA ? 'on' : 'off'}`,
+      labelB: `${diffConfig.axis}=${diffConfig.valueB ? 'on' : 'off'}`,
+    }
+  }
+  return {
+    axesA: { ...axes, [diffConfig.axis]: diffConfig.valueA },
+    axesB: { ...axes, [diffConfig.axis]: diffConfig.valueB },
+    labelA: `${diffConfig.axis}=${Number(diffConfig.valueA.toFixed(2))}`,
+    labelB: `${diffConfig.axis}=${Number(diffConfig.valueB.toFixed(2))}`,
+  }
+}
 
 function App() {
   const [tabTexts, setTabTexts] = useState(() => {
@@ -27,6 +56,24 @@ function App() {
   })
   const [axes, setAxes] = useState({ ...defaultAxes })
   const [activeTab, setActiveTab] = useState('font')
+  // Visual Diffs config: which axis to diff and the two values to compare.
+  // SPLINE_ENGINE is a special compound option (old spiro/spline2 vs new dactyl spline).
+  const [diffConfig, setDiffConfig] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    const axis = params.get('diffAxis')
+    const ctrl = controlDefinitions.find(c => c.name === axis)
+    if (!ctrl) return { axis: SPLINE_ENGINE, valueA: 0, valueB: 1 }
+    const a = parseFloat(params.get('diffA'))
+    const b = parseFloat(params.get('diffB'))
+    if (ctrl.type_ === 'checkbox') {
+      return { axis, valueA: isNaN(a) ? 0 : (a ? 1 : 0), valueB: isNaN(b) ? 1 : (b ? 1 : 0) }
+    }
+    return {
+      axis,
+      valueA: isNaN(a) ? Number(defaultAxes[axis]) : a,
+      valueB: isNaN(b) ? ctrl.max : b,
+    }
+  })
   const [proofCase, setProofCase] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     const p = params.get('proof')
@@ -52,7 +99,9 @@ function App() {
   const [legendPos, setLegendPos] = useState({ x: 0, y: 0 })
   const isDraggingRef = useRef(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
-
+  const [tweenFilter, setTweenFilter] = useState(
+    () => new URLSearchParams(window.location.search).get('tween') || ''
+  )
 
   // Check URL on mount
   useEffect(() => {
@@ -71,6 +120,14 @@ function App() {
     }
   }, [])
 
+  // Keep tweenFilter in sync with URL when the test changes it via pushState+popstate
+  useEffect(() => {
+    const onPopState = () =>
+      setTweenFilter(new URLSearchParams(window.location.search).get('tween') || '')
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
   // Update URL helper
   const setTabWithUrl = (tab) => {
     setActiveTab(tab)
@@ -86,6 +143,36 @@ function App() {
     const url = new URL(window.location)
     url.searchParams.set('proof', pcase)
     window.history.pushState({}, '', url)
+  }
+
+  const setDiffConfigWithUrl = (cfg) => {
+    setDiffConfig(cfg)
+    const url = new URL(window.location)
+    if (cfg.axis === SPLINE_ENGINE) {
+      url.searchParams.delete('diffAxis')
+      url.searchParams.delete('diffA')
+      url.searchParams.delete('diffB')
+    } else {
+      url.searchParams.set('diffAxis', cfg.axis)
+      url.searchParams.set('diffA', cfg.valueA)
+      url.searchParams.set('diffB', cfg.valueB)
+    }
+    // replaceState: value edits shouldn't spam browser history
+    window.history.replaceState({}, '', url)
+  }
+
+  const handleDiffAxisChange = (axisName) => {
+    if (axisName === SPLINE_ENGINE) {
+      setDiffConfigWithUrl({ axis: SPLINE_ENGINE, valueA: 0, valueB: 1 })
+      return
+    }
+    const ctrl = controlDefinitions.find(c => c.name === axisName)
+    if (ctrl.type_ === 'checkbox') {
+      setDiffConfigWithUrl({ axis: axisName, valueA: 0, valueB: 1 })
+    } else {
+      // A starts at the current sidebar value, B at the axis max
+      setDiffConfigWithUrl({ axis: axisName, valueA: Number(axes[axisName]), valueB: ctrl.max })
+    }
   }
 
   const handlePickClassic = () => {
@@ -235,7 +322,7 @@ function App() {
       if (error) {
         console.error('Font generation error:', error)
       } else {
-        downloadFont(result)
+        downloadFont(result, axes, defaultAxes)
       }
     }
     worker.postMessage({ id: 1, type: 'fontData', args: [axes] })
@@ -339,7 +426,8 @@ function App() {
       args = [char, axes, steps]
     } else if (activeTab === 'visualDiffs') {
       typeReq = 'visualDiffs'
-      args = [text || allChars, axes]
+      const { axesA, axesB, labelA, labelB } = getDiffAxes(axes, diffConfig)
+      args = [text || allChars, axesA, axesB, labelA, labelB]
     } else if (activeTab === 'proofs') {
       // Proofs has its own dedicated effect — skip
       setLoading(false)
@@ -362,7 +450,7 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled])
+  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig])
 
   // Dedicated effect for proofs tab: generates full font and builds a data URL.
   // Deps are [axes, activeTab] only — switching proof text doesn't re-trigger.
@@ -477,9 +565,7 @@ function App() {
       } else if (activeTab === 'tweens') {
         if (typeof content !== 'object') return null
         // content is { [ctrlName]: [ { val, svg } ] }
-        // Optional URL param ?tween=axisName to show only one axis
-        const params = new URLSearchParams(window.location.search)
-        const tweenFilter = params.get('tween')
+        // tweenFilter is kept in sync with ?tween= URL param via popstate listener
 
         return (
           <div className="tweens-grid">
@@ -666,6 +752,72 @@ function App() {
               )}
             </div>
           )}
+          {activeTab === 'visualDiffs' && (() => {
+            const ctrl = controlDefinitions.find(c => c.name === diffConfig.axis)
+            return (
+              <div className="diff-config">
+                <label htmlFor="diff-axis-select">Diff axis:</label>
+                <select
+                  id="diff-axis-select"
+                  value={diffConfig.axis}
+                  onChange={e => handleDiffAxisChange(e.target.value)}
+                >
+                  <option value={SPLINE_ENGINE}>Spline engine (old vs new)</option>
+                  {Object.entries(controlsByCategory).map(([category, controls]) => (
+                    <optgroup key={category} label={category}>
+                      {controls.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+                {ctrl && ctrl.type_ === 'checkbox' && (
+                  <span className="diff-onoff">
+                    <span className="diff-label-a">{diffConfig.valueA ? 'on' : 'off'}</span>
+                    {' vs '}
+                    <span className="diff-label-b">{diffConfig.valueB ? 'on' : 'off'}</span>
+                  </span>
+                )}
+                {ctrl && ctrl.type_ === 'range' && (
+                  <>
+                    <label className="diff-label-a" htmlFor="diff-value-a">A:</label>
+                    <input
+                      id="diff-value-a"
+                      type="number"
+                      min={ctrl.min}
+                      max={ctrl.max}
+                      step={ctrl.step}
+                      value={diffConfig.valueA}
+                      onChange={e => {
+                        const v = parseFloat(e.target.value)
+                        if (!isNaN(v)) setDiffConfigWithUrl({ ...diffConfig, valueA: v })
+                      }}
+                    />
+                    <label className="diff-label-b" htmlFor="diff-value-b">B:</label>
+                    <input
+                      id="diff-value-b"
+                      type="number"
+                      min={ctrl.min}
+                      max={ctrl.max}
+                      step={ctrl.step}
+                      value={diffConfig.valueB}
+                      onChange={e => {
+                        const v = parseFloat(e.target.value)
+                        if (!isNaN(v)) setDiffConfigWithUrl({ ...diffConfig, valueB: v })
+                      }}
+                    />
+                  </>
+                )}
+                {ctrl && (
+                  <button
+                    className="icon-button"
+                    title="Swap A and B"
+                    onClick={() => setDiffConfigWithUrl({ ...diffConfig, valueA: diffConfig.valueB, valueB: diffConfig.valueA })}
+                  >
+                    <span className="material-symbols-outlined">swap_horiz</span>
+                  </button>
+                )}
+              </div>
+            )
+          })()}
           {activeTab === 'font' && (
             <button
               className="icon-button"
