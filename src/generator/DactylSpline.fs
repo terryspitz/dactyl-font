@@ -1218,16 +1218,20 @@ type DactylSpline(ctrlPts, isClosed) =
                     path.lineto (p2.x, p2.y)
 
                     if showTangents then
-                        let dx = p2.x - p1.x
-                        let dy = p2.y - p1.y
-                        let lineAngle = atan2 dy dx
-                        let dist = sqrt (dx * dx + dy * dy) / 3.0
-                        // Draw outgoing tangent from p1
-                        tangentPath.moveto (p1.x, p1.y)
-                        tangentPath.lineto (p1.x + dist * cos lineAngle, p1.y + dist * sin lineAngle)
-                        // Draw incoming tangent to p2
-                        tangentPath.moveto (p2.x, p2.y)
-                        tangentPath.lineto (p2.x - dist * cos lineAngle, p2.y - dist * sin lineAngle)
+                        let hasExplicitTangent =
+                            ptI.th_in.IsSome || ptI.th_out.IsSome
+                            || ptI1.th_in.IsSome || ptI1.th_out.IsSome
+                        if hasExplicitTangent then
+                            let dx = p2.x - p1.x
+                            let dy = p2.y - p1.y
+                            let lineAngle = atan2 dy dx
+                            let dist = sqrt (dx * dx + dy * dy) / 3.0
+                            // Draw outgoing tangent from p1
+                            tangentPath.moveto (p1.x, p1.y)
+                            tangentPath.lineto (p1.x + dist * cos lineAngle, p1.y + dist * sin lineAngle)
+                            // Draw incoming tangent to p2
+                            tangentPath.moveto (p2.x, p2.y)
+                            tangentPath.lineto (p2.x - dist * cos lineAngle, p2.y - dist * sin lineAngle)
                 else
                     let cp1x, cp1y = p1.rpt().x, p1.rpt().y
                     let cp2x, cp2y = p2.lpt().x, p2.lpt().y

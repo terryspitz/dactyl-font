@@ -230,7 +230,7 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
 
             let safeElementToSvgPath (font: Font) shape color =
                 try
-                    font.elementToSvgPath shape offsetX offsetY 10 color
+                    font.elementToSvgPath shape offsetX offsetY 10 color false
                 with _ ->
                     []
 
@@ -276,13 +276,13 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
 
             let safeElementToSvgPath (font: Font) shape color =
                 try
-                    font.elementToSvgPath shape offsetX offsetY 10 color
+                    font.elementToSvgPath shape offsetX offsetY 10 color false
                 with _ ->
                     []
 
             let safeSpineSvgPath (font: Font) shape color =
                 try
-                    font.elementToSvgPath shape offsetX offsetY 3 color
+                    font.elementToSvgPath shape offsetX offsetY 3 color false
                 with _ ->
                     []
 
@@ -296,11 +296,13 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
             let outlineSpline2 = getOutline fontSpline2 spline
             let outlineDactylSpline = getOutline fontDactylSpline spline
 
-            let outlineSpiroSvg = safeElementToSvgPath fontSpiro outlineSpiro blue
-            let outlineSpline2Svg = safeElementToSvgPath fontSpline2 outlineSpline2 green
+            // Use outlineFont (smooth=false) so the dense sampled Corner knots don't
+            // trigger O(n²) NelderMead when the user has smooth=true.
+            let outlineSpiroSvg = safeElementToSvgPath fontSpiro.outlineFont outlineSpiro blue
+            let outlineSpline2Svg = safeElementToSvgPath fontSpline2.outlineFont outlineSpline2 green
 
             let outlineDactylSplineSvg =
-                safeElementToSvgPath fontDactylSpline outlineDactylSpline orange
+                safeElementToSvgPath fontDactylSpline.outlineFont outlineDactylSpline orange
 
             // Spine fonts: never fill the thin centerline paths
             let fontSpiroSpine = Font({ fontSpiro.axes with filled=false }, true)
@@ -573,12 +575,16 @@ let generateFontGlyphData (axes: Axes) =
     let metrics = FontMetrics(axes)
     let chars = allChars.Replace("\n", "")
 
+    // outlineFont has smooth=false so rendering the sampled Corner outline knots
+    // does not trigger O(n²) NelderMead; cached on the font instance.
+    let outlineFont = font.outlineFont
+
     let glyphs =
         chars
         |> Seq.map (fun c ->
             try
                 let outline = font.CharToOutline c
-                let svg, _, _ = font.elementToSvg outline
+                let svg, _, _ = outlineFont.elementToSvg outline
                 {| unicode = int c
                    advanceWidth = font.charWidth c
                    pathData = String.concat " " svg |}
