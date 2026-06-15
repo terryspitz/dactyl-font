@@ -41,9 +41,9 @@ let glyphMap =
           '"', "tellr-tthllr telrr-tthlrr"
           '#', "ttbl-ttbr tbbl-tbbr tllr-bllr tlrr-blrr"
           '£', "tor~tc~txl~xllc~blS-br xl-xcr"
-          '$', "thr~tc~ttbl~hc~tbbr~bc~bhl tec-bec"
+          '$', "thr~t(c)~(ttb)l~hc~(tbb)r~b(c)~bhl tec-bec"
           '%', "tllc~tthllc~tthlc~ brrc~bbhrrc~bbhrc~ ter-bel"
-          '&', "hbrS~bc~hbl~thcr~tlcc~thl-br"
+          '&', "hbbr~b(c)~(hb)l~thcr~tlcc~thl-br"
           ''', "tel-tthl"
           '’', "telc-tthl"
           '`', "tel-tthlc"
@@ -60,7 +60,7 @@ let glyphMap =
           '<', "xr-xbl-br"
           '=', "xxbl-xxbr xbbl-xbbr"
           '>', "xl-xbr-bl"
-          '?', "thl~tc~thr~hhbc-bbhc bc"
+          '?', "thl~t(c)~(th)r~hhbc-bbhc bc"
           '@', "bbtrcc~bbbtc~hcl~ttbc~hrcc~bbtrccS~bbbtcrr~hrN~te(c)~hlS~be(c)~bor"
           '[', "tec-tel-bel-bec"
           '\\', "tel-ber"
@@ -72,61 +72,61 @@ let glyphMap =
           '|', "tec-bec"
           '~', "tttthl~tlc~tttthc~ttthhrc~tttthr"
 
-          '0', "hl~tc~hr~bc~ tr-bl"
+          '0', "(h)l~t(c)~(h)r~b(c)~ tr-bl"
           '1', "tol-tlllr-blllr"
-          '2', "tol~tc~thr~hbc-bl-br"
-          '3', "tol~tc~thr~hc-hllr hllr-hc~bhr~bc~bol"
+          '2', "tol~t(c)~(th)r~hbc-bl-br"
+          '3', "tol~t(c)~(th)r~hc-hllr hllr-hc~(bh)r~b(c)~bol"
           '4', "brrrl-trrrl-bhl-bhr"
-          '5', "tr-tl-hl hl~ttbc~bbtr~bc~bol"
-          '6', "tor~tc~hl~bbtl~bc~bbtr~ttbc~bbtlN"
+          '5', "tr-tl-hl hl~ttb(c)~(bbt)r~b(c)~bol"
+          '6', "tor~t(c)~(h)l~bbtl~b(c)~bbtr~ttbc~bbtlN"
           '7', "tl-tr-bcl"
           //  two loops:
           //  '8', "hc~thl~tc~thr~ hc~bhl~bc~bhr~"
           // figure of eight:
-          '8', "hc~thl~tc~thr~hc~bhl~bc~bhr~"
-          '9', "bol~bc~hr~ttbr~tc~ttbl~bbtc~ttbrS"
+          '8', "hc~(th)l~t(c)~(th)r~hc~(bh)l~b(c)~(bh)r~"
+          '9', "bol~b(c)~(h)r~ttbr~t(c)~ttbl~bbtc~ttbrS"
 
           'A', "bl-tc-br bhlc-bhrc"
-          'a', "xr-br xor~x(c)~xbl~bc~bor"
+          'a', "xr-br xor~x(c)~(xb)l~b(c)~bor"
           'B', "hlE~(bh)r~blW-tlE~(th)r~hlE"
-          'b', "tl-bl bol~bc~xbr~xc~xol"
-          'C', "tor~tc~hl~bc~bor"
-          'c', "xor~xc~xbl~bc~bor"
-          'D', "tl-blE~hr~tlE"
-          'd', "tr-br xor~xc~xbl~bc~bor"
+          'b', "tl-bl bol~b(c)~(xb)r~x(c)~xol"
+          'C', "tor~t(c)~(h)l~b(c)~bor"
+          'c', "xor~x(c)~(xb)l~b(c)~bor"
+          'D', "tl-blE~(h)r~tlE"
+          'd', "tr-br xor~x(c)~(xb)l~b(c)~bor"
           'E', "tr-tl-bl-br hl-hr"
-          'e', "xbl-xbrN~x(c)W~xblS~b(c)E~bor"
+          'e', "xbl-xbrN~x(c)~xblS~b(c)~bor"
           'F', "bl-tl-tr hl-hrc"
           'f', "bllc-xtllc~tcrW xl-xc"
-          'G', "tor~tc~(h)lS~bc~bhr-hr-hc"
-          'g', "xr-bdr~dcW~dol xor~xcW~xbl~bcE~bor"
+          'G', "tor~t(c)~(h)l~b(c)~bhr-hr-hc"
+          'g', "xr-bdr~d(c)~dol xor~x(c)~(xb)l~b(c)~bor"
           'H', "tl-bl hl-hr tr-br"
-          'h', "tl-bl xol~xc~xbr-br"
+          'h', "tl-bl xol~x(c)~xbr-br"
           'I', "tl-tr tc-bc bl-br"
           'i', "xl-bl ttxl"
-          'J', "tl-tr-hr~bc~bol"
+          'J', "tl-tr-hr~b(c)~bol"
           'j', "xc-bdc~dlE ttxc"
           'K', "tl-bl tr-hl hl-br"
           'k', "tl-bl xcr-xbl xbl-bcr"
           'L', "tl-bl-br"
           'l', "tl-xbl~bcW"
           'M', "bl-tl-blw-tw-bw"
-          'm', "xl-bl xol~xllw~xblw-blw xxblw~xlwwww~xbw-bw"
+          'm', "xl-bl xol~x(llw)~xxblw-blw xolw~x(lwwww)~xxbw-bw"
           'N', "bl-tl-br-tr"
-          'n', "xl-bl xol~x(c)E~xbr-br"
-          'O', "hl~tc~hr~bc~"
-          'o', "xbl~xc~xbr~bc~"
-          'P', "bl-tlE~(th)rS~hlE"
-          'p', "xl-dl bol~bc~xbr~xc~xol"
-          'Q', "hl~tc~hr~bc~ br-hbc"
-          'q', "xr-dr xor~xc~xbl~bc~bor"
-          'R', "bl-tlE~thr~hcl-hl hc-br"
+          'n', "xl-bl xol~x(c)~xbr-br"
+          'O', "(h)l~t(c)~(h)r~b(c)~"
+          'o', "(xb)l~x(c)~(xb)r~b(c)~"
+          'P', "bl-tlE~(th)r~hlE"
+          'p', "xl-dl bol~b(c)~(xb)r~x(c)~xol"
+          'Q', "(h)l~t(c)~(h)r~b(c)~ br-hbc"
+          'q', "xr-dr xor~x(c)~(xb)l~b(c)~bor"
+          'R', "bl-tlE~(th)r~hcl-hl hc-br"
           'r', "xl-bl xol~xlcc~xoccr"
-          'S', "thr~tc~ttbl~hc~tbbr~bc~bhl"
-          's', "xor~x(c)W~xxbl~xbcE~xbbr~bcW~bol"
+          'S', "thr~t(c)~(ttb)l~hc~(tbb)r~b(c)~bhl"
+          's', "xor~x(c)~(xxb)l~xbcE~(xbb)r~b(c)~bol"
           'T', "tl-tr tc-bc"
           't', "tlc-xblc~bccrW xl-xccr"
-          'U', "tl-hl~bc~hr-tr"
+          'U', "tl-hl~b(c)~hr-tr"
           'u', "xl-xbl~b(llcr)~bocr xcr-bcr"
           'V', "tl-bc-tr"
           'v', "xl-bc-xr"
@@ -135,7 +135,7 @@ let glyphMap =
           'X', "tl-br tr-bl"
           'x', "xl-br xr-bl"
           'Y', "tl-hc-tr hc-bc"
-          'y', "xl-xbl~bc~xbr-xr xr-br~dc~dol"
+          'y', "xl-xbl~b(c)~xbr-xr xr-br~d(c)~dol"
           'Z', "tl-tr-bl-br"
           'z', "xl-xr-bl-br" ]
 
@@ -259,21 +259,43 @@ let parse_curve (glyph: FontMetrics) raw_def debug =
         Dot(pts.[0])
     else
         let isClosed = (seps_out.[pts.Length - 1] = "-" || seps_out.[pts.Length - 1] = "~")
-        
+
+        // Auto-assign cardinal tangents to fitted-coordinate points that lack explicit ones.
+        // y_fit means the point slides along a fixed x (left/right extremum) → vertical tangent.
+        // x_fit means the point slides along a fixed y (top/bottom extremum) → horizontal tangent.
+        // Direction (S/N or E/W) is inferred from the sign of the displacement to the next point.
+        let n = pts.Length
+        let explicit_tangents =
+            [ for i in 0 .. n - 1 do
+                let pt = pts.[i]
+                match explicit_tangents.[i] with
+                | Some _ as t -> t
+                | None when pt.y_fit || pt.x_fit ->
+                    let isInterior = isClosed || (i > 0 && i < n - 1)
+                    if isInterior then
+                        let prev = pts.[if i = 0 then n - 1 else i - 1]
+                        let next = pts.[if i = n - 1 then 0 else i + 1]
+                        if pt.y_fit then
+                            Some(if prev.y > next.y then PI * -0.5 else PI * 0.5)
+                        else
+                            Some(if next.x > prev.x then 0.0 else PI)
+                    else None
+                | None -> None ]
+
         let knots =
-            [ for i in 0 .. pts.Length - 1 do
-                  let in_sep = 
-                      if i = 0 then 
-                          if isClosed then seps_out.[pts.Length - 1] else ""
+            [ for i in 0 .. n - 1 do
+                  let in_sep =
+                      if i = 0 then
+                          if isClosed then seps_out.[n - 1] else ""
                       else seps_out.[i - 1]
-                  let out_sep = 
-                      if i = pts.Length - 1 && not isClosed then ""
+                  let out_sep =
+                      if i = n - 1 && not isClosed then ""
                       else seps_out.[i]
-                  
+
                   let has_curve_in = (in_sep = "~")
                   let has_curve_out = (out_sep = "~")
-                  
-                  let tIn, tOut = 
+
+                  let tIn, tOut =
                       match explicit_tangents.[i] with
                       | Some t ->
                           if not has_curve_in && not has_curve_out then

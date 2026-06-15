@@ -32,14 +32,15 @@ type Axes =
       outline: bool //use thickness to expand stroke width
       stroked: bool //each stroke is 4 parallel lines
       scratches: bool //horror/paint strokes font
+      constant_offset: bool //prototype: outlines are dense polylines at constant perpendicular distance from the spine
       max_spline_iter: int //max number of iterations to solve spline curves
       show_knots: bool //show small circles for the points used to define lines/curves
       show_tangents: bool //show lines for the tangents at each knot
-      show_comb: bool //show curvature comb
       joints: bool //check joints to turn off serifs
       smooth: bool //no corners
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
       flatness: float //weight of flatness (abs m) in objective function
+      end_flatness: float //quadratic curvature-span weight for open-curve endpoint segments (higher = more circular arc at stroke tips)
       sidebearingScale: float //multiplier on the per-glyph thickness sidebearing padding
       manualKerning: bool //apply hand-tuned pair overrides from Spacing.fs
       opticalKerning: bool //sample glyph outlines and add optical kern pairs
@@ -68,15 +69,16 @@ type Axes =
           outline = true
           stroked = false
           scratches = false
-          max_spline_iter = 100
+          constant_offset = true
+          max_spline_iter = 500
           show_knots = false
           show_tangents = false
-          show_comb = false
           joints = true
           constraints = false
           smooth = false
           clip_rect = true
-          flatness = 1.0
+          flatness = 0.5
+          end_flatness = 10.0
           sidebearingScale = 1.2
           manualKerning = true
           opticalKerning = true
@@ -86,34 +88,35 @@ type Axes =
     static member controls =
         [ "dactyl_spline", Checkbox, "experimental"
           "spline2", Checkbox, "experimental"
-          "width", Range(100, 1000), "default"
-          "height", Range(100, 1000), "default"
-          "x_height", FracRange(0.2, 1.1), "default"
-          "thickness", Range(1, 200), "default"
-          "contrast", FracRange(-0.5, 0.5), "default"
-          "roundedness", Range(0, 100), "default"
-          "soft_corners", FracRange(0.0, 1.0), "default"
-          "tracking", Range(0, 200), "default"
-          "leading", Range(-100, 200), "default"
-          "monospace", FracRange(0.0, 1.0), "default"
-          "italic", FracRange(0.0, 1.0), "default"
-          "serif", Range(0, 70), "default"
-          "end_bulb", FracRange(-1.0, 3.0), "default"
-          "flare", FracRange(-1.0, 1.0), "default"
-          "axis_align_caps", Checkbox, "default"
+          "width", Range(100, 1000), "backbone"
+          "height", Range(100, 1000), "backbone"
+          "x_height", FracRange(0.2, 1.1), "backbone"
+          "tracking", Range(0, 200), "backbone"
+          "leading", Range(-100, 200), "backbone"
+          "monospace", FracRange(0.0, 1.0), "backbone"
+          "italic", FracRange(0.0, 1.0), "backbone"
+          "roundedness", Range(0, 100), "backbone"
+          "thickness", Range(1, 200), "outline"
+          "contrast", FracRange(-0.5, 0.5), "outline"
+          "soft_corners", FracRange(0.0, 1.0), "outline"
+          "axis_align_caps", Checkbox, "outline"
+          "outline", Checkbox, "outline"
+          "filled", Checkbox, "outline"
+          "smooth", Checkbox, "outline"
+          "end_bulb", FracRange(-1.0, 3.0), "artistic"
+          "flare", FracRange(-1.0, 1.0), "artistic"
+          "stroked", Checkbox, "artistic"
+          "scratches", Checkbox, "artistic"
+          "serif", Range(0, 70), "artistic"
           "constraints", Checkbox, "experimental"
-          "filled", Checkbox, "default"
-          "outline", Checkbox, "default"
-          "stroked", Checkbox, "default"
-          "scratches", Checkbox, "default"
+          "constant_offset", Checkbox, "experimental"
           "max_spline_iter", Range(0, 200), "experimental"
           "show_knots", Checkbox, "debug"
           "show_tangents", Checkbox, "debug"
-          "show_comb", Checkbox, "debug"
           "joints", Checkbox, "debug"
-          "smooth", Checkbox, "default"
           "clip_rect", Checkbox, "debug"
-          "flatness", FracRange(0.0, 200.0), "experimental"
+          "flatness", FracRange(0.0, 10.0), "experimental"
+          "end_flatness", FracRange(0.0, 30.0), "experimental"
           "sidebearingScale", FracRange(0.0, 2.0), "experimental"
           "manualKerning", Checkbox, "experimental"
           "opticalKerning", Checkbox, "experimental"

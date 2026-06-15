@@ -340,14 +340,14 @@
     right: 16px;
     display: flex;
     gap: 4px;
-    background: rgba(30, 41, 59, 0.75);
+    background: rgba(30, 41, 59, 0.85);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     padding: 6px;
     border-radius: var(--radius-lg);
     z-index: 10;
-    border: 1px solid rgba(255,255,255,0.1);
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
 .zoom-controls button {
@@ -445,6 +445,44 @@
     background: var(--accent-color);
     color: #fff;
     border-color: var(--accent-color);
+}
+
+.diff-config {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: 12px;
+    font-size: 0.85em;
+    white-space: nowrap;
+}
+
+.diff-config select {
+    padding: 4px 8px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--panel-bg);
+    color: var(--text-primary);
+    font-size: 1em;
+}
+
+.diff-config input[type="number"] {
+    width: 70px;
+    padding: 4px 6px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--panel-bg);
+    color: var(--text-primary);
+    font-size: 1em;
+}
+
+.diff-label-a {
+    color: #e05252;
+    font-weight: 600;
+}
+
+.diff-label-b {
+    color: #5c7cfa;
+    font-weight: 600;
 }
 
 .proof-book-title {

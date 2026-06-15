@@ -93,7 +93,7 @@ let getSvgKnots (offsetX: float) (offsetY: float) (size: float) (colour: string)
     @ toSvgPoints elem
     @ [ "'"
         sprintf "transform='translate(%.0f,%.0f) scale(1,-1)'" offsetX offsetY
-        sprintf "style='fill:none;stroke:%s;stroke-width:%.0f'/>" colour 10.0 ]
+        sprintf "style='fill:none;stroke:%s;stroke-width:%.0f'/>" colour (max 3.0 size) ]
 
 let getSvgLabels (offsetX: float) (offsetY: float) (elem: Element) =
     let rec collectLabels (e: Element) =
