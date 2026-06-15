@@ -282,7 +282,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     let spline2ctrlPtsToSvg ctrlPts isClosed =
         let spline = Spline2(ctrlPts, isClosed)
         spline.solve (axes.max_spline_iter)
-        ([ spline.renderSvg ], [], if axes.show_tangents then spline.renderTangents else [])
+        ([ spline.renderSvg ], [], if axes.show_tangents then spline.renderExplicitTangents else [])
 
     let spline2ptsToSvg pts isClosed =
         spline2ctrlPtsToSvg (pts |> withNoTangents |> toSpline2ControlPoints) isClosed
@@ -350,6 +350,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             spline.solveAndRenderSvg (
                 axes.max_spline_iter,
                 axes.flatness,
+                axes.end_flatness,
                 debug = axes.debug,
                 showComb = showComb,
                 showTangents = axes.show_tangents
@@ -395,6 +396,18 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     member this.metrics = _metrics
 
     member this.axes = axes
+
+    // Cached Font with smooth=false for rendering outline knots (all sampled Corner points).
+    // Avoids O(n²) NelderMead when the user has smooth=true: we solve the spine with smooth
+    // and render the outline polyline with smooth=false so DactylSpline stays O(n).
+    member val private outlineFontCachedOpt : Font option =
+        (if axes.smooth then Some(Font({ axes with smooth = false })) else None)
+        with get
+
+    member this.outlineFont =
+        match this.outlineFontCachedOpt with
+        | Some f -> f
+        | None -> this
 
     member this.reduce(e: Element) =
         match e with
@@ -1105,7 +1118,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             let spline = DactylSpline(ctrlPts, isClosed)
 
             let bezPts =
-                spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.debug)
+                spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.end_flatness, axes.debug)
 
             let n = bezPts.Length
 
@@ -1150,13 +1163,191 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         let results = dactylToOutline (this.reduce e)
         if results.Length = 1 then results.[0] else EList(results)
 
+    /// Outline generation using dense sampling at a constant perpendicular distance
+    /// from the DactylSpline-solved spine. Walks each cubic bezier at 8 t-steps,
+    /// offsets every sample by ±thickness perpendicular to its local tangent, and
+    /// emits the result as Corner knots (straight-line segments between samples).
+    /// Reuses the same cap/joint/serif/flare/soft_corners logic as getDactylSansOutlines.
+    member this.getDactylConstantOffsetOutlines e =
+        let fthickness = float thickness
+        let samplesPerSeg = 16
+        let isFreeCurveEnd ty = ty = G2 || ty = G4
+
+        // Build Segment for use with existing cap functions.
+        // Only X, Y, tangentStart, and tangentEnd are read by startCap/endCap.
+        let makeCapSeg (bp: BezierPoint) tStart tEnd =
+            { X = bp.x; Y = bp.y
+              tangentStart = tStart
+              tangentEnd = tEnd
+              seg_ch = 1.0
+              Type = Corner }
+
+        let buildOutlineFromBez (bezPts: BezierPoint array) (isClosed: bool) (startAlign: bool) (endAlign: bool) =
+            if bezPts.Length < 2 then [] else
+
+            let n = bezPts.Length
+            let plainKnot pt =
+                { pt = pt; ty = Corner; th_in = None; th_out = None; label = None }
+
+            // Build one side (outer when sign=+1, inner when sign=-1) of the offset polyline.
+            // Smooth bezier points emit a single perpendicular offset. Corner bezier points
+            // (th_in ≠ th_out) reuse the offsetSegment-Corner logic: outer convex bends get a
+            // pair of miter points, inner convex bends collapse to a single bisector point
+            // clamped to the chord lengths, avoiding self-intersection on sharp inner corners.
+            let buildSide (sign: float) =
+                let reverse = sign < 0.
+                let perpAngle = sign * PI / 2.
+                let knots = System.Collections.Generic.List<Knot>()
+
+                let emitPerp x y th =
+                    knots.Add(plainKnot (addPolarContrast x y (th + perpAngle) fthickness))
+
+                let emitAtBezPt (i: int) =
+                    let bp = bezPts.[i]
+                    let isCorner = abs (norm (bp.th_out - bp.th_in)) > 1e-3
+                    if not isCorner then
+                        emitPerp bp.x bp.y bp.th_in
+                    else
+                        let prev = bezPts.[(i - 1 + n) % n]
+                        let nxt  = bezPts.[(i + 1) % n]
+                        let prevLen = hypot (bp.x - prev.x) (bp.y - prev.y)
+                        let nextLen = hypot (nxt.x - bp.x) (nxt.y - bp.y)
+                        let th1 = norm (bp.th_in  + perpAngle)
+                        let th2 = norm (bp.th_out + perpAngle)
+                        let bend = norm (th2 - th1)
+                        let isSharperThanRight = abs bend >= 2.0
+                        let isOuter =
+                            (not reverse && bend < -PI / 8.0)
+                            || (reverse && bend > PI / 8.0)
+                        if isOuter && isSharperThanRight then
+                            // Two miter points (mirrors offsetSegment Corner outer-bend case).
+                            let pa = addPolarContrast bp.x bp.y (this.maybeAlign th1 - perpAngle / 2.0) (fthickness * sqrt 2.0)
+                            let pb = addPolarContrast bp.x bp.y (this.maybeAlign th2 + perpAngle / 2.0) (fthickness * sqrt 2.0)
+                            knots.Add(plainKnot pa)
+                            knots.Add(plainKnot pb)
+                        else
+                            // Single sharp miter, clamped to chord lengths to avoid overshoot.
+                            let alpha = bend / 2.0
+                            let offset = min (min (fthickness / cos alpha) prevLen) nextLen
+                            let p = addPolarContrast bp.x bp.y (th1 + alpha) offset
+                            knots.Add(plainKnot p)
+
+                let emitMidSamples (segIdx: int) =
+                    let p1 = bezPts.[segIdx]
+                    let p2 = bezPts.[(segIdx + 1) % n]
+                    // A straight-line spine segment (both tangents colinear with the chord) has
+                    // a parallel-line perpendicular offset, so interior samples would be
+                    // collinear with the endpoint offsets and add no information. Skip them.
+                    let dxc = p2.x - p1.x
+                    let dyc = p2.y - p1.y
+                    let isStraight =
+                        if dxc * dxc + dyc * dyc < 1e-12 then true
+                        else
+                            let chordAngle = atan2 dyc dxc
+                            abs (norm (p1.th_out - chordAngle)) < 1e-4
+                            && abs (norm (p2.th_in  - chordAngle)) < 1e-4
+                    if isStraight then () else
+
+                    let p0x, p0y = p1.x, p1.y
+                    let cp1x = p1.x + p1.rd * cos p1.th_out
+                    let cp1y = p1.y + p1.rd * sin p1.th_out
+                    let cp2x = p2.x - p2.ld * cos p2.th_in
+                    let cp2y = p2.y - p2.ld * sin p2.th_in
+                    let p3x, p3y = p2.x, p2.y
+                    for s in 1 .. samplesPerSeg - 1 do
+                        let t = float s / float samplesPerSeg
+                        let x, y, dx, dy = getBezPtAndTangent (p0x, p0y) (cp1x, cp1y) (cp2x, cp2y) (p3x, p3y) t
+                        let th =
+                            if dx*dx + dy*dy < 1e-12 then atan2 (p3y-p0y) (p3x-p0x)
+                            else atan2 dy dx
+                        emitPerp x y th
+
+                if isClosed then
+                    for i in 0 .. n - 1 do
+                        emitAtBezPt i
+                        emitMidSamples i
+                else
+                    // Open: caps own bp[0] and bp[n-1]; emit only interior bezier points.
+                    emitMidSamples 0
+                    for i in 1 .. n - 2 do
+                        emitAtBezPt i
+                        emitMidSamples i
+
+                List.ofSeq knots
+
+            if isClosed then
+                let outer = buildSide  1.0
+                let inner = buildSide -1.0 |> List.rev
+                [ Curve(outer, true); Curve(inner, true) ]
+                |> List.map this.applySoftCorners
+            else
+                // For open strokes, reuse the same cap/joint/serif/flare logic.
+                // startCap and endCap both need a Segment describing the endpoint.
+                // endCap also needs the penultimate Segment for its tangentEnd.
+                let firstSeg     = makeCapSeg bezPts.[0]   bezPts.[0].th_out   bezPts.[0].th_out
+                let endpointSeg  = makeCapSeg bezPts.[n-1] bezPts.[n-1].th_in  bezPts.[n-1].th_in
+                // penultimateSeg.tangentEnd is the incoming tangent at the final point
+                let penultSeg    = makeCapSeg bezPts.[n-2] bezPts.[n-2].th_out bezPts.[n-1].th_in
+
+                // The cap function sets th_in on the first knot and th_out on the last knot
+                // to the spine tangent so the OLD outline can render a smooth cap-to-body
+                // cubic over the whole adjacent segment. In the polyline approach those same
+                // tangents create a tight S-curve over the short chord from cap to first/last
+                // body sample (the "extra sharp points" at curve endings on glyphs like 'c').
+                // Strip them so the cap-to-body edges are straight lines, matching the body
+                // polyline. Intermediate cap knots (serif/flare/bulb) are untouched.
+                let stripBoundaryTangents (caps: Knot list) =
+                    match caps with
+                    | [] -> []
+                    | _ ->
+                        let lastIdx = caps.Length - 1
+                        caps |> List.mapi (fun i k ->
+                            if i = 0 && i = lastIdx then { k with th_in = None; th_out = None }
+                            elif i = 0 then { k with th_in = None }
+                            elif i = lastIdx then { k with th_out = None }
+                            else k)
+
+                // Use original element (before reduce) so isJoint detects stroke intersections.
+                let startCapKnots = this.startCap firstSeg e startAlign Corner |> stripBoundaryTangents
+                let endCapKnots   = this.endCap endpointSeg penultSeg e endAlign Corner |> stripBoundaryTangents
+
+                let outer = buildSide  1.0
+                let inner = buildSide -1.0 |> List.rev
+                // Path: startCap → outer body → endCap → inner body (reversed)
+                [ Curve(startCapKnots @ outer @ endCapKnots @ inner, true) ]
+                |> List.map this.applySoftCorners
+
+        let solveAndOffset (pts: Knot list) isClosed =
+            validateKnotSequence pts isClosed
+            let startAlign = pts.IsEmpty || isClosed || not (isFreeCurveEnd pts.[0].ty)
+            let endAlign   = pts.IsEmpty || isClosed || not (isFreeCurveEnd (List.last pts).ty)
+            let ctrlPts = toDactylSplineControlPoints pts
+            let spline = DactylSpline(ctrlPts, isClosed)
+            let bezPts = spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.end_flatness, axes.debug)
+            buildOutlineFromBez bezPts isClosed startAlign endAlign
+
+        let rec dactylToOutline elem =
+            match elem with
+            | Curve(pts, isClosed) -> solveAndOffset pts isClosed
+            | Dot(p) -> [ dotToClosedCurve p.x p.y (thickness + 5.0) ]
+            | EList(elems) -> List.collect dactylToOutline elems
+            | Space -> [ Space ]
+            | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
+
+        let results = dactylToOutline (this.reduce e)
+        if results.Length = 0 then Space
+        elif results.Length = 1 then results.[0]
+        else EList(results)
+
     member this.getOutline =
         if this.axes.stroked then
             this.getStroked
         elif this.axes.scratches then
             this.getScratches
         elif this.axes.outline then
-            (if axes.dactyl_spline then
+            (if axes.constant_offset then
+                 this.getDactylConstantOffsetOutlines
+             elif axes.dactyl_spline then
                  this.getDactylSansOutlines
              else
                  this.getSpiroSansOutlines)
@@ -1262,7 +1453,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             let combPaths = results |> List.collect snd
             (svgPaths, combPaths, [])
 
-    member this.elementToSvgPath (element: Element) (offsetX: float) (offsetY: float) (strokeWidth: float) fillColour =
+    member this.elementToSvgPath (element: Element) (offsetX: float) (offsetY: float) (strokeWidth: float) fillColour (suppressTangents: bool) =
         let GetStableHash (str: string) =
 #if FABLE_COMPILER
             let mutable hash = 5381
@@ -1329,8 +1520,8 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                   sprintf "style='fill:none;stroke:%s;stroke-width:1'" combStroke
                   "/>"
                   "</g>" ]
-        // Add separate path for tangents if present
-        @ if List.isEmpty tangentSvg then
+        // Add separate path for tangents if present (suppressed for outline/inferred elements)
+        @ if suppressTangents || List.isEmpty tangentSvg then
               []
           else
               [ "<g class='tangent-layer'>"; "<path "; "d='" ]
@@ -1359,25 +1550,29 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         (sprintf "<!-- %c -->" ch)
         :: let backbone = this.charToElem ch in
            let knotColour = if this.axes.outline then lightBlue else pink in
-           let knotSize = if this.axes.outline then 10.0 else 20.0 in
+           let knotSize = if this.axes.outline then 4.0 else 20.0 in
+
+           // outlineFont has smooth=false so DactylSpline stays O(n) on the dense outline
+           // Corner knots; cached on the Font instance to avoid per-character allocation.
+           let outlineFont = this.outlineFont in
 
            try
-               // render outline glyph
+               // Spine is solved with smooth (this), outline knots rendered without smooth (outlineFont).
                let outline = this.getOutline backbone
 
                if axes.debug then
                    printfn "outline: %A" outline
 
-               (this.elementToSvgPath outline offsetX offsetY 5.0 colour)
+               (outlineFont.elementToSvgPath outline offsetX offsetY 5.0 colour false)
                @ (if this.axes.show_knots && this.axes.outline then
                       outline
-                      |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour this.isJoint
+                      |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour outlineFont.isJoint
                   else
                       [])
            with ex ->
                printfn "EXCEPTION IN getOutline: %O\nFallback backbone only" ex
 
-               this.elementToSvgPath
+               outlineFont.elementToSvgPath
                    (Dot(
                        { y = _metrics.H
                          x = _metrics.C
@@ -1388,6 +1583,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                    offsetY
                    5.0
                    red
+                   false
                @ (if this.axes.show_knots then
                       backbone |> SvgHelpers.getSvgKnots offsetX offsetY knotSize knotColour this.isJoint
                   else
@@ -1464,4 +1660,20 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         toSvgDocument -margin -margin w h svg
 
     member this.CharToOutline ch = this.charToElem ch |> this.getOutline
+
+    /// Returns the solved backbone (x, y) positions for every Curve in the glyph.
+    /// Uses the DactylSpline solver, so call this with dactyl_spline = true.
+    member this.charToSolvedBackbonePoints ch =
+        let elem = this.charToElem ch
+        let rec collect elem =
+            match elem with
+            | Curve(pts, isClosed) ->
+                let ctrlPts = toDactylSplineControlPoints pts
+                let spline = DactylSpline(ctrlPts, isClosed)
+                let bezPts = spline.solveAndGetPoints(axes.max_spline_iter, axes.flatness, axes.end_flatness, false)
+                bezPts |> Array.toList |> List.map (fun bp -> bp.x, bp.y)
+            | EList(elems) -> List.collect collect elems
+            | _ -> []
+        collect elem
+
     member this.Spline2PtsToSvg pts isClosed = spline2ptsToSvg pts isClosed

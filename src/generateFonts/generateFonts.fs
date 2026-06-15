@@ -62,7 +62,7 @@ let main argv =
             let outline = font.getOutline elem
 
             let pathCmds =
-                font.elementToSvgPath outline 0.0 font.charHeight 5 black |> String.concat " "
+                font.elementToSvgPath outline 0.0 font.charHeight 5 black false |> String.concat " "
 
             let knotsCmds =
                 SvgHelpers.getSvgKnots 0.0 font.charHeight 15.0 red font.isJoint elem
