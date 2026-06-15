@@ -27,12 +27,14 @@ const toRad = d => Math.round(d * Math.PI / 180 * 1000) / 1000
 
 const deepClone = obj => JSON.parse(JSON.stringify(obj))
 
-// Returns sensible default x/y coordinates based on guide midpoints
+// Returns sensible default x/y coordinates based on guide midpoints.
+// xGuides are [L, C, N, R, W]; we want (L+R)/2, not (L+W)/2, so use index length-2 for R.
 const getDefaultCoords = (guides) => {
   if (!guides) return { cx: 400, cy: 500 }
   const midIdx = Math.floor(guides.yGuides.length / 2)
+  const rGuide = guides.xGuides[guides.xGuides.length - 2] ?? guides.xGuides[guides.xGuides.length - 1]
   return {
-    cx: Math.round((guides.xGuides[0].value + guides.xGuides[guides.xGuides.length - 1].value) / 2),
+    cx: Math.round((guides.xGuides[0].value + rGuide.value) / 2),
     cy: Math.round(guides.yGuides[midIdx].value),
   }
 }
@@ -193,10 +195,12 @@ function SplineEditor({ axes, zoom = 1.0 }) {
     const handler = (e) => {
       const { id, result, error } = e.data
       if (id === -1 && result) setGlyphList(result)
-      if (id === -3 && result) {
-        if (result.length > 0) {
+      if (id === -3) {
+        if (error) console.error('parseGlyph error:', error)
+        if (result && result.length > 0) {
           setCurves(result)
           setAllCurvePaths({})
+          setSolveResult(null)
           undoStackRef.current = []
           redoStackRef.current = []
           setActiveCurve(0)
@@ -467,15 +471,43 @@ function SplineEditor({ axes, zoom = 1.0 }) {
     const pt = curves[activeCurve]?.points[idx]
     if (!pt) return
     pushUndo()
+
+    // When turning off Auto, pick the best concrete starting value:
+    // 1. The current solved position (= "value inside the brackets" from the glyph DSL).
+    // 2. Midpoint of the two neighbouring points (using their solved positions if also fitted).
+    // 3. Guide midpoint as last resort.
+    const getCoord = (ptIdx, axis) => {
+      const p = curves[activeCurve]?.points[ptIdx]
+      if (!p) return undefined
+      const fixed = axis === 'x' ? p.x : p.y
+      if (fixed !== null && fixed !== undefined) return fixed
+      const bp = solveResultRef.current?.bezierPoints?.[ptIdx]
+      return axis === 'x' ? bp?.x : bp?.y
+    }
+
+    const defaultValue = (axis) => {
+      const bp = solveResultRef.current?.bezierPoints?.[idx]
+      const solved = axis === 'x' ? bp?.x : bp?.y
+      if (solved !== undefined && solved !== null && isFinite(solved)) return Math.round(solved)
+      const pts = curves[activeCurve].points
+      const n = pts.length
+      const prev = idx > 0 ? getCoord(idx - 1, axis) : undefined
+      const next = idx < n - 1 ? getCoord(idx + 1, axis) : undefined
+      if (prev !== undefined && next !== undefined) return Math.round((prev + next) / 2)
+      if (prev !== undefined) return Math.round(prev)
+      if (next !== undefined) return Math.round(next)
+      return axis === 'x' ? getDefaultCoords(guides).cx : getDefaultCoords(guides).cy
+    }
+
     if (field === 'x') {
       if (pt.x === null) {
-        updatePoint(activeCurve, idx, { x: getDefaultCoords(guides).cx })
+        updatePoint(activeCurve, idx, { x: defaultValue('x') })
       } else if (pt.y !== null) {
         updatePoint(activeCurve, idx, { x: null })
       }
     } else if (field === 'y') {
       if (pt.y === null) {
-        updatePoint(activeCurve, idx, { y: getDefaultCoords(guides).cy })
+        updatePoint(activeCurve, idx, { y: defaultValue('y') })
       } else if (pt.x !== null) {
         updatePoint(activeCurve, idx, { y: null })
       }
