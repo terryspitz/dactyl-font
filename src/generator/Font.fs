@@ -1173,6 +1173,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         let nib = axes.nib
         let nibAngle = float axes.nib_angle * PI / 180.0
         let taper = axes.taper
+        let taperEnd = axes.taper_end
         let wobble = axes.wobble
         let wobbleWavelength = 200.0
         let mobius = axes.mobius
@@ -1308,11 +1309,13 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     w <- w * max (1.0 - nib * (1.0 - abs (sin (th - nibAngle)))) 0.05
 
                 if taper > 0.0 && not isClosed then
-                    // Pointed-brush ends: shrink to a point over the first and last
-                    // (taper/2) fraction of the stroke's arc length.
+                    // Brush ends: narrow over the first and last (taper/2) fraction of the
+                    // stroke's arc length, down to taper_end of full width at the very tips
+                    // (taper_end = 0 gives a sharp point).
                     let sFrac = sLen / totalLen
                     let ramp = 0.5 * taper
-                    w <- w * min 1.0 (min sFrac (1.0 - sFrac) / ramp)
+                    let rampF = min 1.0 (min sFrac (1.0 - sFrac) / ramp)
+                    w <- w * (taperEnd + (1.0 - taperEnd) * rampF)
 
                 w
 
@@ -1556,7 +1559,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 let inner = buildSide -1.0 false |> List.rev
                 [ Curve(outer, true); Curve(inner, true) ]
                 |> List.map this.applySoftCorners
-            elif taper > 0.0 then
+            elif taper > 0.0 && taperEnd <= 0.0 then
                 // Pointed ends: the width shrinks to nothing at the spine endpoints, so
                 // the two sides simply meet there — a pointed-brush lift. No cap geometry.
                 let startPt = plainKnot { x = bezPts.[0].x; y = bezPts.[0].y; x_fit = false; y_fit = false }
@@ -1565,11 +1568,11 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 let inner = buildSide -1.0 false |> List.rev
                 [ Curve([ startPt ] @ outer @ [ endPt ] @ inner, true) ]
                 |> List.map this.applySoftCorners
-            elif nib > 0.0 then
-                // Chisel ends: close the outline with straight edges straight across the
-                // stroke endpoints — the mark left by lifting a broad-nib pen. The standard
-                // caps (serif/flare/bulb) assume a full-thickness stroke end, which no
-                // longer holds when the width follows the stroke direction.
+            elif nib > 0.0 || taper > 0.0 then
+                // Flat ends at the (possibly reduced) end width: close the outline with a
+                // straight edge across each endpoint. Used by the broad-nib chisel and by
+                // taper when its ends keep some width (taper_end > 0). The standard caps
+                // (serif/flare/bulb) assume a full-thickness end, which no longer holds.
                 let outer = buildSide  1.0 true
                 let inner = buildSide -1.0 true |> List.rev
                 [ Curve(outer @ inner, true) ]

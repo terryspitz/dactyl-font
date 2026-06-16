@@ -908,24 +908,36 @@ type ArtisticAxesTests() =
         Assert.That(ht - hb, Is.LessThan(0.5 * fthickness),
             "horizontal stroke should be a thin sliver")
 
-    [<Test>]
-    member _.TaperAxis_EndsNarrowerThanMiddle() =
-        let font = Font.Font({ baseAxes with taper = 1.0 })
-
+    member private _.TaperWidthNear(axes, yLo, yHi) =
+        let font = Font.Font(axes)
         let outlineKnots =
             match font.getOutline (strokeTo 0. 600.) with
             | Curve(ks, _) -> ks
             | e -> failwithf "expected single Curve outline, got %A" e
+        outlineKnots
+        |> List.filter (fun k -> k.pt.y >= yLo && k.pt.y <= yHi)
+        |> List.map (fun k -> abs k.pt.x)
+        |> List.max
 
-        let widthNear yLo yHi =
-            outlineKnots
-            |> List.filter (fun k -> k.pt.y >= yLo && k.pt.y <= yHi)
-            |> List.map (fun k -> abs k.pt.x)
-            |> List.max
+    [<Test>]
+    member this.TaperAxis_SharpPoint_WhenTaperEndZero() =
+        // taper_end = 0 keeps the original pointed-brush behaviour.
+        let axes = { baseAxes with taper = 1.0; taper_end = 0.0 }
+        Assert.That(this.TaperWidthNear(axes, 0., 100.), Is.LessThan(0.4 * fthickness),
+            "stroke should narrow to near a point at its ends")
+        Assert.That(this.TaperWidthNear(axes, 250., 350.), Is.EqualTo(fthickness).Within(1.0),
+            "stroke should be full width at its middle")
 
-        Assert.That(widthNear 0. 100., Is.LessThan(0.4 * fthickness),
-            "stroke should be narrow near its pointed ends")
-        Assert.That(widthNear 250. 350., Is.EqualTo(fthickness).Within(1.0),
+    [<Test>]
+    member this.TaperAxis_EndWidthControlledByTaperEnd() =
+        // taper_end = 0.5 leaves the ends at ~half width instead of a point.
+        let axes = { baseAxes with taper = 1.0; taper_end = 0.5 }
+        let endW = this.TaperWidthNear(axes, 0., 20.)
+        Assert.That(endW, Is.GreaterThan(0.35 * fthickness),
+            "taper_end=0.5 should keep the ends well above a point")
+        Assert.That(endW, Is.LessThan(0.75 * fthickness),
+            "taper_end=0.5 ends should still be clearly narrower than full width")
+        Assert.That(this.TaperWidthNear(axes, 250., 350.), Is.EqualTo(fthickness).Within(1.0),
             "stroke should be full width at its middle")
 
     [<Test>]
@@ -1013,4 +1025,3 @@ type ArtisticAxesTests() =
                 let svg = font.charToSvg ch 0.0 0.0 "black" |> String.concat " "
                 Assert.That(svg, Does.Contain("M "),
                     sprintf "%s outline for '%c' should render" name ch)
-
