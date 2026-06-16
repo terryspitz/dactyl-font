@@ -1206,13 +1206,10 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             let bezEval (segIdx: int) (t: float) =
                 let p1 = bezPts.[segIdx]
                 let p2 = bezPts.[(segIdx + 1) % n]
-                let p0 = p1.x, p1.y
-                let cp1 = p1.x + p1.rd * cos p1.th_out, p1.y + p1.rd * sin p1.th_out
-                let cp2 = p2.x - p2.ld * cos p2.th_in, p2.y - p2.ld * sin p2.th_in
-                let p3 = p2.x, p2.y
-                let x, y, dx, dy = getBezPtAndTangent p0 cp1 cp2 p3 t
+                let cp1, cp2 = p1.rpt(), p2.lpt()
+                let x, y, dx, dy = getBezPtAndTangent (p1.x, p1.y) (cp1.x, cp1.y) (cp2.x, cp2.y) (p2.x, p2.y) t
                 let th =
-                    if dx*dx + dy*dy < 1e-12 then atan2 (snd p3 - snd p0) (fst p3 - fst p0)
+                    if dx*dx + dy*dy < 1e-12 then atan2 (p2.y - p1.y) (p2.x - p1.x)
                     else atan2 dy dx
                 x, y, th
 
@@ -1274,7 +1271,8 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     let phase = 2.0 * PI * wobbleCycles * sLen / totalLen
                     let d = amp * sin phase
                     let slope = amp * 2.0 * PI * wobbleCycles / totalLen * cos phase
-                    (x + d * cos (th + PI / 2.0), y + d * sin (th + PI / 2.0), th + atan slope, sLen)
+                    // Offset perpendicular to the tangent: rotate (d, 0) by th + 90° = (-d sin th, d cos th).
+                    (x - d * sin th, y + d * cos th, th + atan slope, sLen)
 
             /// Spine samples (x, y, th, arc length from curve start), shared by both sides.
             let spineSamples =
