@@ -28,3 +28,4 @@ dist-ssr
 screenshots/
 test-results/
 playwright-report/
+tests/diffs/
