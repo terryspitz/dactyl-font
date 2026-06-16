@@ -778,6 +778,50 @@ type FontTests() =
             sprintf "'8' backbone bottom (%.1f) should be below 30%% of cap height (%.1f)" minY (capT * 0.3)
         )
 
+    [<Test>]
+    member this.Figure8_Italic_LoopsDoNotCollapse() =
+        // With any italic slant, the figure-8 must still span both loops vertically.
+        // The post-solve symmetrisation used to average the top/bottom centre knots
+        // (t(c)/b(c)) ignoring the horizontal shear, which un-sheared the loop centres
+        // and let the side knots collapse toward half-height, squashing the loops.
+        // Symmetrisation is now performed in the de-sheared frame so this no longer happens.
+        let axes =
+            { Axes.DefaultAxes with
+                dactyl_spline = true
+                outline = true
+                italic = 0.5 }
+
+        let font = Font.Font(axes)
+        let pts = font.charToSolvedBackbonePoints '8'
+        Assert.That(pts, Is.Not.Empty, "italic '8' backbone should have points")
+
+        let ys = pts |> List.map snd
+        let translate = float axes.thickness
+        let capT = float axes.height + translate
+        Assert.That(
+            List.max ys,
+            Is.GreaterThan(capT * 0.7),
+            sprintf "italic '8' backbone top (%.1f) should reach above 70%% of cap height (%.1f)" (List.max ys) (capT * 0.7)
+        )
+        Assert.That(
+            List.min ys,
+            Is.LessThan(capT * 0.3),
+            sprintf "italic '8' backbone bottom (%.1f) should be below 30%% of cap height (%.1f)" (List.min ys) (capT * 0.3)
+        )
+
+        // The top-centre and bottom-centre knots (the only free-x mirror pair) must keep the
+        // shear offset between them: x_top - x_bot ≈ italic*(y_top - y_bot).  Before the fix
+        // they were averaged to the same x.
+        let topCentre = pts |> List.maxBy snd
+        let botCentre = pts |> List.minBy snd
+        let dx = fst topCentre - fst botCentre
+        let expected = axes.italic * (snd topCentre - snd botCentre)
+        Assert.That(
+            abs (dx - expected),
+            Is.LessThan(20.0),
+            sprintf "italic '8' top/bottom centres should differ in x by ~%.1f (shear), got %.1f" expected dx
+        )
+
 [<TestFixture>]
 type KnotSequenceValidationTests() =
     let pt x y = { x = x; y = y; x_fit = false; y_fit = false }

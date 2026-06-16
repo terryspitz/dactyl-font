@@ -346,6 +346,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
         let ctrlPtsToSvg ctrlPts isClosed =
             let spline = DactylSpline(ctrlPts, isClosed)
+            spline.Shear <- axes.italic
 
             spline.solveAndRenderSvg (
                 axes.max_spline_iter,
@@ -1670,6 +1671,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             | Curve(pts, isClosed) ->
                 let ctrlPts = toDactylSplineControlPoints pts
                 let spline = DactylSpline(ctrlPts, isClosed)
+                spline.Shear <- axes.italic
                 let bezPts = spline.solveAndGetPoints(axes.max_spline_iter, axes.flatness, axes.end_flatness, false)
                 bezPts |> Array.toList |> List.map (fun bp -> bp.x, bp.y)
             | EList(elems) -> List.collect collect elems

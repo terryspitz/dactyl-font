@@ -852,6 +852,13 @@ type DactylSpline(ctrlPts, isClosed) =
     member this.ctrlPts: DControlPoint array = ctrlPts
     member this.isClosed = isClosed
 
+    /// Horizontal shear (italic slant) applied to the glyph before solving: x' = x + Shear*y.
+    /// The post-solve symmetrisation assumes the glyph is mirror-symmetric about a vertical
+    /// (or horizontal) axis, which a non-zero shear breaks.  We therefore symmetrise in the
+    /// de-sheared frame (x - Shear*y) so symmetric free coords are matched and averaged
+    /// correctly, then re-apply the shear.  Defaults to 0 (no slant).
+    member val Shear = 0.0 with get, set
+
     /// Pre-process LineToCurve/CurveToLine points: fix their tangent to the line direction.
     /// Must be called before segment iteration in both solveAndGetPoints and solveAndRenderTuple.
     member this.preprocessLineTangents() =
@@ -943,7 +950,13 @@ type DactylSpline(ctrlPts, isClosed) =
             let pts = solver.points()
             let n = innerPts.Length - 1  // actual point count; pts[n] duplicates pts[0]
 
-            // Centroid of fixed x coords and fixed y coords separately
+            // Work in the de-sheared frame so italic glyphs are matched/averaged correctly.
+            // A horizontal shear maps x → x + Shear*y; the mirror symmetry the solver should
+            // converge to exists in the upright frame, so de-shear x before comparing.
+            let shear = this.Shear
+            let deshearX i = pts.[i].x - shear * pts.[i].y
+
+            // Centroid of fixed (de-sheared) x coords and fixed y coords separately
             let mutable sumX = 0.0
             let mutable cntX = 0
             let mutable sumY = 0.0
@@ -951,7 +964,7 @@ type DactylSpline(ctrlPts, isClosed) =
 
             for i in 0 .. n - 1 do
                 if not pts.[i].fit_x then
-                    sumX <- sumX + pts.[i].x
+                    sumX <- sumX + deshearX i
                     cntX <- cntX + 1
 
                 if not pts.[i].fit_y then
@@ -963,15 +976,15 @@ type DactylSpline(ctrlPts, isClosed) =
                 let cy = sumY / float cntY
                 let mutable symmetrized = false
 
-                // Symmetrise free-y knots.  Group them by their (rounded) fixed-x value.
-                // Only average a pair when each mirror-x bucket has EXACTLY ONE knot;
+                // Symmetrise free-y knots.  Group them by their (rounded) de-sheared fixed-x
+                // value.  Only average a pair when each mirror-x bucket has EXACTLY ONE knot;
                 // this prevents figure-8 glyphs from being incorrectly collapsed — '8'
                 // has two free-y knots at x=L and two at x=R, so the mirror buckets have
                 // size 2 and are skipped.
                 let freeYByX =
                     [| 0 .. n - 1 |]
                     |> Array.filter (fun i -> pts.[i].fit_y && not pts.[i].fit_x)
-                    |> Array.groupBy (fun i -> System.Math.Round(pts.[i].x))
+                    |> Array.groupBy (fun i -> System.Math.Round(deshearX i))
 
                 for (px, idxA) in freeYByX do
                     let mirrorPx = System.Math.Round(2.0 * cx - px)
@@ -980,6 +993,7 @@ type DactylSpline(ctrlPts, isClosed) =
                         | Some (_, idxB) when idxA.Length = 1 && idxB.Length = 1 ->
                             let i = idxA.[0]
                             let j = idxB.[0]
+                            // y is unaffected by horizontal shear, so average directly.
                             let avg = (pts.[i].y + pts.[j].y) / 2.0
                             pts.[i].y <- avg
                             pts.[j].y <- avg
@@ -999,9 +1013,11 @@ type DactylSpline(ctrlPts, isClosed) =
                         | Some (_, idxB) when idxA.Length = 1 && idxB.Length = 1 ->
                             let i = idxA.[0]
                             let j = idxB.[0]
-                            let avg = (pts.[i].x + pts.[j].x) / 2.0
-                            pts.[i].x <- avg
-                            pts.[j].x <- avg
+                            // Average in the de-sheared frame, then re-apply each knot's shear
+                            // (their y differs, so their final x differs by Shear*Δy).
+                            let avg = (deshearX i + deshearX j) / 2.0
+                            pts.[i].x <- avg + shear * pts.[i].y
+                            pts.[j].x <- avg + shear * pts.[j].y
                             symmetrized <- true
                         | _ -> ()
 
