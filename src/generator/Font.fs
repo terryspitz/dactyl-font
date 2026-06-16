@@ -1267,7 +1267,8 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 if wobble = 0.0 then
                     (x, y, th, sLen)
                 else
-                    let amp = wobble * fthickness
+                    // wobble=1.0 displaces the spine by half a stroke-thickness at the wave peaks.
+                    let amp = wobble * fthickness * 0.5
                     let phase = 2.0 * PI * wobbleCycles * sLen / totalLen
                     let d = amp * sin phase
                     let slope = amp * 2.0 * PI * wobbleCycles / totalLen * cos phase

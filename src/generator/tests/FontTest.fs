@@ -937,9 +937,10 @@ type ArtisticAxesTests() =
             | Curve(ks, _) -> ks
             | e -> failwithf "expected single Curve outline, got %A" e
 
-        // The wave swings the stroke well beyond its straight-line bounds...
+        // The wave swings the stroke beyond its straight-line bounds (peak displacement
+        // is 0.5*thickness, so the outer edge reaches ~1.5*thickness)...
         let maxX = outlineKnots |> List.map (fun k -> abs k.pt.x) |> List.max
-        Assert.That(maxX, Is.GreaterThan(1.5 * fthickness),
+        Assert.That(maxX, Is.GreaterThan(1.3 * fthickness),
             "wobble should displace the stroke beyond its plain width")
 
         // ...but the displacement vanishes at the stroke ends so caps stay centred.

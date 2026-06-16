@@ -112,7 +112,7 @@ type Axes =
           "nib", FracRange(0.0, 1.0), "artistic"
           "nib_angle", Range(0, 180), "artistic"
           "taper", FracRange(0.0, 1.0), "artistic"
-          "wobble", FracRange(0.0, 2.0), "artistic"
+          "wobble", FracRange(0.0, 1.0), "artistic"
           "mobius", FracRange(0.0, 3.0), "artistic"
           "serif", Range(0, 70), "artistic"
           "constraints", Checkbox, "experimental"
