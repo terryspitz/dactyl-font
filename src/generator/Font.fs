@@ -1268,8 +1268,8 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 if wobble = 0.0 then
                     (x, y, th, sLen)
                 else
-                    // wobble=1.0 displaces the spine by half a stroke-thickness at the wave peaks.
-                    let amp = wobble * fthickness * 0.5
+                    // wobble=1.0 displaces the spine by a quarter of stroke-thickness at the wave peaks.
+                    let amp = wobble * fthickness * 0.25
                     let phase = 2.0 * PI * wobbleCycles * sLen / totalLen
                     let d = amp * sin phase
                     let slope = amp * 2.0 * PI * wobbleCycles / totalLen * cos phase
@@ -1306,7 +1306,11 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     // Broad-nib pen: the ribbon width is the projection of the nib onto the
                     // stroke's perpendicular, so strokes along the nib angle nearly vanish.
                     // Clamp to 5% so the outline never degenerates completely.
-                    w <- w * max (1.0 - nib * (1.0 - abs (sin (th - nibAngle)))) 0.05
+                    // Fade the nib effect to zero at stroke endpoints (over one thickness of
+                    // arc length) so ends match normal full-width caps.
+                    let nibFactor = max (1.0 - nib * (1.0 - abs (sin (th - nibAngle)))) 0.05
+                    let t = min (sLen / fthickness) ((totalLen - sLen) / fthickness) |> min 1.0 |> max 0.0
+                    w <- w * (1.0 - (1.0 - nibFactor) * t)
 
                 if taper > 0.0 && not isClosed then
                     // Brush ends: narrow over the first and last (taper/2) fraction of the

@@ -625,7 +625,7 @@ function App() {
   const handleRandom = () => {
     const newAxes = { ...axes }
     controlDefinitions.forEach(ctrl => {
-      if (ctrl.category === 'experimental') return
+      if (ctrl.category === 'experimental' || ctrl.category === 'debug') return
 
       if (ctrl.type_ === 'checkbox') {
         newAxes[ctrl.name] = Math.random() > 0.5

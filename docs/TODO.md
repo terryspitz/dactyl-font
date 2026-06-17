@@ -1,5 +1,12 @@
 
 **TODOs**
+- Artistic axes (not yet implemented):
+  - **pressure**: stroke width varies with curvature — tighter curves get thicker, straighter segments stay thin (mimics brush pressure)
+  - **bounce**: per-glyph random vertical baseline displacement for hand-lettering feel
+  - **roughness**: random width jitter along the stroke edge (perpendicular noise on the outline, distinct from wobble's spine displacement)
+  - **ink_spread**: slight outward bulge at each stroke sample point, simulating ink bleeding into paper fibres
+  - **split_nib**: like nib but cleaves the stroke into two parallel thin lines (like a reed pen or double-stroke)
+  - **gravity**: the offset spine droops downward at the middle of each stroke (catenary sag)
 - add documentation tooltips, links
 - flare with tangents wrong way round
 - move outline point inward only
