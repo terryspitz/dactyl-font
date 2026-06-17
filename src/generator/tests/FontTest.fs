@@ -792,21 +792,33 @@ type FontTests() =
                 italic = 0.5 }
 
         let font = Font.Font(axes)
+
+        // charToSolvedBackbonePoints and the production outline render now share the same
+        // spline-construction helper (mkDactylSpline, which tags the shear), so these
+        // backbone points are exactly the spine the outline path offsets.
         let pts = font.charToSolvedBackbonePoints '8'
         Assert.That(pts, Is.Not.Empty, "italic '8' backbone should have points")
 
-        let ys = pts |> List.map snd
         let translate = float axes.thickness
         let capT = float axes.height + translate
+        let ys = pts |> List.map snd
+
+        // The squash signature is the four free-y *side* knots ((th)l/r, (bh)l/r) collapsing
+        // toward half-height.  A healthy figure-8 keeps a full top loop and a full bottom loop:
+        // the top loop ((th)l, t(c), (th)r) sits well above centre and the bottom loop
+        // ((bh)l, b(c), (bh)r) well below.  (A global max/min check is too weak — t(c)/b(c)
+        // are pinned to top/bottom and pass even when the loops are squashed flat.)
+        let upperCount = ys |> List.filter (fun y -> y > capT * 0.55) |> List.length
+        let lowerCount = ys |> List.filter (fun y -> y < capT * 0.45) |> List.length
         Assert.That(
-            List.max ys,
-            Is.GreaterThan(capT * 0.7),
-            sprintf "italic '8' backbone top (%.1f) should reach above 70%% of cap height (%.1f)" (List.max ys) (capT * 0.7)
+            upperCount,
+            Is.GreaterThanOrEqualTo(3),
+            sprintf "italic '8' top loop collapsed: only %d knots above 0.55*capH (%.1f); ys=%A" upperCount (capT * 0.55) ys
         )
         Assert.That(
-            List.min ys,
-            Is.LessThan(capT * 0.3),
-            sprintf "italic '8' backbone bottom (%.1f) should be below 30%% of cap height (%.1f)" (List.min ys) (capT * 0.3)
+            lowerCount,
+            Is.GreaterThanOrEqualTo(3),
+            sprintf "italic '8' bottom loop collapsed: only %d knots below 0.45*capH (%.1f); ys=%A" lowerCount (capT * 0.45) ys
         )
 
         // The top-centre and bottom-centre knots (the only free-x mirror pair) must keep the
@@ -821,6 +833,14 @@ type FontTests() =
             Is.LessThan(20.0),
             sprintf "italic '8' top/bottom centres should differ in x by ~%.1f (shear), got %.1f" expected dx
         )
+
+        // End-to-end: the production outline path (charToSvg → getOutline → constant-offset
+        // outliner, which solves the spine at a *different* call site) must render cleanly and
+        // not fall back to the red error stroke.
+        let svgStr = font.charToSvg '8' 0.0 0.0 "black" |> String.concat " "
+        Assert.That(svgStr, Does.Contain("M "), "italic '8' outline should contain a moveto")
+        Assert.That(svgStr, Does.Not.Contain("NaN"), "italic '8' outline should not contain NaN")
+        Assert.That(svgStr, Does.Not.Contain("stroke:#e00000"), "italic '8' outline should not be the red error fallback")
 
 [<TestFixture>]
 type KnotSequenceValidationTests() =

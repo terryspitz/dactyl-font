@@ -340,13 +340,21 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                      th_in = k.th_in
                      th_out = k.th_out } |]
 
+    /// Construct a DactylSpline for this font's control points, tagged with the current
+    /// italic shear so its post-solve symmetrisation can de-shear before matching mirror
+    /// coords.  All DactylSpline instances in Font must go through here — constructing one
+    /// directly would silently drop the shear and distort sheared (italic) glyphs.
+    let mkDactylSpline ctrlPts isClosed =
+        let spline = DactylSpline(ctrlPts, isClosed)
+        spline.Shear <- axes.italic
+        spline
+
     let rec elementToDactylSvg (elem: Element) =
         if axes.debug then
             printfn "elementToDactylSvg %A" elem
 
         let ctrlPtsToSvg ctrlPts isClosed =
-            let spline = DactylSpline(ctrlPts, isClosed)
-            spline.Shear <- axes.italic
+            let spline = mkDactylSpline ctrlPts isClosed
 
             spline.solveAndRenderSvg (
                 axes.max_spline_iter,
@@ -1116,7 +1124,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             if axes.debug then
                 printfn "solveCurveSegs ctrlPts: %A" ctrlPts
 
-            let spline = DactylSpline(ctrlPts, isClosed)
+            let spline = mkDactylSpline ctrlPts isClosed
 
             let bezPts =
                 spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.end_flatness, axes.debug)
@@ -1323,7 +1331,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             let startAlign = pts.IsEmpty || isClosed || not (isFreeCurveEnd pts.[0].ty)
             let endAlign   = pts.IsEmpty || isClosed || not (isFreeCurveEnd (List.last pts).ty)
             let ctrlPts = toDactylSplineControlPoints pts
-            let spline = DactylSpline(ctrlPts, isClosed)
+            let spline = mkDactylSpline ctrlPts isClosed
             let bezPts = spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.end_flatness, axes.debug)
             buildOutlineFromBez bezPts isClosed startAlign endAlign
 
@@ -1670,8 +1678,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             match elem with
             | Curve(pts, isClosed) ->
                 let ctrlPts = toDactylSplineControlPoints pts
-                let spline = DactylSpline(ctrlPts, isClosed)
-                spline.Shear <- axes.italic
+                let spline = mkDactylSpline ctrlPts isClosed
                 let bezPts = spline.solveAndGetPoints(axes.max_spline_iter, axes.flatness, axes.end_flatness, false)
                 bezPts |> Array.toList |> List.map (fun bp -> bp.x, bp.y)
             | EList(elems) -> List.collect collect elems
