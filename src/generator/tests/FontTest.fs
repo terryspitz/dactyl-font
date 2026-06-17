@@ -899,14 +899,27 @@ type ArtisticAxesTests() =
     [<Test>]
     member _.NibAxis_WidthFollowsStrokeDirection() =
         // nib_angle=0 → horizontal nib edge: vertical strokes get the full width,
-        // horizontal strokes (drawn along the nib) collapse to a thin sliver.
+        // horizontal strokes (drawn along the nib) collapse to a thin sliver in the body.
+        // Nib end caps use makeCaps() (same full-width rounded caps as normal strokes).
         let font = Font.Font({ baseAxes with nib = 1.0; nib_angle = 0 })
         let vl, vr, _, _ = bounds (font.getOutline (strokeTo 0. 600.))
-        let _, _, hb, ht = bounds (font.getOutline (strokeTo 600. 0.))
         Assert.That(vr - vl, Is.EqualTo(2.0 * fthickness).Within(1.0),
             "vertical stroke should be drawn at full width")
-        Assert.That(ht - hb, Is.LessThan(0.5 * fthickness),
-            "horizontal stroke should be a thin sliver")
+        // Horizontal stroke: nib collapses body width, but full-width caps at the ends.
+        // Check the body (filter by x away from cap areas) is thin.
+        let hOutlineKnots =
+            match font.getOutline (strokeTo 600. 0.) with
+            | Curve(ks, _) -> ks
+            | e -> failwithf "expected Curve, got %A" e
+        let midKnots = hOutlineKnots |> List.filter (fun k -> k.pt.x > 50.0 && k.pt.x < 550.0)
+        let midYExtent = (midKnots |> List.map (fun k -> k.pt.y) |> List.max)
+                       - (midKnots |> List.map (fun k -> k.pt.y) |> List.min)
+        Assert.That(midYExtent, Is.LessThan(0.5 * fthickness),
+            "horizontal stroke body should be a thin sliver (nib collapses width)")
+        // Overall bounds include full-width caps at both ends.
+        let _, _, hb, ht = bounds (font.getOutline (strokeTo 600. 0.))
+        Assert.That(ht - hb, Is.EqualTo(2.0 * fthickness).Within(2.0),
+            "horizontal nib stroke should have full-width caps at both ends")
 
     member private _.TaperWidthNear(axes, yLo, yHi) =
         let font = Font.Font(axes)
