@@ -585,6 +585,11 @@ let generateFontGlyphData (axes: Axes) =
     // outlineFont has smooth=false so rendering the sampled Corner outline knots
     // does not trigger O(n²) NelderMead; cached on the font instance.
     let outlineFont = font.outlineFont
+    // italicFreeFont has italic=0 so profile sampling lives in the design frame.
+    // The shear is now applied inside getOutline (post-solve), so we can't get
+    // a pre-italic outline by just skipping italicise on the assembled element.
+    let italicFreeFont = font.italicFreeFont
+    let italicFreeOutlineFont = italicFreeFont.outlineFont
 
     let glyphs =
         chars
@@ -595,10 +600,8 @@ let generateFontGlyphData (axes: Axes) =
                 let svg, _, _ = outlineFont.elementToSvg outline
                 let path = String.concat " " svg
                 if axes.opticalKerning && path <> "" then
-                    // Sample profiles from the pre-italic outline so kerns
-                    // hold across italic axis values.
-                    let preItalicOutline = font.CharToOutlinePreItalic c
-                    let svgPI, _, _ = outlineFont.elementToSvg preItalicOutline
+                    let ifOutline = italicFreeFont.CharToOutline c
+                    let svgPI, _, _ = italicFreeOutlineFont.elementToSvg ifOutline
                     let pathPI = String.concat " " svgPI
                     let cmds = GlyphProfile.parseSvgCommands pathPI
                     profileMap.[c] <- GlyphProfile.sampleProfile bandY0 bandY1 bandCount cmds

@@ -244,6 +244,21 @@ let getBezPt (p0x, p0y) (p1x, p1y) (p2x, p2y) (p3x, p3y) t =
     { x = c0 * p0x + c1 * p1x + c2 * p2x + c3 * p3x
       y = c0 * p0y + c1 * p1y + c2 * p2y + c3 * p3y }
 
+let getBezPtAndTangent (p0x, p0y) (p1x, p1y) (p2x, p2y) (p3x, p3y) t =
+    let t1 = 1.0 - t
+    let c0 = t1 * t1 * t1
+    let c1 = 3.0 * t1 * t1 * t
+    let c2 = 3.0 * t1 * t * t
+    let c3 = t * t * t
+    let x = c0 * p0x + c1 * p1x + c2 * p2x + c3 * p3x
+    let y = c0 * p0y + c1 * p1y + c2 * p2y + c3 * p3y
+    let d0 = 3.0 * t1 * t1
+    let d1 = 6.0 * t1 * t
+    let d2 = 3.0 * t * t
+    let dx = d0 * (p1x - p0x) + d1 * (p2x - p1x) + d2 * (p3x - p2x)
+    let dy = d0 * (p1y - p0y) + d1 * (p2y - p1y) + d2 * (p3y - p2y)
+    x, y, dx, dy
+
 let computeCurvatureData (bezPts: BezierPoint array) (isClosed: bool) =
     let steps = 20
     let count = if isClosed then bezPts.Length else bezPts.Length - 1

@@ -322,7 +322,7 @@ function App() {
       if (error) {
         console.error('Font generation error:', error)
       } else {
-        downloadFont(result)
+        downloadFont(result, axes, defaultAxes)
       }
     }
     worker.postMessage({ id: 1, type: 'fontData', args: [axes] })
