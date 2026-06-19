@@ -77,6 +77,13 @@ By default, the sequence of points draws an **open** path from the first point t
 To automatically close the shape (forming a continuous loop), simply leave a trailing `-` or `~` separator at the very end of your sequence. 
 - *Example:* `tl-bl-br~tr~` loops the `tr` point back to the starting `tl` point via a curve.
 
+### Solo Points → Dots
+A sub-path string containing exactly one point (no separator at all) is rendered as a **filled dot** (circle) rather than a stroke.  This is how punctuation glyphs get their dots: the period `'.'` is defined as `"bl"` (a single bottom-left point), the colon `':'` as `"xbl bl"` (two separate sub-paths, each a solo point), and so on.
+
+The dot diameter scales with the `thickness` axis.  Any valid point expression works — `hc` places a dot at the half-height centre, `bc` at the bottom-centre, etc.
+
+*Example:* `tl-bl-br-tr- bc` draws a rectangle (closed via the trailing `-`) and then a separate dot at the bottom-centre — useful for building glyphs like `!` or `¡`.
+
 ---
 
 ## 3. Tangents and Corners: Advanced Rules
