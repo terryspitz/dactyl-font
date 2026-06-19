@@ -1128,7 +1128,7 @@ type CurvatureBalanceTests() =
 
     [<Test; Explicit("Diagnostic: print font-wide attractors and count of glyphs changed by balancing")>]
     member _.PrintBalanceSummary() =
-        for weight in [ 2.0; 5.0; 10.0 ] do
+        for weight in [ 5.0; 20.0 ] do
             let axesOff = { Axes.DefaultAxes with max_spline_iter = 500 }
             let axesOn = { axesOff with curvature_balance = weight }
             let fontOff = Font.Font(axesOff)
@@ -1150,4 +1150,18 @@ type CurvatureBalanceTests() =
                 chars |> List.filter (fun ch -> render fontOff ch <> render fontOn ch)
             printfn "  changed %d / %d glyphs: %s"
                 changed.Length chars.Length (System.String(List.toArray changed))
+
+            // Measure actual geometric displacement (max backbone point shift), not just
+            // string inequality, so we know whether the effect is visible or sub-pixel.
+            let backbone (font: Font.Font) ch = font.charToSolvedBackbonePoints ch
+            let maxShift ch =
+                let a = backbone fontOff ch
+                let b = backbone fontOn ch
+                if a.Length <> b.Length || a.IsEmpty then nan
+                else
+                    List.zip a b
+                    |> List.map (fun ((x1, y1), (x2, y2)) -> sqrt ((x2 - x1) ** 2.0 + (y2 - y1) ** 2.0))
+                    |> List.max
+            for ch in [ 'o'; 'b'; 'd'; 'e'; 'c'; 'a'; 'n'; 'O'; 'C'; 'S'; '8' ] do
+                printfn "    '%c' max backbone shift = %.2f units" ch (maxShift ch)
 
