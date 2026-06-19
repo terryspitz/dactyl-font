@@ -71,7 +71,7 @@ diffs and runs the rebase action manually.
 | CI workflow | Trigger | What it does |
 |-------------|---------|-------------|
 | `.NET Core` (`dotnet-core.yml`) | push to `main` or `claude/**`; PRs to `main` | `dotnet build` + `dotnet test` (F# unit tests) |
-| `Visual Tests` (`visual-tests.yml`) | PRs to `main`; `workflow_dispatch` | Playwright screenshot tests against production build; auto-commits new baselines |
+| `Visual Tests` (`visual-tests.yml`) | push to `main`; PRs to `main`; `workflow_dispatch` | Playwright screenshot tests against production build; auto-commits new baselines |
 | `Deploy Pages` (`deploy-pages.yml`) | push to `main` only | Builds and deploys to GitHub Pages |
 
 ## Key source files

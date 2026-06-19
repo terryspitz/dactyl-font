@@ -99,10 +99,10 @@ The generator UI features a **Glyphs** tab, an invaluable tool for creating and 
 ### How to Use It
 1. **Live Preview:** Enter your Dactyl Glyphs string into the definition editor. The browser instantly renders the resulting glyph geometry on screen.
 2. **Visual Diagnostics:** The browser overlays essential debugging features over the rendered stroke:
-   - **Control Points:** Shows the exact solved coordinates of every parsed point.
+   - **Knots:** Shows the exact solved coordinates of every parsed point.
    - **Tangents:** Visualizes the incoming and outgoing tangent vectors at each knot (especially helpful for confirming sharp corners vs. smooth joins).
-   - **Curvature Combs:** Provides a "comb" heat map that visualizes the rate of curvature along bezier segments. Spikes or uneven comb distribution indicate jagged transitions that you might wish to fix via coordinate fitting (brackets) or explicit tangents.
-3. **Toggle `dactyl_spline` / `Spiro`:** Use the checkboxes to view how your string behaves under the newer robust Dactyl solver vs. the legacy Spiro solver.
+   - **Comb:** Provides a "comb" heat map that visualizes the rate of curvature along bezier segments. Spikes or uneven comb distribution indicate jagged transitions that you might wish to fix via coordinate fitting (brackets) or explicit tangents.
+3. **Toggle DactylSpline / Spline2 / Spiro:** Use the checkboxes to view how your string behaves under the three available solvers — the newer robust **DactylSpline**, Raph Levien's **Spline2**, and the legacy **Spiro** solver.
    - *Note on Spiro Limitations:* The legacy `Spiro` matrix solver may struggle or throw exceptions on tightly packed closed loops containing only three points (such as `tl-blE~hr~`). Using the robust `DactylSpline` backend handles these topologies elegantly.
 
 By iterating within the Glyphs tab, you can visually tune specific coordinate points and explicit tangents until your glyph achieves a flawless, production-ready continuous outline!
