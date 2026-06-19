@@ -6,9 +6,17 @@ GitHub repo: `terryspitz/dactyl-font`
 
 ## GitHub interaction
 
-**No `gh` CLI available.** Use the `mcp__github__*` tools for all GitHub
-operations (viewing PRs, posting comments, checking CI, etc.).  Use
-`ToolSearch` to load the schema for any `mcp__github__` tool before calling it.
+The `gh` CLI is available. Use it for operations not covered by the MCP tools,
+in particular **downloading CI artifacts**:
+```
+gh run list --repo terryspitz/dactyl-font
+gh run download <run-id> --repo terryspitz/dactyl-font --name <artifact-name> --dir /tmp/artifacts
+gh api repos/terryspitz/dactyl-font/actions/runs/<run-id>/artifacts
+```
+
+For other GitHub operations (viewing PRs, posting comments, checking CI status,
+etc.) use the `mcp__github__*` tools.  Use `ToolSearch` to load the schema for
+any `mcp__github__` tool before calling it.
 
 ## Branch conventions
 

@@ -158,26 +158,29 @@ function unionMatchesFill(original, candidate, grid = 32) {
   return true
 }
 
-/** Convert a paper Path / CompoundPath into absolute M/C/Z command objects. */
+/** Convert a paper Path / CompoundPath into absolute M/C/Z command objects.
+ * Coordinates are rounded to 3 decimal places to eliminate sub-UPM floating-point
+ * noise from paper.js boolean operations, keeping font output deterministic. */
 function paperItemToCommands(item) {
   const paths = item.children && item.children.length ? item.children : [item]
   const cmds = []
+  const r = (n) => Math.round(n * 1000) / 1000
   for (const p of paths) {
     const segs = p.segments
     if (!segs || segs.length === 0) continue
-    cmds.push({ type: 'M', x: segs[0].point.x, y: segs[0].point.y })
+    cmds.push({ type: 'M', x: r(segs[0].point.x), y: r(segs[0].point.y) })
     const n = p.closed ? segs.length : segs.length - 1
     for (let i = 0; i < n; i++) {
       const a = segs[i]
       const b = segs[(i + 1) % segs.length]
       cmds.push({
         type: 'C',
-        x1: a.point.x + a.handleOut.x,
-        y1: a.point.y + a.handleOut.y,
-        x2: b.point.x + b.handleIn.x,
-        y2: b.point.y + b.handleIn.y,
-        x: b.point.x,
-        y: b.point.y,
+        x1: r(a.point.x + a.handleOut.x),
+        y1: r(a.point.y + a.handleOut.y),
+        x2: r(b.point.x + b.handleIn.x),
+        y2: r(b.point.y + b.handleIn.y),
+        x: r(b.point.x),
+        y: r(b.point.y),
       })
     }
     cmds.push({ type: 'Z' })
@@ -222,12 +225,35 @@ export function parseSvgPath(pathData) {
   return commands
 }
 
+/** Find axes whose values differ from the defaults. */
+function getOverriddenAxes(axes, defaultAxes) {
+  return Object.entries(axes).filter(([key, val]) => val !== defaultAxes[key])
+}
+
+/** Format one axis override as a compact string for filenames and style names. */
+function formatAxisOverride(key, val) {
+  if (typeof val === 'boolean') return val ? key : `no_${key}`
+  const n = typeof val === 'number' ? val : Number(val)
+  const s = Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')
+  return `${key}${s}`
+}
+
+function buildStyleName(overrides) {
+  if (!overrides.length) return 'Regular'
+  return overrides.map(([k, v]) => formatAxisOverride(k, v)).join(' ')
+}
+
+function buildFilename(overrides, family = 'Dactyl') {
+  if (!overrides.length) return `${family}-Regular.otf`
+  return `${family}-${overrides.map(([k, v]) => formatAxisOverride(k, v)).join('-')}.otf`
+}
+
 /**
  * Build an opentype.Font from the glyph data returned by generateFontGlyphData.
  * Coordinates from the F# generator are already Y-up (baseline at 0, positive
  * values go up), which matches the opentype.js coordinate convention directly.
  */
-function buildFont(glyphData, familyName = 'Dactyl') {
+function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular') {
   const { glyphs: glyphsData, ascender, descender, unitsPerEm } = glyphData
 
   const notdef = new opentype.Glyph({
@@ -263,10 +289,14 @@ function buildFont(glyphData, familyName = 'Dactyl') {
 
   return new opentype.Font({
     familyName,
-    styleName: 'Regular',
+    styleName,
     unitsPerEm: Math.round(unitsPerEm),
     ascender: Math.round(ascender),
     descender: Math.round(descender),
+    copyright: `Copyright ${new Date().getFullYear()} Terry Spitz`,
+    designer: 'Terry Spitz',
+    license: 'This Font Software is licensed under the SIL Open Font License, Version 1.1.',
+    licenseURL: 'https://openfontlicense.org',
     glyphs,
   })
 }
@@ -286,9 +316,13 @@ export function buildFontDataUrl(glyphData, familyName = 'DactylPreview') {
 
 /**
  * Build a font from the glyph data and trigger a browser download of the OTF file.
+ * Pass axes and defaultAxes to embed overridden axis values in the filename and style name.
  */
-export function downloadFont(glyphData, filename = 'dactyl.otf') {
-  const font = buildFont(glyphData)
+export function downloadFont(glyphData, axes, defaultAxes) {
+  const overrides = axes && defaultAxes ? getOverriddenAxes(axes, defaultAxes) : []
+  const styleName = buildStyleName(overrides)
+  const filename = buildFilename(overrides)
+  const font = buildFont(glyphData, 'Dactyl', styleName)
   const buffer = font.toArrayBuffer()
   const blob = new Blob([buffer], { type: 'font/otf' })
   const url = URL.createObjectURL(blob)

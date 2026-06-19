@@ -33,7 +33,7 @@
 - Contrast (horiz vs vert stroke width ratio)
 - Flared endcaps
 - Constrain tangents to horiz/vertical
-- Italics subdivide splines to ensure better fit
+- Italics subdivide splines to ensure better fit (Spiro/Spline2 backbone shear)
 - Dactyl-smooth which has no corners
 - Soft corners
 - mergeConsecutive removed (no longer needed)
@@ -57,6 +57,7 @@
 - Renamed OffsetSegment→Segment and related functions
 - Abstracted stroke logic in Font.fs
 - Fixed Dactyl italics rendering
+- Italic shearing post-solve for DactylSpline/constant-offset: exact affine shear of the solved spine (positions, tangents, control-point distances), so stroke offset is taken in slanted space for even weight, with no subdivide artifacts. Spiro/Spline2 keep the pre-solve knot shear.
 - Fixed touch dragging on mobile
 - Updated GitHub Actions to support Node.js 24
 - Updated README with consolidated intro, gallery, and fixed formatting
