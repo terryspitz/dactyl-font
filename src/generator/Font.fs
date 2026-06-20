@@ -1215,12 +1215,11 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         let taperEnd = axes.taper_end
         let wobble = axes.wobble
         let wobbleWavelength = 200.0
-        let pressure = axes.pressure
         let mobius = axes.mobius
         let mobiusHalfTwistLen = 300.0
         // Axes whose width or displacement varies with arc length need interior samples
         // even on straight spine segments.
-        let widthVariesAlongStroke = nib > 0.0 || taper > 0.0 || wobble > 0.0 || pressure > 0.0 || mobius > 0.0
+        let widthVariesAlongStroke = nib > 0.0 || taper > 0.0 || wobble > 0.0 || mobius > 0.0
         let samplesPerSeg = 16
         let isFreeCurveEnd ty = ty = G2 || ty = G4
 
@@ -1327,44 +1326,6 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                        [| for (x, y, th, localLen) in fst segData.[segIdx] ->
                               displace (x, y, th, cumLenAtBez.[segIdx] + localLen) |] |]
 
-            /// Interpolates |dth/ds| (curvature magnitude) at a given arc length.
-            /// Returns 0 everywhere when pressure axis is off.
-            let curvatureAtSLen =
-                if pressure = 0.0 then fun _ -> 0.0
-                else
-                    // Flatten all segment interior samples with global arc length.
-                    let flat =
-                        [| for segIdx in 0 .. segCount - 1 do
-                               for (_, _, th, localLen) in fst segData.[segIdx] ->
-                                   (cumLenAtBez.[segIdx] + localLen, th) |]
-                    if flat.Length < 2 then fun _ -> 0.0
-                    else
-                        // Central-difference curvature at each sample.
-                        let kurvs =
-                            [| for j in 0 .. flat.Length - 1 ->
-                                   let (s, th) = flat.[j]
-                                   let k =
-                                       if j = 0 then
-                                           let (s2, th2) = flat.[1]
-                                           abs (norm (th2 - th)) / max (s2 - s) 1e-9
-                                       elif j = flat.Length - 1 then
-                                           let (s0, th0) = flat.[j - 1]
-                                           abs (norm (th - th0)) / max (s - s0) 1e-9
-                                       else
-                                           let (s0, th0) = flat.[j - 1]
-                                           let (s2, th2) = flat.[j + 1]
-                                           abs (norm (th2 - th0)) / max (s2 - s0) 1e-9
-                                   (s, k) |]
-                        fun (sLen: float) ->
-                            match kurvs |> Array.tryFindIndex (fun (s, _) -> s >= sLen) with
-                            | None -> snd kurvs.[kurvs.Length - 1]
-                            | Some 0 -> snd kurvs.[0]
-                            | Some i ->
-                                let (s0, k0) = kurvs.[i - 1]
-                                let (s1, k1) = kurvs.[i]
-                                if s1 <= s0 then k0
-                                else k0 + (k1 - k0) * (sLen - s0) / (s1 - s0)
-
             /// Bez points displaced like the interior samples; (x, y, tangent delta, arc
             /// length). Corners use the tangent bisector as the displacement direction so
             /// both sides share a single displaced point.
@@ -1381,6 +1342,10 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                        let (x, y, th, _) = displace (bp.x, bp.y, thMid, sLen)
                        (x, y, th - thMid, sLen) |]
 
+            /// Broad-nib width factor for a stroke running at angle th: 1.0 when the stroke
+            /// is perpendicular to the nib, shrinking toward 0.05 when it runs along the nib.
+            let nibFactor th = max (1.0 - nib * (1.0 - abs (sin (th - nibAngle)))) 0.05
+
             /// Stroke half-width at a given arc length and spine tangent direction.
             let widthAt (sLen: float) (th: float) =
                 let mutable w = fthickness
@@ -1389,14 +1354,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     // Broad-nib pen: the ribbon width is the projection of the nib onto the
                     // stroke's perpendicular, so strokes along the nib angle nearly vanish.
                     // Clamp to 5% so the outline never degenerates completely.
-                    w <- w * max (1.0 - nib * (1.0 - abs (sin (th - nibAngle)))) 0.05
-
-                if pressure > 0.0 then
-                    // Brush pressure: stroke widens at tight curves, thins on straights.
-                    // curvatureAt returns |dth/ds| in rad/unit; scaling by fthickness makes
-                    // it dimensionless (1.0 = radius-of-curvature equals one stroke width).
-                    let k = curvatureAtSLen sLen
-                    w <- w * (1.0 + pressure * min (k * fthickness) 1.0)
+                    w <- w * nibFactor th
 
                 if taper > 0.0 && not isClosed then
                     // Brush ends: narrow over the first and last (taper/2) fraction of the
@@ -1642,6 +1600,26 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                                       true
                                   ) ]
 
+            // Squeeze a cap's knots perpendicular to the stroke tangent so the cap width
+            // matches the nib-modulated body width at that endpoint, while keeping the cap's
+            // extension along the tangent. This gives nib strokes the same end length and cap
+            // style (axis-align/serif/flare/bulb) as normal strokes, just at the nib width —
+            // instead of stopping short at the spine endpoint or protruding as full-width ears.
+            let squeezeCapToNib (cx: float) (cy: float) (th: float) (knots: Knot list) =
+                let nf = nibFactor th
+                knots
+                |> List.map (fun k ->
+                    let dx = k.pt.x - cx
+                    let dy = k.pt.y - cy
+                    let along = dx * cos th + dy * sin th
+                    let perp = -dx * sin th + dy * cos th
+                    let perp' = perp * nf
+                    { k with
+                        pt =
+                            { k.pt with
+                                x = cx + along * cos th - perp' * sin th
+                                y = cy + along * sin th + perp' * cos th } })
+
             if mobius > 0.0 then
                 buildMobiusPanels () |> List.map this.applySoftCorners
             elif isClosed then
@@ -1658,16 +1636,24 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 let inner = buildSide -1.0 false |> List.rev
                 [ Curve([ startPt ] @ outer @ [ endPt ] @ inner, true) ]
                 |> List.map this.applySoftCorners
-            elif nib > 0.0 || taper > 0.0 then
-                // Flat ends at the (possibly reduced) end width: close the outline with a
-                // straight edge across each endpoint. The body reaches the endpoints at the
-                // nib-modulated (or tapered) width via widthAt, so the cap inherits the nib
-                // width rather than the full stroke thickness. Used by the broad-nib chisel
-                // and by taper when its ends keep some width (taper_end > 0). The standard
-                // caps (serif/flare/bulb) assume a full-thickness end, which no longer holds.
+            elif taper > 0.0 then
+                // Flat ends at the (reduced) end width: close the outline with a straight
+                // edge across each endpoint. The body reaches the endpoints at the tapered
+                // width via widthAt. Used when taper_end > 0 (tapered but not to a point).
                 let outer = buildSide  1.0 true
                 let inner = buildSide -1.0 true |> List.rev
                 [ Curve(outer @ inner, true) ]
+                |> List.map this.applySoftCorners
+            elif nib > 0.0 then
+                // Broad-nib caps: use the normal cap geometry (so ends extend to the same
+                // length as a non-nib stroke), then squeeze each cap to the nib width so it
+                // matches the body and doesn't protrude.
+                let startCapKnots, endCapKnots = makeCaps ()
+                let startCapKnots = squeezeCapToNib bezPts.[0].x bezPts.[0].y bezPts.[0].th_out startCapKnots
+                let endCapKnots   = squeezeCapToNib bezPts.[n - 1].x bezPts.[n - 1].y bezPts.[n - 1].th_in endCapKnots
+                let outer = buildSide  1.0 false
+                let inner = buildSide -1.0 false |> List.rev
+                [ Curve(startCapKnots @ outer @ endCapKnots @ inner, true) ]
                 |> List.map this.applySoftCorners
             else
                 let startCapKnots, endCapKnots = makeCaps ()
