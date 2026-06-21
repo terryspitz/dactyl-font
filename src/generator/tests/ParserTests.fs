@@ -87,6 +87,37 @@ type ParserTests() =
         // "tl-blE" -> Tangent on end of line. Should throw.
         Assert.Throws<System.ArgumentException>(fun () -> parse_curve metrics "tl-blE" false |> ignore) |> ignore
 
+    [<Test>]
+    member this.TestDigitRepeatX() =
+        // "r4c" should equal the expanded "rrrrc": four parts R, one part C.
+        let expanded, _, _, _ = parse_point metrics "brrrrc"
+        let shorthand, _, _, _ = parse_point metrics "br4c"
+        Assert.That(shorthand.x, Is.EqualTo(expanded.x))
+        Assert.That(shorthand.x, Is.EqualTo((4.0 * metrics.R + metrics.C) / 5.0))
+
+    [<Test>]
+    member this.TestDigitRepeatY() =
+        // "b2t" should equal "bbt": one-third up from the bottom.
+        let expanded, _, _, _ = parse_point metrics "bbtl"
+        let shorthand, _, _, _ = parse_point metrics "b2tl"
+        Assert.That(shorthand.y, Is.EqualTo(expanded.y))
+        Assert.That(shorthand.y, Is.EqualTo((2.0 * metrics.B + metrics.T) / 3.0))
+
+    [<Test>]
+    member this.TestDigitRepeatInBrackets() =
+        // Digit weighting works inside fitting brackets, and keeps the fit flag.
+        let expanded, _, _, _ = parse_point metrics "t(rrrrc)"
+        let shorthand, _, _, _ = parse_point metrics "t(r4c)"
+        Assert.That(shorthand.x, Is.EqualTo(expanded.x))
+        Assert.That(shorthand.x_fit, Is.True)
+
+    [<Test>]
+    member this.TestSingleLetterUnchanged() =
+        // No digit means count 1 — plain coordinates are unaffected.
+        let pt, _, _, _ = parse_point metrics "tl"
+        Assert.That(pt.y, Is.EqualTo(metrics.T))
+        Assert.That(pt.x, Is.EqualTo(metrics.L))
+
 [<EntryPoint>]
 let main argv =
     0 // Return an integer exit code
