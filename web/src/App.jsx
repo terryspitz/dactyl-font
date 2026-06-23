@@ -79,8 +79,17 @@ function App() {
   })
   // Visual Diffs "compare font" mode: diff Dactyl against an external font
   // (upload / Google / system). 'axis' keeps the original Dactyl-vs-Dactyl diff.
-  const [compareMode, setCompareMode] = useState('axis')
-  const [compareAlign, setCompareAlign] = useState('cap')
+  // `compare` and `align` are URL-addressable so a comparison view is shareable
+  // (and deep-linkable from the visual tests). The chosen font itself can't be
+  // encoded in a URL, so it must still be (re)selected after navigation.
+  const [compareMode, setCompareMode] = useState(() => {
+    const c = new URLSearchParams(window.location.search).get('compare')
+    return c === 'font' ? 'font' : 'axis'
+  })
+  const [compareAlign, setCompareAlign] = useState(() => {
+    const a = new URLSearchParams(window.location.search).get('align')
+    return ['cap', 'x', 'em'].includes(a) ? a : 'cap'
+  })
   const [compareFont, setCompareFont] = useState(null)
   const [compareError, setCompareError] = useState(null)
   const [dactylGlyphData, setDactylGlyphData] = useState(null)
@@ -168,6 +177,21 @@ function App() {
       url.searchParams.set('diffB', cfg.valueB)
     }
     // replaceState: value edits shouldn't spam browser history
+    window.history.replaceState({}, '', url)
+  }
+
+  const setCompareModeWithUrl = (m) => {
+    setCompareMode(m)
+    const url = new URL(window.location)
+    if (m === 'font') url.searchParams.set('compare', 'font')
+    else url.searchParams.delete('compare')
+    window.history.replaceState({}, '', url)
+  }
+
+  const setCompareAlignWithUrl = (a) => {
+    setCompareAlign(a)
+    const url = new URL(window.location)
+    url.searchParams.set('align', a)
     window.history.replaceState({}, '', url)
   }
 
@@ -907,9 +931,9 @@ function App() {
             return (
               <FontCompareControls
                 mode={compareMode}
-                onModeChange={setCompareMode}
+                onModeChange={setCompareModeWithUrl}
                 align={compareAlign}
-                onAlignChange={setCompareAlign}
+                onAlignChange={setCompareAlignWithUrl}
                 font={compareFont}
                 onFontChange={(f) => { setCompareFont(f); setCompareError(null) }}
                 onError={setCompareError}

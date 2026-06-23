@@ -8,13 +8,21 @@ function box(w, h) {
   p.moveTo(0, 0); p.lineTo(w, 0); p.lineTo(w, h); p.lineTo(0, h); p.close()
   return p
 }
-function makeFont() {
+function makeFont({ cap = 700, xh = 500, upm = 1000 } = {}) {
   const glyphs = [
     new opentype.Glyph({ name: '.notdef', advanceWidth: 650, path: new opentype.Path() }),
-    new opentype.Glyph({ name: 'H', unicode: 72, advanceWidth: 650, path: box(600, 700) }),
-    new opentype.Glyph({ name: 'x', unicode: 120, advanceWidth: 520, path: box(500, 500) }),
+    new opentype.Glyph({ name: 'H', unicode: 72, advanceWidth: 650, path: box(600, cap) }),
+    new opentype.Glyph({ name: 'x', unicode: 120, advanceWidth: 520, path: box(500, xh) }),
   ]
-  return new opentype.Font({ familyName: 'T', styleName: 'R', unitsPerEm: 1000, ascender: 800, descender: -200, glyphs })
+  return new opentype.Font({ familyName: 'T', styleName: 'R', unitsPerEm: upm, ascender: 800, descender: -200, glyphs })
+}
+
+// Extract the scale factor applied to the comparison font. The comparison
+// glyph is the second <g> in the first cell (Dactyl is first).
+function comparisonScale(svg) {
+  const m = [...svg.matchAll(/scale\(([-\d.]+),/g)]
+  // groups: [0]=Dactyl col1, [1]=comparison col2, ...
+  return Number(m[1][1])
 }
 
 const dactyl = {
@@ -51,5 +59,35 @@ describe('buildCompareOverlaySvg', () => {
     const svg = buildCompareOverlaySvg(dactyl, makeFont(), 'Hz', 'cap', 'Test')
     // 'z' is absent from both → only the H column-set (4) plus nothing for z.
     expect((svg.match(/<path/g) || []).length).toBe(4)
+  })
+
+  it('cap-height align: scales comparison by dactylCap / fontCap', () => {
+    // Dactyl H cap = 700, comparison H cap = 350 → scale 2.
+    const svg = buildCompareOverlaySvg(dactyl, makeFont({ cap: 350 }), 'H', 'cap', 'T')
+    expect(comparisonScale(svg)).toBeCloseTo(2, 5)
+  })
+
+  it('x-height align: scales comparison by dactylX / fontX', () => {
+    // Dactyl x x-height = 500, comparison x x-height = 250 → scale 2.
+    const svg = buildCompareOverlaySvg(dactyl, makeFont({ xh: 250 }), 'x', 'x', 'T')
+    expect(comparisonScale(svg)).toBeCloseTo(2, 5)
+  })
+
+  it('em align: scales comparison by dactylUPM / fontUPM', () => {
+    // Dactyl em = 1000, comparison em = 500 → scale 2.
+    const svg = buildCompareOverlaySvg(dactyl, makeFont({ upm: 500 }), 'H', 'em', 'T')
+    expect(comparisonScale(svg)).toBeCloseTo(2, 5)
+  })
+
+  it('Dactyl side is always drawn at native scale (1)', () => {
+    const svg = buildCompareOverlaySvg(dactyl, makeFont({ cap: 350 }), 'H', 'cap', 'T')
+    const firstScale = Number(svg.match(/scale\(([-\d.]+),/)[1])
+    expect(firstScale).toBe(1)
+  })
+
+  it('escapes XML-special characters in the comparison label', () => {
+    const svg = buildCompareOverlaySvg(dactyl, makeFont(), 'H', 'cap', 'A & B <font>')
+    expect(svg).toContain('A &amp; B &lt;font&gt;')
+    expect(svg).not.toContain('A & B <font>')
   })
 })
