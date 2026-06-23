@@ -16,15 +16,17 @@ let PI = System.Math.PI
 /// "e" adds/subtracts an "extended" thickness offset to y (outwards)
 /// x coordinates: (l)eft, (r)ight, (c)enter, (w)ide (em-width)
 /// note multiple y or x coordinates means average across them, so "bt"="h" and "bbt" means one-third up
+/// a digit after a coordinate letter repeats it that many times (a shorthand for the weighting above),
+/// so "b2t"="bbt" (one-third up) and "r4c"="rrrrc" (four-fifths from centre toward the right)
 /// brackets mean coordinates are adjusted (by the DactylSpline only) to be smoother
 /// optional tangent direction (N)orth (S)outh (E)ast (W)est
 /// lines/curves: (-) straight line, (~) curve, note: lines join curves smoothly
 /// ( ) terminates a curve, a preceeding (- or ~) means closed curve (last point rejoins first point)
 /// Solo points become dots
 /// Regex for the language
-let y_re = "[txhbd]+|\([txhbd]+\)"
+let y_re = "[txhbd0-9]+|\([txhbd0-9]+\)"
 let offset_re = "[oe]"
-let x_re = "[lrcw]+|\([lrcw]+\)"
+let x_re = "[lrcw0-9]+|\([lrcw0-9]+\)"
 let direction_re = "[NSEW]"
 let line_re = "[-~]"
 let separator_re = " "
@@ -140,6 +142,29 @@ let glyphMap =
           'z', "xl-xr-bl-br" ]
 
 // parse
+
+/// Expand a coordinate string into the list of guide values to average.
+/// Parentheses are ignored here (they set the fit flag separately). A digit
+/// run immediately after a coordinate letter repeats that letter that many
+/// times, so it counts proportionally in the average:
+///   "r4c" -> [R;R;R;R;C]   "b2t" -> [B;B;T]   "th" -> [T;H] (unchanged)
+let weightedCoords (cs: string) (coordOf: char -> float) =
+    let rec loop chars acc =
+        match chars with
+        | [] -> List.rev acc
+        | c :: rest when c = '(' || c = ')' -> loop rest acc
+        | c :: rest ->
+            let digits = rest |> List.takeWhile System.Char.IsDigit
+            let rest2 = rest |> List.skipWhile System.Char.IsDigit
+            let count =
+                match digits with
+                | [] -> 1
+                | _ -> digits |> List.fold (fun a d -> a * 10 + (int d - int '0')) 0
+            let v = coordOf c
+            loop rest2 (List.replicate count v @ acc)
+
+    loop (List.ofSeq cs) []
+
 let parse_point (glyph: FontMetrics) def_raw =
     let mutable def = def_raw
     let start_def = def_raw
@@ -150,24 +175,16 @@ let parse_point (glyph: FontMetrics) def_raw =
     let y_fit = ys.StartsWith("(")
 
     let y_coords =
-        [ for c in ys do
-              match c with
-              | '('
-              | ')' -> () // ignore brackets
-              | c ->
-                  yield
-                      Some(
-                          match c with
-                          | 't' -> glyph.T
-                          | 'x' -> glyph.X
-                          | 'h' -> glyph.H
-                          | 'b' -> glyph.B
-                          | 'd' -> glyph.D
-                          | _ -> invalidArg "y" (sprintf "Invalid Y coord %A (should be in %A)" c y_re)
-                      ) ]
-        |> List.choose id
+        weightedCoords ys (fun c ->
+            match c with
+            | 't' -> glyph.T
+            | 'x' -> glyph.X
+            | 'h' -> glyph.H
+            | 'b' -> glyph.B
+            | 'd' -> glyph.D
+            | _ -> invalidArg "y" (sprintf "Invalid Y coord %A (should be in %A)" c y_re))
 
-    let mutable y_coord = List.averageBy float y_coords
+    let mutable y_coord = List.average y_coords
     def <- def.[match_y.Length ..]
 
     // offset
@@ -191,23 +208,15 @@ let parse_point (glyph: FontMetrics) def_raw =
     let x_fit = xs.StartsWith("(")
 
     let x_coords =
-        [ for c in xs do
-              match c with
-              | '('
-              | ')' -> () // ignore brackets
-              | c ->
-                  yield
-                      Some(
-                          match c with
-                          | 'l' -> glyph.L
-                          | 'c' -> glyph.C
-                          | 'r' -> glyph.R
-                          | 'w' -> glyph.W
-                          | _ -> invalidArg "x" (sprintf "Invalid X coord %A  (should be in %A)" c x_re)
-                      ) ]
-        |> List.choose id
+        weightedCoords xs (fun c ->
+            match c with
+            | 'l' -> glyph.L
+            | 'c' -> glyph.C
+            | 'r' -> glyph.R
+            | 'w' -> glyph.W
+            | _ -> invalidArg "x" (sprintf "Invalid X coord %A  (should be in %A)" c x_re))
 
-    let x_coord = List.averageBy float x_coords
+    let x_coord = List.average x_coords
     def <- def.[match_x.Length ..]
 
     let match_dir = Regex.Match(def, "^" + direction_re)

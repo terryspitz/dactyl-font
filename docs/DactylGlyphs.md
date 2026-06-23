@@ -40,6 +40,19 @@ Horizontal coordinates follow the Y-coordinates.
 
 *Example:* `tl` puts a point at the top-left of the glyph bounding box. `bc` puts a point at the bottom-center.
 
+### Weighting (Averaging & Repeats)
+Combining several coordinate letters averages them, which lets you place a point at a fraction between guides. Repeating a letter weights the average toward it:
+- `bt` (or `h`): halfway between bottom and top.
+- `bbt`: one-third up from the bottom (two parts `b`, one part `t`).
+- `rrrrc`: four-fifths of the way from center toward the right.
+
+Because long runs are tedious, a **digit after a coordinate letter repeats it** that many times — pure shorthand for the weighting above, producing identical geometry:
+- `b2t` is the same as `bbt`.
+- `r4c` is the same as `rrrrc`.
+- `t4h` is the same as `tttth`.
+
+The digit binds to the single letter immediately before it, and works for both Y and X coordinates (and inside fitting brackets, e.g. `(r4c)`).
+
 ### Modifiers
 
 #### Coordinate Fitting (Brackets)
@@ -77,6 +90,13 @@ By default, the sequence of points draws an **open** path from the first point t
 To automatically close the shape (forming a continuous loop), simply leave a trailing `-` or `~` separator at the very end of your sequence. 
 - *Example:* `tl-bl-br~tr~` loops the `tr` point back to the starting `tl` point via a curve.
 
+### Solo Points → Dots
+A sub-path string containing exactly one point (no separator at all) is rendered as a **filled dot** (circle) rather than a stroke.  This is how punctuation glyphs get their dots: the period `'.'` is defined as `"bl"` (a single bottom-left point), the colon `':'` as `"xbl bl"` (two separate sub-paths, each a solo point), and so on.
+
+The dot diameter scales with the `thickness` axis.  Any valid point expression works — `hc` places a dot at the half-height centre, `bc` at the bottom-centre, etc.
+
+*Example:* `tl-bl-br-tr- bc` draws a rectangle (closed via the trailing `-`) and then a separate dot at the bottom-centre — useful for building glyphs like `!` or `¡`.
+
 ---
 
 ## 3. Tangents and Corners: Advanced Rules
@@ -99,10 +119,10 @@ The generator UI features a **Glyphs** tab, an invaluable tool for creating and 
 ### How to Use It
 1. **Live Preview:** Enter your Dactyl Glyphs string into the definition editor. The browser instantly renders the resulting glyph geometry on screen.
 2. **Visual Diagnostics:** The browser overlays essential debugging features over the rendered stroke:
-   - **Control Points:** Shows the exact solved coordinates of every parsed point.
+   - **Knots:** Shows the exact solved coordinates of every parsed point.
    - **Tangents:** Visualizes the incoming and outgoing tangent vectors at each knot (especially helpful for confirming sharp corners vs. smooth joins).
-   - **Curvature Combs:** Provides a "comb" heat map that visualizes the rate of curvature along bezier segments. Spikes or uneven comb distribution indicate jagged transitions that you might wish to fix via coordinate fitting (brackets) or explicit tangents.
-3. **Toggle `dactyl_spline` / `Spiro`:** Use the checkboxes to view how your string behaves under the newer robust Dactyl solver vs. the legacy Spiro solver.
+   - **Comb:** Provides a "comb" heat map that visualizes the rate of curvature along bezier segments. Spikes or uneven comb distribution indicate jagged transitions that you might wish to fix via coordinate fitting (brackets) or explicit tangents.
+3. **Toggle DactylSpline / Spline2 / Spiro:** Use the checkboxes to view how your string behaves under the three available solvers — the newer robust **DactylSpline**, Raph Levien's **Spline2**, and the legacy **Spiro** solver.
    - *Note on Spiro Limitations:* The legacy `Spiro` matrix solver may struggle or throw exceptions on tightly packed closed loops containing only three points (such as `tl-blE~hr~`). Using the robust `DactylSpline` backend handles these topologies elegantly.
 
 By iterating within the Glyphs tab, you can visually tune specific coordinate points and explicit tangents until your glyph achieves a flawless, production-ready continuous outline!
