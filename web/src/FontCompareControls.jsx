@@ -66,7 +66,7 @@ export default function FontCompareControls({
   }
 
   return (
-    <div className="diff-config font-compare-controls">
+    <div className={`diff-config font-compare-controls${mode === 'font' ? ' wrap' : ''}`}>
       <label htmlFor="compare-mode">Mode:</label>
       <select id="compare-mode" value={mode} onChange={e => onModeChange(e.target.value)}>
         <option value="axis">Axis diff</option>

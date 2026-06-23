@@ -815,7 +815,10 @@
     overflow: hidden;
 }
 /* ---- Visual Diffs: compare-font mode ---- */
-.font-compare-controls {
+/* In axis mode keep the toolbar on a single row (children shrink to fit) so the
+   top-bar height — and thus the visualDiffs preview snapshot — is unchanged.
+   Only the busier compare-font controls are allowed to wrap. */
+.font-compare-controls.wrap {
     flex-wrap: wrap;
 }
 .font-compare-controls input[type="file"] {
