@@ -26,6 +26,7 @@ A few predefined Dactyl fonts are available to download in the [ttf](https://git
 
 - [DactylGlyph Documentation](docs/DactylGlyphs.md) — How glyph string definitions work
 - [DactylSpline Documentation](docs/DactylSpline.md) — The DactylSpline curve implementation
+- [Font Rendering Pipeline](docs/FontPipeline.md) — Spine → outline → SVG pipeline, caps, serifs, and font export
 
 ## Spiro Curves
 
