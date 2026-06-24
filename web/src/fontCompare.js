@@ -201,12 +201,16 @@ export function buildCompareOverlaySvg(dactylGlyphData, font, text, align = 'cap
   const scaleD = 1
   const scaleE = metricE > 0 ? metricD / metricE : em / font.unitsPerEm
 
-  const subColW = em * 1.45
-  const cellGap = em * 0.35
+  // Columns are sized close to the glyph advance (plus a small margin) so the
+  // glyphs fill the cell, matching the axis Visual Diffs layout instead of
+  // floating in whitespace. The whole SVG is scaled to the container width, so
+  // tighter cells render the glyphs larger.
+  const subColW = em * 0.8
+  const cellGap = em * 0.22
   const cellW = subColW * 3 + cellGap
-  const cellH = em * 1.95
-  const baseline = em * 1.4   // baseline offset from the top of a cell
-  const pad = em * 0.12       // left pad inside each sub-column
+  const cellH = em * 1.3
+  const baseline = em * 0.98  // baseline offset from the top of a cell
+  const pad = em * 0.08       // left pad inside each sub-column
   const cols = 5
 
   const chars = [...(text || '').replace(/[\n\r]/g, '')]
@@ -217,9 +221,9 @@ export function buildCompareOverlaySvg(dactylGlyphData, font, text, align = 'cap
     d ? `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(${scale},${-scale})"><path d="${d}" fill="${color}" fill-rule="nonzero"/></g>` : ''
 
   const parts = []
-  const keyY = em * 0.55
+  const keyY = em * 0.45
   parts.push(
-    `<text x="0" y="${keyY.toFixed(0)}" font-size="${(em * 0.28).toFixed(0)}" fill="#444">` +
+    `<text x="0" y="${keyY.toFixed(0)}" font-size="${(em * 0.2).toFixed(0)}" fill="#444">` +
     `Key: Left = Dactyl, Middle = ${escapeXml(labelB)}, Right = Overlaid (Red = Dactyl, Blue = ${escapeXml(labelB)})</text>`
   )
 
@@ -242,7 +246,7 @@ export function buildCompareOverlaySvg(dactylGlyphData, font, text, align = 'cap
     const xO = cellX + subColW * 2 + pad
 
     // Char label, top-left of the cell.
-    parts.push(`<text x="${cellX.toFixed(0)}" y="${(cellY + em * 0.3).toFixed(0)}" font-size="${(em * 0.22).toFixed(0)}" fill="#999">${escapeXml(ch)}</text>`)
+    parts.push(`<text x="${cellX.toFixed(0)}" y="${(cellY + em * 0.22).toFixed(0)}" font-size="${(em * 0.16).toFixed(0)}" fill="#999">${escapeXml(ch)}</text>`)
 
     parts.push(draw(dPath, xA, by, scaleD, 'black'))           // col 1: Dactyl
     parts.push(draw(ePath, xB, by, scaleE, 'black'))           // col 2: comparison
