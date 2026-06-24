@@ -61,6 +61,12 @@ By surrounding a coordinate in parentheses `()`, you allow the solver to "fit" i
 - `(t)l`: The `l` (X) is fixed, but `t` (Y) can slide.
 - `(t)(l)`: Both are flexible.
 
+When a fitted point has no explicit tangent, the parser **automatically assigns a cardinal direction** based on the axis that is free to move:
+- A **Y-fitted** point (e.g. `(t)l`, where Y slides along a fixed X) gets a **vertical tangent** (N or S), derived from whether its neighbours are above or below it.
+- An **X-fitted** point (e.g. `t(l)`, where X slides along a fixed Y) gets a **horizontal tangent** (E or W), derived from whether its neighbours are to the right or left.
+
+This only applies to interior points on closed paths or multi-point open paths — not open-path endpoints. It ensures that a fitted extremum (e.g. the leftmost point of an arc) curves smoothly without requiring an explicit `N`, `S`, `E`, or `W` suffix.
+
 #### Adjustments (Offsets)
 You can inject a single letter between the Y and X coordinates to adjust the point vertically inward or outward relative to the glyph’s centerline:
 - `o` (inward offset): Moves the point inward by the font's "roundedness" value.

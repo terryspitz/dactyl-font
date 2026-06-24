@@ -107,6 +107,18 @@ The outline `Element` tree is walked recursively.  Each `Curve` is solved (Dacty
 
 ---
 
+## Curve solvers
+
+Three curve solvers are available and selectable in the UI:
+
+| Solver | Source | Notes |
+|--------|--------|-------|
+| **DactylSpline** (default) | `src/generator/DactylSpline.fs` | Euler-spiral curve fitting via Nelder-Mead optimisation (fmin submodule at `web/src/lib/fmin/`). Handles mixed line/curve topology and fitted coordinates robustly. |
+| **Spline2** | `src/spline-research/` | F# port of Raph Levien's [spline-research](https://github.com/raphlinus/spline-research) algorithm (2018). Provides direct tangent control; suits designs requiring precise angle constraints. |
+| **Spiro** (legacy) | `src/SpiroFs/` | F# port of Wiesław Šoltés's C# port of Raph Levien's original Spiro curves. May fail on closed loops with only three points. |
+
+---
+
 ## SplineEditor tab (`web/src/SplineEditor.jsx`)
 
 The **Splines** tab provides an interactive canvas for building `DactylSpline` control-point sequences without writing glyph strings.  Features:

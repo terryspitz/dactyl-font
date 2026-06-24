@@ -78,6 +78,7 @@ Renders individual glyphs and shows the underlying curve geometry.  Most useful 
 y: (t)op  (x)-height  (h)alf  (b)ottom  (d)escender  (o)ffset in  (e)xtended out
 x: (l)eft  (c)enter  (r)ight  (w)ide   Solo point → dot
 Dirs: N S E W    Lines: (-) straight  (~) curve    Brackets = fit this coordinate
+Repeats average coordinates (e.g. "bt"="h"); a digit repeats the letter before it, so "b2t"="bbt" and "r4c"="rrrrc"
 ```
 
 ### Tweens
