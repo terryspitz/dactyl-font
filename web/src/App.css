@@ -405,6 +405,7 @@
     color: var(--text-secondary);
     transition: all 0.2s;
     font-weight: 500;
+    white-space: nowrap;
 }
 
 .tab-button:hover {
