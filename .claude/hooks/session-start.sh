@@ -21,7 +21,10 @@ dotnet restore
 dotnet tool restore
 
 # Install root npm dependencies (concurrently)
-npm install
+# Use `npm ci` so the lockfiles are installed verbatim and never rewritten
+# (`npm install` can mutate package-lock.json, e.g. dropping libc metadata,
+# leaving spurious uncommitted changes every session).
+npm ci
 
 # Install web npm dependencies
-npm install --prefix web
+npm ci --prefix web

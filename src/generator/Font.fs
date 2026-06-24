@@ -1089,15 +1089,51 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
         EList(elementToSpiroSegments e |> List.map splitSegments)
 
+    /// Post-solve italic applies to the DactylSpline-based outline paths (DactylSans and
+    /// constant-offset), but only when generating outlines.  In that mode the upright spine is
+    /// solved first and the shear is applied to the dense solved points (see shearBezPts), so the
+    /// knot pre-shear below is skipped.  Spiro and Spline2, and all non-outline (backbone) renders,
+    /// keep the original pre-solve knot shear.
+    member this.usePostSolveItalic =
+        this.axes.outline && (this.axes.dactyl_spline || this.axes.constant_offset)
+
     member this.italicise =
         applyIf
-            (this.axes.italic <> 0.0)
+            (this.axes.italic <> 0.0 && not this.usePostSolveItalic)
             ((applyIf (not (this.axes.spline2 || this.axes.dactyl_spline)) this.subdivide)
              >> (movePoints this.italicisePt (Some this.italiciseTan)))
+
+    /// Post-solve italic shear of an already-solved DactylSpline spine.  Shearing the dense solved
+    /// bezier points (rather than the sparse pre-solve knots) is an exact affine transform, so it
+    /// avoids the non-affine curve distortion that the knot pre-shear works around via subdivide.
+    /// The perpendicular stroke offset is then taken in slanted space, giving even stroke weight.
+    /// Mutates and returns the array.  No-op when italic = 0.
+    member this.shearBezPts(bezPts: BezierPoint array) =
+        let italic = this.axes.italic
+
+        if italic <> 0.0 then
+            // Scale of a unit direction vector at angle th under the shear [[1, italic],[0,1]].
+            let shearScale th = hypot (cos th + italic * sin th) (sin th)
+
+            for bp in bezPts do
+                // Scale control-point distances using the original tangents so the reconstructed
+                // cubics (ld/rd + th) stay an exact shear of the upright cubics.
+                bp.ld <- bp.ld * shearScale bp.th_in
+                bp.rd <- bp.rd * shearScale bp.th_out
+                bp.x <- bp.x + italic * bp.y
+                bp.th_in <- this.italiciseTan bp.th_in
+                bp.th_out <- this.italiciseTan bp.th_out
+
+        bezPts
 
     member this.getDactylSansOutlines e =
         let fthickness = float thickness
         let isFreeCurveEnd ty = ty = G2 || ty = G4
+
+        // Post-solve italic shears the solved spine, so joint detection (which reads knot
+        // positions from the element) must compare against a shear of the same element.
+        let eForJoints =
+            applyIf (this.axes.italic <> 0.0) (movePoints this.italicisePt None) e
 
         let splineTypeToSpiroType ty =
             match ty with
@@ -1119,6 +1155,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
             let bezPts =
                 spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.end_flatness, axes.debug)
+                |> this.shearBezPts
 
             let n = bezPts.Length
 
@@ -1146,8 +1183,8 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 validateKnotSequence pts isClosed
                 let startAlign = pts.IsEmpty || isClosed || not (isFreeCurveEnd pts.[0].ty)
                 let endAlign = pts.IsEmpty || isClosed || not (isFreeCurveEnd (List.last pts).ty)
-                let startCap (seg: Segment) = this.startCap seg e startAlign Corner
-                let endCap (seg: Segment) (lastSeg: Segment) = this.endCap seg lastSeg e endAlign Corner
+                let startCap (seg: Segment) = this.startCap seg eForJoints startAlign Corner
+                let endCap (seg: Segment) (lastSeg: Segment) = this.endCap seg lastSeg eForJoints endAlign Corner
                 let segs = solveCurveSegs pts isClosed
 
                 if axes.debug then
@@ -1155,7 +1192,9 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
                 this.strokeSegments segs fthickness startCap endCap isClosed
                 |> List.map this.applySoftCorners
-            | Dot(p) -> [ dotToClosedCurve p.x p.y (thickness + 5.0) ]
+            | Dot(p) ->
+                let p = this.italicisePt p
+                [ dotToClosedCurve p.x p.y (thickness + 5.0) ]
             | EList(elems) -> List.collect dactylToOutline elems
             | Space -> [ Space ]
             | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)
@@ -1172,6 +1211,11 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         let fthickness = float thickness
         let samplesPerSeg = 16
         let isFreeCurveEnd ty = ty = G2 || ty = G4
+
+        // Post-solve italic shears the solved spine, so joint detection (which reads knot
+        // positions from the element) must compare against a shear of the same element.
+        let eForJoints =
+            applyIf (this.axes.italic <> 0.0) (movePoints this.italicisePt None) e
 
         // Build Segment for use with existing cap functions.
         // Only X, Y, tangentStart, and tangentEnd are read by startCap/endCap.
@@ -1308,8 +1352,8 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                             else k)
 
                 // Use original element (before reduce) so isJoint detects stroke intersections.
-                let startCapKnots = this.startCap firstSeg e startAlign Corner |> stripBoundaryTangents
-                let endCapKnots   = this.endCap endpointSeg penultSeg e endAlign Corner |> stripBoundaryTangents
+                let startCapKnots = this.startCap firstSeg eForJoints startAlign Corner |> stripBoundaryTangents
+                let endCapKnots   = this.endCap endpointSeg penultSeg eForJoints endAlign Corner |> stripBoundaryTangents
 
                 let outer = buildSide  1.0
                 let inner = buildSide -1.0 |> List.rev
@@ -1323,13 +1367,17 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             let endAlign   = pts.IsEmpty || isClosed || not (isFreeCurveEnd (List.last pts).ty)
             let ctrlPts = toDactylSplineControlPoints pts
             let spline = DactylSpline(ctrlPts, isClosed)
-            let bezPts = spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.end_flatness, axes.debug)
+            let bezPts =
+                spline.solveAndGetPoints (axes.max_spline_iter, axes.flatness, axes.end_flatness, axes.debug)
+                |> this.shearBezPts
             buildOutlineFromBez bezPts isClosed startAlign endAlign
 
         let rec dactylToOutline elem =
             match elem with
             | Curve(pts, isClosed) -> solveAndOffset pts isClosed
-            | Dot(p) -> [ dotToClosedCurve p.x p.y (thickness + 5.0) ]
+            | Dot(p) ->
+                let p = this.italicisePt p
+                [ dotToClosedCurve p.x p.y (thickness + 5.0) ]
             | EList(elems) -> List.collect dactylToOutline elems
             | Space -> [ Space ]
             | _ -> invalidArg "e" (sprintf "Unreduced element %A" elem)

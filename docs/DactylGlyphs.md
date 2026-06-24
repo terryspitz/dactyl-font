@@ -40,6 +40,19 @@ Horizontal coordinates follow the Y-coordinates.
 
 *Example:* `tl` puts a point at the top-left of the glyph bounding box. `bc` puts a point at the bottom-center.
 
+### Weighting (Averaging & Repeats)
+Combining several coordinate letters averages them, which lets you place a point at a fraction between guides. Repeating a letter weights the average toward it:
+- `bt` (or `h`): halfway between bottom and top.
+- `bbt`: one-third up from the bottom (two parts `b`, one part `t`).
+- `rrrrc`: four-fifths of the way from center toward the right.
+
+Because long runs are tedious, a **digit after a coordinate letter repeats it** that many times — pure shorthand for the weighting above, producing identical geometry:
+- `b2t` is the same as `bbt`.
+- `r4c` is the same as `rrrrc`.
+- `t4h` is the same as `tttth`.
+
+The digit binds to the single letter immediately before it, and works for both Y and X coordinates (and inside fitting brackets, e.g. `(r4c)`).
+
 ### Modifiers
 
 #### Coordinate Fitting (Brackets)
