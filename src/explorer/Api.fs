@@ -414,11 +414,29 @@ let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: boo
 /// Return SVG path data for Spiro and Spline2 interpretations of the same control points.
 let solveAltSplines (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (inputAxes: Axes) =
     let baseAxes = { inputAxes with outline = false; filled = false; debug = false; show_tangents = false }
+    // The legacy Spiro and Spline2 renderers don't solve free ("fit") coordinates, so a knot
+    // with x=None or y=None would otherwise default to 0 and the curve would skip it. Solve the
+    // DactylSpline first (on a copy, so its tangent pre-processing doesn't mutate our knots) to
+    // get a concrete position for every fit point, so the alt curves pass through ALL knots —
+    // matching where the editor draws them. We still don't honour explicit tangents here.
+    let solved =
+        try
+            let copy = ctrlPts |> Array.map (fun cp -> { cp with ty = cp.ty })
+            Some(DactylSpline.DactylSpline(copy, isClosed)
+                    .solveAndGetPoints(inputAxes.max_spline_iter, inputAxes.flatness, inputAxes.end_flatness, false))
+        with _ -> None
+    let coordFor i (opt: float option) (pick: DactylSpline.BezierPoint -> float) =
+        match opt with
+        | Some v -> v
+        | None ->
+            match solved with
+            | Some bezPts when i < bezPts.Length && not (System.Double.IsNaN(pick bezPts.[i])) -> pick bezPts.[i]
+            | _ -> 0.0
     let knots =
         ctrlPts
-        |> Array.map (fun cp ->
-            { pt = { x = cp.x |> Option.defaultValue 0.0
-                     y = cp.y |> Option.defaultValue 0.0
+        |> Array.mapi (fun i cp ->
+            { pt = { x = coordFor i cp.x (fun bp -> bp.x)
+                     y = coordFor i cp.y (fun bp -> bp.y)
                      x_fit = false
                      y_fit = false }
               ty = splineToSpiroPointType cp.ty
