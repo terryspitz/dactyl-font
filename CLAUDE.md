@@ -18,6 +18,31 @@ For other GitHub operations (viewing PRs, posting comments, checking CI status,
 etc.) use the `mcp__github__*` tools.  Use `ToolSearch` to load the schema for
 any `mcp__github__` tool before calling it.
 
+## Reporting CI failures
+
+**Every time a CI check fails, always include these links in the reply** so the
+failure can be inspected and (for visual tests) re-run without hunting for them:
+
+1. **Artifacts download link** — where screenshots / diff GIFs are uploaded.
+   Prefer the direct artifact link when the id is known; the run page always
+   works as a fallback (artifacts are listed at the bottom).
+   - Direct: `https://github.com/terryspitz/dactyl-font/actions/runs/<run-id>/artifacts/<artifact-id>`
+   - Run page: `https://github.com/terryspitz/dactyl-font/actions/runs/<run-id>`
+
+   The failed job's `Log artifact URL` step prints the direct link; otherwise
+   get the id from
+   `gh api repos/terryspitz/dactyl-font/actions/runs/<run-id>/artifacts`.
+
+2. **For `visual-test` failures, also include a Visual Tests workflow link
+   pre-filtered to the branch** (lists that branch's runs; the *Run workflow*
+   button there lets the user re-run / rebaseline on the branch — select the
+   branch in the dropdown and set `update_snapshots: true` to regenerate
+   baselines):
+   `https://github.com/terryspitz/dactyl-font/actions/workflows/visual-tests.yml?query=branch%3A<branch>`
+
+   (GitHub has no URL param to pre-select the branch inside the *Run workflow*
+   dialog itself, so still name the branch to pick.)
+
 ## Branch conventions
 
 Development branches: `claude/**` (e.g. `claude/fix-space-width-font-xQEFZ`).
