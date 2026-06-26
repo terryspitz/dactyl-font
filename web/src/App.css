@@ -854,6 +854,15 @@
     overflow: hidden;
     text-overflow: ellipsis;
 }
+.diff-config input[type="range"]#compare-size {
+    width: 90px;
+    vertical-align: middle;
+}
+.compare-size-val {
+    min-width: 38px;
+    color: var(--text-secondary, #666);
+    font-variant-numeric: tabular-nums;
+}
 
 /* Text-rendering overlay (Google CSS / system-name sources) */
 .compare-text-view {

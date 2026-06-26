@@ -79,16 +79,17 @@ function App() {
   })
   // Visual Diffs "compare font" mode: diff Dactyl against an external font
   // (upload / Google / system). 'axis' keeps the original Dactyl-vs-Dactyl diff.
-  // `compare` and `align` are URL-addressable so a comparison view is shareable
+  // `compare` and `size` are URL-addressable so a comparison view is shareable
   // (and deep-linkable from the visual tests). The chosen font itself can't be
   // encoded in a URL, so it must still be (re)selected after navigation.
   const [compareMode, setCompareMode] = useState(() => {
     const c = new URLSearchParams(window.location.search).get('compare')
     return c === 'font' ? 'font' : 'axis'
   })
-  const [compareAlign, setCompareAlign] = useState(() => {
-    const a = new URLSearchParams(window.location.search).get('align')
-    return ['cap', 'x', 'em'].includes(a) ? a : 'cap'
+  // Size of the comparison font relative to a cap-height match (1.0 = exact).
+  const [compareSize, setCompareSize] = useState(() => {
+    const s = parseFloat(new URLSearchParams(window.location.search).get('size'))
+    return !isNaN(s) && s >= 0.6 && s <= 1.5 ? s : 1.0
   })
   const [compareFont, setCompareFont] = useState(null)
   const [compareError, setCompareError] = useState(null)
@@ -188,10 +189,11 @@ function App() {
     window.history.replaceState({}, '', url)
   }
 
-  const setCompareAlignWithUrl = (a) => {
-    setCompareAlign(a)
+  const setCompareSizeWithUrl = (s) => {
+    setCompareSize(s)
     const url = new URL(window.location)
-    url.searchParams.set('align', a)
+    if (s === 1.0) url.searchParams.delete('size')
+    else url.searchParams.set('size', String(s))
     window.history.replaceState({}, '', url)
   }
 
@@ -563,12 +565,12 @@ function App() {
     if (compareMode !== 'font' || !dactylGlyphData) return null
     if (!compareFont || compareFont.kind !== 'outline') return null
     try {
-      return buildCompareOverlaySvg(dactylGlyphData, compareFont.font, text || allChars, compareAlign, compareFont.displayName)
+      return buildCompareOverlaySvg(dactylGlyphData, compareFont.font, text || allChars, 'cap', compareFont.displayName, compareSize)
     } catch (e) {
       console.error('compare overlay failed', e)
       return null
     }
-  }, [compareMode, compareFont, dactylGlyphData, compareAlign, text])
+  }, [compareMode, compareFont, dactylGlyphData, compareSize, text])
 
   // DactylCompare @font-face for text-mode comparison (Dactyl side rendered via CSS).
   const dactylCompareUrl = useMemo(() => {
@@ -719,6 +721,7 @@ function App() {
         fontFamily={compareFont.fontFamily}
         dactylFamily="DactylCompare"
         labelB={compareFont.displayName}
+        sizeScale={compareSize}
       />
     }
     if (!compareSvg) return <div style={{ padding: 20, color: '#666' }}>Generating…</div>
@@ -932,8 +935,8 @@ function App() {
               <FontCompareControls
                 mode={compareMode}
                 onModeChange={setCompareModeWithUrl}
-                align={compareAlign}
-                onAlignChange={setCompareAlignWithUrl}
+                size={compareSize}
+                onSizeChange={setCompareSizeWithUrl}
                 font={compareFont}
                 onFontChange={(f) => { setCompareFont(f); setCompareError(null) }}
                 onError={setCompareError}

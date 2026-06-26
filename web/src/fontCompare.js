@@ -190,16 +190,18 @@ const COLOR_B = 'rgba(0, 0, 255, 0.5)'   // comparison font (blue)
 /**
  * Build the 3-column-per-cell overlay SVG (Dactyl | comparison | overlaid),
  * mirroring the existing axis Visual Diffs layout. Dactyl is drawn at its
- * native scale; the comparison font is scaled so the chosen metric matches.
+ * native scale; the comparison font is normalized to the chosen metric and
+ * then multiplied by `sizeScale` (the user's Size slider, 1 = exact match).
  */
-export function buildCompareOverlaySvg(dactylGlyphData, font, text, align = 'cap', labelB = 'Font') {
+export function buildCompareOverlaySvg(dactylGlyphData, font, text, align = 'cap', labelB = 'Font', sizeScale = 1) {
   const em = dactylGlyphData.unitsPerEm
   const glyphMap = new Map(dactylGlyphData.glyphs.map(g => [g.unicode, g]))
 
   const metricD = dactylMetric(glyphMap, em, align)
   const metricE = fontMetric(font, align)
   const scaleD = 1
-  const scaleE = metricE > 0 ? metricD / metricE : em / font.unitsPerEm
+  const baseScaleE = metricE > 0 ? metricD / metricE : em / font.unitsPerEm
+  const scaleE = baseScaleE * sizeScale
 
   // Columns are sized close to the glyph advance (plus a small margin) so the
   // glyphs fill the cell, matching the axis Visual Diffs layout instead of
