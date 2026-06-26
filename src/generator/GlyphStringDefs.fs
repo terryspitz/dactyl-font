@@ -146,14 +146,14 @@ let glyphMap =
 /// straight stem, and an open-tail g).  These provide the two-storey forms:
 ///   'a': a right stem whose top curves into a rounded shoulder ending in a short
 ///        terminal, over a large bowl that merges back into the stem.
-///   'g': a binocular g — an x-height bowl joined by a short right-side neck to a
-///        flatter loop in the descender, finished with an ear at the top right.
+///   'g': a binocular g — an x-height bowl joined by a short central neck to a
+///        flatter, wider loop in the descender, finished with an ear at the top right.
 /// Both are written in the same coordinate language as glyphMap, so they inherit
 /// width, x-height, thickness, roundedness, italic, etc. from the other axes.
 let altGlyphMap =
     Map.ofList
         [ 'a', "xolccW~x(c)~xr-br bbxxxor~bbxxx(c)~(bbbx)l~b(c)~bor"
-          'g', "(xb)l~x(c)~(xb)r~b(c)~ bor~(bbd)r~bd(c)~(bbd)l~b(c) xrrc-xerr" ]
+          'g', "(xb)l~x(c)~(xb)r~b(c)~ (bbd)l~boc~(bbd)r~bd(c)~ xrrc-xerr" ]
 
 // parse
 
