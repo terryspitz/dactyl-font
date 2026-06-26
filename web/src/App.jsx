@@ -870,9 +870,9 @@ function App() {
                 spellCheck="false"
               />
               <div className="helper-key" style={{ fontSize: '0.85em', color: '#666' }}>
-                <strong>Key:</strong> y: (t)op, (x)-height, (h)alf, (b)ottom, (d)escender, (o)ffset, (e)xtended. <br />
-                x: (l)eft, (c)enter, (r)ight, (w)ide. <br />
-                Dirs: N,S,E,W. Lines: (-) straight, (~) curve, (.) corner. Brackets mean 'fit this coordinate instead'. <br />
+                <strong>Key:</strong> y: (t)op, (x)-height, (h)alf, (b)ottom, (d)escender, (o)ffset in, (e)xtended out. <br />
+                x: (l)eft, (c)enter, (r)ight, (w)ide. Solo point → dot. <br />
+                Dirs: N,S,E,W. Lines: (-) straight, (~) curve. Brackets mean 'fit this coordinate instead'. <br />
                 Repeats average coordinates (e.g. "bt"="h"); a digit repeats the letter before it, so "b2t"="bbt" and "r4c"="rrrrc".
               </div>
             </div>

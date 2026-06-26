@@ -107,6 +107,36 @@ The outline `Element` tree is walked recursively.  Each `Curve` is solved (Dacty
 
 ---
 
+## Curve solvers
+
+Three curve solvers are available and selectable in the UI:
+
+### DactylSpline (default) — `src/generator/DactylSpline.fs`
+Fits Euler-spiral (clothoid) segments using a Nelder-Mead numerical optimiser (fmin submodule at `web/src/lib/fmin/`).
+
+| | |
+|--|--|
+| **Pros** | Handles all mixed line/curve/corner topologies; supports fitted coordinates (auto-cardinal tangents); robust on degenerate loops (e.g. three-point closed paths); fully integrated with Dactyl's glyph-string language |
+| **Cons** | Numerical optimiser can be slow on many-knot paths; result quality depends on iteration limit (`max_spline_iter` axis); not guaranteed to converge to global optimum |
+
+### Spline2 — `src/spline-research/`
+F# port of Raph Levien's [spline-research](https://github.com/raphlinus/spline-research) algorithm (2018), described in his [blog post](https://raphlinus.github.io/curves/2018/12/21/new-spline.html).
+
+| | |
+|--|--|
+| **Pros** | Elegant closed-form Euler-spiral fit; direct per-knot tangent control (no numerical search); produces very smooth curves with minimal input |
+| **Cons** | Narrower topology support than DactylSpline; less integrated with Dactyl's fitted-coordinate and corner features |
+
+### Spiro (legacy) — `src/SpiroFs/`
+F# port of Wiesław Šoltés's [C# port](https://github.com/wieslawsoltes/SpiroNet) of Raph Levien's original [Spiro curves](https://www.levien.com/spiro/).
+
+| | |
+|--|--|
+| **Pros** | Historically proven in FontForge; produces characteristically smooth, calligraphic curves; supported in standard font tooling |
+| **Cons** | Matrix solver can fail or produce artefacts on tightly packed closed loops with only three points; no tangent handles; superseded by Spline2 and DactylSpline |
+
+---
+
 ## SplineEditor tab (`web/src/SplineEditor.jsx`)
 
 The **Splines** tab provides an interactive canvas for building `DactylSpline` control-point sequences without writing glyph strings.  Features:
