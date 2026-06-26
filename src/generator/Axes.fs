@@ -23,6 +23,7 @@ type Axes =
       leading: int //gap between lines
       monospace: float //fraction to interpolate widths to monospaces
       italic: float //fraction to sheer glyphs
+      alt_a_g: bool //use two-storey alternate shapes for 'a' and 'g'
       serif: int //serif size
       end_bulb: float //fraction of thickness to apply curves to endcaps
       flare: float //end caps expand by this amount
@@ -57,6 +58,7 @@ type Axes =
           leading = 50
           monospace = 0.0
           italic = 0.0
+          alt_a_g = false
           serif = 0
           end_bulb = 0.0
           flare = 0.0
@@ -87,6 +89,7 @@ type Axes =
           "leading", Range(-100, 200), "backbone"
           "monospace", FracRange(0.0, 1.0), "backbone"
           "italic", FracRange(0.0, 1.0), "backbone"
+          "alt_a_g", Checkbox, "backbone"
           "roundedness", Range(0, 100), "backbone"
           "thickness", Range(1, 200), "outline"
           "contrast", FracRange(-0.5, 0.5), "outline"

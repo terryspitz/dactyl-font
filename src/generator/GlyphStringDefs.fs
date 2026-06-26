@@ -141,6 +141,19 @@ let glyphMap =
           'Z', "tl-tr-bl-br"
           'z', "xl-xr-bl-br" ]
 
+/// Alternate (stylistic-alternate) glyph shapes, selected by the `alt_a_g` axis.
+/// The default 'a' and 'g' above are single-storey forms (a circular bowl with a
+/// straight stem, and an open-tail g).  These provide the two-storey forms:
+///   'a': a lower bowl plus a stem whose top curves over into a rounded shoulder.
+///   'g': a binocular / loop-tail g — an x-height bowl over a flatter, wider
+///        closed loop in the descender.
+/// Both are written in the same coordinate language as glyphMap, so they inherit
+/// width, x-height, thickness, roundedness, italic, etc. from the other axes.
+let altGlyphMap =
+    Map.ofList
+        [ 'a', "xxxtlc~x(c)~xr-br (bbx)l~bx(c)~(bbx)r~b(c)~"
+          'g', "(xb)l~x(c)~(xb)r~b(c)~ (bbd)l~b(c)~(bbd)r~bd(c)~" ]
+
 // parse
 
 /// Expand a coordinate string into the list of guide values to average.
@@ -357,14 +370,17 @@ let private parse_curves (glyph: FontMetrics) (def: string) debug =
                       parse_curve glyph d debug ]
         )
 
-let stringDefsToElem (glyph: FontMetrics) e debug =
-    let def = glyphMap.[e]
+let stringDefsToElemFromMap (map: Map<char, string>) (glyph: FontMetrics) e debug =
+    let def = map.[e]
     assert Regex.IsMatch(def, glyph_re)
 
     if debug then
         printfn "%A: %A" e def
 
     parse_curves glyph def debug
+
+let stringDefsToElem (glyph: FontMetrics) e debug =
+    stringDefsToElemFromMap glyphMap glyph e debug
 
 let rawDefToElem (glyph: FontMetrics) (rawDef: string) debug =
     try
