@@ -2,7 +2,10 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, allChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
-import { downloadFont } from './fontExport'
+import { downloadFont, buildFontDataUrl } from './fontExport'
+import { buildCompareOverlaySvg } from './fontCompare'
+import FontCompareControls from './FontCompareControls'
+import FontCompareTextOverlay from './FontCompareTextOverlay'
 import { proofTexts, proofLabels, proofCases, classicBooks } from './proofs'
 import './App.css'
 
@@ -74,6 +77,22 @@ function App() {
       valueB: isNaN(b) ? ctrl.max : b,
     }
   })
+  // Visual Diffs "compare font" mode: diff Dactyl against an external font
+  // (upload / Google / system). 'axis' keeps the original Dactyl-vs-Dactyl diff.
+  // `compare` and `align` are URL-addressable so a comparison view is shareable
+  // (and deep-linkable from the visual tests). The chosen font itself can't be
+  // encoded in a URL, so it must still be (re)selected after navigation.
+  const [compareMode, setCompareMode] = useState(() => {
+    const c = new URLSearchParams(window.location.search).get('compare')
+    return c === 'font' ? 'font' : 'axis'
+  })
+  const [compareAlign, setCompareAlign] = useState(() => {
+    const a = new URLSearchParams(window.location.search).get('align')
+    return ['cap', 'x', 'em'].includes(a) ? a : 'cap'
+  })
+  const [compareFont, setCompareFont] = useState(null)
+  const [compareError, setCompareError] = useState(null)
+  const [dactylGlyphData, setDactylGlyphData] = useState(null)
   const [proofCase, setProofCase] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     const p = params.get('proof')
@@ -158,6 +177,21 @@ function App() {
       url.searchParams.set('diffB', cfg.valueB)
     }
     // replaceState: value edits shouldn't spam browser history
+    window.history.replaceState({}, '', url)
+  }
+
+  const setCompareModeWithUrl = (m) => {
+    setCompareMode(m)
+    const url = new URL(window.location)
+    if (m === 'font') url.searchParams.set('compare', 'font')
+    else url.searchParams.delete('compare')
+    window.history.replaceState({}, '', url)
+  }
+
+  const setCompareAlignWithUrl = (a) => {
+    setCompareAlign(a)
+    const url = new URL(window.location)
+    url.searchParams.set('align', a)
     window.history.replaceState({}, '', url)
   }
 
@@ -425,6 +459,14 @@ function App() {
       const steps = Math.max(2, Math.floor((availableWidth + 10) / (boxWidth + 10)))
       args = [char, axes, steps]
     } else if (activeTab === 'visualDiffs') {
+      if (compareMode === 'font') {
+        // Compare-font mode is rendered on the main thread from dactylGlyphData
+        // (see the dedicated effect / useMemo below) — skip the F# diff worker.
+        setLoading(false)
+        clearTimeout(timer)
+        worker.terminate()
+        return
+      }
       typeReq = 'visualDiffs'
       const { axesA, axesB, labelA, labelB } = getDiffAxes(axes, diffConfig)
       args = [text || allChars, axesA, axesB, labelA, labelB]
@@ -450,7 +492,7 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig])
+  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode])
 
   // Dedicated effect for proofs tab: generates full font and builds a data URL.
   // Deps are [axes, activeTab] only — switching proof text doesn't re-trigger.
@@ -499,6 +541,52 @@ function App() {
     el.textContent = `@font-face { font-family: 'DactylPreview'; src: url('${proofFontUrl}') format('opentype'); }`
   }, [proofFontUrl])
 
+  // Compare-font mode: fetch Dactyl's outlines for the current axes once per
+  // axes change. Used to build the vector overlay and (for text-mode sources)
+  // the DactylCompare @font-face.
+  useEffect(() => {
+    if (activeTab !== 'visualDiffs' || compareMode !== 'font') return
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    worker.onmessage = (e) => {
+      const { result, error } = e.data
+      worker.terminate()
+      if (error) setCompareError(error)
+      else setDactylGlyphData(result)
+    }
+    worker.postMessage({ id: ++renderIdRef.current, type: 'fontData', args: [axes] })
+    return () => worker.terminate()
+  }, [axes, activeTab, compareMode])
+
+  // Vector overlay SVG (outline sources). Rebuilt when the font, alignment,
+  // text or Dactyl outlines change.
+  const compareSvg = useMemo(() => {
+    if (compareMode !== 'font' || !dactylGlyphData) return null
+    if (!compareFont || compareFont.kind !== 'outline') return null
+    try {
+      return buildCompareOverlaySvg(dactylGlyphData, compareFont.font, text || allChars, compareAlign, compareFont.displayName)
+    } catch (e) {
+      console.error('compare overlay failed', e)
+      return null
+    }
+  }, [compareMode, compareFont, dactylGlyphData, compareAlign, text])
+
+  // DactylCompare @font-face for text-mode comparison (Dactyl side rendered via CSS).
+  const dactylCompareUrl = useMemo(() => {
+    if (compareMode !== 'font' || compareFont?.kind !== 'text' || !dactylGlyphData) return null
+    try { return buildFontDataUrl(dactylGlyphData, 'DactylCompare') } catch { return null }
+  }, [compareMode, compareFont, dactylGlyphData])
+
+  useEffect(() => {
+    if (!dactylCompareUrl) return
+    let el = document.getElementById('dactyl-compare-font')
+    if (!el) {
+      el = document.createElement('style')
+      el.id = 'dactyl-compare-font'
+      document.head.appendChild(el)
+    }
+    el.textContent = `@font-face { font-family: 'DactylCompare'; src: url('${dactylCompareUrl}') format('opentype'); }`
+  }, [dactylCompareUrl])
+
   const renderContent = () => {
     if (error) return <div style={{ color: 'red' }}>Error: {error}</div>
     if (!workerResult && loading && activeTab !== 'tweens') {
@@ -535,6 +623,9 @@ function App() {
         </div>
       )
     }
+
+    // Visual Diffs has its own renderer (axis worker SVG or compare-font mode).
+    if (activeTab === 'visualDiffs') return renderVisualDiffs()
 
     // Safety check: ensure result matches expected type for tab
     const content = workerResult
@@ -600,18 +691,38 @@ function App() {
             })()}
           </div>
         )
-      } else if (activeTab === 'visualDiffs') {
-        if (typeof content !== 'string') return null
-        return <div
-          className="svg-container"
-          dangerouslySetInnerHTML={{ __html: content }}
-        />
       }
       return null
     } catch (e) {
       console.error("Error generating Content:", e)
       return <div style={{ color: 'red' }}>Error: {e.message}</div>
     }
+  }
+
+  // Visual Diffs preview: compare-font mode renders on the main thread, axis
+  // mode uses the worker SVG result handled by renderContent above.
+  const renderVisualDiffs = () => {
+    if (compareMode !== 'font') {
+      const content = workerResult
+      if (typeof content !== 'string') return null
+      return <div className="svg-container" dangerouslySetInnerHTML={{ __html: content }} />
+    }
+    if (compareError) return <div style={{ color: 'red', padding: 20 }}>Error: {compareError}</div>
+    if (!compareFont) {
+      return <div style={{ padding: 20, color: '#666' }}>
+        Pick a font to compare with Dactyl — upload a .ttf/.otf/.woff, choose a Google Font, or list your system fonts.
+      </div>
+    }
+    if (compareFont.kind === 'text') {
+      return <FontCompareTextOverlay
+        text={text || allChars}
+        fontFamily={compareFont.fontFamily}
+        dactylFamily="DactylCompare"
+        labelB={compareFont.displayName}
+      />
+    }
+    if (!compareSvg) return <div style={{ padding: 20, color: '#666' }}>Generating…</div>
+    return <div className="svg-container" dangerouslySetInnerHTML={{ __html: compareSvg }} />
   }
 
   const handleControlChange = (name, value) => {
@@ -754,8 +865,8 @@ function App() {
           )}
           {activeTab === 'visualDiffs' && (() => {
             const ctrl = controlDefinitions.find(c => c.name === diffConfig.axis)
-            return (
-              <div className="diff-config">
+            const axisControls = (
+              <>
                 <label htmlFor="diff-axis-select">Diff axis:</label>
                 <select
                   id="diff-axis-select"
@@ -815,7 +926,19 @@ function App() {
                     <span className="material-symbols-outlined">swap_horiz</span>
                   </button>
                 )}
-              </div>
+              </>
+            )
+            return (
+              <FontCompareControls
+                mode={compareMode}
+                onModeChange={setCompareModeWithUrl}
+                align={compareAlign}
+                onAlignChange={setCompareAlignWithUrl}
+                font={compareFont}
+                onFontChange={(f) => { setCompareFont(f); setCompareError(null) }}
+                onError={setCompareError}
+                axisControls={axisControls}
+              />
             )
           })()}
           {activeTab === 'font' && (
