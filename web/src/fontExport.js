@@ -248,17 +248,31 @@ function buildFilename(overrides, family = 'Dactyl') {
   return `${family}-${overrides.map(([k, v]) => formatAxisOverride(k, v)).join('-')}.otf`
 }
 
+// The font is always exported at this em size.  The F# generator uses a
+// variable em (font.charHeight ≈ 960–1150 depending on axes), but CFF/OTF
+// fonts must declare unitsPerEm = 1000 to render on Windows: GDI (Font Viewer,
+// Word, PowerPoint) and Adobe apps assume a 1000-unit em for PostScript
+// outlines and draw glyphs blank or mis-scaled at any other value, even though
+// browsers, macOS and FreeType honour the declared UPM.  See opentype.js
+// issue #115.  We scale every coordinate and metric to this em on export.
+const EXPORT_UPM = 1000
+
 /**
  * Build an opentype.Font from the glyph data returned by generateFontGlyphData.
  * Coordinates from the F# generator are already Y-up (baseline at 0, positive
  * values go up), which matches the opentype.js coordinate convention directly.
+ * All geometry is scaled from the generator's variable em to EXPORT_UPM.
  */
-function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular') {
+export function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular') {
   const { glyphs: glyphsData, ascender, descender, unitsPerEm } = glyphData
+
+  // Map generator units → the fixed 1000-unit export em.
+  const scale = EXPORT_UPM / unitsPerEm
+  const s = (n) => Math.round(n * scale)
 
   const notdef = new opentype.Glyph({
     name: '.notdef',
-    advanceWidth: Math.round(unitsPerEm / 2),
+    advanceWidth: Math.round(EXPORT_UPM / 2),
     path: new opentype.Path(),
   })
 
@@ -272,16 +286,16 @@ function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular') {
         const path = new opentype.Path()
         for (const cmd of unionPath(g.pathData)) {
           switch (cmd.type) {
-            case 'M': path.moveTo(cmd.x, cmd.y); break
-            case 'L': path.lineTo(cmd.x, cmd.y); break
-            case 'C': path.bezierCurveTo(cmd.x1, cmd.y1, cmd.x2, cmd.y2, cmd.x, cmd.y); break
+            case 'M': path.moveTo(s(cmd.x), s(cmd.y)); break
+            case 'L': path.lineTo(s(cmd.x), s(cmd.y)); break
+            case 'C': path.bezierCurveTo(s(cmd.x1), s(cmd.y1), s(cmd.x2), s(cmd.y2), s(cmd.x), s(cmd.y)); break
             case 'Z': path.close(); break
           }
         }
         return new opentype.Glyph({
           name: `uni${g.unicode.toString(16).padStart(4, '0')}`,
           unicode: g.unicode,
-          advanceWidth: Math.round(g.advanceWidth),
+          advanceWidth: s(g.advanceWidth),
           path,
         })
       }),
@@ -290,9 +304,9 @@ function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular') {
   return new opentype.Font({
     familyName,
     styleName,
-    unitsPerEm: Math.round(unitsPerEm),
-    ascender: Math.round(ascender),
-    descender: Math.round(descender),
+    unitsPerEm: EXPORT_UPM,
+    ascender: s(ascender),
+    descender: s(descender),
     copyright: `Copyright ${new Date().getFullYear()} Terry Spitz`,
     designer: 'Terry Spitz',
     license: 'This Font Software is licensed under the SIL Open Font License, Version 1.1.',
