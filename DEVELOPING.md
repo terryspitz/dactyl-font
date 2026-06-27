@@ -49,7 +49,7 @@ npm run build
 # Run tab screenshot tests (compare against baselines)
 npm run test:tabs
 
-# Run tween screenshot tests (generates per-axis screenshots)
+# Run tween screenshot tests (compare against saved baseline PNGs)
 npm run test:tweens
 
 # Regenerate tab baselines after an intentional visual change
