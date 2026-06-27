@@ -7,24 +7,13 @@ open SpiroPointType
 
 let PI = System.Math.PI
 
-/// This file defines a minimal language for defining glyph outlines (AMLFDGO)
-/// Turns out it's like a limited version of METAFONT from the 1970s.
-/// This was invented independently.
-/// Defines glyphs using following symbols:
-/// y coordinates: (b)ottom/(b)ase, (t)op, (h)alf height, (x)-height, (d)escender
-/// "o" adds/subtracts a "roundness" offset to y (inwards)
-/// "e" adds/subtracts an "extended" thickness offset to y (outwards)
-/// x coordinates: (l)eft, (r)ight, (c)enter, (w)ide (em-width)
-/// note multiple y or x coordinates means average across them, so "bt"="h" and "bbt" means one-third up
-/// brackets mean coordinates are adjusted (by the DactylSpline only) to be smoother
-/// optional tangent direction (N)orth (S)outh (E)ast (W)est
-/// lines/curves: (-) straight line, (~) curve, note: lines join curves smoothly
-/// ( ) terminates a curve, a preceeding (- or ~) means closed curve (last point rejoins first point)
-/// Solo points become dots
+/// A minimal declarative language for defining glyph outlines (invented
+/// independently; turns out to be a limited METAFONT). See docs/DactylGlyphs.md
+/// for the full syntax reference.
 /// Regex for the language
-let y_re = "[txhbd]+|\([txhbd]+\)"
+let y_re = "[txhbd0-9]+|\([txhbd0-9]+\)"
 let offset_re = "[oe]"
-let x_re = "[lrcw]+|\([lrcw]+\)"
+let x_re = "[lrcw0-9]+|\([lrcw0-9]+\)"
 let direction_re = "[NSEW]"
 let line_re = "[-~]"
 let separator_re = " "
@@ -61,7 +50,7 @@ let glyphMap =
           '=', "xxbl-xxbr xbbl-xbbr"
           '>', "xl-xbr-bl"
           '?', "thl~t(c)~(th)r~hhbc-bbhc bc"
-          '@', "bbtrcc~bbbtc~hcl~ttbc~hrcc~bbtrccS~bbbtcrr~hrN~te(c)~hlS~be(c)~bor"
+          '@', "bbtrcc~b3tc~hcl~ttbc~hrcc~bbtrccS~b3tcrr~hrN~te(c)~hlS~be(c)~bor"
           '[', "tec-tel-bel-bec"
           '\\', "tel-ber"
           ']', "tec-ter-ber-bec"
@@ -70,13 +59,13 @@ let glyphMap =
           '{', "tecW~hlE hlE~becW"
           '}', "telE~hcW hcW~belE"
           '|', "tec-bec"
-          '~', "tttthl~tlc~tttthc~ttthhrc~tttthr"
+          '~', "t4hl~tlc~t4hc~t3h2rc~t4hr"
 
           '0', "(h)l~t(c)~(h)r~b(c)~ tr-bl"
-          '1', "tol-tlllr-blllr"
+          '1', "tol-tl3r-bl3r"
           '2', "tol~t(c)~(th)r~hbc-bl-br"
           '3', "tol~t(c)~(th)r~hc-hllr hllr-hc~(bh)r~b(c)~bol"
-          '4', "brrrl-trrrl-bhl-bhr"
+          '4', "br3l-tr3l-bhl-bhr"
           '5', "tr-tl-hl hl~ttb(c)~(bbt)r~b(c)~bol"
           '6', "tor~t(c)~(h)l~bbtl~b(c)~bbtr~ttbc~bbtlN"
           '7', "tl-tr-bcl"
@@ -95,7 +84,7 @@ let glyphMap =
           'D', "tl-blE~(h)r~tlE"
           'd', "tr-br xor~x(c)~(xb)l~b(c)~bor"
           'E', "tr-tl-bl-br hl-hr"
-          'e', "xbl-xbrN~x(c)~xblS~b(c)~bor"
+          'e', "xbl-xbrN~x(c)~xblS~b(c)~bor5c"
           'F', "bl-tl-tr hl-hrc"
           'f', "bllc-xtllc~tcrW xl-xc"
           'G', "tor~t(c)~(h)l~b(c)~bhr-hr-hc"
@@ -111,7 +100,7 @@ let glyphMap =
           'L', "tl-bl-br"
           'l', "tl-xbl~bcW"
           'M', "bl-tl-blw-tw-bw"
-          'm', "xl-bl xol~x(llw)~xxblw-blw xolw~x(lwwww)~xxbw-bw"
+          'm', "xl-bl xol~x(llw)~xxblw-blw xolw~x(lw4)~xxbw-bw"
           'N', "bl-tl-br-tr"
           'n', "xl-bl xol~x(c)~xbr-br"
           'O', "(h)l~t(c)~(h)r~b(c)~"
@@ -130,8 +119,8 @@ let glyphMap =
           'u', "xl-xbl~b(llcr)~bocr xcr-bcr"
           'V', "tl-bc-tr"
           'v', "xl-bc-xr"
-          'W', "tl-blllw-tlw-blwww-tw"
-          'w', "xl-blllw-xlw-blwww-xw"
+          'W', "tl-bl3w-tlw-blw3-tw"
+          'w', "xl-bl3w-xlw-blw3-xw"
           'X', "tl-br tr-bl"
           'x', "xl-br xr-bl"
           'Y', "tl-hc-tr hc-bc"
@@ -140,6 +129,29 @@ let glyphMap =
           'z', "xl-xr-bl-br" ]
 
 // parse
+
+/// Expand a coordinate string into the list of guide values to average.
+/// Parentheses are ignored here (they set the fit flag separately). A digit
+/// run immediately after a coordinate letter repeats that letter that many
+/// times, so it counts proportionally in the average:
+///   "r4c" -> [R;R;R;R;C]   "b2t" -> [B;B;T]   "th" -> [T;H] (unchanged)
+let weightedCoords (cs: string) (coordOf: char -> float) =
+    let rec loop chars acc =
+        match chars with
+        | [] -> List.rev acc
+        | c :: rest when c = '(' || c = ')' -> loop rest acc
+        | c :: rest ->
+            let digits = rest |> List.takeWhile System.Char.IsDigit
+            let rest2 = rest |> List.skipWhile System.Char.IsDigit
+            let count =
+                match digits with
+                | [] -> 1
+                | _ -> digits |> List.fold (fun a d -> a * 10 + (int d - int '0')) 0
+            let v = coordOf c
+            loop rest2 (List.replicate count v @ acc)
+
+    loop (List.ofSeq cs) []
+
 let parse_point (glyph: FontMetrics) def_raw =
     let mutable def = def_raw
     let start_def = def_raw
@@ -150,24 +162,16 @@ let parse_point (glyph: FontMetrics) def_raw =
     let y_fit = ys.StartsWith("(")
 
     let y_coords =
-        [ for c in ys do
-              match c with
-              | '('
-              | ')' -> () // ignore brackets
-              | c ->
-                  yield
-                      Some(
-                          match c with
-                          | 't' -> glyph.T
-                          | 'x' -> glyph.X
-                          | 'h' -> glyph.H
-                          | 'b' -> glyph.B
-                          | 'd' -> glyph.D
-                          | _ -> invalidArg "y" (sprintf "Invalid Y coord %A (should be in %A)" c y_re)
-                      ) ]
-        |> List.choose id
+        weightedCoords ys (fun c ->
+            match c with
+            | 't' -> glyph.T
+            | 'x' -> glyph.X
+            | 'h' -> glyph.H
+            | 'b' -> glyph.B
+            | 'd' -> glyph.D
+            | _ -> invalidArg "y" (sprintf "Invalid Y coord %A (should be in %A)" c y_re))
 
-    let mutable y_coord = List.averageBy float y_coords
+    let mutable y_coord = List.average y_coords
     def <- def.[match_y.Length ..]
 
     // offset
@@ -191,23 +195,15 @@ let parse_point (glyph: FontMetrics) def_raw =
     let x_fit = xs.StartsWith("(")
 
     let x_coords =
-        [ for c in xs do
-              match c with
-              | '('
-              | ')' -> () // ignore brackets
-              | c ->
-                  yield
-                      Some(
-                          match c with
-                          | 'l' -> glyph.L
-                          | 'c' -> glyph.C
-                          | 'r' -> glyph.R
-                          | 'w' -> glyph.W
-                          | _ -> invalidArg "x" (sprintf "Invalid X coord %A  (should be in %A)" c x_re)
-                      ) ]
-        |> List.choose id
+        weightedCoords xs (fun c ->
+            match c with
+            | 'l' -> glyph.L
+            | 'c' -> glyph.C
+            | 'r' -> glyph.R
+            | 'w' -> glyph.W
+            | _ -> invalidArg "x" (sprintf "Invalid X coord %A  (should be in %A)" c x_re))
 
-    let x_coord = List.averageBy float x_coords
+    let x_coord = List.average x_coords
     def <- def.[match_x.Length ..]
 
     let match_dir = Regex.Match(def, "^" + direction_re)

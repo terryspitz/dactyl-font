@@ -405,6 +405,7 @@
     color: var(--text-secondary);
     transition: all 0.2s;
     font-weight: 500;
+    white-space: nowrap;
 }
 
 .tab-button:hover {
@@ -813,4 +814,76 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+/* ---- Visual Diffs: compare-font mode ---- */
+/* In axis mode keep the toolbar on a single row (children shrink to fit) so the
+   top-bar height — and thus the visualDiffs preview snapshot — is unchanged.
+   Only the busier compare-font controls are allowed to wrap. */
+.font-compare-controls.wrap {
+    flex-wrap: wrap;
+}
+.font-compare-controls input[type="file"] {
+    font-size: 0.85em;
+    max-width: 190px;
+}
+.compare-text-input {
+    width: 180px;
+    padding: 4px 6px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--panel-bg);
+    color: var(--text-primary);
+    font-size: 1em;
+}
+.compare-load-btn {
+    padding: 4px 10px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--panel-bg);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 1em;
+}
+.compare-load-btn:hover {
+    background: var(--border-color);
+}
+.compare-status {
+    color: var(--text-secondary, #666);
+    font-style: italic;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Text-rendering overlay (Google CSS / system-name sources) */
+.compare-text-view {
+    padding: 16px;
+}
+.compare-text-key {
+    color: #444;
+    margin-bottom: 16px;
+    font-size: 0.95em;
+}
+.compare-text-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+}
+.compare-text-cell {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: var(--radius-md, 6px);
+    padding: 10px;
+}
+.compare-text-col {
+    min-width: 70px;
+    text-align: center;
+}
+.compare-text-overlay {
+    position: relative;
+    display: inline-flex;
+    justify-content: center;
+    min-width: 70px;
 }
