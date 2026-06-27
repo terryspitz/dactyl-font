@@ -7,22 +7,9 @@ open SpiroPointType
 
 let PI = System.Math.PI
 
-/// This file defines a minimal language for defining glyph outlines (AMLFDGO)
-/// Turns out it's like a limited version of METAFONT from the 1970s.
-/// This was invented independently.
-/// Defines glyphs using following symbols:
-/// y coordinates: (b)ottom/(b)ase, (t)op, (h)alf height, (x)-height, (d)escender
-/// "o" adds/subtracts a "roundness" offset to y (inwards)
-/// "e" adds/subtracts an "extended" thickness offset to y (outwards)
-/// x coordinates: (l)eft, (r)ight, (c)enter, (w)ide (em-width)
-/// note multiple y or x coordinates means average across them, so "bt"="h" and "bbt" means one-third up
-/// a digit after a coordinate letter repeats it that many times (a shorthand for the weighting above),
-/// so "b2t"="bbt" (one-third up) and "r4c"="rrrrc" (four-fifths from centre toward the right)
-/// brackets mean coordinates are adjusted (by the DactylSpline only) to be smoother
-/// optional tangent direction (N)orth (S)outh (E)ast (W)est
-/// lines/curves: (-) straight line, (~) curve, note: lines join curves smoothly
-/// ( ) terminates a curve, a preceeding (- or ~) means closed curve (last point rejoins first point)
-/// Solo points become dots
+/// A minimal declarative language for defining glyph outlines (invented
+/// independently; turns out to be a limited METAFONT). See docs/DactylGlyphs.md
+/// for the full syntax reference.
 /// Regex for the language
 let y_re = "[txhbd0-9]+|\([txhbd0-9]+\)"
 let offset_re = "[oe]"
@@ -63,7 +50,7 @@ let glyphMap =
           '=', "xxbl-xxbr xbbl-xbbr"
           '>', "xl-xbr-bl"
           '?', "thl~t(c)~(th)r~hhbc-bbhc bc"
-          '@', "bbtrcc~bbbtc~hcl~ttbc~hrcc~bbtrccS~bbbtcrr~hrN~te(c)~hlS~be(c)~bor"
+          '@', "bbtrcc~b3tc~hcl~ttbc~hrcc~bbtrccS~b3tcrr~hrN~te(c)~hlS~be(c)~bor"
           '[', "tec-tel-bel-bec"
           '\\', "tel-ber"
           ']', "tec-ter-ber-bec"
@@ -72,13 +59,13 @@ let glyphMap =
           '{', "tecW~hlE hlE~becW"
           '}', "telE~hcW hcW~belE"
           '|', "tec-bec"
-          '~', "tttthl~tlc~tttthc~ttthhrc~tttthr"
+          '~', "t4hl~tlc~t4hc~t3h2rc~t4hr"
 
           '0', "(h)l~t(c)~(h)r~b(c)~ tr-bl"
-          '1', "tol-tlllr-blllr"
+          '1', "tol-tl3r-bl3r"
           '2', "tol~t(c)~(th)r~hbc-bl-br"
           '3', "tol~t(c)~(th)r~hc-hllr hllr-hc~(bh)r~b(c)~bol"
-          '4', "brrrl-trrrl-bhl-bhr"
+          '4', "br3l-tr3l-bhl-bhr"
           '5', "tr-tl-hl hl~ttb(c)~(bbt)r~b(c)~bol"
           '6', "tor~t(c)~(h)l~bbtl~b(c)~bbtr~ttbc~bbtlN"
           '7', "tl-tr-bcl"
@@ -97,7 +84,7 @@ let glyphMap =
           'D', "tl-blE~(h)r~tlE"
           'd', "tr-br xor~x(c)~(xb)l~b(c)~bor"
           'E', "tr-tl-bl-br hl-hr"
-          'e', "xbl-xbrN~x(c)~xblS~b(c)~bor"
+          'e', "xbl-xbrN~x(c)~xblS~b(c)~bor5c"
           'F', "bl-tl-tr hl-hrc"
           'f', "bllc-xtllc~tcrW xl-xc"
           'G', "tor~t(c)~(h)l~b(c)~bhr-hr-hc"
@@ -113,7 +100,7 @@ let glyphMap =
           'L', "tl-bl-br"
           'l', "tl-xbl~bcW"
           'M', "bl-tl-blw-tw-bw"
-          'm', "xl-bl xol~x(llw)~xxblw-blw xolw~x(lwwww)~xxbw-bw"
+          'm', "xl-bl xol~x(llw)~xxblw-blw xolw~x(lw4)~xxbw-bw"
           'N', "bl-tl-br-tr"
           'n', "xl-bl xol~x(c)~xbr-br"
           'O', "(h)l~t(c)~(h)r~b(c)~"
@@ -132,8 +119,8 @@ let glyphMap =
           'u', "xl-xbl~b(llcr)~bocr xcr-bcr"
           'V', "tl-bc-tr"
           'v', "xl-bc-xr"
-          'W', "tl-blllw-tlw-blwww-tw"
-          'w', "xl-blllw-xlw-blwww-xw"
+          'W', "tl-bl3w-tlw-blw3-tw"
+          'w', "xl-bl3w-xlw-blw3-xw"
           'X', "tl-br tr-bl"
           'x', "xl-br xr-bl"
           'Y', "tl-hc-tr hc-bc"
