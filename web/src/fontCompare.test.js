@@ -79,6 +79,18 @@ describe('buildCompareOverlaySvg', () => {
     expect(comparisonScale(svg)).toBeCloseTo(2, 5)
   })
 
+  it('sizeScale multiplies the comparison scale (cap match × slider)', () => {
+    // H caps match (700 vs 700) → base scale 1; sizeScale 1.2 → 1.2.
+    const svg = buildCompareOverlaySvg(dactyl, makeFont(), 'H', 'cap', 'T', 1.2)
+    expect(comparisonScale(svg)).toBeCloseTo(1.2, 5)
+  })
+
+  it('sizeScale leaves the Dactyl side at native scale', () => {
+    const svg = buildCompareOverlaySvg(dactyl, makeFont(), 'H', 'cap', 'T', 1.2)
+    const firstScale = Number(svg.match(/scale\(([-\d.]+),/)[1])
+    expect(firstScale).toBe(1)
+  })
+
   it('Dactyl side is always drawn at native scale (1)', () => {
     const svg = buildCompareOverlaySvg(dactyl, makeFont({ cap: 350 }), 'H', 'cap', 'T')
     const firstScale = Number(svg.match(/scale\(([-\d.]+),/)[1])
