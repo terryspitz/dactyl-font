@@ -7,6 +7,6 @@ export default defineConfig({
   base: '/dactyl-font/',
   test: {
     environment: 'node',
-    include: ['src/**/*.test.js'],
+    include: ['src/**/*.test.{js,jsx}'],
   },
 })

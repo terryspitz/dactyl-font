@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseSvgPath, unionPath } from './fontExport'
+import { parseSvgPath, unionPath, buildFont } from './fontExport'
 
 describe('parseSvgPath', () => {
   it('parses M command', () => {
@@ -122,5 +122,42 @@ describe('unionPath', () => {
     expect(cmds.length).toBeGreaterThan(0)
     expect(cmds[0].type).toBe('M')
     expect(cmds[cmds.length - 1].type).toBe('Z')
+  })
+})
+
+describe('buildFont em normalisation', () => {
+  // The generator's em (unitsPerEm) varies with the axes, but CFF/OTF fonts must
+  // be exported at unitsPerEm = 1000 or they render blank on Windows (GDI / Font
+  // Viewer / Office) and in Adobe apps — see opentype.js issue #115.  buildFont
+  // must rescale every coordinate and metric to a fixed 1000-unit em regardless
+  // of the generator's em.
+  const glyphData = (unitsPerEm) => ({
+    unitsPerEm,
+    ascender: unitsPerEm * 0.7,
+    descender: -unitsPerEm * 0.3,
+    glyphs: [{ unicode: 65, advanceWidth: unitsPerEm * 0.4, pathData: 'M 0,0 L 100,0 L 100,200 L 0,200 Z' }],
+  })
+
+  it('always exports unitsPerEm = 1000', () => {
+    for (const em of [960, 1010, 1150, 2048]) {
+      expect(buildFont(glyphData(em)).unitsPerEm).toBe(1000)
+    }
+  })
+
+  it('scales advance widths and metrics to the 1000-unit em', () => {
+    const font = buildFont(glyphData(2048))
+    expect(font.ascender).toBe(Math.round(2048 * 0.7 * 1000 / 2048)) // 700
+    expect(font.descender).toBe(Math.round(-2048 * 0.3 * 1000 / 2048)) // -300
+    const a = font.glyphs.get(font.charToGlyphIndex('A'))
+    expect(a.advanceWidth).toBe(Math.round(2048 * 0.4 * 1000 / 2048)) // 400
+  })
+
+  it('scales glyph outline coordinates to the 1000-unit em', () => {
+    // At em = 2000 the scale is exactly 0.5, so the 200-unit-tall box → 100.
+    const font = buildFont(glyphData(2000))
+    const a = font.glyphs.get(font.charToGlyphIndex('A'))
+    const bb = a.getBoundingBox()
+    expect(bb.x2 - bb.x1).toBe(50)  // 100 * 0.5
+    expect(bb.y2 - bb.y1).toBe(100) // 200 * 0.5
   })
 })
