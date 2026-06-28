@@ -1396,39 +1396,57 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                         let th1 = norm (bp.th_in + dTh + perpAngle)
                         let th2 = norm (bp.th_out + dTh + perpAngle)
                         let bend = norm (th2 - th1)
-                        if abs (wIn - wOut) > 1e-6 then
-                            // Nib (or other direction-varying width): the two sides of the
-                            // corner have different half-widths, so a single-width bisector
-                            // miter doesn't meet the wider side's body edge (it leaves a
-                            // notch/bevel). Use the exact intersection of the two offset
-                            // edge lines — incoming edge offset by wIn, outgoing by wOut.
-                            let p1 = addPolarContrast bx by th1 wIn
-                            let p2 = addPolarContrast bx by th2 wOut
-                            let d1x, d1y = cos (bp.th_in + dTh), sin (bp.th_in + dTh)
-                            let d2x, d2y = cos (bp.th_out + dTh), sin (bp.th_out + dTh)
-                            let det = -d1x * d2y + d2x * d1y
-                            if abs det < 1e-9 then
-                                knots.Add(plainKnot (addPolarContrast bx by th1 ((wIn + wOut) / 2.0)))
-                            else
-                                let s = (-(p2.x - p1.x) * d2y + d2x * (p2.y - p1.y)) / det
-                                let mx = p1.x + s * d1x
-                                let my = p1.y + s * d1y
-                                // Clamp the miter length to the chord lengths (as the
-                                // equal-width path does) to avoid self-intersection on
-                                // short segments / very sharp corners.
-                                let mdist = hypot (mx - bx) (my - by)
-                                let maxd = min (min prevLen nextLen) (4.0 * fthickness)
-                                if mdist > maxd && mdist > 1e-9 then
-                                    let k = maxd / mdist
-                                    knots.Add(plainKnot { x = bx + (mx - bx) * k; y = by + (my - by) * k; x_fit = false; y_fit = false })
-                                else
-                                    knots.Add(plainKnot { x = mx; y = my; x_fit = false; y_fit = false })
-                        else
-                        let w = wIn
                         let isSharperThanRight = abs bend >= 2.0
                         let isOuter =
                             (not reverse && bend < -PI / 8.0)
                             || (reverse && bend > PI / 8.0)
+                        if abs (wIn - wOut) > 1e-6 then
+                            // Nib (or other direction-varying width): the two sides of the
+                            // corner have different half-widths, so a single-width miter
+                            // doesn't meet the wider side's body edge.
+                            if isSharperThanRight then
+                                // Sharp (acute) corner: a single miter would spike far out
+                                // (outer) or make the body samples double back (inner). Bevel
+                                // with two points, each on its own side at its own width.
+                                if isOuter then
+                                    // Outer: extend slightly along the diagonal for a crisp point.
+                                    let pa = addPolarContrast bx by (this.maybeAlign th1 - perpAngle / 2.0) (wIn * sqrt 2.0)
+                                    let pb = addPolarContrast bx by (this.maybeAlign th2 + perpAngle / 2.0) (wOut * sqrt 2.0)
+                                    knots.Add(plainKnot pa)
+                                    knots.Add(plainKnot pb)
+                                else
+                                    // Inner: single bisector miter clamped to the chord
+                                    // lengths. The concave vertex sits above the spine corner;
+                                    // a raw edge intersection would overshoot the body samples.
+                                    let alpha = bend / 2.0
+                                    let wm = min wIn wOut
+                                    let offset = min (min (wm / cos alpha) prevLen) nextLen
+                                    knots.Add(plainKnot (addPolarContrast bx by (th1 + alpha) offset))
+                            else
+                                // Gentle corner (≤ ~right angle): exact intersection of the two
+                                // offset edge lines — incoming offset by wIn, outgoing by wOut —
+                                // so each side meets its own body edge with no notch. Clamped to
+                                // the chord lengths to avoid overshoot on short segments.
+                                let p1 = addPolarContrast bx by th1 wIn
+                                let p2 = addPolarContrast bx by th2 wOut
+                                let d1x, d1y = cos (bp.th_in + dTh), sin (bp.th_in + dTh)
+                                let d2x, d2y = cos (bp.th_out + dTh), sin (bp.th_out + dTh)
+                                let det = -d1x * d2y + d2x * d1y
+                                if abs det < 1e-9 then
+                                    knots.Add(plainKnot (addPolarContrast bx by th1 ((wIn + wOut) / 2.0)))
+                                else
+                                    let s = (-(p2.x - p1.x) * d2y + d2x * (p2.y - p1.y)) / det
+                                    let mx = p1.x + s * d1x
+                                    let my = p1.y + s * d1y
+                                    let mdist = hypot (mx - bx) (my - by)
+                                    let maxd = min (min prevLen nextLen) (4.0 * fthickness)
+                                    if mdist > maxd && mdist > 1e-9 then
+                                        let k = maxd / mdist
+                                        knots.Add(plainKnot { x = bx + (mx - bx) * k; y = by + (my - by) * k; x_fit = false; y_fit = false })
+                                    else
+                                        knots.Add(plainKnot { x = mx; y = my; x_fit = false; y_fit = false })
+                        else
+                        let w = wIn
                         if isOuter && isSharperThanRight then
                             // Two miter points (mirrors offsetSegment Corner outer-bend case).
                             let pa = addPolarContrast bx by (this.maybeAlign th1 - perpAngle / 2.0) (w * sqrt 2.0)
