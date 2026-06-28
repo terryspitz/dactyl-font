@@ -1648,20 +1648,20 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                                       true
                                   ) ]
 
-            // Squeeze a cap's knots perpendicular to the stroke tangent so the cap width
-            // matches the nib-modulated body width at that endpoint, while keeping the cap's
-            // extension along the tangent. This gives nib strokes the same end length and cap
-            // style (axis-align/serif/flare/bulb) as normal strokes, just at the nib width —
-            // instead of stopping short at the spine endpoint or protruding as full-width ears.
-            let squeezeCapToNib (cx: float) (cy: float) (th: float) (knots: Knot list) =
-                let nf = nibFactor th
+            // Squeeze a cap's knots perpendicular to the stroke tangent by perpScale, while
+            // keeping the cap's extension along the tangent. With perpScale set to the body
+            // half-width fraction at the endpoint, the cap (axis-align/serif/flare/bulb)
+            // keeps the same end length and style as a plain stroke but matches the nib- or
+            // taper-reduced end width — instead of stopping short at the spine endpoint or
+            // protruding past the body.
+            let squeezeCap (cx: float) (cy: float) (th: float) (perpScale: float) (knots: Knot list) =
                 knots
                 |> List.map (fun k ->
                     let dx = k.pt.x - cx
                     let dy = k.pt.y - cy
                     let along = dx * cos th + dy * sin th
                     let perp = -dx * sin th + dy * cos th
-                    let perp' = perp * nf
+                    let perp' = perp * perpScale
                     { k with
                         pt =
                             { k.pt with
@@ -1684,21 +1684,18 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 let inner = buildSide -1.0 false |> List.rev
                 [ Curve([ startPt ] @ outer @ [ endPt ] @ inner, true) ]
                 |> List.map this.applySoftCorners
-            elif taper > 0.0 then
-                // Flat ends at the (reduced) end width: close the outline with a straight
-                // edge across each endpoint. The body reaches the endpoints at the tapered
-                // width via widthAt. Used when taper_end > 0 (tapered but not to a point).
-                let outer = buildSide  1.0 true
-                let inner = buildSide -1.0 true |> List.rev
-                [ Curve(outer @ inner, true) ]
-                |> List.map this.applySoftCorners
-            elif nib > 0.0 then
-                // Broad-nib caps: use the normal cap geometry (so ends extend to the same
-                // length as a non-nib stroke), then squeeze each cap to the nib width so it
-                // matches the body and doesn't protrude.
+            elif nib > 0.0 || taper > 0.0 then
+                // Nib / taper caps: use the normal cap geometry (so ends extend to the same
+                // length and keep the same style as a plain stroke), then squeeze each cap
+                // perpendicular to the body half-width at that endpoint so it matches the
+                // nib- or taper-reduced end width without protruding or stopping short.
+                let startTh = bezPts.[0].th_out
+                let endTh   = bezPts.[n - 1].th_in
+                let startScale = widthAt 0.0 startTh / fthickness
+                let endScale   = widthAt totalLen endTh / fthickness
                 let startCapKnots, endCapKnots = makeCaps ()
-                let startCapKnots = squeezeCapToNib bezPts.[0].x bezPts.[0].y bezPts.[0].th_out startCapKnots
-                let endCapKnots   = squeezeCapToNib bezPts.[n - 1].x bezPts.[n - 1].y bezPts.[n - 1].th_in endCapKnots
+                let startCapKnots = squeezeCap bezPts.[0].x bezPts.[0].y startTh startScale startCapKnots
+                let endCapKnots   = squeezeCap bezPts.[n - 1].x bezPts.[n - 1].y endTh endScale endCapKnots
                 let outer = buildSide  1.0 false
                 let inner = buildSide -1.0 false |> List.rev
                 [ Curve(startCapKnots @ outer @ endCapKnots @ inner, true) ]

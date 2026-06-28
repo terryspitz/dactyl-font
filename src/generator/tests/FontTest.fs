@@ -932,9 +932,11 @@ type ArtisticAxesTests() =
 
     [<Test>]
     member this.TaperAxis_EndWidthControlledByTaperEnd() =
-        // taper_end = 0.5 leaves the ends at ~half width instead of a point.
+        // taper_end = 0.5 leaves the ends at ~half width instead of a point. The end cap
+        // now extends past the spine endpoint (y < 0, same length as a plain stroke's cap),
+        // squeezed to the tapered end width — so measure the cap region near the tip.
         let axes = { baseAxes with taper = 1.0; taper_end = 0.5 }
-        let endW = this.TaperWidthNear(axes, 0., 20.)
+        let endW = this.TaperWidthNear(axes, -1.5 * fthickness, 0.6 * fthickness)
         Assert.That(endW, Is.GreaterThan(0.35 * fthickness),
             "taper_end=0.5 should keep the ends well above a point")
         Assert.That(endW, Is.LessThan(0.75 * fthickness),
