@@ -21,9 +21,9 @@ Character (char)
        ├─ stroked mode      → getStroked (four parallel lines per stroke)
        ├─ scratches mode    → getScratches (textured paint-stroke effect)
        └─ outline mode:
-            ├─ constant_offset  → getDactylConstantOffsetOutlines
-            ├─ dactyl_spline    → getDactylSansOutlines
-            └─ (legacy)         → getSpiroSansOutlines
+            ├─ not dactyl_spline           → getSpiroSansOutlines (Spiro or Spline2)
+            ├─ dactyl_spline + const_offset → getDactylConstantOffsetOutlines
+            └─ dactyl_spline                → getDactylSansOutlines
                  │  optionally: constrainTangents
                  ▼
              Element tree of outline Curves
@@ -56,11 +56,11 @@ The main outline path.  For each solved Bézier segment from the DactylSpline:
 - Joins adjacent segments with **miter** geometry at convex corners and a **bisector** point at concave corners.
 - Calls `startCap` / `endCap` to close open stroke ends.
 
-### `getDactylConstantOffsetOutlines` (when `constant_offset = true`)
+### `getDactylConstantOffsetOutlines` (when `dactyl_spline = true` and `constant_offset = true`)
 Walks every cubic Bézier at 16 t-steps, emitting perpendicular offset samples as straight-line `Corner` knots.  Produces smoother outlines for strongly curved strokes at the cost of more points.  Cap and join logic is shared with the default path.
 
-### `getSpiroSansOutlines` (legacy, when `dactyl_spline = false`)
-Same structural approach as the DactylSpline path but uses the Spiro-solved segments.
+### `getSpiroSansOutlines` (when `dactyl_spline = false`)
+Same structural approach as the DactylSpline path but uses the Spiro-solved segments (or Spline2 when `spline2 = true`).  Because the spine engine choice takes precedence over `constant_offset`, this path is selected whenever `dactyl_spline` is off, regardless of `constant_offset`.
 
 ### `getStroked` / `getScratches`
 Alternative rendering modes (four-line backscratch font; textured scratch effect) that bypass the normal outline logic entirely.
