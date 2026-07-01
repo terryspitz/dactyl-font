@@ -73,6 +73,16 @@ You can inject a single letter between the Y and X coordinates to adjust the poi
 - `e` (outward extended offset): Moves the point outward by the font's stroke "thickness".
 *Example:* `tel` is a point at the Top-Left but shifted slightly outward.
 
+The same `o`/`e` letters may also appear **after** the X coordinate, where
+they adjust the point horizontally inward/outward toward the glyph's vertical
+centerline instead. This is used to carve short flat "shoulders" onto bowls
+(e.g. the tops of `B`, `D`, `P`, `R`) whose length shrinks as roundedness
+increases — at maximum roundedness the shoulder collapses to zero length and
+the curve starts right at the corner, while lower roundedness lengthens the
+flat shoulder, giving a squarer letterform.
+*Example:* `tloE` is a point at the Top-Left, shifted inward (rightward) by
+an amount that grows as roundedness decreases, with an explicit East tangent.
+
 ### Explicit Tangents
 You can optionally append a direction to explicitly force the curve's heading as it passes through the point:
 - `N` (North), `S` (South), `E` (East), `W` (West)
