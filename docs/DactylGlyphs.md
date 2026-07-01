@@ -80,8 +80,16 @@ centerline instead. This is used to carve short flat "shoulders" onto bowls
 increases — at maximum roundedness the shoulder collapses to zero length and
 the curve starts right at the corner, while lower roundedness lengthens the
 flat shoulder, giving a squarer letterform.
-*Example:* `tloE` is a point at the Top-Left, shifted inward (rightward) by
-an amount that grows as roundedness decreases, with an explicit East tangent.
+*Example:* `tlo` is a point at the Top-Left, shifted inward (rightward) by an
+amount that grows as roundedness decreases.
+
+Leave the shoulder point's tangent implicit (don't add an explicit `E`/`W`)
+when the straight line into it is already headed the direction you want the
+curve to leave in — e.g. `tl-tlo~(th)r` rather than `tl-tloE~(th)r`. The
+smooth-transition default (see rule 1 below) already aligns the curve to the
+line's heading, and forcing an explicit tangent there makes the join a
+`Corner` even though no direction actually changes, which produces a spurious
+spike when the outline is stroked.
 
 ### Explicit Tangents
 You can optionally append a direction to explicitly force the curve's heading as it passes through the point:
