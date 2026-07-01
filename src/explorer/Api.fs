@@ -591,7 +591,10 @@ let generateFontGlyphData (axes: Axes) =
     let fontAxes = { axes with outline = true; filled = true }
     let font = Font fontAxes
     let metrics = FontMetrics(axes)
-    let chars = allChars.Replace("\n", "")
+    // Exported/preview fonts need an actual space glyph (used to render proof
+    // text, font comparisons, etc.), so make sure one is always included even
+    // though allChars itself no longer contains a literal space character.
+    let chars = allChars.Replace("\n", "") + " "
 
     // outlineFont has smooth=false so rendering the sampled Corner outline knots
     // does not trigger O(n²) NelderMead; cached on the font instance.
