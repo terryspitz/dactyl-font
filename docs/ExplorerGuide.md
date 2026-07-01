@@ -36,7 +36,7 @@ Controls are grouped into collapsible sections.  Click a section header to expan
 |----------|------|-----------------|
 | **Backbone** | straighten | Overall glyph proportions: width, height, x-height, italic, monospace, tracking, leading, roundedness |
 | **Outline** | brush | Stroke appearance: thickness, contrast, soft_corners, axis_align_caps, outline toggle, filled toggle, smooth toggle |
-| **Artistic** | palette | Decorative features: end_bulb, flare, serif, stroked (backscratch), scratches |
+| **Artistic** | palette | Decorative features: end_bulb, flare, serif, stroked (backscratch), scratches, and the broad-nib / brush axes nib, nib_angle, taper, taper_end, wobble, mobius (these auto-use the arc-length sampled outline path) |
 | **Experimental** | science | Advanced solver settings: dactyl_spline, spline2, constraints, constant_offset, max_spline_iter, flatness, end_flatness |
 | **Debug** | bug | Diagnostic overlays: show_knots, show_tangents, joints, clip_rect, debug |
 

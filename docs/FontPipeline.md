@@ -56,8 +56,21 @@ The main outline path.  For each solved Bézier segment from the DactylSpline:
 - Joins adjacent segments with **miter** geometry at convex corners and a **bisector** point at concave corners.
 - Calls `startCap` / `endCap` to close open stroke ends.
 
-### `getDactylConstantOffsetOutlines` (when `constant_offset = true`)
+### `getDactylConstantOffsetOutlines` (when `constant_offset = true`, or automatically when any *artistic width* axis is active)
 Walks every cubic Bézier at 16 t-steps, emitting perpendicular offset samples as straight-line `Corner` knots.  Produces smoother outlines for strongly curved strokes at the cost of more points.  Cap and join logic is shared with the default path.
+
+Because it samples the spine densely, this path also hosts the arc-length-varying **artistic axes** (`sampledArtistic` auto-routes here when `dactyl_spline` is on):
+
+| Axis | Effect (via `widthAt` / `displace`) |
+|------|-------------------------------------|
+| `nib`, `nib_angle` | Broad-nib pen: half-width scales with the stroke's angle relative to the nib, so strokes along the nib nearly vanish. |
+| `taper`, `taper_end` | Brush taper: half-width narrows over the first/last part of the stroke down to `taper_end` of full width (`0` = a point). |
+| `wobble` | Hand-drawn waviness: the spine is displaced perpendicular to its tangent by an integer number of wavelengths (so ends stay put). |
+| `mobius` | Twisting ribbon: width follows `|cos θ|` of a per-arc-length twist, split into separate closed panels at the pinch points. |
+
+Because these make the two sides of a stroke (and its ends) different widths, the corner and cap handling is specialised:
+- **Corners** offset each side at its own width. Gentle (≤ right-angle) corners use the exact intersection of the two offset edges; sharp outer corners bevel; sharp inner corners use a clamped bisector.
+- **Caps** (nib / taper, `taper_end > 0`) build the normal cap geometry — so ends extend to the same length and keep the serif/flare/bulb style — then squeeze it perpendicular to the reduced end width. Pointed taper (`taper_end = 0`) simply meets at the spine endpoint.
 
 ### `getSpiroSansOutlines` (legacy, when `dactyl_spline = false`)
 Same structural approach as the DactylSpline path but uses the Spiro-solved segments.

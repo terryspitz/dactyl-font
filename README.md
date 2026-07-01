@@ -12,7 +12,7 @@ See some of the chequered development history at [Dactyl Font Gallery](gallery.h
 
 Dactyl is a functional font generator written in F#, in service of ticking 'create a font' off my bucket list!
 
-Dactyl is parameterised with a large (and growing) number of inputs including 'axes' (parameters) common in variable fonts such as stroke thickness and x-height, and more unusual ones like roundness and end-bulbs.
+Dactyl is parameterised with a large (and growing) number of inputs including 'axes' (parameters) common in variable fonts such as stroke thickness and x-height, and more unusual ones like roundness, end-bulbs, a broad-nib pen (nib angle), brush taper, hand-drawn wobble, and twisting mobius ribbons.
 
 It's an exercise in understanding how fonts can be built in code using both ['words and rules'](https://en.wikipedia.org/wiki/Words_and_Rules) — where the 'rules' are a minimal set of general shape logic in code along with the 'words': a minimal set of hardcoded shape data per glyph (letter).
 
