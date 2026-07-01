@@ -1740,12 +1740,18 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         elif this.axes.scratches then
             this.getScratches
         elif this.axes.outline then
-            (if axes.constant_offset || (axes.dactyl_spline && axes.sampledArtistic) then
+            // The chosen spine engine takes precedence.  When dactyl_spline is off the spine is
+            // built by Spiro (or Spline2, which getSpiroSansOutlines selects via spline2), so we
+            // must use the Spiro outline path — constant_offset/sampledArtistic are
+            // DactylSpline-only generation options and are ignored in that case.  Only when
+            // dactyl_spline is on does constant_offset (or an active sampled-artistic axis)
+            // choose between the two DactylSpline outline strategies.
+            (if not axes.dactyl_spline then
+                 this.getSpiroSansOutlines
+             elif axes.constant_offset || axes.sampledArtistic then
                  this.getDactylConstantOffsetOutlines
-             elif axes.dactyl_spline then
-                 this.getDactylSansOutlines
              else
-                 this.getSpiroSansOutlines)
+                 this.getDactylSansOutlines)
             >> applyIf axes.constraints this.constrainTangents
         else
             id

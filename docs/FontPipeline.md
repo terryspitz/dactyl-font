@@ -21,9 +21,9 @@ Character (char)
        ├─ stroked mode      → getStroked (four parallel lines per stroke)
        ├─ scratches mode    → getScratches (textured paint-stroke effect)
        └─ outline mode:
-            ├─ constant_offset  → getDactylConstantOffsetOutlines
-            ├─ dactyl_spline    → getDactylSansOutlines
-            └─ (legacy)         → getSpiroSansOutlines
+            ├─ not dactyl_spline                        → getSpiroSansOutlines (Spiro or Spline2)
+            ├─ dactyl_spline + const_offset/artistic     → getDactylConstantOffsetOutlines
+            └─ dactyl_spline                             → getDactylSansOutlines
                  │  optionally: constrainTangents
                  ▼
              Element tree of outline Curves
@@ -56,7 +56,7 @@ The main outline path.  For each solved Bézier segment from the DactylSpline:
 - Joins adjacent segments with **miter** geometry at convex corners and a **bisector** point at concave corners.
 - Calls `startCap` / `endCap` to close open stroke ends.
 
-### `getDactylConstantOffsetOutlines` (when `constant_offset = true`, or automatically when any *artistic width* axis is active)
+### `getDactylConstantOffsetOutlines` (when `dactyl_spline = true` and (`constant_offset = true` or any *artistic width* axis is active))
 Walks every cubic Bézier at 16 t-steps, emitting perpendicular offset samples as straight-line `Corner` knots.  Produces smoother outlines for strongly curved strokes at the cost of more points.  Cap and join logic is shared with the default path.
 
 Because it samples the spine densely, this path also hosts the arc-length-varying **artistic axes** (`sampledArtistic` auto-routes here when `dactyl_spline` is on):
@@ -72,8 +72,8 @@ Because these make the two sides of a stroke (and its ends) different widths, th
 - **Corners** offset each side at its own width. Gentle (≤ right-angle) corners use the exact intersection of the two offset edges; sharp outer corners bevel; sharp inner corners use a clamped bisector.
 - **Caps** (nib / taper, `taper_end > 0`) build the normal cap geometry — so ends extend to the same length and keep the serif/flare/bulb style — then squeeze it perpendicular to the reduced end width. Pointed taper (`taper_end = 0`) simply meets at the spine endpoint.
 
-### `getSpiroSansOutlines` (legacy, when `dactyl_spline = false`)
-Same structural approach as the DactylSpline path but uses the Spiro-solved segments.
+### `getSpiroSansOutlines` (when `dactyl_spline = false`)
+Same structural approach as the DactylSpline path but uses the Spiro-solved segments (or Spline2 when `spline2 = true`).  Because the spine engine choice takes precedence over `constant_offset`/artistic axes, this path is selected whenever `dactyl_spline` is off, regardless of those settings.
 
 ### `getStroked` / `getScratches`
 Alternative rendering modes (four-line backscratch font; textured scratch effect) that bypass the normal outline logic entirely.
