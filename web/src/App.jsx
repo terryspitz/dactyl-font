@@ -663,9 +663,9 @@ function App() {
         return (
           <div className="tweens-grid">
             {(() => {
-              const EXCLUDED_TWEEN_AXES = ['tracking', 'leading', 'debug']
+              const EXCLUDED_TWEEN_AXES = ['tracking', 'leading']
               return controlDefinitions
-                .filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name))
+                .filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name) && c.category !== 'debug')
                 .filter(c => !tweenFilter || c.name === tweenFilter)
                 .map(ctrl => {
                   const variations = content[ctrl.name]
