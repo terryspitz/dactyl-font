@@ -66,6 +66,7 @@ Because it samples the spine densely, this path also hosts the arc-length-varyin
 | `nib`, `nib_angle` | Broad-nib pen: half-width scales with the stroke's angle relative to the nib, so strokes along the nib nearly vanish. |
 | `taper`, `taper_end` | Brush taper: half-width narrows over the first/last part of the stroke down to `taper_end` of full width (`0` = a point). |
 | `wobble` | Hand-drawn waviness: the spine is displaced perpendicular to its tangent by an integer number of wavelengths (so ends stay put). |
+| `roughness` | Random-looking width jitter: each side's half-width is perturbed by deterministic sum-of-sines noise, phase-shifted per side so the two edges jitter independently (unlike `wobble`, which moves the whole spine and keeps width constant). |
 | `mobius` | Twisting ribbon: width follows `|cos θ|` of a per-arc-length twist, split into separate closed panels at the pinch points. |
 
 Because these make the two sides of a stroke (and its ends) different widths, the corner and cap handling is specialised:

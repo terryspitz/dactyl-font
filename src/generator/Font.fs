@@ -1215,11 +1215,13 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         let taperEnd = axes.taper_end
         let wobble = axes.wobble
         let wobbleWavelength = 200.0
+        let roughness = axes.roughness
+        let roughnessWavelength = 40.0
         let mobius = axes.mobius
         let mobiusHalfTwistLen = 300.0
         // Axes whose width or displacement varies with arc length need interior samples
         // even on straight spine segments.
-        let widthVariesAlongStroke = nib > 0.0 || taper > 0.0 || wobble > 0.0 || mobius > 0.0
+        let widthVariesAlongStroke = nib > 0.0 || taper > 0.0 || wobble > 0.0 || roughness > 0.0 || mobius > 0.0
         let samplesPerSeg = 16
         let isFreeCurveEnd ty = ty = G2 || ty = G4
 
@@ -1367,6 +1369,23 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
                 w
 
+            /// Deterministic pseudo-noise from a few incommensurate sine harmonics, so the
+            /// stroke edge jitters without a repeating pattern. `side` shifts the phase so
+            /// the outer and inner edges jitter independently, giving an uneven width
+            /// (unlike wobble, which displaces the whole spine and keeps a constant width).
+            let roughnessNoise (sLen: float) (side: float) =
+                let s = sLen + side * 129.0
+                let n1 = sin (2.0 * PI * s / roughnessWavelength)
+                let n2 = sin (2.0 * PI * s * 2.19 / roughnessWavelength + 1.3)
+                let n3 = sin (2.0 * PI * s * 4.73 / roughnessWavelength + 3.1)
+                (n1 + 0.5 * n2 + 0.25 * n3) / 1.75
+
+            /// Perturb a half-width with roughness jitter, clamped so the outline never
+            /// collapses to zero or crosses the spine.
+            let roughen (side: float) (sLen: float) (w: float) =
+                if roughness = 0.0 then w
+                else max (0.15 * fthickness) (w + roughness * fthickness * 0.4 * roughnessNoise sLen side)
+
             // Build one side (outer when sign=+1, inner when sign=-1) of the offset polyline.
             // Smooth bezier points emit a single perpendicular offset. Corner bezier points
             // (th_in ≠ th_out) reuse the offsetSegment-Corner logic: outer convex bends get a
@@ -1378,7 +1397,8 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 let knots = System.Collections.Generic.List<Knot>()
 
                 let emitPerp x y th sLen =
-                    knots.Add(plainKnot (addPolarContrast x y (th + perpAngle) (widthAt sLen th)))
+                    let w = widthAt sLen th |> roughen sign sLen
+                    knots.Add(plainKnot (addPolarContrast x y (th + perpAngle) w))
 
                 let emitAtBezPt (i: int) =
                     let bp = bezPts.[i]
@@ -1387,8 +1407,8 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     if not isCorner then
                         emitPerp bx by (bp.th_in + dTh) sLen
                     else
-                        let wIn  = widthAt sLen (bp.th_in  + dTh)
-                        let wOut = widthAt sLen (bp.th_out + dTh)
+                        let wIn  = widthAt sLen (bp.th_in  + dTh) |> roughen sign sLen
+                        let wOut = widthAt sLen (bp.th_out + dTh) |> roughen sign sLen
                         let prev = bezPts.[(i - 1 + n) % n]
                         let nxt  = bezPts.[(i + 1) % n]
                         let prevLen = hypot (bp.x - prev.x) (bp.y - prev.y)
