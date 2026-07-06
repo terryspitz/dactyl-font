@@ -132,7 +132,7 @@ type FontTests() =
             |> Array.filter (fun s -> s.Length = 1 && "MLCZ".Contains(s))
             |> String.concat ""
 
-        Assert.That(commands, Is.EqualTo("MLCLCCLLLCCLCZ"), "P outline should have the updated MLCLCCLLLCCLCZ command sequence")
+        Assert.That(commands, Is.EqualTo("MLLLCCLLLCCLLZ"), "P outline should have the updated MLLLCCLLLCCLLZ command sequence")
         Assert.That(svgStr, Does.Not.Contain("stroke:#e00000"), "SVG should not be red (indicates outline failure)")
 
         for ch in [ 'R'; 'B' ] do

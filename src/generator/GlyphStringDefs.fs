@@ -209,15 +209,26 @@ let parse_point (glyph: FontMetrics) def_raw =
     // horizontal offset (mirrors the vertical offset above): moves the point
     // inward toward the vertical centerline, used to carve short flat
     // "shoulders" on bowls (e.g. B/D/P/R). Unlike the vertical 'o' offset,
-    // this shoulder shrinks as roundedness increases (and vanishes at max
-    // roundedness) so that lower roundedness gives squarer letterforms.
+    // this shoulder shrinks as roundedness increases (and nearly vanishes at
+    // max roundedness) so that lower roundedness gives squarer letterforms.
+    // The shoulder spans 90% of the glyph width at roundedness=0, shrinking
+    // to the same length the old flat formula gave at roundedness=60 (i.e.
+    // 100-60=40 units at default width) by roundedness=100.
     let matchXOffset = Regex.Match(def, "^" + offset_re)
 
     if matchXOffset.Success then
         def <- def.[matchXOffset.Length ..]
 
         let isExtended = matchXOffset.Value = "e"
-        let offsetAmount = if isExtended then glyph.thickness else glyph.offset - 100.0
+
+        let offsetAmount =
+            if isExtended then
+                glyph.thickness
+            else
+                let maxFraction = 0.9
+                let minFraction = 40.0 / 300.0
+                let fraction = maxFraction - (maxFraction - minFraction) * (glyph.offset / 100.0)
+                -(glyph.R * fraction)
 
         x_coord <-
             if x_coord >= glyph.C then

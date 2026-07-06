@@ -77,9 +77,10 @@ The same `o`/`e` letters may also appear **after** the X coordinate, where
 they adjust the point horizontally inward/outward toward the glyph's vertical
 centerline instead. This is used to carve short flat "shoulders" onto bowls
 (e.g. the tops of `B`, `D`, `P`, `R`) whose length shrinks as roundedness
-increases — at maximum roundedness the shoulder collapses to zero length and
-the curve starts right at the corner, while lower roundedness lengthens the
-flat shoulder, giving a squarer letterform.
+increases — at `roundedness=0` the shoulder spans 90% of the glyph width
+(a near-flat, square edge), shrinking down to a modest flat (13% of width)
+at `roundedness=100`, so lower roundedness gives a noticeably squarer
+letterform.
 *Example:* `tlo` is a point at the Top-Left, shifted inward (rightward) by an
 amount that grows as roundedness decreases.
 
