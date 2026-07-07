@@ -109,7 +109,7 @@ let glyphMap =
           'p', "xl-dl bol~b(c)~(xb)r~x(c)~xol"
           'Q', "(h)l~t(c)~(h)r~b(c)~ br-hbc"
           'q', "xr-dr xor~x(c)~(xb)l~b(c)~bor"
-          'R', "bl-tl-tlo~(th)r~hcl-hl hc-br"
+          'R', "bl-tl-tlo~(th)r~hlo-hl hc-br"
           'r', "xl-bl xol~xlcc~xoccr"
           'S', "thr~t(c)~(ttb)l~hc~(tbb)r~b(c)~bhl"
           's', "xor~x(c)~(xxb)l~xbcE~(xbb)r~b(c)~bol"
