@@ -139,8 +139,8 @@ let glyphMap =
 /// width, x-height, thickness, roundedness, italic, etc. from the other axes.
 let altGlyphMap =
     Map.ofList
-        [ 'a', "xolccW~x(c)~xr-br bbxxxor~bbxxx(c)~(bbbx)l~b(c)~bor"
-          'g', "(xb)l~x(c)~(xb)r~b(c)~ (bbd)l~boc~(bbd)r~bd(c)~ xrrc-xerr" ]
+        [ 'a', "xolcW~x(c)~xr-br bbxxxor~bbxxx(c)~(bbbx)l~b(c)~bor"
+          'g', "(xb)l~x(c)~(xb)r~b(c)~ (bbd)l~bc~(bbd)r~bdd(c)~ xc-xerr" ]
 
 // parse
 
