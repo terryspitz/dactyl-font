@@ -130,17 +130,19 @@ let glyphMap =
 
 /// Alternate (stylistic-alternate) glyph shapes, selected by the `alt_a_g` axis.
 /// The default 'a' and 'g' above are single-storey forms (a circular bowl with a
-/// straight stem, and an open-tail g).  These provide the two-storey forms:
-///   'a': a right stem whose top curves into a rounded shoulder ending in a short
-///        terminal, over a large bowl that merges back into the stem.
-///   'g': a binocular g — an x-height bowl joined by a short central neck to a
-///        flatter, wider loop in the descender, finished with an ear at the top right.
+/// straight stem, and an open-tail g).  These provide two-storey forms modelled
+/// on humanist sans faces like Open Sans:
+///   'a': a right stem whose top arches over into an open hood ending high on
+///        the left, over a flat-topped bowl occupying the lower ~60%.
+///   'g': a binocular g — a small round bowl hanging from x-height, a flat ear
+///        at x-height reaching the right edge, and a short central neck down to
+///        a wider, flatter loop sitting wholly below the baseline.
 /// Both are written in the same coordinate language as glyphMap, so they inherit
 /// width, x-height, thickness, roundedness, italic, etc. from the other axes.
 let altGlyphMap =
     Map.ofList
-        [ 'a', "xolcW~x(c)~xr-br bbxxxor~bbxxx(c)~(bbbx)l~b(c)~bor"
-          'g', "(xb)l~x(c)~(xb)r~b(c)~ (bbd)l~bc~(bbd)r~bdd(c)~ xc-xerr" ]
+        [ 'a', "br-xrN~bx5llcW b2x3r~b2x3(c)~(bbx)l~b(c)~bor"
+          'g', "(bx)l5c~x(c)~(bx)r2c~b2x(c)~ xc-xr b2xc-b19dc (bbd)l~b19d(c)~(bbd)r~bd4(c)~" ]
 
 // parse
 
