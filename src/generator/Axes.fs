@@ -37,6 +37,7 @@ type Axes =
       taper: float //strokes taper to points at their ends (0=off, 1=pointed all the way to the middle)
       taper_end: float //width at the tapered ends as a fraction of full width (0=sharp point, 1=no narrowing)
       wobble: float //hand-drawn waviness: spine displacement amplitude in units of thickness (0=off)
+      roughness: float //random width jitter along the stroke edge, independent per side (0=off)
       mobius: float //strokes are twisting ribbons pinched where edge-on; half-twist density (0=off, 1 ≈ every 300 units)
       constant_offset: bool //prototype: outlines are dense polylines at constant perpendicular distance from the spine
       max_spline_iter: int //max number of iterations to solve spline curves
@@ -76,6 +77,7 @@ type Axes =
           taper = 0.0
           taper_end = 0.5
           wobble = 0.0
+          roughness = 0.0
           mobius = 0.0
           constant_offset = true
           max_spline_iter = 500
@@ -116,6 +118,7 @@ type Axes =
           "taper", FracRange(0.0, 1.0), "artistic"
           "taper_end", FracRange(0.0, 1.0), "artistic"
           "wobble", FracRange(0.0, 1.0), "artistic"
+          "roughness", FracRange(0.0, 1.0), "artistic"
           "mobius", FracRange(0.0, 3.0), "artistic"
           "serif", Range(0, 70), "artistic"
           "constraints", Checkbox, "experimental"
@@ -132,4 +135,4 @@ type Axes =
     /// True when an artistic axis that varies stroke width (or displaces the spine)
     /// along the stroke is active; these require the arc-length sampled outline path.
     member this.sampledArtistic =
-        this.nib > 0.0 || this.taper > 0.0 || this.wobble > 0.0 || this.mobius > 0.0
+        this.nib > 0.0 || this.taper > 0.0 || this.wobble > 0.0 || this.roughness > 0.0 || this.mobius > 0.0

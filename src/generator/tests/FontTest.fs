@@ -969,6 +969,30 @@ type ArtisticAxesTests() =
             "wobble should vanish at stroke endpoints")
 
     [<Test>]
+    member _.RoughnessAxis_JittersEdgeWidthIndependentlyPerSide() =
+        let font = Font.Font({ baseAxes with roughness = 1.0 })
+
+        let outlineKnots =
+            match font.getOutline (strokeTo 0. 600.) with
+            | Curve(ks, _) -> ks
+            | e -> failwithf "expected single Curve outline, got %A" e
+
+        // Roughness jitters the half-width, so the outer edge should swing on both
+        // sides of the plain (unjittered) stroke bound rather than sitting flush.
+        let xs = outlineKnots |> List.map (fun k -> k.pt.x)
+        Assert.That(List.max xs, Is.GreaterThan(1.05 * fthickness),
+            "roughness should widen the stroke edge beyond its plain width somewhere")
+        Assert.That(List.min xs, Is.LessThan(0.95 * fthickness),
+            "roughness should narrow the stroke edge below its plain width somewhere")
+
+        // The two edges jitter independently (different phase), so they shouldn't be
+        // simply mirror images of each other at every sample.
+        let leftXs = outlineKnots |> List.filter (fun k -> k.pt.x < 0.0) |> List.map (fun k -> -k.pt.x)
+        let rightXs = outlineKnots |> List.filter (fun k -> k.pt.x >= 0.0) |> List.map (fun k -> k.pt.x)
+        Assert.That(leftXs, Is.Not.EquivalentTo(rightXs),
+            "the two stroke edges should jitter independently, not identically")
+
+    [<Test>]
     member _.MobiusAxis_StraightStrokeSplitsIntoPinchedPanels() =
         // A 600-unit stroke at mobius=1.0 gets round(600/300) = 2 half-twists →
         // pinches at arc length 150 and 450 → 3 separate closed panels.
@@ -1013,14 +1037,16 @@ type ArtisticAxesTests() =
         // shapes: closed curves ('o', '8'), open curves ('S', 'c'), straight strokes
         // with joints ('l', 'v', 'E') and dots ('!').
         let variants =
-            [ "taper",  { baseAxes with taper = 0.8 }
-              "wobble", { baseAxes with wobble = 1.0 }
-              "mobius", { baseAxes with mobius = 1.0 }
+            [ "taper",      { baseAxes with taper = 0.8 }
+              "wobble",     { baseAxes with wobble = 1.0 }
+              "roughness",  { baseAxes with roughness = 1.0 }
+              "mobius",     { baseAxes with mobius = 1.0 }
               "all",
               { baseAxes with
                   nib = 0.5
                   taper = 0.5
                   wobble = 0.5
+                  roughness = 0.5
                   mobius = 1.0 } ]
 
         for name, axes in variants do
