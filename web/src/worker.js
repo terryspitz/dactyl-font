@@ -1,5 +1,6 @@
 import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, controlDefinitions, solveSplineEditor, solveSplineGrid, solveAltSplines, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphData, getSplineOutlinePath } from './lib/fable/Api'
 import { buildFontDataUrl } from './fontExport'
+import { generateGrowthSvg } from './growthSvg'
 import { DControlPoint } from './lib/fable/generator/DactylSpline'
 
 self.onmessage = (e) => {
@@ -73,6 +74,11 @@ self.onmessage = (e) => {
             }
             case 'solveSplineGrid': {
                 result = solveSplineGrid()
+                break
+            }
+            case 'growth': {
+                const [growText, growAxes, growParams] = args
+                result = generateGrowthSvg(growText, growAxes, growParams)
                 break
             }
             case 'fontData': {

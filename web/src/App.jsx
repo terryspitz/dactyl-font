@@ -50,7 +50,8 @@ function App() {
       visualDiffs: allChars,
       splines: '',
       splineGrid: '',
-      proofs: proofTexts.lowercase
+      proofs: proofTexts.lowercase,
+      grow: 'dactyl'
     }
   })
   const [glyphsDefsText, setGlyphsDefsText] = useState(() => {
@@ -103,7 +104,7 @@ function App() {
   const [tabZooms, setTabZooms] = useState(() => {
     const urlZoom = parseFloat(new URLSearchParams(window.location.search).get('zoom'))
     const zoom = isNaN(urlZoom) ? 1.0 : urlZoom
-    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom }
+    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom, grow: zoom }
   })
   const [layerVisibility, setLayerVisibility] = useState({
     spiro: true,
@@ -122,12 +123,14 @@ function App() {
   const [tweenFilter, setTweenFilter] = useState(
     () => new URLSearchParams(window.location.search).get('tween') || ''
   )
+  // Grow tab: constant-gap growth parameters (see growth.js)
+  const [growParams, setGrowParams] = useState({ grow: 0.7, gap: 30, layers: true })
 
   // Check URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     let view = params.get('view')
-    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines', 'splineGrid', 'proofs'].includes(view)) {
+    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines', 'splineGrid', 'proofs', 'grow'].includes(view)) {
       setActiveTab(view)
     }
     const p = params.get('proof')
@@ -472,6 +475,16 @@ function App() {
       typeReq = 'visualDiffs'
       const { axesA, axesB, labelA, labelB } = getDiffAxes(axes, diffConfig)
       args = [text || allChars, axesA, axesB, labelA, labelB]
+    } else if (activeTab === 'grow') {
+      if (!text) {
+        setWorkerResult("")
+        setLoading(false)
+        clearTimeout(timer)
+        worker.terminate()
+        return
+      }
+      typeReq = 'growth'
+      args = [text, axes, growParams]
     } else if (activeTab === 'proofs') {
       // Proofs has its own dedicated effect — skip
       setLoading(false)
@@ -494,7 +507,7 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode])
+  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, growParams])
 
   // Dedicated effect for proofs tab: generates full font and builds a data URL.
   // Deps are [axes, activeTab] only — switching proof text doesn't re-trigger.
@@ -634,7 +647,7 @@ function App() {
     if (!content) return null
 
     try {
-      if (activeTab === 'font') {
+      if (activeTab === 'font' || activeTab === 'grow') {
         if (typeof content !== 'string') return null
         return <div
           className="svg-container"
@@ -840,7 +853,38 @@ function App() {
             <button className={`tab-button ${activeTab === 'splines' ? 'active' : ''}`} onClick={() => setTabWithUrl('splines')}>Splines</button>
             <button className={`tab-button ${activeTab === 'splineGrid' ? 'active' : ''}`} onClick={() => setTabWithUrl('splineGrid')}>Spline Grid</button>
             <button className={`tab-button ${activeTab === 'proofs' ? 'active' : ''}`} onClick={() => setTabWithUrl('proofs')}>Proofs</button>
+            <button className={`tab-button ${activeTab === 'grow' ? 'active' : ''}`} onClick={() => setTabWithUrl('grow')}>Grow</button>
           </div>
+          {activeTab === 'grow' && (
+            <div className="grow-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                grow
+                <input
+                  type="range" min="0" max="1" step="0.05"
+                  value={growParams.grow}
+                  onChange={e => setGrowParams(p => ({ ...p, grow: parseFloat(e.target.value) }))}
+                />
+                <span style={{ minWidth: '2.5em' }}>{growParams.grow.toFixed(2)}</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                gap
+                <input
+                  type="range" min="5" max="100" step="5"
+                  value={growParams.gap}
+                  onChange={e => setGrowParams(p => ({ ...p, gap: parseFloat(e.target.value) }))}
+                />
+                <span style={{ minWidth: '2em' }}>{growParams.gap}</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                layers
+                <input
+                  type="checkbox"
+                  checked={growParams.layers}
+                  onChange={e => setGrowParams(p => ({ ...p, layers: e.target.checked }))}
+                />
+              </label>
+            </div>
+          )}
           {activeTab === 'proofs' && (
             <div className="proof-chips">
               {proofCases.map(k => (
@@ -969,7 +1013,7 @@ function App() {
             <button
               className="text-reset-button"
               onClick={() => {
-                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', splineGrid: '', proofs: proofTexts[proofCase] }
+                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', splineGrid: '', proofs: proofTexts[proofCase], grow: 'dactyl' }
                 setText(defaults[activeTab])
               }}
               title="Reset Text to Default"
