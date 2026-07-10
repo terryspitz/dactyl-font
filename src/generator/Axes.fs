@@ -108,7 +108,7 @@ type Axes =
           "axis_align_caps", Checkbox, "outline", "Round angle of caps to horizontal/vertical"
           "outline", Checkbox, "outline", "Use thickness to expand stroke width"
           "filled", Checkbox, "outline", "(SVG only) filled or empty outlines"
-          "smooth", Checkbox, "outline", "No corners"
+          "smooth", Checkbox, "experimental", "No corners"
           "end_bulb", FracRange(-1.0, 3.0), "artistic", "Fraction of thickness to apply curves to endcaps"
           "flare", FracRange(-1.0, 1.0), "artistic", "End caps expand by this amount"
           "stroked", Checkbox, "artistic", "Each stroke is 4 parallel lines"
