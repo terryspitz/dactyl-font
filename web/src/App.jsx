@@ -736,15 +736,25 @@ function App() {
     setAxes({ ...defaultAxes })
   }
 
+  // Only touch a fraction of axes per click, and bias sampled values toward
+  // the default (nudge, don't reroll) so extreme/rare effects don't stack up.
+  const RANDOMIZE_PROBABILITY = 0.35
+  const RANDOMIZE_SPREAD = 0.3
+
   const handleRandom = () => {
     const newAxes = { ...axes }
     controlDefinitions.forEach(ctrl => {
       if (ctrl.category === 'experimental' || ctrl.category === 'debug') return
+      if (Math.random() > RANDOMIZE_PROBABILITY) return
 
       if (ctrl.type_ === 'checkbox') {
         newAxes[ctrl.name] = Math.random() > 0.5
       } else {
-        newAxes[ctrl.name] = ctrl.min + Math.random() * (ctrl.max - ctrl.min)
+        const center = defaultAxes[ctrl.name] ?? (ctrl.min + ctrl.max) / 2
+        const range = ctrl.max - ctrl.min
+        // triangular distribution centered on 0: most draws land near `center`
+        const offset = (Math.random() - Math.random()) * range * RANDOMIZE_SPREAD
+        newAxes[ctrl.name] = Math.min(ctrl.max, Math.max(ctrl.min, center + offset))
       }
     })
     setAxes(newAxes)
