@@ -745,6 +745,8 @@ function App() {
     const newAxes = { ...axes }
     controlDefinitions.forEach(ctrl => {
       if (ctrl.category === 'experimental' || ctrl.category === 'debug') return
+      // reset to default before re-randomizing, so clicks don't compound
+      newAxes[ctrl.name] = defaultAxes[ctrl.name]
       if (Math.random() > RANDOMIZE_PROBABILITY) return
 
       if (ctrl.type_ === 'checkbox') {
