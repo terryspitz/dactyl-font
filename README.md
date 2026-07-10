@@ -4,23 +4,40 @@ NOTE: This README is best viewed at https://terryspitz.github.io/dactyl-font/REA
 
 ## tl;dr
 
-Play with the [Dactyl Live explorer](https://terryspitz.github.io/dactyl-font) — explore fonts interactively, or switch to the **Glyphs** tab to see how Dactyl's glyph string definitions convert to different letters.
-
-See some of the chequered development history at [Dactyl Font Gallery](gallery.html), and some sample fonts at [Sample fonts](allGlyphs.html)
+Play with the [Dactyl Live Explorer](https://terryspitz.github.io/dactyl-font) — design fonts interactively using 30+ axes, then download a custom OTF. Switch between tabs to inspect individual **Glyphs**, watch **Tweens** animate axis changes, compare **Visual Diffs** across settings, explore the **Spline** maths, or review **Proofs** with real text.
 
 ## What & Why
 
 Dactyl is a functional font generator written in F#, in service of ticking 'create a font' off my bucket list!
 
-Dactyl is parameterised with a large (and growing) number of inputs including 'axes' (parameters) common in variable fonts such as stroke thickness and x-height, and more unusual ones like roundness, end-bulbs, a broad-nib pen (nib angle), brush taper, hand-drawn wobble, and twisting mobius ribbons.
-
 It's an exercise in understanding how fonts can be built in code using both ['words and rules'](https://en.wikipedia.org/wiki/Words_and_Rules) — where the 'rules' are a minimal set of general shape logic in code along with the 'words': a minimal set of hardcoded shape data per glyph (letter).
 
-As well as generating pretty and super-controllable fonts, this work will hopefully also help me improve my AI font generator [DeeperFont](https://github.com/terryspitz/ipython_notebooks/tree/master/deeper), though at the moment the technologies are quite different and combining them will be an interesting future challenge.
+Dactyl is parameterised with a large number of inputs grouped into categories:
 
-You can explore Dactyl live in your browser using the [Dactyl Live explorer](https://terryspitz.github.io/dactyl-font).  Note the Reset and Random icons at the top. The settings deliberately extend beyond 'normal' values to show how the fonts behave (and often misbehave) under extremes.
+| Category | Axes |
+|----------|------|
+| **Backbone** | width, height, x-height, tracking, leading, monospace, italic, roundedness |
+| **Outline** | thickness, contrast, soft corners, axis-align caps, filled, smooth |
+| **Artistic** | end-bulbs, flare, serif, stroked, scratches, broad-nib pen (nib angle), taper, wobble, roughness, mobius ribbons |
+| **Experimental** | dactyl spline, spline2, constraints, constant offset, flatness, end flatness |
 
-A few predefined Dactyl fonts are available to download in the [ttf](https://github.com/terryspitz/dactyl-font/tree/SpiroFs/ttf){:target="_blank" rel="noopener"} subdirectory. Note: these fonts are still a work in progress and do not have good spacing or kerning, or even good shapes under some settings. In future I plan to make fonts downloadable after customising in the live browser.
+The settings deliberately extend beyond 'normal' values to show how the fonts behave (and often misbehave) under extremes.
+
+## Live Explorer
+
+The [Dactyl Live Explorer](https://terryspitz.github.io/dactyl-font) runs entirely in the browser. The F# source is compiled to JavaScript via [Fable](https://fable.io/), with a React front-end built by Vite. Note the Reset and Random icons at the top.
+
+### Tabs
+
+| Tab | What it shows |
+|-----|---------------|
+| **Font** | Full character set rendered with current axes; download a custom OTF |
+| **Glyphs** | Individual glyphs with underlying curve geometry |
+| **Tweens** | Animated interpolation between axis extremes |
+| **Visual Diffs** | Side-by-side comparison of two axis values or spline engines |
+| **Splines** | Interactive spline curve editor |
+| **Spline Grid** | Grid of curve variations |
+| **Proofs** | Real prose rendered with the current font for proofing |
 
 ## Documentation
 
@@ -29,11 +46,33 @@ A few predefined Dactyl fonts are available to download in the [ttf](https://git
 - [DactylSpline Documentation](docs/DactylSpline.md) — The DactylSpline curve implementation
 - [Font Rendering Pipeline](docs/FontPipeline.md) — Spine → outline → SVG pipeline, caps, serifs, and font export
 
-## Spiro Curves
+## Building
 
-Dactyl fonts initially used and were inspired by Ralph Levien's [Spiro curves](https://www.levien.com/spiro/). I used Wiesław Šoltés's [C# port](https://github.com/wieslawsoltes/SpiroNet), which I've ported to F# to run under the fantastic [Fable](https://fable.io/) to transpile to javascript, meaning I can write the whole thing in beautiful F#.
+Requires [.NET 8 SDK](https://dotnet.microsoft.com/download) and Node.js.
 
-Raph superseded his v1 Spiro curves in 2018 with [spline-research](https://github.com/raphlinus/spline-research), described in [this blog post](https://raphlinus.github.io/curves/2018/12/21/new-spline.html), which are available with the 'spline2' checkbox. These offer direct control of tangents specifically to help font design (this feature was also later added to Spiro curves as Anchor/Handles). See [Raph's talk](https://www.youtube.com/watch?v=eqNngVkMBzE).
+```bash
+dotnet restore && dotnet tool restore
+dotnet fable src/explorer --outDir web/src/lib/fable   # F# → JS
+cd web && npm ci && npm run build                       # Vite production build
+```
+
+### Tests
+
+```bash
+cd web && npm test                                              # Vitest unit tests
+dotnet test src/generator/tests/generator.tests.fsproj          # F# generator tests
+dotnet test src/SpiroFs/tests/SpiroFs.tests.fsproj              # SpiroFs tests
+```
+
+Visual/screenshot tests run against the production build via Playwright — see [CLAUDE.md](CLAUDE.md) for details.
+
+## Spline Curves
+
+Dactyl fonts initially used and were inspired by Ralph Levien's [Spiro curves](https://www.levien.com/spiro/). I used Wiesław Šoltés's [C# port](https://github.com/wieslawsoltes/SpiroNet), which I've ported to F# to run under [Fable](https://fable.io/).
+
+Raph superseded his v1 Spiro curves in 2018 with [spline-research](https://github.com/raphlinus/spline-research), described in [this blog post](https://raphlinus.github.io/curves/2018/12/21/new-spline.html). These offer direct control of tangents specifically to help font design. See [Raph's talk](https://www.youtube.com/watch?v=eqNngVkMBzE).
+
+Dactyl now also has its own **DactylSpline** engine (the default), documented in [DactylSpline](docs/DactylSpline.md).
 
 Later splines which I'd like to investigate:
 
