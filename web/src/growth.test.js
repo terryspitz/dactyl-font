@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { growStrokes, contoursToPath } from './growth'
+import { growStrokes, contoursToPath, buildGrowthField, DOPP_CAP } from './growth'
 
 const hline = (x0, x1, y) => ({ pts: [[x0, y], [x1, y]], closed: false })
 
@@ -64,6 +64,50 @@ describe('growStrokes', () => {
         const g = growStrokes(strokes, { thickness: 30, grow: 0.3, gap: 40, cell: 3, smoothPasses: 0 })
         // Connected parts merge into a single outline: no gap channel at the joint.
         expect(g.levels[0].contours.length).toBe(1)
+    })
+
+    it('jump-flooded d1 matches brute-force segment distance', () => {
+        const strokes = [
+            hline(0, 200, 0),
+            { pts: [[100, -100], [100, 100]], closed: false },
+            { pts: [[300, 0], [400, 0], [400, 100], [300, 100]], closed: true },
+        ]
+        const cell = 4
+        const field = buildGrowthField(strokes, { thickness: 30, cell })
+        expect(field).not.toBeNull()
+
+        const segDist = (px, py, x1, y1, x2, y2) => {
+            const dx = x2 - x1, dy = y2 - y1
+            const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)))
+            return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy))
+        }
+        const bruteD1 = (px, py) => {
+            let best = Infinity
+            for (const s of strokes) {
+                const n = s.pts.length
+                const segs = s.closed ? n : n - 1
+                for (let i = 0; i < segs; i++) {
+                    const [x1, y1] = s.pts[i]
+                    const [x2, y2] = s.pts[(i + 1) % n]
+                    best = Math.min(best, segDist(px, py, x1, y1, x2, y2))
+                }
+            }
+            return best
+        }
+
+        let maxErr = 0
+        for (let iy = 0; iy < field.ny; iy += 3) {
+            for (let ix = 0; ix < field.nx; ix += 3) {
+                const px = field.x0 + ix * cell
+                const py = field.y0 + iy * cell
+                const d1 = field.rg[(iy * field.nx + ix) * 2]
+                if (d1 >= DOPP_CAP) continue
+                maxErr = Math.max(maxErr, Math.abs(d1 - bruteD1(px, py)))
+            }
+        }
+        // Sampling the spine at `cell` spacing bounds the point-vs-segment
+        // discrepancy by ~cell/2; JFA seed errors are rarer and smaller.
+        expect(maxErr).toBeLessThan(cell * 0.75)
     })
 
     it('emits outward keyline bands as extra iso levels', () => {

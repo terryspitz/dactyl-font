@@ -1,47 +1,68 @@
-// Assemble a full SVG for the Grow tab: extract spines for each text line,
-// grow them with the constant-gap inflation field, and paint the iso levels.
+// Grow tab back end (runs in the worker): extract spines for each text line
+// and either build the two-channel growth field for the GPU preview
+// (generateGrowthField) or grow + contour to a full SVG (generateGrowthSvg,
+// the vector path and non-WebGL fallback).
 
 import { textToStrokes } from './glyphSpines.js'
-import { growStrokes, contoursToPath } from './growth.js'
+import { growStrokes, contoursToPath, buildGrowthField, layerIsoLevels, LAYER_COLORS } from './growth.js'
 
-// Techno-Drive-style layer stack, innermost (ink core, iso 0) first.
-const LAYER_COLORS = ['#f4fbff', '#7ec4ee', '#1660c8', '#0a0a14']
+const GROW_SCALE = 120
 
-export function generateGrowthSvg(text, axes, params = {}) {
-    const grow = params.grow ?? 0.7
-    const gap = params.gap ?? 30
-    const layers = params.layers ?? true
-    const thickness = axes.thickness
-
+/// Lay out all lines of text and collect growth-ready strokes.
+/// Lines share one field so neighbouring lines interact (and keep `gap`)
+/// just like neighbouring glyphs; spacing assumes full growth so the layout
+/// doesn't shift as `grow` changes.
+function collectStrokes(text, axes, cell) {
     const lines = text.split('\n')
-    const totalChars = lines.reduce((s, l) => s + l.length, 0)
-    if (totalChars === 0) return ''
-    // Finer field for short texts, coarser so long texts stay responsive.
-    const cell = params.cell ?? (totalChars <= 10 ? 3 : totalChars <= 30 ? 4 : 6)
-
-    // Gather strokes for all lines into one field so neighbouring lines
-    // interact (and keep `gap`) just like neighbouring glyphs.
-    const growScale = 120
     const allStrokes = []
-    let fontData = null
     lines.forEach((line, li) => {
-        if (!line) return
+        if (!line.trim()) return
         const res = textToStrokes(line, axes, cell * 2)
-        fontData = fontData ?? res.fontData
-        const lineH = (res.fontData.ascender - res.fontData.descender) + axes.leading + 2 * grow * growScale
+        const lineH = (res.fontData.ascender - res.fontData.descender) + axes.leading + 2 * GROW_SCALE
         const yOff = -li * lineH
         for (const s of res.strokes) {
             allStrokes.push({ ...s, pts: s.pts.map(([x, y]) => [x, y + yOff]) })
         }
     })
+    return allStrokes
+}
+
+/// Pick the field resolution: finer for short texts, coarser so long texts
+/// stay responsive.
+function cellFor(text) {
+    const chars = text.replace(/\s/g, '').length
+    return chars <= 10 ? 3 : chars <= 30 ? 4 : 6
+}
+
+/// Build the (d1, dOpp) field for the GPU preview.  Returns null for empty
+/// text.  The result's rg buffer is transferable.
+export function generateGrowthField(text, axes, params = {}) {
+    const cell = params.cell ?? cellFor(text)
+    const strokes = collectStrokes(text, axes, cell)
+    if (strokes.length === 0) return null
+    return buildGrowthField(strokes, {
+        thickness: axes.thickness,
+        growScale: GROW_SCALE,
+        cell,
+    })
+}
+
+/// Grow + contour to a standalone SVG string (non-WebGL fallback and the
+/// offline sample renderer).
+export function generateGrowthSvg(text, axes, params = {}) {
+    const grow = params.grow ?? 0.7
+    const gap = params.gap ?? 30
+    const layers = params.layers ?? true
+    const thickness = axes.thickness
+    const cell = params.cell ?? cellFor(text)
+
+    const allStrokes = collectStrokes(text, axes, cell)
     if (allStrokes.length === 0) return ''
 
-    const isoLevels = layers
-        ? [0, -0.4 * thickness, -0.9 * thickness, -1.5 * thickness]
-        : [0]
+    const isoLevels = layers ? layerIsoLevels(thickness) : [0]
     const colors = layers ? LAYER_COLORS : ['black']
 
-    const g = growStrokes(allStrokes, { thickness, grow, growScale, gap, cell, isoLevels })
+    const g = growStrokes(allStrokes, { thickness, grow, growScale: GROW_SCALE, gap, cell, isoLevels })
     if (!g.bbox) return ''
 
     // Outermost level first so the ink core paints on top.

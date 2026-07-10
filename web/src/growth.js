@@ -22,16 +22,23 @@
 // euclidean-close at the top but geodesically half the bowl apart, so they
 // must keep the counter open.
 //
-// Two strokes growing toward each other both stop at d1 = dOpp - gap, i.e.
-// mid-channel with `gap` of whitespace left between them.  rMax caps how far
-// strokes bulge into fully open space; with grow=0, rMax = rMin = thickness/2
-// and the result is the classic round-capped constant offset.
-//
-// The field is sampled on a regular grid and contoured with marching squares;
-// because f is continuous, linear interpolation gives smooth outlines.
-// Nested "keyline" layers are just contours of the same field at negative
-// iso values (bands outside the ink), which fuse between neighbouring glyphs
-// exactly like Y2K logotype outlines.
+// (d1, dOpp) form a two-channel quasi-SDF of the letterform, computed once
+// per text/axes change with a jump-flood transform (buildGrowthField).  Both
+// consumers derive f from it: growStrokes contours f with marching squares
+// for vector output, and GrowCanvas.jsx thresholds it in a fragment shader
+// where grow/gap/layers are just uniforms.
+
+// dOpp is capped here: values beyond every reachable rMax + gap are
+// equivalent (the growth rule clamps to rMax first), and a finite cap keeps
+// the blur pass from smearing "no opponent found" sentinels into real data.
+export const DOPP_CAP = 400
+
+// Techno-Drive-style keyline stack, innermost (ink core, iso 0) first.
+export const LAYER_COLORS = ['#f4fbff', '#7ec4ee', '#1660c8', '#0a0a14']
+
+/// Iso values matching LAYER_COLORS: the ink edge plus outward keyline bands.
+export const layerIsoLevels = (thickness) =>
+    [0, -0.4 * thickness, -0.9 * thickness, -1.5 * thickness]
 
 /// Resample a polyline (array of [x,y]) at roughly `spacing`, preserving vertices.
 function resample(pts, closed, spacing) {
@@ -53,7 +60,7 @@ function resample(pts, closed, spacing) {
     return out
 }
 
-/// Uniform-grid spatial hash over point samples for nearest-neighbour queries.
+/// Uniform-grid spatial hash over point samples, used for junction detection.
 class SampleGrid {
     constructor(xs, ys, bucket) {
         this.xs = xs
@@ -80,41 +87,6 @@ class SampleGrid {
         }
     }
 
-    /// Nearest sample to (x, y) within maxR satisfying `accept(i)` (or any, if null).
-    /// Returns { idx, d } with idx = -1 when nothing qualifies.
-    nearest(x, y, maxR, accept) {
-        const { xs, ys, bucket, nx, ny } = this
-        const cx = Math.floor((x - this.minX) / bucket)
-        const cy = Math.floor((y - this.minY) / bucket)
-        const maxRing = Math.ceil(maxR / bucket) + 1
-        let bestD2 = maxR * maxR
-        let best = -1
-        for (let ring = 0; ring <= maxRing; ring++) {
-            // No sample in a farther ring can beat the current best.
-            const ringMin = (ring - 1) * bucket
-            if (ringMin > 0 && ringMin * ringMin > bestD2) break
-            const x0 = cx - ring, x1 = cx + ring
-            const y0 = cy - ring, y1 = cy + ring
-            for (let gy = y0; gy <= y1; gy++) {
-                if (gy < 0 || gy >= ny) continue
-                const onYEdge = gy === y0 || gy === y1
-                for (let gx = x0; gx <= x1; gx++) {
-                    if (gx < 0 || gx >= nx) continue
-                    if (!onYEdge && gx !== x0 && gx !== x1) continue // ring perimeter only
-                    const cell = this.cells[gy * nx + gx]
-                    if (!cell) continue
-                    for (const i of cell) {
-                        if (accept && !accept(i)) continue
-                        const dx = xs[i] - x, dy = ys[i] - y
-                        const d2 = dx * dx + dy * dy
-                        if (d2 < bestD2) { bestD2 = d2; best = i }
-                    }
-                }
-            }
-        }
-        return { idx: best, d: best >= 0 ? Math.sqrt(bestD2) : Infinity }
-    }
-
     /// All sample indices within radius r of (x, y).
     within(x, y, r) {
         const { xs, ys, bucket, nx, ny } = this
@@ -138,13 +110,342 @@ class SampleGrid {
     }
 }
 
+/// Build the opposition structure: two samples are "same part" when the
+/// shortest path between them along the spine network (chains along each
+/// stroke, plus junction links where strokes touch) is at most `counterK`.
+///
+/// The common case — same stroke, arc distance ≤ counterK — is answered in
+/// O(1) from cumulative arc positions.  Pairs that are only same-part via a
+/// junction shortcut (a different stroke, or the far side of a bowl reached
+/// through a crossbar) are enumerated by a bounded Dijkstra and stored as
+/// per-sample sorted "extras".  (Geodesic distance is symmetric, so the
+/// relation is too.)
+function buildOpposition(xs, ys, arcPos, strokeOf, strokeTotal, strokeClosed, strokeRanges, grid, junctionEps, counterK) {
+    const n = xs.length
+
+    const arcNear = (a, b) => {
+        const s = strokeOf[a]
+        let d = Math.abs(arcPos[a] - arcPos[b])
+        if (strokeClosed[s]) d = Math.min(d, strokeTotal[s] - d)
+        return d <= counterK
+    }
+
+    const adj = Array.from({ length: n }, () => [])
+    const link = (a, b) => {
+        const w = Math.hypot(xs[a] - xs[b], ys[a] - ys[b])
+        adj[a].push([b, w])
+        adj[b].push([a, w])
+    }
+    // Chain edges along each stroke.
+    for (let si = 0; si < strokeRanges.length; si++) {
+        const [start, end] = strokeRanges[si]
+        for (let i = start; i < end - 1; i++) link(i, i + 1)
+        if (strokeClosed[si] && end - start > 2) link(end - 1, start)
+    }
+    // Junction edges between different strokes that touch.
+    const eps2 = junctionEps * junctionEps
+    let junctions = 0
+    for (let i = 0; i < n; i++) {
+        for (const j of grid.within(xs[i], ys[i], junctionEps)) {
+            if (j > i && strokeOf[j] !== strokeOf[i]) {
+                const dx = xs[i] - xs[j], dy = ys[i] - ys[j]
+                if (dx * dx + dy * dy <= eps2) { link(i, j); junctions++ }
+            }
+        }
+    }
+
+    // Bounded Dijkstra from every sample; record only pairs the O(1) arc rule
+    // can't answer.  With no junctions the whole letterform has no extras.
+    const extras = new Array(n).fill(null)
+    if (junctions > 0) {
+        const dist = new Map()
+        for (let src = 0; src < n; src++) {
+            dist.clear()
+            dist.set(src, 0)
+            const heap = [[0, src]] // tiny local frontier: array-as-heap is fine
+            let members = null
+            while (heap.length) {
+                let mi = 0
+                for (let i = 1; i < heap.length; i++) if (heap[i][0] < heap[mi][0]) mi = i
+                const [d, u] = heap.splice(mi, 1)[0]
+                if (d > (dist.get(u) ?? Infinity)) continue
+                for (const [v, w] of adj[u]) {
+                    const nd = d + w
+                    if (nd <= counterK && nd < (dist.get(v) ?? Infinity)) {
+                        if (!dist.has(v) && (strokeOf[v] !== strokeOf[src] || !arcNear(src, v))) {
+                            if (!members) members = []
+                            members.push(v)
+                        }
+                        dist.set(v, nd)
+                        heap.push([nd, v])
+                    }
+                }
+            }
+            if (members) extras[src] = Int32Array.from(members).sort()
+        }
+    }
+
+    /// Binary search in a sorted Int32Array.
+    const inSorted = (arr, v) => {
+        let lo = 0, hi = arr.length - 1
+        while (lo <= hi) {
+            const mid = (lo + hi) >> 1
+            if (arr[mid] === v) return true
+            if (arr[mid] < v) lo = mid + 1
+            else hi = mid - 1
+        }
+        return false
+    }
+
+    return (a, b) => {
+        if (strokeOf[a] === strokeOf[b] && arcNear(a, b)) return true
+        const ex = extras[a]
+        return ex !== null && inSorted(ex, b)
+    }
+}
+
+/// Two-channel distance transform over the field grid: for every cell, the
+/// nearest sample i1 and the nearest sample opposing i1 (i2, geodesically far
+/// from i1 per `samePart`).  Uses dead-reckoning sweeps — the cache-friendly
+/// cousin of jump flooding: two forward/backward rounds propagating seed ids
+/// from already-visited neighbours, with distances computed exactly to the
+/// chosen seed.  Only *which* seed wins is approximate, with rare, small
+/// errors (and the dOpp blur downstream hides seed flips anyway).
+function distanceSweep(xs, ys, samePart, nx, ny, x0, y0, cell) {
+    const nCells = nx * ny
+    const i1 = new Int32Array(nCells).fill(-1)
+    const i2 = new Int32Array(nCells).fill(-1)
+    const d1sq = new Float64Array(nCells).fill(Infinity)
+    const d2sq = new Float64Array(nCells).fill(Infinity)
+
+    /// Offer candidate sample c to cell k (centre cx, cy).
+    const offer = (k, cx, cy, c) => {
+        const a = i1[k]
+        if (c === a || c === i2[k]) return
+        const dx = xs[c] - cx, dy = ys[c] - cy
+        const dc = dx * dx + dy * dy
+        if (a < 0) { i1[k] = c; d1sq[k] = dc; return }
+        if (dc < d1sq[k]) {
+            // c dethrones a; a may become the opposition candidate.
+            if (!samePart(c, a)) {
+                if (i2[k] < 0 || d1sq[k] < d2sq[k] || samePart(c, i2[k])) { i2[k] = a; d2sq[k] = d1sq[k] }
+            } else if (i2[k] >= 0 && samePart(c, i2[k])) {
+                i2[k] = -1; d2sq[k] = Infinity // old opposition is same-part with the new winner
+            }
+            i1[k] = c
+            d1sq[k] = dc
+        } else if (dc < d2sq[k] && !samePart(a, c)) {
+            i2[k] = c
+            d2sq[k] = dc
+        }
+    }
+
+    // Seed: every sample offers itself to its own cell.
+    for (let s = 0; s < xs.length; s++) {
+        const ix = Math.min(nx - 1, Math.max(0, Math.round((xs[s] - x0) / cell)))
+        const iy = Math.min(ny - 1, Math.max(0, Math.round((ys[s] - y0) / cell)))
+        offer(iy * nx + ix, x0 + ix * cell, y0 + iy * cell, s)
+    }
+
+    const gather = (k, cx, cy, j) => {
+        const c1 = i1[j]
+        if (c1 >= 0) offer(k, cx, cy, c1)
+        const c2 = i2[j]
+        if (c2 >= 0) offer(k, cx, cy, c2)
+    }
+
+    for (let round = 0; round < 2; round++) {
+        // Forward: gather from W, NW, N, NE (already visited this pass).
+        for (let iy = 0; iy < ny; iy++) {
+            const cy = y0 + iy * cell
+            const row = iy * nx
+            for (let ix = 0; ix < nx; ix++) {
+                const k = row + ix
+                const cx = x0 + ix * cell
+                if (ix > 0) gather(k, cx, cy, k - 1)
+                if (iy > 0) {
+                    const up = k - nx
+                    if (ix > 0) gather(k, cx, cy, up - 1)
+                    gather(k, cx, cy, up)
+                    if (ix < nx - 1) gather(k, cx, cy, up + 1)
+                }
+            }
+        }
+        // Backward: gather from E, SE, S, SW.
+        for (let iy = ny - 1; iy >= 0; iy--) {
+            const cy = y0 + iy * cell
+            const row = iy * nx
+            for (let ix = nx - 1; ix >= 0; ix--) {
+                const k = row + ix
+                const cx = x0 + ix * cell
+                if (ix < nx - 1) gather(k, cx, cy, k + 1)
+                if (iy < ny - 1) {
+                    const dn = k + nx
+                    if (ix < nx - 1) gather(k, cx, cy, dn + 1)
+                    gather(k, cx, cy, dn)
+                    if (ix > 0) gather(k, cx, cy, dn - 1)
+                }
+            }
+        }
+    }
+    return { i1, i2, d1sq, d2sq }
+}
+
+/// In-place 3×3 binomial blur of one channel of an interleaved field
+/// (repeated `passes` times).  The dOpp channel has small discontinuities
+/// where the nearest sample flips between distant parts of the skeleton;
+/// blurring removes the resulting contour tears.
+function blurChannel(rg, channel, nx, ny, passes) {
+    if (passes <= 0) return
+    const tmp = new Float32Array(nx * ny)
+    const out = new Float32Array(nx * ny)
+    for (let p = 0; p < passes; p++) {
+        for (let iy = 0; iy < ny; iy++) {
+            const row = iy * nx
+            for (let ix = 0; ix < nx; ix++) {
+                const l = rg[(row + Math.max(0, ix - 1)) * 2 + channel]
+                const c = rg[(row + ix) * 2 + channel]
+                const r = rg[(row + Math.min(nx - 1, ix + 1)) * 2 + channel]
+                tmp[row + ix] = (l + 2 * c + r) / 4
+            }
+        }
+        for (let iy = 0; iy < ny; iy++) {
+            const up = Math.max(0, iy - 1) * nx
+            const dn = Math.min(ny - 1, iy + 1) * nx
+            const row = iy * nx
+            for (let ix = 0; ix < nx; ix++) {
+                out[row + ix] = (tmp[up + ix] + 2 * tmp[row + ix] + tmp[dn + ix]) / 4
+            }
+        }
+        for (let k = 0; k < nx * ny; k++) rg[k * 2 + channel] = out[k]
+    }
+}
+
+/// 3×3 binomial blur of a plain field array, repeated `passes` times.
+function blurField(f, nx, ny, passes) {
+    if (passes <= 0) return f
+    let src = f
+    let dst = new Float32Array(f.length)
+    const tmp = new Float32Array(f.length)
+    for (let p = 0; p < passes; p++) {
+        for (let iy = 0; iy < ny; iy++) {
+            const row = iy * nx
+            for (let ix = 0; ix < nx; ix++) {
+                const l = src[row + Math.max(0, ix - 1)]
+                const r = src[row + Math.min(nx - 1, ix + 1)]
+                tmp[row + ix] = (l + 2 * src[row + ix] + r) / 4
+            }
+        }
+        for (let iy = 0; iy < ny; iy++) {
+            const up = Math.max(0, iy - 1) * nx
+            const dn = Math.min(ny - 1, iy + 1) * nx
+            const row = iy * nx
+            for (let ix = 0; ix < nx; ix++) {
+                dst[row + ix] = (tmp[up + ix] + 2 * tmp[row + ix] + tmp[dn + ix]) / 4
+            }
+        }
+        ;[src, dst] = [dst, src]
+    }
+    return src
+}
+
+/// Build the two-channel growth field for a set of strokes: for every grid
+/// cell, rg[2k] = d1 (distance to the nearest spine sample) and rg[2k+1] =
+/// dOpp (distance to the nearest sample opposing it, capped at DOPP_CAP).
+/// The field is independent of grow/gap, so consumers can vary those freely
+/// (a fragment shader treats them as uniforms; growStrokes recontours).
+///
+/// strokes: [{ pts: [[x,y],...], closed: bool }] in font units (y up).
+/// opts:
+///   thickness  – classic stroke thickness (sets junction scale and padding)
+///   growScale  – max extra radius the field must accommodate (default 120)
+///   counterK   – geodesic opposition threshold (default 2.2*thickness + 40)
+///   cell       – field grid spacing in font units (default 4)
+///   maxOutward – farthest outward keyline band to leave room for
+///                (default 1.5*thickness)
+export function buildGrowthField(strokes, opts = {}) {
+    const thickness = opts.thickness ?? 30
+    const growScale = opts.growScale ?? 120
+    const counterK = opts.counterK ?? 2.2 * thickness + 40
+    const cell = opts.cell ?? 4
+    const maxOutward = opts.maxOutward ?? 1.5 * thickness
+
+    // --- Sample all spines, tracking cumulative arc position per sample ---
+    const sx = [], sy = [], sid = [], sarc = []
+    const strokeRanges = []
+    const closedFlags = []
+    const totals = []
+    for (const stroke of strokes) {
+        const pts = stroke.pts.length >= 2
+            ? resample(stroke.pts, stroke.closed, cell)
+            : stroke.pts // single point (a Dot)
+        const start = sx.length
+        let arc = 0
+        for (let i = 0; i < pts.length; i++) {
+            if (i > 0) arc += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])
+            sx.push(pts[i][0])
+            sy.push(pts[i][1])
+            sid.push(strokeRanges.length)
+            sarc.push(arc)
+        }
+        // Closed strokes wrap: total includes the closing segment.
+        if (stroke.closed && pts.length > 2) {
+            arc += Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1])
+        }
+        strokeRanges.push([start, sx.length])
+        closedFlags.push(!!stroke.closed)
+        totals.push(Math.max(arc, 1e-9))
+    }
+    if (sx.length === 0) return null
+    const xs = Float64Array.from(sx)
+    const ys = Float64Array.from(sy)
+    const strokeOf = Int32Array.from(sid)
+    const arcPos = Float64Array.from(sarc)
+    const strokeTotal = Float64Array.from(totals)
+    const strokeClosed = Uint8Array.from(closedFlags.map(c => c ? 1 : 0))
+    const grid = new SampleGrid(xs, ys, Math.max(16, cell * 6))
+
+    // Geodesic same-part relation: strokes touching within ~a sample spacing
+    // are joined; everything beyond counterK along the network opposes.
+    const samePart = buildOpposition(
+        xs, ys, arcPos, strokeOf, strokeTotal, strokeClosed, strokeRanges, grid, cell * 2.2, counterK)
+
+    // --- Field bounds: pad enough for full growth plus the outermost band,
+    // so every contour closes inside the grid at any grow value. ---
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (let i = 0; i < xs.length; i++) {
+        if (xs[i] < minX) minX = xs[i]
+        if (xs[i] > maxX) maxX = xs[i]
+        if (ys[i] < minY) minY = ys[i]
+        if (ys[i] > maxY) maxY = ys[i]
+    }
+    const pad = thickness / 2 + growScale + maxOutward + 4 * cell
+    const x0 = minX - pad, y0 = minY - pad
+    const nx = Math.ceil((maxX + pad - x0) / cell) + 1
+    const ny = Math.ceil((maxY + pad - y0) / cell) + 1
+
+    // --- Distance sweeps, then extract distances to the winning seeds ---
+    const { i1, i2, d1sq, d2sq } = distanceSweep(xs, ys, samePart, nx, ny, x0, y0, cell)
+    const rg = new Float32Array(nx * ny * 2)
+    for (let k = 0; k < nx * ny; k++) {
+        rg[k * 2] = i1[k] < 0 ? DOPP_CAP : Math.sqrt(d1sq[k])
+        rg[k * 2 + 1] = i2[k] < 0 ? DOPP_CAP : Math.min(DOPP_CAP, Math.sqrt(d2sq[k]))
+    }
+    // Smooth the opposition channel only: d1 is a true distance and already
+    // continuous, dOpp jumps where the winning seed flips (and the sweep's
+    // occasional wrong-seed picks land in the same discontinuities).
+    blurChannel(rg, 1, nx, ny, 2)
+
+    return { rg, nx, ny, x0, y0, cell, samples: xs.length, thickness, growScale }
+}
+
 /// Marching squares at iso value `iso` over field f (ny rows × nx cols, grid
 /// spacing h, origin x0/y0).  Returns closed contours as arrays of [x,y].
 /// Assumes the field border is below every iso used (padded), so all contours close.
 function marchingSquares(f, nx, ny, x0, y0, h, iso) {
     // Key each contour segment by its start/end cell-edge so successive
     // segments chain into polylines.  Edge id: (edge orientation, ix, iy).
-    const segStarts = new Map() // edgeKey -> { to: edgeKey, pt: [x,y] }
+    const segStarts = new Map() // edgeKey -> next edgeKey
     const ptOf = new Map()      // edgeKey -> interpolated point
 
     const edgeKey = (ix, iy, horiz) => (iy * (nx + 1) + ix) * 2 + (horiz ? 1 : 0)
@@ -231,95 +532,6 @@ function marchingSquares(f, nx, ny, x0, y0, h, iso) {
     return contours
 }
 
-/// Per-sample sets of geodesically-near samples ("same part of the letterform").
-/// Samples are chained along each stroke; strokes that touch are linked where
-/// they come within `junctionEps`.  A bounded Dijkstra from each sample marks
-/// everything within geodesic distance `counterK` as same-part; all other
-/// samples oppose it.
-function buildSamePartSets(xs, ys, strokeOf, strokeRanges, closedFlags, grid, junctionEps, counterK) {
-    const n = xs.length
-    const adj = Array.from({ length: n }, () => [])
-    const link = (a, b) => {
-        const w = Math.hypot(xs[a] - xs[b], ys[a] - ys[b])
-        adj[a].push([b, w])
-        adj[b].push([a, w])
-    }
-    // Chain edges along each stroke.
-    for (const [start, end, closed] of strokeRanges.map((r, i) => [r[0], r[1], closedFlags[i]])) {
-        for (let i = start; i < end - 1; i++) link(i, i + 1)
-        if (closed && end - start > 2) link(end - 1, start)
-    }
-    // Junction edges between different strokes that touch.
-    const eps2 = junctionEps * junctionEps
-    for (let i = 0; i < n; i++) {
-        const near = grid.within(xs[i], ys[i], junctionEps)
-        for (const j of near) {
-            if (j > i && strokeOf[j] !== strokeOf[i]) {
-                const dx = xs[i] - xs[j], dy = ys[i] - ys[j]
-                if (dx * dx + dy * dy <= eps2) link(i, j)
-            }
-        }
-    }
-    // Bounded Dijkstra from every sample (the reachable set is small: a
-    // counterK-long stretch of chain plus junction spill-over).
-    const sets = new Array(n)
-    const dist = new Map()
-    for (let src = 0; src < n; src++) {
-        dist.clear()
-        dist.set(src, 0)
-        const heap = [[0, src]] // tiny local frontier: array-as-heap is fine
-        const members = new Set([src])
-        while (heap.length) {
-            let mi = 0
-            for (let i = 1; i < heap.length; i++) if (heap[i][0] < heap[mi][0]) mi = i
-            const [d, u] = heap.splice(mi, 1)[0]
-            if (d > (dist.get(u) ?? Infinity)) continue
-            for (const [v, w] of adj[u]) {
-                const nd = d + w
-                if (nd <= counterK && nd < (dist.get(v) ?? Infinity)) {
-                    dist.set(v, nd)
-                    members.add(v)
-                    heap.push([nd, v])
-                }
-            }
-        }
-        sets[src] = members
-    }
-    return sets
-}
-
-/// In-place 3×3 binomial blur of the field (repeated `passes` times).  The raw
-/// field has small discontinuities where the nearest sample flips between
-/// distant parts of the skeleton; blurring removes the resulting contour tears.
-function blurField(f, nx, ny, passes) {
-    if (passes <= 0) return f
-    let src = f
-    let dst = new Float32Array(f.length)
-    const tmp = new Float32Array(f.length)
-    for (let p = 0; p < passes; p++) {
-        // horizontal [1 2 1]/4
-        for (let iy = 0; iy < ny; iy++) {
-            const row = iy * nx
-            for (let ix = 0; ix < nx; ix++) {
-                const l = src[row + Math.max(0, ix - 1)]
-                const r = src[row + Math.min(nx - 1, ix + 1)]
-                tmp[row + ix] = (l + 2 * src[row + ix] + r) / 4
-            }
-        }
-        // vertical [1 2 1]/4
-        for (let iy = 0; iy < ny; iy++) {
-            const up = Math.max(0, iy - 1) * nx
-            const dn = Math.min(ny - 1, iy + 1) * nx
-            const row = iy * nx
-            for (let ix = 0; ix < nx; ix++) {
-                dst[row + ix] = (tmp[up + ix] + 2 * tmp[row + ix] + tmp[dn + ix]) / 4
-            }
-        }
-        ;[src, dst] = [dst, src]
-    }
-    return src
-}
-
 /// Ramer–Douglas–Peucker simplification of a closed contour.
 function simplify(pts, eps) {
     if (pts.length < 8) return pts
@@ -354,7 +566,9 @@ function simplify(pts, eps) {
     return out
 }
 
-/// Grow strokes into a field and contour it.
+/// Grow strokes into a field and contour it (the vector path: SVG, and later
+/// OTF export).  For interactive preview prefer buildGrowthField + the
+/// GrowCanvas shader, which shares the same field and rule.
 ///
 /// strokes: [{ pts: [[x,y],...], closed: bool }] in font units (y up).
 /// params:
@@ -362,12 +576,12 @@ function simplify(pts, eps) {
 ///   grow       – 0..1: how far strokes may bulge beyond classic (0 = classic offset)
 ///   growScale  – max extra radius at grow=1 (default 120)
 ///   gap        – whitespace channel preserved between opposing strokes
-///   counterK   – samples farther apart than this (geodesically, along the spine
-///                network) oppose each other (default 2.2*thickness + gap)
+///   counterK   – geodesic opposition threshold (default 2.2*thickness + 40)
 ///   cell       – field grid spacing in font units (default 4)
 ///   isoLevels  – field iso values to contour, e.g. [0, -14, -30]; 0 is the ink edge,
 ///                negative values are outward keyline bands (default [0])
-///   smoothPasses – 3×3 blur passes over the field before contouring (default 2)
+///   smoothPasses – extra 3×3 blur passes over f before contouring (default 1;
+///                the dOpp channel is already smoothed once at field build)
 ///
 /// Returns { levels: [{ iso, contours }], bbox: {x0,y0,x1,y1}, stats }.
 export function growStrokes(strokes, params = {}) {
@@ -375,73 +589,28 @@ export function growStrokes(strokes, params = {}) {
     const grow = params.grow ?? 0.5
     const growScale = params.growScale ?? 120
     const gap = params.gap ?? thickness * 0.8
-    const counterK = params.counterK ?? 2.2 * thickness + gap
     const cell = params.cell ?? 4
     const isoLevels = params.isoLevels ?? [0]
-    const smoothPasses = params.smoothPasses ?? 2
+    const smoothPasses = params.smoothPasses ?? 1
 
+    const field = buildGrowthField(strokes, {
+        thickness,
+        growScale,
+        counterK: params.counterK,
+        cell,
+        maxOutward: Math.max(1.5 * thickness, -Math.min(...isoLevels)),
+    })
+    if (!field) return { levels: isoLevels.map(iso => ({ iso, contours: [] })), bbox: null, stats: {} }
+
+    const { rg, nx, ny, x0, y0 } = field
     const rMin = thickness / 2
     const rMax = rMin + grow * growScale
-    const outward = Math.max(0, -Math.min(...isoLevels)) // farthest outward band
-    const fieldRange = rMax + outward + 2 * cell         // beyond this, f is "far outside"
-    const farValue = -(fieldRange + cell)
 
-    // --- Sample all spines ---
-    const sx = [], sy = [], sid = []
-    const strokeRanges = []
-    const closedFlags = []
-    for (const stroke of strokes) {
-        const pts = stroke.pts.length >= 2
-            ? resample(stroke.pts, stroke.closed, cell)
-            : stroke.pts // single point (a Dot)
-        const start = sx.length
-        for (const [x, y] of pts) { sx.push(x); sy.push(y); sid.push(strokeRanges.length) }
-        strokeRanges.push([start, sx.length])
-        closedFlags.push(!!stroke.closed)
+    let f = new Float32Array(nx * ny)
+    for (let k = 0; k < nx * ny; k++) {
+        const rAllowed = Math.max(rMin, Math.min(rMax, rg[k * 2 + 1] - gap))
+        f[k] = rAllowed - rg[k * 2]
     }
-    if (sx.length === 0) return { levels: isoLevels.map(iso => ({ iso, contours: [] })), bbox: null, stats: {} }
-    const xs = Float64Array.from(sx)
-    const ys = Float64Array.from(sy)
-    const strokeOf = Int32Array.from(sid)
-    const grid = new SampleGrid(xs, ys, Math.max(16, cell * 6))
-
-    // Geodesic same-part sets: strokes touching within ~a sample spacing are
-    // joined; everything beyond counterK along the network opposes.
-    const samePart = buildSamePartSets(
-        xs, ys, strokeOf, strokeRanges, closedFlags, grid, cell * 2.2, counterK)
-
-    // --- Field bounds (pad so every contour closes inside the grid) ---
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-    for (let i = 0; i < xs.length; i++) {
-        if (xs[i] < minX) minX = xs[i]
-        if (xs[i] > maxX) maxX = xs[i]
-        if (ys[i] < minY) minY = ys[i]
-        if (ys[i] > maxY) maxY = ys[i]
-    }
-    const pad = fieldRange + 2 * cell
-    const x0 = minX - pad, y0 = minY - pad
-    const nx = Math.ceil((maxX + pad - x0) / cell) + 1
-    const ny = Math.ceil((maxY + pad - y0) / cell) + 1
-
-    // --- Evaluate f = rAllowed - d1 on the grid ---
-    let f = new Float32Array(nx * ny).fill(farValue)
-    // dOpp only constrains while dOpp - gap < rMax; search a little past that.
-    const oppSearchR = rMax + gap + fieldRange
-    let cellsEvaluated = 0
-    for (let iy = 0; iy < ny; iy++) {
-        const y = y0 + iy * cell
-        for (let ix = 0; ix < nx; ix++) {
-            const x = x0 + ix * cell
-            const n1 = grid.nearest(x, y, fieldRange + cell, null)
-            if (n1.idx < 0) continue
-            cellsEvaluated++
-            const mine = samePart[n1.idx]
-            const opp = grid.nearest(x, y, oppSearchR, (i) => !mine.has(i))
-            const rAllowed = Math.max(rMin, Math.min(rMax, opp.d - gap))
-            f[iy * nx + ix] = rAllowed - n1.d
-        }
-    }
-
     f = blurField(f, nx, ny, smoothPasses)
 
     // --- Contour each requested level ---
@@ -465,8 +634,8 @@ export function growStrokes(strokes, params = {}) {
 
     return {
         levels,
-        bbox: { x0: minX - pad, y0: minY - pad, x1: maxX + pad, y1: maxY + pad },
-        stats: { samples: xs.length, gridCells: nx * ny, cellsEvaluated, rMin, rMax },
+        bbox: { x0, y0, x1: x0 + (nx - 1) * cell, y1: y0 + (ny - 1) * cell },
+        stats: { samples: field.samples, gridCells: nx * ny, rMin, rMax },
     }
 }
 

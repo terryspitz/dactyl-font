@@ -132,3 +132,39 @@ Beyond filling space, rules about *relationships*:
 4. Then unlock `grow_rule` as a dropdown: `inflate | life | reaction-diffusion
    | differential | branching`, each reusing the same seed/rasterise/vectorise
    scaffolding.
+
+## SDF directions (added after the first slice shipped)
+
+The shipped growth field `f = rAllowed − d1` is already *almost* a signed
+distance field: its zero iso-contour is the letter edge, and wherever no
+opposition is active it is a true SDF (|∇f| = 1).  Making that explicit
+unlocks the standard SDF toolbox:
+
+1. **Jump-flood the field instead of per-cell nearest searches.**  Splat the
+   spine samples into the grid and run a jump-flood (JFA) pass that gives
+   every cell its nearest sample *and* that sample's id in O(cells),
+   independent of sample count; a second candidate slot constrained to
+   "opposes the first" yields dOpp.  The field then costs milliseconds, not
+   seconds, and is computed once per text/axes change.
+2. **Threshold the field in a fragment shader.**  Upload (d1, dOpp) as a
+   two-channel texture; the shader computes f and paints every keyline band
+   as just another threshold of the same texture with `smoothstep` AA.
+   grow / gap / layers become uniforms — dragging sliders never recomputes
+   anything, and animating the threshold makes letters visibly grow.
+   Marching squares remains only as the vector export path.
+3. **Shape algebra.**  smooth-min between per-glyph SDFs = controllable
+   fusion/ligatures (a blend-radius `fuse` slider); erode-then-dilate =
+   a field-space `soft_corners`; subtraction = counter protection.
+4. **Exact segment SDFs.**  Distance to the resampled polyline's *segments*
+   (capsule SDF) instead of to point samples decouples field accuracy from
+   sample spacing.
+5. **MSDF export.**  Dactyl generates the field natively, so exporting
+   multi-channel SDF atlases (msdfgen-style) for game/GPU text rendering is
+   unusually direct.
+6. **Farther out:** domain-warp the field with noise for field-space wobble;
+   run reaction–diffusion inside the SDF band so patterns hug the letterform;
+   extract the ridge (medial axis) of an *imported* font's SDF to
+   reverse-engineer backbones — Dactyl-izing arbitrary fonts.
+
+Status: items 1–2 are implemented (JFA in `web/src/growth.js`, shader
+preview in `web/src/GrowCanvas.jsx`); 3–6 are open.

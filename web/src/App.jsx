@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, allChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
+import GrowCanvas from './GrowCanvas'
 import { downloadFont, buildFontDataUrl } from './fontExport'
 import { buildCompareOverlaySvg } from './fontCompare'
 import FontCompareControls from './FontCompareControls'
@@ -124,7 +125,14 @@ function App() {
     () => new URLSearchParams(window.location.search).get('tween') || ''
   )
   // Grow tab: constant-gap growth parameters (see growth.js)
-  const [growParams, setGrowParams] = useState({ grow: 0.7, gap: 30, layers: true })
+  const [growParams, setGrowParams] = useState({ grow: 0.7, gap: 30, layers: true, animate: false })
+  // Grow tab GPU path: the worker builds the (d1, dOpp) field once per
+  // text/axes change; sliders only move shader uniforms (see GrowCanvas.jsx).
+  // Without WebGL2 the tab falls back to the worker-side SVG render.
+  const [growField, setGrowField] = useState(null)
+  const supportsWebGL2 = useMemo(() => {
+    try { return !!document.createElement('canvas').getContext('webgl2') } catch { return false }
+  }, [])
 
   // Check URL on mount
   useEffect(() => {
@@ -476,6 +484,13 @@ function App() {
       const { axesA, axesB, labelA, labelB } = getDiffAxes(axes, diffConfig)
       args = [text || allChars, axesA, axesB, labelA, labelB]
     } else if (activeTab === 'grow') {
+      if (supportsWebGL2) {
+        // GPU path has its own dedicated effect — skip
+        setLoading(false)
+        clearTimeout(timer)
+        worker.terminate()
+        return
+      }
       if (!text) {
         setWorkerResult("")
         setLoading(false)
@@ -543,6 +558,41 @@ function App() {
       worker.terminate()
     }
   }, [axes, activeTab])
+
+  // Dedicated effect for the Grow tab GPU path: rebuild the growth field only
+  // when text/axes change.  growParams are shader uniforms and don't re-trigger.
+  useEffect(() => {
+    if (activeTab !== 'grow' || !supportsWebGL2) return
+    if (!text) { setGrowField(null); return }
+
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    const id = ++renderIdRef.current
+    setLoading(true)
+    loadingRef.current = true
+    setError(null)
+
+    const timer = setTimeout(() => {
+      if (id === renderIdRef.current && loadingRef.current) setShowProgress(true)
+    }, 1000)
+
+    worker.onmessage = (e) => {
+      const { id: msgId, result, error } = e.data
+      if (msgId !== renderIdRef.current) return
+      clearTimeout(timer)
+      if (error) { setError(error) }
+      else { setGrowField(result); setError(null) }
+      setLoading(false)
+      loadingRef.current = false
+      setShowProgress(false)
+    }
+
+    worker.postMessage({ id, type: 'growthField', args: [text, axes] })
+
+    return () => {
+      clearTimeout(timer)
+      worker.terminate()
+    }
+  }, [text, axes, activeTab, supportsWebGL2])
 
   // Inject/update the @font-face rule whenever a new proof font data URL arrives.
   useEffect(() => {
@@ -641,6 +691,13 @@ function App() {
 
     // Visual Diffs has its own renderer (axis worker SVG or compare-font mode).
     if (activeTab === 'visualDiffs') return renderVisualDiffs()
+
+    // Grow tab GPU path: render the field via the WebGL canvas (sliders are
+    // shader uniforms).  Falls through to the worker SVG result without WebGL2.
+    if (activeTab === 'grow' && supportsWebGL2) {
+      if (!growField) return null
+      return <GrowCanvas field={growField} params={growParams} zoom={zoom} />
+    }
 
     // Safety check: ensure result matches expected type for tab
     const content = workerResult
@@ -883,6 +940,16 @@ function App() {
                   onChange={e => setGrowParams(p => ({ ...p, layers: e.target.checked }))}
                 />
               </label>
+              {supportsWebGL2 && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  animate
+                  <input
+                    type="checkbox"
+                    checked={growParams.animate}
+                    onChange={e => setGrowParams(p => ({ ...p, animate: e.target.checked }))}
+                  />
+                </label>
+              )}
             </div>
           )}
           {activeTab === 'proofs' && (
@@ -1073,7 +1140,7 @@ function App() {
             </button>
           </div>
           <div ref={previewRef} className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`} style={activeTab === 'splineGrid' ? { padding: 0 } : undefined}>
-            <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: (activeTab === 'tweens' || activeTab === 'proofs') ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
+            <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: (activeTab === 'tweens' || activeTab === 'proofs' || (activeTab === 'grow' && supportsWebGL2)) ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
               {renderContent()}
             </div>
           </div>
