@@ -132,6 +132,9 @@ function App() {
   // Without WebGL2 the tab falls back to the worker-side SVG render.
   const [growField, setGrowField] = useState(null)
   const [savingGrow, setSavingGrow] = useState(false)
+  const [growCopied, setGrowCopied] = useState(false)
+  const [growMenuOpen, setGrowMenuOpen] = useState(false)
+  const growMenuRef = useRef(null)
   const supportsWebGL2 = useMemo(() => {
     try { return !!document.createElement('canvas').getContext('webgl2') } catch { return false }
   }, [])
@@ -526,6 +529,21 @@ function App() {
     }
   }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, growParams])
 
+  // Close the Grow download-format menu on outside click / Escape.
+  useEffect(() => {
+    if (!growMenuOpen) return
+    const onDown = (e) => {
+      if (growMenuRef.current && !growMenuRef.current.contains(e.target)) setGrowMenuOpen(false)
+    }
+    const onKey = (e) => { if (e.key === 'Escape') setGrowMenuOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [growMenuOpen])
+
   // Dedicated effect for proofs tab: generates full font and builds a data URL.
   // Deps are [axes, activeTab] only — switching proof text doesn't re-trigger.
   // Old font stays visible until the new one arrives (proofFontUrl is not cleared).
@@ -816,6 +834,7 @@ function App() {
   })
 
   const handleDownloadGrow = async (format) => {
+    setGrowMenuOpen(false)
     setSavingGrow(true)
     setError(null)
     try {
@@ -831,6 +850,30 @@ function App() {
       }
     } catch (e) {
       setError(`Grow ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingGrow(false)
+    }
+  }
+
+  // Copy the grown logotype as a PNG to the clipboard.  ClipboardItem is fed a
+  // Promise<Blob> so Safari can defer the async rasterise inside the user
+  // gesture; Chrome/Firefox accept it too.
+  const handleCopyGrow = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    setSavingGrow(true)
+    setError(null)
+    try {
+      const svg = await requestGrowthSvg()
+      if (!svg) throw new Error('nothing to copy')
+      const png = await svgToPngBlob(svg, { scale: 3, background: null })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setGrowCopied(true)
+      setTimeout(() => setGrowCopied(false), 1500)
+    } catch (e) {
+      setError(`Grow copy failed: ${e.message}`)
     } finally {
       setSavingGrow(false)
     }
@@ -991,28 +1034,57 @@ function App() {
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '4px' }}>
                 <button
                   className="icon-button"
-                  onClick={() => handleDownloadGrow('png')}
+                  onClick={handleCopyGrow}
                   disabled={savingGrow || !text}
-                  title="Download PNG (transparent, high-res)"
-                  style={{ display: 'flex', alignItems: 'center', gap: '4px', width: 'auto', padding: '0 8px' }}
+                  title="Copy PNG to clipboard"
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                    {savingGrow ? 'hourglass_empty' : 'image'}
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                    {growCopied ? 'check' : 'content_copy'}
                   </span>
-                  PNG
                 </button>
-                <button
-                  className="icon-button"
-                  onClick={() => handleDownloadGrow('svg')}
-                  disabled={savingGrow || !text}
-                  title="Download SVG (vector)"
-                  style={{ display: 'flex', alignItems: 'center', gap: '4px', width: 'auto', padding: '0 8px' }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                    {savingGrow ? 'hourglass_empty' : 'download'}
-                  </span>
-                  SVG
-                </button>
+                {/* Download defaults to PNG; the caret opens a PNG/SVG menu. */}
+                <span ref={growMenuRef} className="grow-download-split" style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
+                  <button
+                    className="icon-button"
+                    onClick={() => handleDownloadGrow('png')}
+                    disabled={savingGrow || !text}
+                    title="Download PNG (transparent, high-res)"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                      {savingGrow ? 'hourglass_empty' : 'download'}
+                    </span>
+                  </button>
+                  <button
+                    className="icon-button"
+                    onClick={() => setGrowMenuOpen(o => !o)}
+                    disabled={savingGrow || !text}
+                    title="Choose download format"
+                    aria-haspopup="menu"
+                    aria-expanded={growMenuOpen}
+                    style={{ width: '24px', minWidth: '24px', padding: '6px 0' }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_drop_down</span>
+                  </button>
+                  {growMenuOpen && (
+                    <div
+                      role="menu"
+                      style={{
+                        position: 'absolute', top: '100%', right: 0, marginTop: '4px', zIndex: 20,
+                        background: 'var(--panel-bg)', border: '1px solid var(--border-color)',
+                        borderRadius: 'var(--radius-md)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden', minWidth: '160px',
+                      }}
+                    >
+                      <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadGrow('png')}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>image</span>
+                        PNG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>transparent</span>
+                      </button>
+                      <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadGrow('svg')}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>polyline</span>
+                        SVG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>vector</span>
+                      </button>
+                    </div>
+                  )}
+                </span>
               </span>
             </div>
           )}
