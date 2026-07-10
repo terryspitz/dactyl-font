@@ -32,6 +32,13 @@ type Axes =
       outline: bool //use thickness to expand stroke width
       stroked: bool //each stroke is 4 parallel lines
       scratches: bool //horror/paint strokes font
+      nib: float //broad-nib pen: stroke width follows stroke direction (0=off, 1=full nib effect)
+      nib_angle: int //nib angle in degrees anticlockwise from horizontal
+      taper: float //strokes taper to points at their ends (0=off, 1=pointed all the way to the middle)
+      taper_end: float //width at the tapered ends as a fraction of full width (0=sharp point, 1=no narrowing)
+      wobble: float //hand-drawn waviness: spine displacement amplitude in units of thickness (0=off)
+      roughness: float //random width jitter along the stroke edge, independent per side (0=off)
+      mobius: float //strokes are twisting ribbons pinched where edge-on; half-twist density (0=off, 1 ≈ every 300 units)
       constant_offset: bool //prototype: outlines are dense polylines at constant perpendicular distance from the spine
       max_spline_iter: int //max number of iterations to solve spline curves
       show_knots: bool //show small circles for the points used to define lines/curves
@@ -65,6 +72,13 @@ type Axes =
           outline = true
           stroked = false
           scratches = false
+          nib = 0.0
+          nib_angle = 30
+          taper = 0.0
+          taper_end = 0.5
+          wobble = 0.0
+          roughness = 0.0
+          mobius = 0.0
           constant_offset = true
           max_spline_iter = 500
           show_knots = false
@@ -99,6 +113,13 @@ type Axes =
           "flare", FracRange(-1.0, 1.0), "artistic"
           "stroked", Checkbox, "artistic"
           "scratches", Checkbox, "artistic"
+          "nib", FracRange(0.0, 1.0), "artistic"
+          "nib_angle", Range(0, 180), "artistic"
+          "taper", FracRange(0.0, 1.0), "artistic"
+          "taper_end", FracRange(0.0, 1.0), "artistic"
+          "wobble", FracRange(0.0, 1.0), "artistic"
+          "roughness", FracRange(0.0, 1.0), "artistic"
+          "mobius", FracRange(0.0, 3.0), "artistic"
           "serif", Range(0, 70), "artistic"
           "constraints", Checkbox, "experimental"
           "constant_offset", Checkbox, "experimental"
@@ -110,3 +131,8 @@ type Axes =
           "flatness", FracRange(0.0, 10.0), "experimental"
           "end_flatness", FracRange(0.0, 30.0), "experimental"
           "debug", Checkbox, "debug" ]
+
+    /// True when an artistic axis that varies stroke width (or displaces the spine)
+    /// along the stroke is active; these require the arc-length sampled outline path.
+    member this.sampledArtistic =
+        this.nib > 0.0 || this.taper > 0.0 || this.wobble > 0.0 || this.roughness > 0.0 || this.mobius > 0.0
