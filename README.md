@@ -44,27 +44,10 @@ The [Dactyl Live Explorer](https://terryspitz.github.io/dactyl-font) runs entire
 - [Explorer Guide](docs/ExplorerGuide.md) — UI tabs, sidebar controls, URL parameters, and web directory layout
 - [DactylGlyph Documentation](docs/DactylGlyphs.md) — How glyph string definitions work
 - [DactylSpline Documentation](docs/DactylSpline.md) — The DactylSpline curve implementation
+- [DactylSpline Optimization Suggestions](docs/suggestions.md) — Ideas for improving the spline solver
 - [Font Rendering Pipeline](docs/FontPipeline.md) — Spine → outline → SVG pipeline, caps, serifs, and font export
-
-## Building
-
-Requires [.NET 8 SDK](https://dotnet.microsoft.com/download) and Node.js.
-
-```bash
-dotnet restore && dotnet tool restore
-dotnet fable src/explorer --outDir web/src/lib/fable   # F# → JS
-cd web && npm ci && npm run build                       # Vite production build
-```
-
-### Tests
-
-```bash
-cd web && npm test                                              # Vitest unit tests
-dotnet test src/generator/tests/generator.tests.fsproj          # F# generator tests
-dotnet test src/SpiroFs/tests/SpiroFs.tests.fsproj              # SpiroFs tests
-```
-
-Visual/screenshot tests run against the production build via Playwright — see [CLAUDE.md](CLAUDE.md) for details.
+- [TODO](docs/TODO.md) — Planned features and known issues
+- [Developing](DEVELOPING.md) — Building, running, testing, and contributing
 
 ## Spline Curves
 
