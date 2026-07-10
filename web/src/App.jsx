@@ -791,7 +791,7 @@ function App() {
               {openCategories[category] && (
                 <div className="category-content" style={{ paddingLeft: '10px' }}>
                   {controls.map(ctrl => (
-                    <div key={ctrl.name} className="control-group">
+                    <div key={ctrl.name} className="control-group" title={ctrl.description}>
                       <label>
                         {ctrl.name}
                       </label>

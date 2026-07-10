@@ -9,7 +9,7 @@ open GlyphStringDefs
 open SvgHelpers
 
 // Helper to convert the union type Controls to a JS-friendly object
-let getControlDetails (name: string, control: Controls, category: string) =
+let getControlDetails (name: string, control: Controls, category: string, description: string) =
     match control with
     | Range(min, max) ->
         {| name = name
@@ -17,21 +17,24 @@ let getControlDetails (name: string, control: Controls, category: string) =
            min = float min
            max = float max
            step = (float max - float min) / 20.0
-           category = category |}
+           category = category
+           description = description |}
     | FracRange(min, max) ->
         {| name = name
            type_ = "range"
            min = min
            max = max
            step = 0.05
-           category = category |}
+           category = category
+           description = description |}
     | Checkbox ->
         {| name = name
            type_ = "checkbox"
            min = 0.0
            max = 1.0
            step = 1.0
-           category = category |}
+           category = category
+           description = description |}
 
 let controlDefinitions = Axes.controls |> List.map getControlDetails |> Array.ofList
 
