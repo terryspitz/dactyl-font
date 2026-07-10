@@ -124,14 +124,15 @@ type FontTests() =
         let mCount = svgStr.Split('M').Length - 1
         Assert.That(mCount, Is.EqualTo(1), "P should have a single outline")
 
-        // 2. Specific sequence check: MLCCCLCCCZ
+        // 2. Specific sequence check (P's bowl now has short straight shoulders
+        // before/after its curves, added so roundedness can square them off).
         // Extract command letters only
         let commands =
             svgStr.Split(' ')
             |> Array.filter (fun s -> s.Length = 1 && "MLCZ".Contains(s))
             |> String.concat ""
 
-        Assert.That(commands, Is.EqualTo("MLLCCLCCLZ"), "P outline should have the updated MLLCCLCCLZ command sequence")
+        Assert.That(commands, Is.EqualTo("MLLLCCLLLCCLLZ"), "P outline should have the updated MLLLCCLLLCCLLZ command sequence")
         Assert.That(svgStr, Does.Not.Contain("stroke:#e00000"), "SVG should not be red (indicates outline failure)")
 
         for ch in [ 'R'; 'B' ] do

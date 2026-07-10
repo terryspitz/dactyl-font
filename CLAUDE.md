@@ -43,6 +43,17 @@ failure can be inspected and (for visual tests) re-run without hunting for them:
    (GitHub has no URL param to pre-select the branch inside the *Run workflow*
    dialog itself, so still name the branch to pick.)
 
+3. **Always actually look at the visual diffs before reporting** — download the
+   `playwright-screenshots` artifact and open the `-actual.png` (and, if
+   useful, `-diff.png`/`-expected.png`) images for each failing snapshot
+   rather than assuming a diff is the expected result of the change. A
+   passing build with a "this diff is expected" explanation is only valid
+   once you've viewed the actual rendered image and confirmed it looks
+   right — glyph/geometry changes can produce unintended artifacts (e.g. a
+   stray spike from a bad corner/tangent) that only show up visually, not in
+   unit tests. If a diff looks wrong, treat it as a bug to fix, not an
+   expected snapshot change to wave through.
+
 ## Branch conventions
 
 Development branches: `claude/**` (e.g. `claude/fix-space-width-font-xQEFZ`).
