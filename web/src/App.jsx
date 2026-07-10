@@ -3,6 +3,7 @@ import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyp
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
 import GrowCanvas from './GrowCanvas'
+import { downloadBlob, svgBlob, svgToPngBlob, growFilenameBase } from './growthExport'
 import { downloadFont, buildFontDataUrl } from './fontExport'
 import { buildCompareOverlaySvg } from './fontCompare'
 import FontCompareControls from './FontCompareControls'
@@ -130,6 +131,7 @@ function App() {
   // text/axes change; sliders only move shader uniforms (see GrowCanvas.jsx).
   // Without WebGL2 the tab falls back to the worker-side SVG render.
   const [growField, setGrowField] = useState(null)
+  const [savingGrow, setSavingGrow] = useState(false)
   const supportsWebGL2 = useMemo(() => {
     try { return !!document.createElement('canvas').getContext('webgl2') } catch { return false }
   }, [])
@@ -798,6 +800,42 @@ function App() {
     return <div className="svg-container" dangerouslySetInnerHTML={{ __html: compareSvg }} />
   }
 
+  // Render the current Grow view to a vector SVG string via a one-off worker.
+  // Used for both SVG and PNG downloads so the saved output matches the rule
+  // exactly, independent of which preview path (GPU / fallback) is on screen.
+  const requestGrowthSvg = () => new Promise((resolve, reject) => {
+    if (!text) { resolve(''); return }
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    worker.onmessage = (e) => {
+      worker.terminate()
+      if (e.data.error) reject(new Error(e.data.error))
+      else resolve(e.data.result)
+    }
+    worker.onerror = (err) => { worker.terminate(); reject(err) }
+    worker.postMessage({ id: 0, type: 'growth', args: [text, axes, growParams] })
+  })
+
+  const handleDownloadGrow = async (format) => {
+    setSavingGrow(true)
+    setError(null)
+    try {
+      const svg = await requestGrowthSvg()
+      if (!svg) return
+      const base = growFilenameBase(text)
+      if (format === 'svg') {
+        downloadBlob(svgBlob(svg), `${base}.svg`)
+      } else {
+        // Transparent background: the layered look drops onto any surface.
+        const png = await svgToPngBlob(svg, { scale: 3, background: null })
+        downloadBlob(png, `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Grow ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingGrow(false)
+    }
+  }
+
   const handleControlChange = (name, value) => {
     setAxes(prev => ({ ...prev, [name]: value }))
   }
@@ -950,6 +988,32 @@ function App() {
                   />
                 </label>
               )}
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '4px' }}>
+                <button
+                  className="icon-button"
+                  onClick={() => handleDownloadGrow('png')}
+                  disabled={savingGrow || !text}
+                  title="Download PNG (transparent, high-res)"
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', width: 'auto', padding: '0 8px' }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                    {savingGrow ? 'hourglass_empty' : 'image'}
+                  </span>
+                  PNG
+                </button>
+                <button
+                  className="icon-button"
+                  onClick={() => handleDownloadGrow('svg')}
+                  disabled={savingGrow || !text}
+                  title="Download SVG (vector)"
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', width: 'auto', padding: '0 8px' }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                    {savingGrow ? 'hourglass_empty' : 'download'}
+                  </span>
+                  SVG
+                </button>
+              </span>
             </div>
           )}
           {activeTab === 'proofs' && (
