@@ -6,7 +6,7 @@
   - **ink_spread**: slight outward bulge at each stroke sample point, simulating ink bleeding into paper fibres
   - **split_nib**: like nib but cleaves the stroke into two parallel thin lines (like a reed pen or double-stroke)
   - **gravity**: the offset spine droops downward at the middle of each stroke (catenary sag)
-- add documentation tooltips, links
+- add documentation links
 - flare with tangents wrong way round
 - move outline point inward only
 - improve serifs
@@ -22,7 +22,6 @@
 - from https://www.typography.com/blog/typographic-illusions:
 -  overshoot
 -  balance (mid height > 1/2)
-- Add help tooltips on explorer sliders
 - fix fontforge errors: direction, non-integral coords
 - fix serifs: curve joints, check Y{}, spacing
 - Optional debug mode to show coordinates/curves
@@ -31,6 +30,7 @@
 - generated FontForge fonts
 -
 **DONE: Implemented Features**
+- Help tooltips on explorer sliders/checkboxes (hover title text, sourced from Axes.fs control descriptions)
 - **roughness**: random width jitter along the stroke edge, independent per side (perpendicular noise on the outline, distinct from wobble's spine displacement)
 - 'bowtie' where lines all cross
 - Backscratch font (made of 4 parallel lines)
