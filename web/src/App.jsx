@@ -118,7 +118,7 @@ function App() {
     tangents: true,
     labels: true,
   })
-  const [glyphsFilled, setGlyphsFilled] = useState(false)
+  const [glyphsFilled, setGlyphsFilled] = useState(true)
   const [legendPos, setLegendPos] = useState({ x: 0, y: 0 })
   const isDraggingRef = useRef(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
