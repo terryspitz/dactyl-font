@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   loadFontFromFile, loadFontFromUrl, loadGoogleFontOutline, loadGoogleFontText,
   querySystemFonts, loadSystemFont, GOOGLE_FONTS,
@@ -44,10 +44,13 @@ export default function FontCompareControls({
     if (file) run(() => loadFontFromFile(file))
   }
 
-  const loadGoogleSelection = () => {
+  // Auto-load the selected curated Google Font whenever the source/selection changes.
+  useEffect(() => {
+    if (mode !== 'font' || source !== 'google') return
     const entry = GOOGLE_FONTS.find(g => g.name === googleSel)
     if (entry) run(() => loadGoogleFontOutline(entry))
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, source, googleSel])
 
   // A free-text value can be a direct font URL (outline) or a family name (text).
   const loadFreeText = () => {
@@ -92,7 +95,6 @@ export default function FontCompareControls({
               <select value={googleSel} onChange={e => setGoogleSel(e.target.value)}>
                 {GOOGLE_FONTS.map(g => <option key={g.name} value={g.name}>{g.name}</option>)}
               </select>
-              <button className="compare-load-btn" onClick={loadGoogleSelection}>Load</button>
               <input
                 type="text"
                 className="compare-text-input"

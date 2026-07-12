@@ -4,6 +4,8 @@
 
 This guide introduces the basics of writing a Dactyl Glyph string and using the **Glyphs** tab to test and debug your designs.
 
+The actual glyph definition strings for every character live in [`src/generator/GlyphStringDefs.fs`](https://github.com/terryspitz/dactyl-font/blob/master/src/generator/GlyphStringDefs.fs).
+
 ## Quick Examples
 Before diving into the detailed syntax rules, here is what Dactyl Glyphs look like in practice:
 
