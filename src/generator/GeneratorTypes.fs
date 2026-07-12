@@ -43,7 +43,7 @@ type FontMetrics(axes: Axes.Axes) =
     member this.M = this.X / 2.0 // Midway down from x-height
     member this.T = float axes.height // Top = standard glyph caps height
     member this.H = this.T / 2.0 // Half total height
-    member this.D = -float axes.height / 2.0 // descender height
+    member this.D = -axes.descender_depth * float axes.height // descender height
 
     member this.offset = float axes.roundedness // offset from corners
     member this.dotHeight = max ((this.X + this.T) / 2.0) (this.X + float axes.thickness * 3.0)

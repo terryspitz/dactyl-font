@@ -14,6 +14,7 @@ type Axes =
       width: int //width of normal glyph
       height: int //capital height
       x_height: float //height of lower case as a fraction of capitals
+      descender_depth: float //depth of descenders below the baseline, as a fraction of capital height
       thickness: int //stroke width
       contrast: float //make vertical lines thicker
       roundedness: int //roundedness
@@ -23,6 +24,7 @@ type Axes =
       leading: int //gap between lines
       monospace: float //fraction to interpolate widths to monospaces
       italic: float //fraction to sheer glyphs
+      alt_a_g: bool //use two-storey alternate shapes for 'a' and 'g'
       serif: int //serif size
       end_bulb: float //fraction of thickness to apply curves to endcaps
       flare: float //end caps expand by this amount
@@ -56,6 +58,7 @@ type Axes =
           width = 300
           height = 600
           x_height = 0.6
+          descender_depth = 0.5
           thickness = 30
           contrast = 0.05
           roundedness = 60
@@ -64,6 +67,7 @@ type Axes =
           leading = 50
           monospace = 0.0
           italic = 0.0
+          alt_a_g = false
           serif = 0
           end_bulb = 0.0
           flare = 0.0
@@ -97,10 +101,12 @@ type Axes =
           "width", Range(100, 1000), "backbone", "Width of normal glyph"
           "height", Range(100, 1000), "backbone", "Capital height"
           "x_height", FracRange(0.2, 1.1), "backbone", "Height of lower case as a fraction of capitals"
+          "descender_depth", FracRange(0.2, 1.0), "backbone", "Depth of descenders below the baseline, as a fraction of capital height"
           "tracking", Range(0, 200), "backbone", "Gap between glyphs"
           "leading", Range(-100, 200), "backbone", "Gap between lines"
           "monospace", FracRange(0.0, 1.0), "backbone", "Fraction to interpolate widths to monospace"
           "italic", FracRange(0.0, 1.0), "backbone", "Fraction to shear glyphs"
+          "alt_a_g", Checkbox, "backbone", "Use two-storey alternate shapes for 'a' and 'g'"
           "roundedness", Range(0, 100), "backbone", "Roundedness"
           "thickness", Range(1, 200), "outline", "Stroke width"
           "contrast", FracRange(-0.5, 0.5), "outline", "Make vertical lines thicker"
