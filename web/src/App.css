@@ -635,6 +635,30 @@
     font-weight: bold;
 }
 
+.legend-item input[type="checkbox"]:indeterminate {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+}
+
+.legend-item input[type="checkbox"]:indeterminate::after {
+    content: "–";
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+}
+
+.legend-heading {
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.legend-debug-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-left: 16px;
+}
+
 .swatch {
     width: 14px;
     height: 14px;
