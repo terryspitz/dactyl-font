@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   loadFontFromFile, loadFontFromUrl, loadGoogleFontOutline, loadGoogleFontText,
   querySystemFonts, loadSystemFont, GOOGLE_FONTS,
@@ -24,18 +24,24 @@ export default function FontCompareControls({
   const [systemFonts, setSystemFonts] = useState(null)
   const [googleSel, setGoogleSel] = useState(GOOGLE_FONTS[0].name)
   const [textInput, setTextInput] = useState('')
+  // Guards against a stale request (e.g. an auto-load kicked off for a source
+  // the user has since switched away from) clobbering a later, faster one.
+  const requestIdRef = useRef(0)
 
   const run = async (fn) => {
+    const id = ++requestIdRef.current
     setBusy(true)
     onError(null)
     try {
       const result = await fn()
+      if (id !== requestIdRef.current) return
       if (result) onFontChange(result)
     } catch (e) {
+      if (id !== requestIdRef.current) return
       onFontChange(null)
       onError(e.message || String(e))
     } finally {
-      setBusy(false)
+      if (id === requestIdRef.current) setBusy(false)
     }
   }
 
