@@ -78,7 +78,8 @@ function App() {
     }
   })
   // Visual Diffs "compare font" mode: diff Dactyl against an external font
-  // (upload / Google / system). 'axis' keeps the original Dactyl-vs-Dactyl diff.
+  // (Google Fonts by default, or upload / system). 'axis' keeps the original
+  // Dactyl-vs-Dactyl diff.
   // `compare` and `size` are URL-addressable so a comparison view is shareable
   // (and deep-linkable from the visual tests). The chosen font itself can't be
   // encoded in a URL, so it must still be (re)selected after navigation.

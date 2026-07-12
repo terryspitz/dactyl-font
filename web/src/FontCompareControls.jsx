@@ -19,7 +19,7 @@ export default function FontCompareControls({
   onError,
   axisControls,
 }) {
-  const [source, setSource] = useState('upload')
+  const [source, setSource] = useState('google')
   const [busy, setBusy] = useState(false)
   const [systemFonts, setSystemFonts] = useState(null)
   const [googleSel, setGoogleSel] = useState(GOOGLE_FONTS[0].name)
@@ -78,9 +78,9 @@ export default function FontCompareControls({
       {mode === 'font' && (
         <>
           <select value={source} onChange={e => setSource(e.target.value)} title="Font source">
-            <option value="upload">Upload</option>
             <option value="google">Google Fonts</option>
             <option value="system">System fonts</option>
+            <option value="upload">Upload</option>
           </select>
 
           {source === 'upload' && (
