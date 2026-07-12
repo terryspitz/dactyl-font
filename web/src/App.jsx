@@ -79,16 +79,17 @@ function App() {
   })
   // Visual Diffs "compare font" mode: diff Dactyl against an external font
   // (upload / Google / system). 'axis' keeps the original Dactyl-vs-Dactyl diff.
-  // `compare` and `align` are URL-addressable so a comparison view is shareable
+  // `compare` and `size` are URL-addressable so a comparison view is shareable
   // (and deep-linkable from the visual tests). The chosen font itself can't be
   // encoded in a URL, so it must still be (re)selected after navigation.
   const [compareMode, setCompareMode] = useState(() => {
     const c = new URLSearchParams(window.location.search).get('compare')
     return c === 'font' ? 'font' : 'axis'
   })
-  const [compareAlign, setCompareAlign] = useState(() => {
-    const a = new URLSearchParams(window.location.search).get('align')
-    return ['cap', 'x', 'em'].includes(a) ? a : 'cap'
+  // Size of the comparison font relative to a cap-height match (1.0 = exact).
+  const [compareSize, setCompareSize] = useState(() => {
+    const s = parseFloat(new URLSearchParams(window.location.search).get('size'))
+    return !isNaN(s) && s >= 0.6 && s <= 1.5 ? s : 1.0
   })
   const [compareFont, setCompareFont] = useState(null)
   const [compareError, setCompareError] = useState(null)
@@ -188,10 +189,11 @@ function App() {
     window.history.replaceState({}, '', url)
   }
 
-  const setCompareAlignWithUrl = (a) => {
-    setCompareAlign(a)
+  const setCompareSizeWithUrl = (s) => {
+    setCompareSize(s)
     const url = new URL(window.location)
-    url.searchParams.set('align', a)
+    if (s === 1.0) url.searchParams.delete('size')
+    else url.searchParams.set('size', String(s))
     window.history.replaceState({}, '', url)
   }
 
@@ -563,12 +565,12 @@ function App() {
     if (compareMode !== 'font' || !dactylGlyphData) return null
     if (!compareFont || compareFont.kind !== 'outline') return null
     try {
-      return buildCompareOverlaySvg(dactylGlyphData, compareFont.font, text || allChars, compareAlign, compareFont.displayName)
+      return buildCompareOverlaySvg(dactylGlyphData, compareFont.font, text || allChars, 'cap', compareFont.displayName, compareSize)
     } catch (e) {
       console.error('compare overlay failed', e)
       return null
     }
-  }, [compareMode, compareFont, dactylGlyphData, compareAlign, text])
+  }, [compareMode, compareFont, dactylGlyphData, compareSize, text])
 
   // DactylCompare @font-face for text-mode comparison (Dactyl side rendered via CSS).
   const dactylCompareUrl = useMemo(() => {
@@ -661,9 +663,9 @@ function App() {
         return (
           <div className="tweens-grid">
             {(() => {
-              const EXCLUDED_TWEEN_AXES = ['tracking', 'leading', 'debug']
+              const EXCLUDED_TWEEN_AXES = ['tracking', 'leading']
               return controlDefinitions
-                .filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name))
+                .filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name) && c.category !== 'debug')
                 .filter(c => !tweenFilter || c.name === tweenFilter)
                 .map(ctrl => {
                   const variations = content[ctrl.name]
@@ -719,6 +721,7 @@ function App() {
         fontFamily={compareFont.fontFamily}
         dactylFamily="DactylCompare"
         labelB={compareFont.displayName}
+        sizeScale={compareSize}
       />
     }
     if (!compareSvg) return <div style={{ padding: 20, color: '#666' }}>Generating…</div>
@@ -733,15 +736,27 @@ function App() {
     setAxes({ ...defaultAxes })
   }
 
+  // Only touch a fraction of axes per click, and bias sampled values toward
+  // the default (nudge, don't reroll) so extreme/rare effects don't stack up.
+  const RANDOMIZE_PROBABILITY = 0.35
+  const RANDOMIZE_SPREAD = 0.3
+
   const handleRandom = () => {
     const newAxes = { ...axes }
     controlDefinitions.forEach(ctrl => {
-      if (ctrl.category === 'experimental') return
+      if (ctrl.category === 'experimental' || ctrl.category === 'debug') return
+      // reset to default before re-randomizing, so clicks don't compound
+      newAxes[ctrl.name] = defaultAxes[ctrl.name]
+      if (Math.random() > RANDOMIZE_PROBABILITY) return
 
       if (ctrl.type_ === 'checkbox') {
         newAxes[ctrl.name] = Math.random() > 0.5
       } else {
-        newAxes[ctrl.name] = ctrl.min + Math.random() * (ctrl.max - ctrl.min)
+        const center = defaultAxes[ctrl.name] ?? (ctrl.min + ctrl.max) / 2
+        const range = ctrl.max - ctrl.min
+        // triangular distribution centered on 0: most draws land near `center`
+        const offset = (Math.random() - Math.random()) * range * RANDOMIZE_SPREAD
+        newAxes[ctrl.name] = Math.min(ctrl.max, Math.max(ctrl.min, center + offset))
       }
     })
     setAxes(newAxes)
@@ -788,7 +803,7 @@ function App() {
               {openCategories[category] && (
                 <div className="category-content" style={{ paddingLeft: '10px' }}>
                   {controls.map(ctrl => (
-                    <div key={ctrl.name} className="control-group">
+                    <div key={ctrl.name} className="control-group" title={ctrl.description}>
                       <label>
                         {ctrl.name}
                       </label>
@@ -932,8 +947,8 @@ function App() {
               <FontCompareControls
                 mode={compareMode}
                 onModeChange={setCompareModeWithUrl}
-                align={compareAlign}
-                onAlignChange={setCompareAlignWithUrl}
+                size={compareSize}
+                onSizeChange={setCompareSizeWithUrl}
                 font={compareFont}
                 onFontChange={(f) => { setCompareFont(f); setCompareError(null) }}
                 onError={setCompareError}

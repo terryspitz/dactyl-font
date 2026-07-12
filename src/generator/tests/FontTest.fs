@@ -124,14 +124,15 @@ type FontTests() =
         let mCount = svgStr.Split('M').Length - 1
         Assert.That(mCount, Is.EqualTo(1), "P should have a single outline")
 
-        // 2. Specific sequence check: MLCCCLCCCZ
+        // 2. Specific sequence check (P's bowl now has short straight shoulders
+        // before/after its curves, added so roundedness can square them off).
         // Extract command letters only
         let commands =
             svgStr.Split(' ')
             |> Array.filter (fun s -> s.Length = 1 && "MLCZ".Contains(s))
             |> String.concat ""
 
-        Assert.That(commands, Is.EqualTo("MLLCCLCCLZ"), "P outline should have the updated MLLCCLCCLZ command sequence")
+        Assert.That(commands, Is.EqualTo("MLLLCCLLLCCLLZ"), "P outline should have the updated MLLLCCLLLCCLLZ command sequence")
         Assert.That(svgStr, Does.Not.Contain("stroke:#e00000"), "SVG should not be red (indicates outline failure)")
 
         for ch in [ 'R'; 'B' ] do
@@ -915,3 +916,175 @@ type KnotSequenceValidationTests() =
         printfn "end_flatness=20.0 S backbone: %A" ptsHighEnd
         Assert.That(ptsLowEnd, Is.Not.EqualTo(ptsHighEnd),
             "end_flatness should change the solved 'S' backbone")
+
+[<TestFixture>]
+type ArtisticAxesTests() =
+    let pt x y = { x = x; y = y; x_fit = false; y_fit = false }
+    let knot ty x y = { pt = pt x y; ty = ty; th_in = None; th_out = None; label = None }
+
+    /// A straight open stroke from (0,0) to (x,y).
+    let strokeTo x y = Curve([ knot Corner 0. 0.; knot Corner x y ], false)
+
+    // contrast=0 keeps offsets exactly perpendicular so widths are easy to assert
+    let baseAxes = { Axes.DefaultAxes with contrast = 0.0 }
+    let fthickness = float Axes.DefaultAxes.thickness
+
+    [<Test>]
+    member _.NibAxis_WidthFollowsStrokeDirection() =
+        // nib_angle=0 → horizontal nib edge: vertical strokes get the full width,
+        // horizontal strokes (drawn along the nib) collapse to a thin sliver. The end caps
+        // inherit the nib width (flat chisel ends), so a horizontal stroke is a thin sliver
+        // all the way to its terminals — not capped at full thickness.
+        let font = Font.Font({ baseAxes with nib = 1.0; nib_angle = 0 })
+        let vl, vr, _, _ = bounds (font.getOutline (strokeTo 0. 600.))
+        let _, _, hb, ht = bounds (font.getOutline (strokeTo 600. 0.))
+        Assert.That(vr - vl, Is.EqualTo(2.0 * fthickness).Within(1.0),
+            "vertical stroke should be drawn at full width")
+        Assert.That(ht - hb, Is.LessThan(0.5 * fthickness),
+            "horizontal stroke should be a thin sliver, including its end caps (nib width)")
+
+    member private _.TaperWidthNear(axes, yLo, yHi) =
+        let font = Font.Font(axes)
+        let outlineKnots =
+            match font.getOutline (strokeTo 0. 600.) with
+            | Curve(ks, _) -> ks
+            | e -> failwithf "expected single Curve outline, got %A" e
+        outlineKnots
+        |> List.filter (fun k -> k.pt.y >= yLo && k.pt.y <= yHi)
+        |> List.map (fun k -> abs k.pt.x)
+        |> List.max
+
+    [<Test>]
+    member this.TaperAxis_SharpPoint_WhenTaperEndZero() =
+        // taper_end = 0 keeps the original pointed-brush behaviour.
+        let axes = { baseAxes with taper = 1.0; taper_end = 0.0 }
+        Assert.That(this.TaperWidthNear(axes, 0., 100.), Is.LessThan(0.4 * fthickness),
+            "stroke should narrow to near a point at its ends")
+        Assert.That(this.TaperWidthNear(axes, 250., 350.), Is.EqualTo(fthickness).Within(1.0),
+            "stroke should be full width at its middle")
+
+    [<Test>]
+    member this.TaperAxis_EndWidthControlledByTaperEnd() =
+        // taper_end = 0.5 leaves the ends at ~half width instead of a point. The end cap
+        // now extends past the spine endpoint (y < 0, same length as a plain stroke's cap),
+        // squeezed to the tapered end width — so measure the cap region near the tip.
+        let axes = { baseAxes with taper = 1.0; taper_end = 0.5 }
+        let endW = this.TaperWidthNear(axes, -1.5 * fthickness, 0.6 * fthickness)
+        Assert.That(endW, Is.GreaterThan(0.35 * fthickness),
+            "taper_end=0.5 should keep the ends well above a point")
+        Assert.That(endW, Is.LessThan(0.75 * fthickness),
+            "taper_end=0.5 ends should still be clearly narrower than full width")
+        Assert.That(this.TaperWidthNear(axes, 250., 350.), Is.EqualTo(fthickness).Within(1.0),
+            "stroke should be full width at its middle")
+
+    [<Test>]
+    member _.WobbleAxis_DisplacesSpineButNotEndpoints() =
+        let font = Font.Font({ baseAxes with wobble = 1.0 })
+
+        let outlineKnots =
+            match font.getOutline (strokeTo 0. 600.) with
+            | Curve(ks, _) -> ks
+            | e -> failwithf "expected single Curve outline, got %A" e
+
+        // The wave swings the stroke beyond its straight-line bounds (peak displacement
+        // is 0.5*thickness, so the outer edge reaches ~1.5*thickness)...
+        let maxX = outlineKnots |> List.map (fun k -> abs k.pt.x) |> List.max
+        Assert.That(maxX, Is.GreaterThan(1.3 * fthickness),
+            "wobble should displace the stroke beyond its plain width")
+
+        // ...but the displacement vanishes at the stroke ends so caps stay centred.
+        let maxXAtEnds =
+            outlineKnots
+            |> List.filter (fun k -> k.pt.y <= 0.0 || k.pt.y >= 600.0)
+            |> List.map (fun k -> abs k.pt.x)
+            |> List.max
+        Assert.That(maxXAtEnds, Is.LessThan(1.2 * fthickness),
+            "wobble should vanish at stroke endpoints")
+
+    [<Test>]
+    member _.RoughnessAxis_JittersEdgeWidthIndependentlyPerSide() =
+        let font = Font.Font({ baseAxes with roughness = 1.0 })
+
+        let outlineKnots =
+            match font.getOutline (strokeTo 0. 600.) with
+            | Curve(ks, _) -> ks
+            | e -> failwithf "expected single Curve outline, got %A" e
+
+        // Roughness jitters the half-width, so the outer edge should swing on both
+        // sides of the plain (unjittered) stroke bound rather than sitting flush.
+        let xs = outlineKnots |> List.map (fun k -> k.pt.x)
+        Assert.That(List.max xs, Is.GreaterThan(1.05 * fthickness),
+            "roughness should widen the stroke edge beyond its plain width somewhere")
+        Assert.That(List.min xs, Is.LessThan(0.95 * fthickness),
+            "roughness should narrow the stroke edge below its plain width somewhere")
+
+        // The two edges jitter independently (different phase), so they shouldn't be
+        // simply mirror images of each other at every sample.
+        let leftXs = outlineKnots |> List.filter (fun k -> k.pt.x < 0.0) |> List.map (fun k -> -k.pt.x)
+        let rightXs = outlineKnots |> List.filter (fun k -> k.pt.x >= 0.0) |> List.map (fun k -> k.pt.x)
+        Assert.That(leftXs, Is.Not.EquivalentTo(rightXs),
+            "the two stroke edges should jitter independently, not identically")
+
+    [<Test>]
+    member _.MobiusAxis_StraightStrokeSplitsIntoPinchedPanels() =
+        // A 600-unit stroke at mobius=1.0 gets round(600/300) = 2 half-twists →
+        // pinches at arc length 150 and 450 → 3 separate closed panels.
+        let font = Font.Font({ baseAxes with mobius = 1.0 })
+
+        let panels =
+            match font.getOutline (strokeTo 0. 600.) with
+            | EList(curves) -> curves
+            | e -> failwithf "expected EList of panels, got %A" e
+
+        Assert.That(panels.Length, Is.EqualTo(3), "two half-twists should produce three panels")
+
+        let allKnots =
+            panels
+            |> List.collect (function
+                | Curve(ks, isClosed) ->
+                    Assert.That(isClosed, Is.True, "each panel should be a closed curve")
+                    ks
+                | e -> failwithf "expected Curve panel, got %A" e)
+
+        let widthNear yLo yHi =
+            allKnots
+            |> List.filter (fun k -> k.pt.y >= yLo && k.pt.y <= yHi)
+            |> List.map (fun k -> abs k.pt.x)
+            |> List.max
+
+        Assert.That(widthNear 140. 160., Is.LessThan(0.1 * fthickness),
+            "ribbon should pinch to a sliver at the half-twist")
+        Assert.That(widthNear 290. 310., Is.EqualTo(fthickness).Within(1.0),
+            "ribbon should be full width between pinches")
+
+    [<Test>]
+    member _.NibAxis_GlyphsRenderWithoutException() =
+        let font = Font.Font({ baseAxes with nib = 0.8 })
+        for ch in [ 'o'; 'l'; 'v'; 'S' ] do
+            let svg = font.charToSvg ch 0.0 0.0 "black" |> String.concat " "
+            Assert.That(svg, Does.Contain("M "), sprintf "nib outline for '%c' should render" ch)
+
+    [<Test>]
+    member _.ArtisticAxes_GlyphsRenderWithoutException() =
+        // Each artistic axis alone, plus all of them together, over a mix of glyph
+        // shapes: closed curves ('o', '8'), open curves ('S', 'c'), straight strokes
+        // with joints ('l', 'v', 'E') and dots ('!').
+        let variants =
+            [ "taper",      { baseAxes with taper = 0.8 }
+              "wobble",     { baseAxes with wobble = 1.0 }
+              "roughness",  { baseAxes with roughness = 1.0 }
+              "mobius",     { baseAxes with mobius = 1.0 }
+              "all",
+              { baseAxes with
+                  nib = 0.5
+                  taper = 0.5
+                  wobble = 0.5
+                  roughness = 0.5
+                  mobius = 1.0 } ]
+
+        for name, axes in variants do
+            let font = Font.Font(axes)
+            for ch in [ 'o'; '8'; 'S'; 'c'; 'l'; 'v'; 'E'; '!' ] do
+                let svg = font.charToSvg ch 0.0 0.0 "black" |> String.concat " "
+                Assert.That(svg, Does.Contain("M "),
+                    sprintf "%s outline for '%c' should render" name ch)

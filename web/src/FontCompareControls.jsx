@@ -14,7 +14,7 @@ import {
  */
 export default function FontCompareControls({
   mode, onModeChange,
-  align, onAlignChange,
+  size, onSizeChange,
   font, onFontChange,
   onError,
   axisControls,
@@ -118,12 +118,16 @@ export default function FontCompareControls({
             )
           )}
 
-          <label htmlFor="compare-align">Align:</label>
-          <select id="compare-align" value={align} onChange={e => onAlignChange(e.target.value)} title="Normalize sizes by">
-            <option value="cap">cap-height</option>
-            <option value="x">x-height</option>
-            <option value="em">em</option>
-          </select>
+          <label htmlFor="compare-size">Size:</label>
+          <input
+            id="compare-size"
+            type="range"
+            min="0.6" max="1.5" step="0.05"
+            value={size}
+            onChange={e => onSizeChange(parseFloat(e.target.value))}
+            title="Comparison font size, relative to a cap-height match (1.0×)"
+          />
+          <span className="compare-size-val">{size.toFixed(2)}×</span>
 
           {busy && <span className="compare-status">Loading…</span>}
           {!busy && font && (
