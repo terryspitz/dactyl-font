@@ -55,7 +55,7 @@ function App() {
   })
   const [glyphsDefsText, setGlyphsDefsText] = useState(() => {
     const initialText = tabTexts['glyphs'] || 'a'
-    return getGlyphDefs(initialText)
+    return getGlyphDefs(initialText, defaultAxes.alt_a_g)
   })
   const [axes, setAxes] = useState({ ...defaultAxes })
   const [activeTab, setActiveTab] = useState('font')
@@ -238,9 +238,20 @@ function App() {
     setTabTexts(prev => ({ ...prev, [activeTab]: newVal }))
     if (activeTab === 'glyphs') {
       localStorage.setItem('glyphText', newVal)
-      setGlyphsDefsText(getGlyphDefs(newVal || 'a'))
+      setGlyphsDefsText(getGlyphDefs(newVal || 'a', axes.alt_a_g))
     }
   }
+
+  // The Glyphs tab's def textarea holds resolved definition strings (picked from
+  // altGlyphMap vs glyphMap), not a live axes lookup, so — unlike every other axis,
+  // which the renderer applies to the existing defs on the fly — toggling alt_a_g
+  // needs to re-derive the text to pick up the alternate 'a'/'g' shapes.
+  useEffect(() => {
+    if (activeTab === 'glyphs') {
+      setGlyphsDefsText(getGlyphDefs(tabTexts.glyphs || 'a', axes.alt_a_g))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [axes.alt_a_g])
 
   // Group controls by category
   const controlsByCategory = useMemo(() => {
