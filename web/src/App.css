@@ -527,6 +527,25 @@
     font-size: 20px;
 }
 
+/* Grow tab download split-button menu */
+.grow-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font: inherit;
+    cursor: pointer;
+    text-align: left;
+}
+
+.grow-menu-item:hover {
+    background-color: var(--panel-bg-hover);
+}
+
 /* Tweens Grid */
 .tweens-grid {
     display: flex;

@@ -1,5 +1,6 @@
 import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, controlDefinitions, solveSplineEditor, solveSplineGrid, solveAltSplines, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphData, getSplineOutlinePath } from './lib/fable/Api'
 import { buildFontDataUrl } from './fontExport'
+import { generateGrowthSvg, generateGrowthField } from './growthSvg'
 import { DControlPoint } from './lib/fable/generator/DactylSpline'
 
 self.onmessage = (e) => {
@@ -7,6 +8,7 @@ self.onmessage = (e) => {
     const start = performance.now()
     try {
         let result
+        let transfer = []
         switch (type) {
             case 'font':
                 result = generateSvg(...args, (p) => {
@@ -75,6 +77,21 @@ self.onmessage = (e) => {
                 result = solveSplineGrid()
                 break
             }
+            case 'growth': {
+                const [growText, growAxes, growParams] = args
+                result = generateGrowthSvg(growText, growAxes, growParams, (p) => {
+                    self.postMessage({ id, type: 'progress', value: p });
+                })
+                break
+            }
+            case 'growthField': {
+                const [gText, gAxes] = args
+                result = generateGrowthField(gText, gAxes, {}, (p) => {
+                    self.postMessage({ id, type: 'progress', value: p });
+                })
+                if (result) transfer = [result.rg.buffer]
+                break
+            }
             case 'fontData': {
                 const [fontAxes] = args
                 result = generateFontGlyphData(fontAxes)
@@ -101,7 +118,7 @@ self.onmessage = (e) => {
                 throw new Error(`Unknown generation type: ${type}`)
         }
         console.log(`API [${type}] took ${(performance.now() - start).toFixed(1)}ms`)
-        self.postMessage({ id, result })
+        self.postMessage({ id, result }, transfer)
     } catch (error) {
         console.log(`API [${type}] failed after ${(performance.now() - start).toFixed(1)}ms`)
         self.postMessage({ id, error: error.message })
