@@ -14,6 +14,9 @@ import './App.css'
 // Special Visual Diffs option: compare the old spiro/spline2 engine vs the new dactyl spline
 const SPLINE_ENGINE = 'spline_engine'
 
+// Glyphs floating tools legend: non-spline layerVisibility keys grouped under "Debug"
+const DEBUG_LAYER_KEYS = ['comb', 'tangents', 'guides', 'labels', 'knots']
+
 // Build the two axes variants (and key labels) for the Visual Diffs tab
 function getDiffAxes(axes, diffConfig) {
   if (diffConfig.axis === SPLINE_ENGINE) {
@@ -118,7 +121,7 @@ function App() {
     tangents: true,
     labels: true,
   })
-  const [glyphsFilled, setGlyphsFilled] = useState(false)
+  const [glyphsFilled, setGlyphsFilled] = useState(true)
   const [legendPos, setLegendPos] = useState({ x: 0, y: 0 })
   const isDraggingRef = useRef(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
@@ -904,6 +907,25 @@ function App() {
     setAxes({ ...defaultAxes })
   }
 
+  // "Debug" master checkbox in the glyphs floating tools: reflects/controls all
+  // non-spline layer toggles + Filled at once. Individual checkboxes below it
+  // can still be changed independently afterwards, overriding the parent.
+  const debugValues = [...DEBUG_LAYER_KEYS.map(k => layerVisibility[k]), glyphsFilled]
+  const allDebugOn = debugValues.every(Boolean)
+  const noDebugOn = debugValues.every(v => !v)
+  const setDebugMasterRef = el => {
+    if (el) el.indeterminate = !allDebugOn && !noDebugOn
+  }
+
+  const handleDebugMasterChange = (checked) => {
+    setLayerVisibility(prev => {
+      const next = { ...prev }
+      DEBUG_LAYER_KEYS.forEach(k => { next[k] = checked })
+      return next
+    })
+    setGlyphsFilled(checked)
+  }
+
   // Only touch a fraction of axes per click, and bias sampled values toward
   // the default (nudge, don't reroll) so extreme/rare effects don't stack up.
   const RANDOMIZE_PROBABILITY = 0.35
@@ -1351,56 +1373,67 @@ function App() {
                 <a href="#" onClick={(e) => { e.preventDefault(); setTabWithUrl('splines'); }} style={{ color: 'inherit', textDecoration: 'underline' }}>DactylSpline</a>
               </span>
             </div>
-            <div className="legend-item">
+            <div className="legend-item legend-heading">
               <input
+                ref={setDebugMasterRef}
                 type="checkbox"
-                checked={layerVisibility.comb}
-                onChange={e => setLayerVisibility(prev => ({ ...prev, comb: e.target.checked }))}
+                checked={allDebugOn}
+                onChange={e => handleDebugMasterChange(e.target.checked)}
               />
-              <span className="swatch" style={{ border: '1px solid black', backgroundColor: 'transparent' }}></span> Comb
+              <strong>Debug</strong>
             </div>
-            <div className="legend-item">
-              <input
-                type="checkbox"
-                checked={layerVisibility.tangents}
-                onChange={e => setLayerVisibility(prev => ({ ...prev, tangents: e.target.checked }))}
-              />
-              <span className="swatch" style={{ backgroundColor: '#e00000' }}></span> Tangents
-            </div>
-            <div className="legend-item">
-              <input
-                type="checkbox"
-                checked={layerVisibility.guides}
-                onChange={e => setLayerVisibility(prev => ({ ...prev, guides: e.target.checked }))}
-              />
-              <span className="swatch grey"></span> Guides
-            </div>
-            <div className="legend-item">
-              <input
-                type="checkbox"
-                checked={layerVisibility.labels}
-                onChange={e => setLayerVisibility(prev => ({ ...prev, labels: e.target.checked }))}
-              />
-              <span style={{ color: 'red', fontSize: '0.8em', fontWeight: 'bold', width: '24px', textAlign: 'center' }}>abc</span>
-              Labels
-            </div>
-            <div className="legend-item">
-              <input
-                type="checkbox"
-                checked={layerVisibility.knots}
-                onChange={e => setLayerVisibility(prev => ({ ...prev, knots: e.target.checked }))}
-              />
-              <span className="swatch lightBlue circle"></span>
-              <span className="swatch lightGreen circle"></span>
-              Knots
-            </div>
-            <div className="legend-item">
-              <input
-                type="checkbox"
-                checked={glyphsFilled}
-                onChange={e => setGlyphsFilled(e.target.checked)}
-              />
-              Filled
+            <div className="legend-debug-group">
+              <div className="legend-item">
+                <input
+                  type="checkbox"
+                  checked={layerVisibility.comb}
+                  onChange={e => setLayerVisibility(prev => ({ ...prev, comb: e.target.checked }))}
+                />
+                <span className="swatch" style={{ border: '1px solid black', backgroundColor: 'transparent' }}></span> Comb
+              </div>
+              <div className="legend-item">
+                <input
+                  type="checkbox"
+                  checked={layerVisibility.tangents}
+                  onChange={e => setLayerVisibility(prev => ({ ...prev, tangents: e.target.checked }))}
+                />
+                <span className="swatch" style={{ backgroundColor: '#e00000' }}></span> Tangents
+              </div>
+              <div className="legend-item">
+                <input
+                  type="checkbox"
+                  checked={layerVisibility.guides}
+                  onChange={e => setLayerVisibility(prev => ({ ...prev, guides: e.target.checked }))}
+                />
+                <span className="swatch grey"></span> Guides
+              </div>
+              <div className="legend-item">
+                <input
+                  type="checkbox"
+                  checked={layerVisibility.labels}
+                  onChange={e => setLayerVisibility(prev => ({ ...prev, labels: e.target.checked }))}
+                />
+                <span style={{ color: 'red', fontSize: '0.8em', fontWeight: 'bold', width: '24px', textAlign: 'center' }}>abc</span>
+                Labels
+              </div>
+              <div className="legend-item">
+                <input
+                  type="checkbox"
+                  checked={layerVisibility.knots}
+                  onChange={e => setLayerVisibility(prev => ({ ...prev, knots: e.target.checked }))}
+                />
+                <span className="swatch lightBlue circle"></span>
+                <span className="swatch lightGreen circle"></span>
+                Knots
+              </div>
+              <div className="legend-item">
+                <input
+                  type="checkbox"
+                  checked={glyphsFilled}
+                  onChange={e => setGlyphsFilled(e.target.checked)}
+                />
+                Filled
+              </div>
             </div>
           </div>
         )}
