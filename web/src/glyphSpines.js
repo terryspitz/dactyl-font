@@ -67,7 +67,9 @@ export function glyphToSpines(char, axes, spacing = 8) {
 
 /// Lay out a line of text along the baseline; returns growth-ready strokes
 /// tagged with their glyph index, plus per-glyph advance data.
-export function textToStrokes(text, axes, spacing = 8) {
+/// onProgress(frac 0..1) is called after each glyph is solved (solving each
+/// glyph's splines via the Fable API is the dominant cost of growth).
+export function textToStrokes(text, axes, spacing = 8, onProgress) {
     const fontData = generateFontGlyphData(axes)
     const advance = new Map()
     for (const g of fontData.glyphs) advance.set(g.unicode, g.advanceWidth)
@@ -78,6 +80,7 @@ export function textToStrokes(text, axes, spacing = 8) {
     for (let gi = 0; gi < text.length; gi++) {
         const ch = text[gi]
         if (!spineCache.has(ch)) spineCache.set(ch, glyphToSpines(ch, axes, spacing))
+        if (onProgress) onProgress((gi + 1) / text.length)
         for (const stroke of spineCache.get(ch)) {
             strokes.push({
                 pts: stroke.pts.map(([px, py]) => [px + x, py]),

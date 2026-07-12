@@ -211,7 +211,7 @@ function buildOpposition(xs, ys, arcPos, strokeOf, strokeTotal, strokeClosed, st
 /// from already-visited neighbours, with distances computed exactly to the
 /// chosen seed.  Only *which* seed wins is approximate, with rare, small
 /// errors (and the dOpp blur downstream hides seed flips anyway).
-function distanceSweep(xs, ys, samePart, nx, ny, x0, y0, cell) {
+function distanceSweep(xs, ys, samePart, nx, ny, x0, y0, cell, onProgress) {
     const nCells = nx * ny
     const i1 = new Int32Array(nCells).fill(-1)
     const i2 = new Int32Array(nCells).fill(-1)
@@ -254,9 +254,17 @@ function distanceSweep(xs, ys, samePart, nx, ny, x0, y0, cell) {
         if (c2 >= 0) offer(k, cx, cy, c2)
     }
 
+    // 4 passes (2 rounds × forward/backward) over ny rows; report row progress.
+    const totalPasses = 4
+    let pass = 0
+    const reportRow = (iy) => {
+        if (onProgress && (iy & 15) === 0) onProgress((pass + iy / ny) / totalPasses)
+    }
+
     for (let round = 0; round < 2; round++) {
         // Forward: gather from W, NW, N, NE (already visited this pass).
         for (let iy = 0; iy < ny; iy++) {
+            reportRow(iy)
             const cy = y0 + iy * cell
             const row = iy * nx
             for (let ix = 0; ix < nx; ix++) {
@@ -271,8 +279,10 @@ function distanceSweep(xs, ys, samePart, nx, ny, x0, y0, cell) {
                 }
             }
         }
+        pass++
         // Backward: gather from E, SE, S, SW.
         for (let iy = ny - 1; iy >= 0; iy--) {
+            reportRow(ny - 1 - iy)
             const cy = y0 + iy * cell
             const row = iy * nx
             for (let ix = nx - 1; ix >= 0; ix--) {
@@ -287,6 +297,7 @@ function distanceSweep(xs, ys, samePart, nx, ny, x0, y0, cell) {
                 }
             }
         }
+        pass++
     }
     return { i1, i2, d1sq, d2sq }
 }
@@ -363,12 +374,14 @@ function blurField(f, nx, ny, passes) {
 ///   cell       – field grid spacing in font units (default 4)
 ///   maxOutward – farthest outward keyline band to leave room for
 ///                (default 1.5*thickness)
+///   onProgress – optional (0..1) callback reported across the field build
 export function buildGrowthField(strokes, opts = {}) {
     const thickness = opts.thickness ?? 30
     const growScale = opts.growScale ?? 120
     const counterK = opts.counterK ?? 2.2 * thickness + 40
     const cell = opts.cell ?? 4
     const maxOutward = opts.maxOutward ?? 1.5 * thickness
+    const onProgress = opts.onProgress
 
     // --- Sample all spines, tracking cumulative arc position per sample ---
     const sx = [], sy = [], sid = [], sarc = []
@@ -407,8 +420,11 @@ export function buildGrowthField(strokes, opts = {}) {
 
     // Geodesic same-part relation: strokes touching within ~a sample spacing
     // are joined; everything beyond counterK along the network opposes.
+    // (Opposition is a modest, hard-to-instrument share; the sweep dominates.)
+    if (onProgress) onProgress(0.1)
     const samePart = buildOpposition(
         xs, ys, arcPos, strokeOf, strokeTotal, strokeClosed, strokeRanges, grid, cell * 2.2, counterK)
+    if (onProgress) onProgress(0.2)
 
     // --- Field bounds: pad enough for full growth plus the outermost band,
     // so every contour closes inside the grid at any grow value. ---
@@ -425,7 +441,9 @@ export function buildGrowthField(strokes, opts = {}) {
     const ny = Math.ceil((maxY + pad - y0) / cell) + 1
 
     // --- Distance sweeps, then extract distances to the winning seeds ---
-    const { i1, i2, d1sq, d2sq } = distanceSweep(xs, ys, samePart, nx, ny, x0, y0, cell)
+    // The sweep is the bulk of the field build: map it to the 0.2..1.0 range.
+    const sweepProgress = onProgress ? (f => onProgress(0.2 + 0.8 * f)) : undefined
+    const { i1, i2, d1sq, d2sq } = distanceSweep(xs, ys, samePart, nx, ny, x0, y0, cell, sweepProgress)
     const rg = new Float32Array(nx * ny * 2)
     for (let k = 0; k < nx * ny; k++) {
         rg[k * 2] = i1[k] < 0 ? DOPP_CAP : Math.sqrt(d1sq[k])
@@ -582,6 +600,7 @@ function simplify(pts, eps) {
 ///                negative values are outward keyline bands (default [0])
 ///   smoothPasses – extra 3×3 blur passes over f before contouring (default 1;
 ///                the dOpp channel is already smoothed once at field build)
+///   onProgress – optional (0..1) callback across the field build (the bulk)
 ///
 /// Returns { levels: [{ iso, contours }], bbox: {x0,y0,x1,y1}, stats }.
 export function growStrokes(strokes, params = {}) {
@@ -592,6 +611,7 @@ export function growStrokes(strokes, params = {}) {
     const cell = params.cell ?? 4
     const isoLevels = params.isoLevels ?? [0]
     const smoothPasses = params.smoothPasses ?? 1
+    const onProgress = params.onProgress
 
     const field = buildGrowthField(strokes, {
         thickness,
@@ -599,6 +619,8 @@ export function growStrokes(strokes, params = {}) {
         counterK: params.counterK,
         cell,
         maxOutward: Math.max(1.5 * thickness, -Math.min(...isoLevels)),
+        // Field build is the bulk; leave a tail for contouring.
+        onProgress: onProgress ? (f => onProgress(0.95 * f)) : undefined,
     })
     if (!field) return { levels: isoLevels.map(iso => ({ iso, contours: [] })), bbox: null, stats: {} }
 
@@ -631,6 +653,7 @@ export function growStrokes(strokes, params = {}) {
             .filter(c => area(c) >= minArea)
             .map(c => simplify(c, cell * 0.12)),
     }))
+    if (onProgress) onProgress(1)
 
     return {
         levels,

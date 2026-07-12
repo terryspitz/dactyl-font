@@ -79,12 +79,16 @@ self.onmessage = (e) => {
             }
             case 'growth': {
                 const [growText, growAxes, growParams] = args
-                result = generateGrowthSvg(growText, growAxes, growParams)
+                result = generateGrowthSvg(growText, growAxes, growParams, (p) => {
+                    self.postMessage({ id, type: 'progress', value: p });
+                })
                 break
             }
             case 'growthField': {
                 const [gText, gAxes] = args
-                result = generateGrowthField(gText, gAxes)
+                result = generateGrowthField(gText, gAxes, {}, (p) => {
+                    self.postMessage({ id, type: 'progress', value: p });
+                })
                 if (result) transfer = [result.rg.buffer]
                 break
             }

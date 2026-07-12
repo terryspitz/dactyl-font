@@ -590,14 +590,20 @@ function App() {
     setLoading(true)
     loadingRef.current = true
     setError(null)
+    setProgressValue(0)
 
     const timer = setTimeout(() => {
       if (id === renderIdRef.current && loadingRef.current) setShowProgress(true)
-    }, 1000)
+    }, 400)
 
     worker.onmessage = (e) => {
-      const { id: msgId, result, error } = e.data
+      const { id: msgId, result, error, type, value } = e.data
       if (msgId !== renderIdRef.current) return
+      if (type === 'progress') {
+        setProgressValue(value)
+        if (value > 0) setShowProgress(true)
+        return
+      }
       clearTimeout(timer)
       if (error) { setError(error) }
       else { setGrowField(result); setError(null) }
