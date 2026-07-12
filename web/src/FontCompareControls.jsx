@@ -23,7 +23,8 @@ export default function FontCompareControls({
   const [busy, setBusy] = useState(false)
   const [systemFonts, setSystemFonts] = useState(null)
   const [googleSel, setGoogleSel] = useState(GOOGLE_FONTS[0].name)
-  const [textInput, setTextInput] = useState('')
+  const [urlInput, setUrlInput] = useState('')
+  const [familyInput, setFamilyInput] = useState('')
   // Guards against a stale request (e.g. an auto-load kicked off for a source
   // the user has since switched away from) clobbering a later, faster one.
   const requestIdRef = useRef(0)
@@ -58,12 +59,14 @@ export default function FontCompareControls({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, source, googleSel])
 
-  // A free-text value can be a direct font URL (outline) or a family name (text).
-  const loadFreeText = () => {
-    const v = textInput.trim()
-    if (!v) return
-    if (/^https?:\/\//.test(v)) run(() => loadFontFromUrl(v))
-    else run(async () => loadGoogleFontText(v))
+  const loadUrl = () => {
+    const v = urlInput.trim()
+    if (v) run(() => loadFontFromUrl(v))
+  }
+
+  const loadCssFamily = () => {
+    const v = familyInput.trim()
+    if (v) run(async () => loadGoogleFontText(v))
   }
 
   const loadSystemList = () =>
@@ -89,6 +92,8 @@ export default function FontCompareControls({
           <select value={source} onChange={e => setSource(e.target.value)} title="Font source">
             <option value="google">Google Fonts</option>
             <option value="system">System fonts</option>
+            <option value="url">Load URL</option>
+            <option value="cssFamily">CSS Font Family</option>
             <option value="upload">Upload</option>
           </select>
 
@@ -97,19 +102,31 @@ export default function FontCompareControls({
           )}
 
           {source === 'google' && (
-            <>
-              <select value={googleSel} onChange={e => setGoogleSel(e.target.value)}>
-                {GOOGLE_FONTS.map(g => <option key={g.name} value={g.name}>{g.name}</option>)}
-              </select>
-              <input
-                type="text"
-                className="compare-text-input"
-                placeholder="…or family name / .ttf URL"
-                value={textInput}
-                onChange={e => setTextInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') loadFreeText() }}
-              />
-            </>
+            <select value={googleSel} onChange={e => setGoogleSel(e.target.value)}>
+              {GOOGLE_FONTS.map(g => <option key={g.name} value={g.name}>{g.name}</option>)}
+            </select>
+          )}
+
+          {source === 'url' && (
+            <input
+              type="text"
+              className="compare-text-input"
+              placeholder="https://…/font.ttf"
+              value={urlInput}
+              onChange={e => setUrlInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') loadUrl() }}
+            />
+          )}
+
+          {source === 'cssFamily' && (
+            <input
+              type="text"
+              className="compare-text-input"
+              placeholder="Font family name"
+              value={familyInput}
+              onChange={e => setFamilyInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') loadCssFamily() }}
+            />
           )}
 
           {source === 'system' && (
@@ -126,6 +143,7 @@ export default function FontCompareControls({
             )
           )}
 
+          <div className="compare-controls-break" />
           <label htmlFor="compare-size">Size:</label>
           <input
             id="compare-size"
