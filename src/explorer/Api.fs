@@ -9,7 +9,7 @@ open GlyphStringDefs
 open SvgHelpers
 
 // Helper to convert the union type Controls to a JS-friendly object
-let getControlDetails (name: string, control: Controls, category: string) =
+let getControlDetails (name: string, control: Controls, category: string, description: string) =
     match control with
     | Range(min, max) ->
         {| name = name
@@ -17,34 +17,37 @@ let getControlDetails (name: string, control: Controls, category: string) =
            min = float min
            max = float max
            step = (float max - float min) / 20.0
-           category = category |}
+           category = category
+           description = description |}
     | FracRange(min, max) ->
         {| name = name
            type_ = "range"
            min = min
            max = max
            step = 0.05
-           category = category |}
+           category = category
+           description = description |}
     | Checkbox ->
         {| name = name
            type_ = "checkbox"
            min = 0.0
            max = 1.0
            step = 1.0
-           category = category |}
+           category = category
+           description = description |}
 
 let controlDefinitions = Axes.controls |> List.map getControlDetails |> Array.ofList
 
 let defaultAxes = Axes.DefaultAxes
 
 let allChars =
-    "abcdefg hijklm
-nopqrst uvwxyz
-01234 56789
-ABCDEFG HIJKLM
-NOPQRST UVWXYZ
-!\"#£$% &'()*+,-./:;
-<=>?@ [\\]^_`{|}~"
+    "abcdefghijklm
+nopqrstuvwxyz
+0123456789
+ABCDEFGHIJKLM
+NOPQRSTUVWXYZ
+!\"#£$%&'()*+,-./:;
+<=>?@[\\]^_`{|}~"
 
 let generateSvg (text: string) (axes: Axes) (autoscale: bool) (progress: (float -> unit) option) =
     let font = Font axes
@@ -591,7 +594,10 @@ let generateFontGlyphData (axes: Axes) =
     let fontAxes = { axes with outline = true; filled = true }
     let font = Font fontAxes
     let metrics = FontMetrics(axes)
-    let chars = allChars.Replace("\n", "")
+    // Exported/preview fonts need an actual space glyph (used to render proof
+    // text, font comparisons, etc.), so make sure one is always included even
+    // though allChars itself no longer contains a literal space character.
+    let chars = allChars.Replace("\n", "") + " "
 
     // outlineFont has smooth=false so rendering the sampled Corner outline knots
     // does not trigger O(n²) NelderMead; cached on the font instance.

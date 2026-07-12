@@ -9,7 +9,10 @@ fi
 # Install .NET 8 SDK if not present
 if ! command -v dotnet &>/dev/null; then
   echo "Installing .NET 8 SDK..."
-  apt-get update -q || true
+  # -o Acquire::AllowReleaseInfoChange::Label=true tolerates third-party PPAs
+  # (e.g. ondrej/php) that change their Release file's Label field, which apt
+  # otherwise treats as a hard error and aborts `apt-get update`.
+  apt-get update -q -o Acquire::AllowReleaseInfoChange::Label=true || true
   apt-get install -y dotnet-sdk-8.0
 fi
 
