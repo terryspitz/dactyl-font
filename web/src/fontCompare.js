@@ -68,7 +68,7 @@ export async function loadSystemFont(face) {
 // google/fonts GitHub repo, so outline overlay works without an API key.
 // Anything else can be entered as a direct TTF URL, or by family name (text).
 export const GOOGLE_FONTS = [
-  { name: 'Roboto', path: 'apache/roboto/Roboto[wdth,wght].ttf' },
+  { name: 'Roboto', path: 'ofl/roboto/Roboto[wdth,wght].ttf' },
   { name: 'Open Sans', path: 'ofl/opensans/OpenSans[wdth,wght].ttf' },
   { name: 'Lato', path: 'ofl/lato/Lato-Regular.ttf' },
   { name: 'Montserrat', path: 'ofl/montserrat/Montserrat[wght].ttf' },
