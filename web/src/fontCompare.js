@@ -68,7 +68,7 @@ export async function loadSystemFont(face) {
 // google/fonts GitHub repo, so outline overlay works without an API key.
 // Anything else can be entered as a direct TTF URL, or by family name (text).
 export const GOOGLE_FONTS = [
-  { name: 'Roboto', path: 'apache/roboto/Roboto[wdth,wght].ttf' },
+  { name: 'Roboto', path: 'ofl/roboto/Roboto[wdth,wght].ttf' },
   { name: 'Open Sans', path: 'ofl/opensans/OpenSans[wdth,wght].ttf' },
   { name: 'Lato', path: 'ofl/lato/Lato-Regular.ttf' },
   { name: 'Montserrat', path: 'ofl/montserrat/Montserrat[wght].ttf' },
@@ -80,8 +80,8 @@ export const GOOGLE_FONTS = [
   { name: 'Work Sans', path: 'ofl/worksans/WorkSans[wght].ttf' },
   { name: 'Playfair Display', path: 'ofl/playfairdisplay/PlayfairDisplay[wght].ttf' },
   { name: 'Roboto Slab', path: 'apache/robotoslab/RobotoSlab[wght].ttf' },
-  { name: 'PT Serif', path: 'ofl/ptserif/PTSerif-Regular.ttf' },
-  { name: 'Libre Baskerville', path: 'ofl/librebaskerville/LibreBaskerville-Regular.ttf' },
+  { name: 'PT Serif', path: 'ofl/ptserif/PT_Serif-Web-Regular.ttf' },
+  { name: 'Libre Baskerville', path: 'ofl/librebaskerville/LibreBaskerville[wght].ttf' },
   { name: 'Bebas Neue', path: 'ofl/bebasneue/BebasNeue-Regular.ttf' },
   { name: 'Comfortaa', path: 'ofl/comfortaa/Comfortaa[wght].ttf' },
   { name: 'Josefin Sans', path: 'ofl/josefinsans/JosefinSans[wght].ttf' },
