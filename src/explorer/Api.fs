@@ -368,16 +368,23 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
     toSvgDocument -50.0 fontSpline2.yBaselineOffset svgWidth fontSpline2.charHeight svgElements
     |> String.concat "\n"
 
-let getGlyphDefs (text: string) =
+let getGlyphDefs (text: string) (altAG: bool) =
     if System.String.IsNullOrEmpty(text) then
         ""
     else
         // Deduplicate chars to avoid spamming same def
         let chars = text |> Seq.map id |> Seq.distinct |> Seq.toList
 
+        let lookup c =
+            if altAG then
+                GlyphStringDefs.altGlyphMap.TryFind c
+                |> Option.orElseWith (fun () -> GlyphStringDefs.glyphMap.TryFind c)
+            else
+                GlyphStringDefs.glyphMap.TryFind c
+
         chars
         |> List.map (fun c ->
-            match GlyphStringDefs.glyphMap.TryFind c with
+            match lookup c with
             | Some def -> sprintf "'%c': %s" c def
             | None -> sprintf "'%c': (no definition)" c)
         |> String.concat "\n"

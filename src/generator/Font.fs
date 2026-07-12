@@ -412,7 +412,9 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     member this.reduce(e: Element) =
         match e with
         | Glyph(ch) ->
-            if Map.containsKey ch GlyphStringDefs.glyphMap then
+            if axes.alt_a_g && Map.containsKey ch GlyphStringDefs.altGlyphMap then
+                memoize (stringDefsToElemFromMap GlyphStringDefs.altGlyphMap) _metrics ch axes.debug
+            elif Map.containsKey ch GlyphStringDefs.glyphMap then
                 memoize stringDefsToElem _metrics ch axes.debug
             else
                 Dot(
