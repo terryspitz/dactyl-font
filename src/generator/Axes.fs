@@ -14,6 +14,7 @@ type Axes =
       width: int //width of normal glyph
       height: int //capital height
       x_height: float //height of lower case as a fraction of capitals
+      descender_depth: float //depth of descenders below the baseline, as a fraction of capital height
       thickness: int //stroke width
       contrast: float //make vertical lines thicker
       roundedness: int //roundedness
@@ -56,6 +57,7 @@ type Axes =
           width = 300
           height = 600
           x_height = 0.6
+          descender_depth = 0.5
           thickness = 30
           contrast = 0.05
           roundedness = 60
@@ -97,6 +99,7 @@ type Axes =
           "width", Range(100, 1000), "backbone", "Width of normal glyph"
           "height", Range(100, 1000), "backbone", "Capital height"
           "x_height", FracRange(0.2, 1.1), "backbone", "Height of lower case as a fraction of capitals"
+          "descender_depth", FracRange(0.2, 1.0), "backbone", "Depth of descenders below the baseline, as a fraction of capital height"
           "tracking", Range(0, 200), "backbone", "Gap between glyphs"
           "leading", Range(-100, 200), "backbone", "Gap between lines"
           "monospace", FracRange(0.0, 1.0), "backbone", "Fraction to interpolate widths to monospace"
