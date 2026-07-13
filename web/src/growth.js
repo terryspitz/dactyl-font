@@ -22,11 +22,19 @@
 // euclidean-close at the top but geodesically half the bowl apart, so they
 // must keep the counter open.
 //
-// (d1, dOpp) form a two-channel quasi-SDF of the letterform, computed once
-// per text/axes change with a jump-flood transform (buildGrowthField).  Both
+// The field also carries a third channel, `cross` in [0,1]: whether the
+// opposition at a cell straddles a glyph boundary (the nearest sample and its
+// opponent belong to different glyphs) rather than two parts of the same
+// glyph.  It lets `fuse` melt neighbouring letters into a logotype — the gap
+// is only relaxed where opposition is cross-glyph, so an 'o' counter never
+// collapses even at full fuse.  It is blurred like dOpp so the boundary is a
+// soft ramp, not a hard 0/1 step.
+//
+// (d1, dOpp, cross) form a quasi-SDF of the letterform, computed once per
+// text/axes change with a jump-flood transform (buildGrowthField).  Both
 // consumers derive f from it: growStrokes contours f with marching squares
 // for vector output, and GrowCanvas.jsx thresholds it in a fragment shader
-// where grow/gap/layers are just uniforms.
+// where grow/gap/fuse/layers are just uniforms.
 
 // dOpp is capped here: values beyond every reachable rMax + gap are
 // equivalent (the growth rule clamps to rMax first), and a finite cap keeps
@@ -302,11 +310,12 @@ function distanceSweep(xs, ys, samePart, nx, ny, x0, y0, cell, onProgress) {
     return { i1, i2, d1sq, d2sq }
 }
 
-/// In-place 3×3 binomial blur of one channel of an interleaved field
-/// (repeated `passes` times).  The dOpp channel has small discontinuities
-/// where the nearest sample flips between distant parts of the skeleton;
-/// blurring removes the resulting contour tears.
-function blurChannel(rg, channel, nx, ny, passes) {
+/// In-place 3×3 binomial blur of one channel of an interleaved field with
+/// `stride` channels per cell (repeated `passes` times).  The dOpp and cross
+/// channels have small discontinuities where the nearest sample flips between
+/// distant parts of the skeleton; blurring removes the resulting contour tears
+/// (and turns cross into a soft 0..1 ramp across glyph boundaries).
+function blurChannel(rg, channel, nx, ny, passes, stride) {
     if (passes <= 0) return
     const tmp = new Float32Array(nx * ny)
     const out = new Float32Array(nx * ny)
@@ -314,9 +323,9 @@ function blurChannel(rg, channel, nx, ny, passes) {
         for (let iy = 0; iy < ny; iy++) {
             const row = iy * nx
             for (let ix = 0; ix < nx; ix++) {
-                const l = rg[(row + Math.max(0, ix - 1)) * 2 + channel]
-                const c = rg[(row + ix) * 2 + channel]
-                const r = rg[(row + Math.min(nx - 1, ix + 1)) * 2 + channel]
+                const l = rg[(row + Math.max(0, ix - 1)) * stride + channel]
+                const c = rg[(row + ix) * stride + channel]
+                const r = rg[(row + Math.min(nx - 1, ix + 1)) * stride + channel]
                 tmp[row + ix] = (l + 2 * c + r) / 4
             }
         }
@@ -328,7 +337,7 @@ function blurChannel(rg, channel, nx, ny, passes) {
                 out[row + ix] = (tmp[up + ix] + 2 * tmp[row + ix] + tmp[dn + ix]) / 4
             }
         }
-        for (let k = 0; k < nx * ny; k++) rg[k * 2 + channel] = out[k]
+        for (let k = 0; k < nx * ny; k++) rg[k * stride + channel] = out[k]
     }
 }
 
@@ -360,13 +369,17 @@ function blurField(f, nx, ny, passes) {
     return src
 }
 
-/// Build the two-channel growth field for a set of strokes: for every grid
-/// cell, rg[2k] = d1 (distance to the nearest spine sample) and rg[2k+1] =
-/// dOpp (distance to the nearest sample opposing it, capped at DOPP_CAP).
-/// The field is independent of grow/gap, so consumers can vary those freely
-/// (a fragment shader treats them as uniforms; growStrokes recontours).
+/// Build the three-channel growth field for a set of strokes: for every grid
+/// cell, rg[3k] = d1 (distance to the nearest spine sample), rg[3k+1] = dOpp
+/// (distance to the nearest sample opposing it, capped at DOPP_CAP), and
+/// rg[3k+2] = cross (blurred 0..1 flag: the opposition straddles a glyph
+/// boundary).  The field is independent of grow/gap/fuse, so consumers can
+/// vary those freely (a fragment shader treats them as uniforms; growStrokes
+/// recontours).
 ///
-/// strokes: [{ pts: [[x,y],...], closed: bool }] in font units (y up).
+/// strokes: [{ pts: [[x,y],...], closed: bool, glyph?: int }] in font units
+/// (y up).  `glyph` tags which letter a stroke belongs to (default 0); it
+/// drives the cross channel and hence `fuse`.
 /// opts:
 ///   thickness  – classic stroke thickness (sets junction scale and padding)
 ///   growScale  – max extra radius the field must accommodate (default 120)
@@ -384,7 +397,7 @@ export function buildGrowthField(strokes, opts = {}) {
     const onProgress = opts.onProgress
 
     // --- Sample all spines, tracking cumulative arc position per sample ---
-    const sx = [], sy = [], sid = [], sarc = []
+    const sx = [], sy = [], sid = [], sarc = [], sglyph = []
     const strokeRanges = []
     const closedFlags = []
     const totals = []
@@ -393,6 +406,7 @@ export function buildGrowthField(strokes, opts = {}) {
             ? resample(stroke.pts, stroke.closed, cell)
             : stroke.pts // single point (a Dot)
         const start = sx.length
+        const glyph = stroke.glyph ?? 0
         let arc = 0
         for (let i = 0; i < pts.length; i++) {
             if (i > 0) arc += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])
@@ -400,6 +414,7 @@ export function buildGrowthField(strokes, opts = {}) {
             sy.push(pts[i][1])
             sid.push(strokeRanges.length)
             sarc.push(arc)
+            sglyph.push(glyph)
         }
         // Closed strokes wrap: total includes the closing segment.
         if (stroke.closed && pts.length > 2) {
@@ -413,6 +428,7 @@ export function buildGrowthField(strokes, opts = {}) {
     const xs = Float64Array.from(sx)
     const ys = Float64Array.from(sy)
     const strokeOf = Int32Array.from(sid)
+    const glyphOf = Int32Array.from(sglyph)
     const arcPos = Float64Array.from(sarc)
     const strokeTotal = Float64Array.from(totals)
     const strokeClosed = Uint8Array.from(closedFlags.map(c => c ? 1 : 0))
@@ -444,17 +460,22 @@ export function buildGrowthField(strokes, opts = {}) {
     // The sweep is the bulk of the field build: map it to the 0.2..1.0 range.
     const sweepProgress = onProgress ? (f => onProgress(0.2 + 0.8 * f)) : undefined
     const { i1, i2, d1sq, d2sq } = distanceSweep(xs, ys, samePart, nx, ny, x0, y0, cell, sweepProgress)
-    const rg = new Float32Array(nx * ny * 2)
+    const rg = new Float32Array(nx * ny * 3)
     for (let k = 0; k < nx * ny; k++) {
-        rg[k * 2] = i1[k] < 0 ? DOPP_CAP : Math.sqrt(d1sq[k])
-        rg[k * 2 + 1] = i2[k] < 0 ? DOPP_CAP : Math.min(DOPP_CAP, Math.sqrt(d2sq[k]))
+        const a = i1[k], b = i2[k]
+        rg[k * 3] = a < 0 ? DOPP_CAP : Math.sqrt(d1sq[k])
+        rg[k * 3 + 1] = b < 0 ? DOPP_CAP : Math.min(DOPP_CAP, Math.sqrt(d2sq[k]))
+        // cross = opposition straddles a glyph boundary (drives `fuse`).
+        rg[k * 3 + 2] = (a >= 0 && b >= 0 && glyphOf[a] !== glyphOf[b]) ? 1 : 0
     }
-    // Smooth the opposition channel only: d1 is a true distance and already
-    // continuous, dOpp jumps where the winning seed flips (and the sweep's
-    // occasional wrong-seed picks land in the same discontinuities).
-    blurChannel(rg, 1, nx, ny, 2)
+    // Smooth the opposition and cross channels: d1 is a true distance and
+    // already continuous, but dOpp jumps where the winning seed flips (and the
+    // sweep's occasional wrong-seed picks land in the same discontinuities),
+    // and cross is a hard 0/1 that reads better as a soft boundary ramp.
+    blurChannel(rg, 1, nx, ny, 2, 3)
+    blurChannel(rg, 2, nx, ny, 2, 3)
 
-    return { rg, nx, ny, x0, y0, cell, samples: xs.length, thickness, growScale }
+    return { rg, nx, ny, x0, y0, cell, channels: 3, samples: xs.length, thickness, growScale }
 }
 
 /// Marching squares at iso value `iso` over field f (ny rows × nx cols, grid
@@ -594,6 +615,9 @@ function simplify(pts, eps) {
 ///   grow       – 0..1: how far strokes may bulge beyond classic (0 = classic offset)
 ///   growScale  – max extra radius at grow=1 (default 120)
 ///   gap        – whitespace channel preserved between opposing strokes
+///   fuse       – 0..1: melt neighbouring glyphs together by relaxing the gap
+///                (and forcing overlap) only where opposition is cross-glyph;
+///                counters within a glyph stay open (default 0)
 ///   counterK   – geodesic opposition threshold (default 2.2*thickness + 40)
 ///   cell       – field grid spacing in font units (default 4)
 ///   isoLevels  – field iso values to contour, e.g. [0, -14, -30]; 0 is the ink edge,
@@ -608,6 +632,7 @@ export function growStrokes(strokes, params = {}) {
     const grow = params.grow ?? 0.5
     const growScale = params.growScale ?? 120
     const gap = params.gap ?? thickness * 0.8
+    const fuse = params.fuse ?? 0
     const cell = params.cell ?? 4
     const isoLevels = params.isoLevels ?? [0]
     const smoothPasses = params.smoothPasses ?? 1
@@ -627,11 +652,16 @@ export function growStrokes(strokes, params = {}) {
     const { rg, nx, ny, x0, y0 } = field
     const rMin = thickness / 2
     const rMax = rMin + grow * growScale
+    // At full fuse, cross-glyph cells drop the gap and overlap by fuseMerge so
+    // the two fronts guarantee a merged blob rather than merely kissing.
+    const fuseMerge = rMin
 
     let f = new Float32Array(nx * ny)
     for (let k = 0; k < nx * ny; k++) {
-        const rAllowed = Math.max(rMin, Math.min(rMax, rg[k * 2 + 1] - gap))
-        f[k] = rAllowed - rg[k * 2]
+        const cross = rg[k * 3 + 2]
+        const g = gap - cross * fuse * (gap + fuseMerge)
+        const rAllowed = Math.max(rMin, Math.min(rMax, rg[k * 3 + 1] - g))
+        f[k] = rAllowed - rg[k * 3]
     }
     f = blurField(f, nx, ny, smoothPasses)
 

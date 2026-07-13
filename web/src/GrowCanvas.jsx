@@ -1,12 +1,14 @@
-// GPU preview for the Grow tab.  The worker computes the two-channel growth
+// GPU preview for the Grow tab.  The worker computes the three-channel growth
 // field (d1 = distance to nearest spine, dOpp = distance to nearest opposing
-// spine) once per text/axes change; this component uploads it as an RG32F
-// texture and derives the ink + keyline bands in a fragment shader:
+// spine, cross = cross-glyph opposition flag) once per text/axes change; this
+// component uploads it as an RGB32F texture and derives the ink + keyline
+// bands in a fragment shader:
 //
-//   f = clamp(dOpp - gap, rMin, rMax) - d1
+//   g = gap - cross * fuse * (gap + fuseMerge)
+//   f = clamp(dOpp - g, rMin, rMax) - d1
 //
-// grow / gap / layer offsets are uniforms, so dragging sliders (and animating
-// growth) re-renders on the GPU without touching the worker at all.
+// grow / gap / fuse / layer offsets are uniforms, so dragging sliders (and
+// animating growth) re-renders on the GPU without touching the worker at all.
 
 import { useRef, useEffect } from 'react'
 import { LAYER_COLORS, layerIsoLevels } from './growth'
@@ -28,6 +30,8 @@ uniform vec2 uTexSize;
 uniform float uRMin;
 uniform float uRMax;
 uniform float uGap;
+uniform float uFuse;
+uniform float uFuseMerge;
 uniform int uBandCount;
 uniform float uBandOffsets[4];
 uniform vec3 uBandColors[4];
@@ -35,23 +39,25 @@ uniform vec3 uBg;
 in vec2 vUV;
 out vec4 outColor;
 
-vec2 sampleField(vec2 uv) {
+vec3 sampleField(vec2 uv) {
   vec2 p = uv * uTexSize - 0.5;
   vec2 i = floor(p);
   vec2 fr = p - i;
   ivec2 mx = ivec2(uTexSize) - 1;
   ivec2 i00 = clamp(ivec2(i), ivec2(0), mx);
   ivec2 i11 = clamp(ivec2(i) + 1, ivec2(0), mx);
-  vec2 a = texelFetch(uField, ivec2(i00.x, i00.y), 0).rg;
-  vec2 b = texelFetch(uField, ivec2(i11.x, i00.y), 0).rg;
-  vec2 c = texelFetch(uField, ivec2(i00.x, i11.y), 0).rg;
-  vec2 d = texelFetch(uField, ivec2(i11.x, i11.y), 0).rg;
+  vec3 a = texelFetch(uField, ivec2(i00.x, i00.y), 0).rgb;
+  vec3 b = texelFetch(uField, ivec2(i11.x, i00.y), 0).rgb;
+  vec3 c = texelFetch(uField, ivec2(i00.x, i11.y), 0).rgb;
+  vec3 d = texelFetch(uField, ivec2(i11.x, i11.y), 0).rgb;
   return mix(mix(a, b, fr.x), mix(c, d, fr.x), fr.y);
 }
 
 void main() {
-  vec2 dd = sampleField(vUV);
-  float f = clamp(dd.g - uGap, uRMin, uRMax) - dd.r;
+  vec3 dd = sampleField(vUV);
+  // Relax (and overshoot) the gap only where opposition is cross-glyph.
+  float g = uGap - dd.b * uFuse * (uGap + uFuseMerge);
+  float f = clamp(dd.g - g, uRMin, uRMax) - dd.r;
   float aa = fwidth(f) * 0.7 + 1e-4;
   vec3 col = uBg;
   for (int i = 3; i >= 0; i--) {
@@ -109,7 +115,8 @@ function initGL(canvas) {
         gl,
         u: {
             texSize: uni('uTexSize'), rMin: uni('uRMin'), rMax: uni('uRMax'),
-            gap: uni('uGap'), bandCount: uni('uBandCount'),
+            gap: uni('uGap'), fuse: uni('uFuse'), fuseMerge: uni('uFuseMerge'),
+            bandCount: uni('uBandCount'),
             bandOffsets: uni('uBandOffsets'), bandColors: uni('uBandColors'),
             bg: uni('uBg'),
         },
@@ -129,7 +136,7 @@ export default function GrowCanvas({ field, params, zoom }) {
         if (!ctx) return
         const { gl } = ctx
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG32F, field.nx, field.ny, 0, gl.RG, gl.FLOAT, field.rg)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB32F, field.nx, field.ny, 0, gl.RGB, gl.FLOAT, field.rg)
     }, [field])
 
     // Draw (and animate) whenever field/params/zoom change.
@@ -162,6 +169,8 @@ export default function GrowCanvas({ field, params, zoom }) {
             gl.uniform1f(u.rMin, rMin)
             gl.uniform1f(u.rMax, rMin + growValue * field.growScale)
             gl.uniform1f(u.gap, params.gap)
+            gl.uniform1f(u.fuse, params.fuse ?? 0)
+            gl.uniform1f(u.fuseMerge, rMin)
             gl.uniform1i(u.bandCount, isoLevels.length)
             const offsets = new Float32Array(4)
             isoLevels.forEach((v, i) => { offsets[i] = v })

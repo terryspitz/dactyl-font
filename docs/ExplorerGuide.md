@@ -134,6 +134,7 @@ All the usual axes still apply, since growth starts from the same backbones.
 |---------|--------|
 | `grow` | 0 = classic constant offset … 1 = full space-filling bulge |
 | `gap` | Whitespace channel preserved between opposing strokes |
+| `fuse` | 0 = letters stay separate … 1 = neighbouring glyphs melt into a single logotype (the gap is relaxed and overshot only between different glyphs, so counters inside a letter stay open) |
 | `layers` | Emit nested keyline bands (near-white core → light blue → dark blue → black keyline) that fuse between glyphs for a Y2K logotype look |
 | `animate` | Ramp the growth up and down so the letters visibly grow (WebGL only) |
 
@@ -143,7 +144,7 @@ default — its caret dropdown offers PNG (transparent, high-res) or SVG (vector
 
 The preview renders on the GPU where WebGL2 is available: the worker computes a
 distance field once per text/axes change and a fragment shader thresholds it,
-so dragging `grow`/`gap`/`layers` never re-runs the worker.  Without WebGL2 it
+so dragging `grow`/`gap`/`fuse`/`layers` never re-runs the worker.  Without WebGL2 it
 falls back to a worker-rendered SVG.  Multi-line text is supported; a
 determinate progress bar shows while the field is (re)built.
 

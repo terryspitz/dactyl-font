@@ -155,6 +155,12 @@ unlocks the standard SDF toolbox:
 3. **Shape algebra.**  smooth-min between per-glyph SDFs = controllable
    fusion/ligatures (a blend-radius `fuse` slider); erode-then-dilate =
    a field-space `soft_corners`; subtraction = counter protection.
+   *(Partly shipped: a `fuse` slider melts neighbouring glyphs into a logotype
+   by relaxing — and overshooting — the constant gap only where the opposition
+   is cross-glyph.  A third field channel, `cross`, tags cross-glyph
+   opposition, so counters inside a glyph stay open at any fuse.  This is the
+   field-relaxation form of the same idea; a literal per-glyph smooth-min is
+   still open for smoother fillets and erode/dilate corners.)*
 4. **Exact segment SDFs.**  Distance to the resampled polyline's *segments*
    (capsule SDF) instead of to point samples decouples field accuracy from
    sample spacing.
@@ -167,4 +173,6 @@ unlocks the standard SDF toolbox:
    reverse-engineer backbones — Dactyl-izing arbitrary fonts.
 
 Status: items 1–2 are implemented (JFA in `web/src/growth.js`, shader
-preview in `web/src/GrowCanvas.jsx`); 3–6 are open.
+preview in `web/src/GrowCanvas.jsx`); item 3 is partly implemented (the
+cross-glyph `fuse` slider — field channel in `growth.js`, `uFuse` uniform in
+`GrowCanvas.jsx`); 4–6 are open.

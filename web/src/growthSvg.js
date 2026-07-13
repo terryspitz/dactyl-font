@@ -65,6 +65,7 @@ export function generateGrowthField(text, axes, params = {}, onProgress) {
 export function generateGrowthSvg(text, axes, params = {}, onProgress) {
     const grow = params.grow ?? 0.7
     const gap = params.gap ?? 30
+    const fuse = params.fuse ?? 0
     const layers = params.layers ?? true
     const thickness = axes.thickness
     const cell = params.cell ?? cellFor(text)
@@ -77,7 +78,7 @@ export function generateGrowthSvg(text, axes, params = {}, onProgress) {
     const colors = layers ? LAYER_COLORS : ['black']
 
     const g = growStrokes(allStrokes, {
-        thickness, grow, growScale: GROW_SCALE, gap, cell, isoLevels,
+        thickness, grow, growScale: GROW_SCALE, gap, fuse, cell, isoLevels,
         onProgress: onProgress ? (f => onProgress(EXTRACT_SHARE + (1 - EXTRACT_SHARE) * f)) : undefined,
     })
     if (!g.bbox) return ''
