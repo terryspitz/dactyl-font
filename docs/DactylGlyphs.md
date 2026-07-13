@@ -4,6 +4,8 @@
 
 This guide introduces the basics of writing a Dactyl Glyph string and using the **Glyphs** tab to test and debug your designs.
 
+The actual glyph definition strings for every character live in [`src/generator/GlyphStringDefs.fs`](https://github.com/terryspitz/dactyl-font/blob/master/src/generator/GlyphStringDefs.fs).
+
 ## Quick Examples
 Before diving into the detailed syntax rules, here is what Dactyl Glyphs look like in practice:
 
@@ -72,6 +74,25 @@ You can inject a single letter between the Y and X coordinates to adjust the poi
 - `o` (inward offset): Moves the point inward by the font's "roundedness" value.
 - `e` (outward extended offset): Moves the point outward by the font's stroke "thickness".
 *Example:* `tel` is a point at the Top-Left but shifted slightly outward.
+
+The same `o`/`e` letters may also appear **after** the X coordinate, where
+they adjust the point horizontally inward/outward toward the glyph's vertical
+centerline instead. This is used to carve short flat "shoulders" onto bowls
+(e.g. the tops of `B`, `D`, `P`, `R`) whose length shrinks as roundedness
+increases — at `roundedness=0` the shoulder spans 90% of the glyph width
+(a near-flat, square edge), shrinking down to a modest flat (13% of width)
+at `roundedness=100`, so lower roundedness gives a noticeably squarer
+letterform.
+*Example:* `tlo` is a point at the Top-Left, shifted inward (rightward) by an
+amount that grows as roundedness decreases.
+
+Leave the shoulder point's tangent implicit (don't add an explicit `E`/`W`)
+when the straight line into it is already headed the direction you want the
+curve to leave in — e.g. `tl-tlo~(th)r` rather than `tl-tloE~(th)r`. The
+smooth-transition default (see rule 1 below) already aligns the curve to the
+line's heading, and forcing an explicit tangent there makes the join a
+`Corner` even though no direction actually changes, which produces a spurious
+spike when the outline is stroked.
 
 ### Explicit Tangents
 You can optionally append a direction to explicitly force the curve's heading as it passes through the point:

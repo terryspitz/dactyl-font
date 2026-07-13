@@ -68,7 +68,7 @@ export async function loadSystemFont(face) {
 // google/fonts GitHub repo, so outline overlay works without an API key.
 // Anything else can be entered as a direct TTF URL, or by family name (text).
 export const GOOGLE_FONTS = [
-  { name: 'Roboto', path: 'apache/roboto/Roboto[wdth,wght].ttf' },
+  { name: 'Roboto', path: 'ofl/roboto/Roboto[wdth,wght].ttf' },
   { name: 'Open Sans', path: 'ofl/opensans/OpenSans[wdth,wght].ttf' },
   { name: 'Lato', path: 'ofl/lato/Lato-Regular.ttf' },
   { name: 'Montserrat', path: 'ofl/montserrat/Montserrat[wght].ttf' },
@@ -80,8 +80,8 @@ export const GOOGLE_FONTS = [
   { name: 'Work Sans', path: 'ofl/worksans/WorkSans[wght].ttf' },
   { name: 'Playfair Display', path: 'ofl/playfairdisplay/PlayfairDisplay[wght].ttf' },
   { name: 'Roboto Slab', path: 'apache/robotoslab/RobotoSlab[wght].ttf' },
-  { name: 'PT Serif', path: 'ofl/ptserif/PTSerif-Regular.ttf' },
-  { name: 'Libre Baskerville', path: 'ofl/librebaskerville/LibreBaskerville-Regular.ttf' },
+  { name: 'PT Serif', path: 'ofl/ptserif/PT_Serif-Web-Regular.ttf' },
+  { name: 'Libre Baskerville', path: 'ofl/librebaskerville/LibreBaskerville[wght].ttf' },
   { name: 'Bebas Neue', path: 'ofl/bebasneue/BebasNeue-Regular.ttf' },
   { name: 'Comfortaa', path: 'ofl/comfortaa/Comfortaa[wght].ttf' },
   { name: 'Josefin Sans', path: 'ofl/josefinsans/JosefinSans[wght].ttf' },
@@ -190,16 +190,18 @@ const COLOR_B = 'rgba(0, 0, 255, 0.5)'   // comparison font (blue)
 /**
  * Build the 3-column-per-cell overlay SVG (Dactyl | comparison | overlaid),
  * mirroring the existing axis Visual Diffs layout. Dactyl is drawn at its
- * native scale; the comparison font is scaled so the chosen metric matches.
+ * native scale; the comparison font is normalized to the chosen metric and
+ * then multiplied by `sizeScale` (the user's Size slider, 1 = exact match).
  */
-export function buildCompareOverlaySvg(dactylGlyphData, font, text, align = 'cap', labelB = 'Font') {
+export function buildCompareOverlaySvg(dactylGlyphData, font, text, align = 'cap', labelB = 'Font', sizeScale = 1) {
   const em = dactylGlyphData.unitsPerEm
   const glyphMap = new Map(dactylGlyphData.glyphs.map(g => [g.unicode, g]))
 
   const metricD = dactylMetric(glyphMap, em, align)
   const metricE = fontMetric(font, align)
   const scaleD = 1
-  const scaleE = metricE > 0 ? metricD / metricE : em / font.unitsPerEm
+  const baseScaleE = metricE > 0 ? metricD / metricE : em / font.unitsPerEm
+  const scaleE = baseScaleE * sizeScale
 
   // Columns are sized close to the glyph advance (plus a small margin) so the
   // glyphs fill the cell, matching the axis Visual Diffs layout instead of

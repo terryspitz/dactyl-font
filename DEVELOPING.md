@@ -61,6 +61,14 @@ git commit -m "Update tab test baselines"
 Tab baselines are stored in `web/tests/tabs.spec.js-snapshots/` and committed to the repo.
 CI regenerates them automatically and commits any changes back to the branch.
 
+## Unit tests
+
+```bash
+cd web && npm test                                              # Vitest unit tests
+dotnet test src/generator/tests/generator.tests.fsproj          # F# generator tests
+dotnet test src/SpiroFs/tests/SpiroFs.tests.fsproj              # SpiroFs tests
+```
+
 ## New worktree
 
 ```bash

@@ -18,7 +18,7 @@ let direction_re = "[NSEW]"
 let line_re = "[-~]"
 let separator_re = " "
 let optional_re x = x + "?"
-let point_re = y_re + optional_re offset_re + x_re + optional_re direction_re
+let point_re = y_re + optional_re offset_re + x_re + optional_re offset_re + optional_re direction_re
 let curve_re = "(" + point_re + line_re + ")*" + point_re + optional_re line_re
 let glyph_re = "^ ?$|^(" + curve_re + separator_re + ")*" + curve_re + "$"
 
@@ -77,11 +77,11 @@ let glyphMap =
 
           'A', "bl-tc-br bhlc-bhrc"
           'a', "xr-br xor~x(c)~(xb)l~b(c)~bor"
-          'B', "hlE~(bh)r~blW-tlE~(th)r~hlE"
+          'B', "hl-hlo~(bh)r~blo-bl-tl-tlo~(th)r~hlo-hl"
           'b', "tl-bl bol~b(c)~(xb)r~x(c)~xol"
           'C', "tor~t(c)~(h)l~b(c)~bor"
           'c', "xor~x(c)~(xb)l~b(c)~bor"
-          'D', "tl-blE~(h)r~tlE"
+          'D', "tl-bl-blo~(h)r~tlo-tl"
           'd', "tr-br xor~x(c)~(xb)l~b(c)~bor"
           'E', "tr-tl-bl-br hl-hr"
           'e', "xbl-xbrN~x(c)~xblS~b(c)~bor5c"
@@ -105,11 +105,11 @@ let glyphMap =
           'n', "xl-bl xol~x(c)~xbr-br"
           'O', "(h)l~t(c)~(h)r~b(c)~"
           'o', "(xb)l~x(c)~(xb)r~b(c)~"
-          'P', "bl-tlE~(th)r~hlE"
+          'P', "bl-tl-tlo~(th)r~hlo-hl"
           'p', "xl-dl bol~b(c)~(xb)r~x(c)~xol"
           'Q', "(h)l~t(c)~(h)r~b(c)~ br-hbc"
           'q', "xr-dr xor~x(c)~(xb)l~b(c)~bor"
-          'R', "bl-tlE~(th)r~hcl-hl hc-br"
+          'R', "bl-tl-tlo~(th)r~hlo-hl hc-br"
           'r', "xl-bl xol~xlcc~xoccr"
           'S', "thr~t(c)~(ttb)l~hc~(tbb)r~b(c)~bhl"
           's', "xor~x(c)~(xxb)l~xbcE~(xbb)r~b(c)~bol"
@@ -127,6 +127,22 @@ let glyphMap =
           'y', "xl-xbl~b(c)~xbr-xr xr-br~d(c)~dol"
           'Z', "tl-tr-bl-br"
           'z', "xl-xr-bl-br" ]
+
+/// Alternate (stylistic-alternate) glyph shapes, selected by the `alt_a_g` axis.
+/// The default 'a' and 'g' above are single-storey forms (a circular bowl with a
+/// straight stem, and an open-tail g).  These provide two-storey forms modelled
+/// on humanist sans faces like Open Sans:
+///   'a': a right stem whose top arches over into an open hood ending high on
+///        the left, over a flat-topped bowl occupying the lower ~60%.
+///   'g': a binocular g — a small round bowl hanging from x-height, a flat ear
+///        at x-height reaching the right edge, and a short central neck down to
+///        a wider, flatter loop sitting wholly below the baseline.
+/// Both are written in the same coordinate language as glyphMap, so they inherit
+/// width, x-height, thickness, roundedness, italic, etc. from the other axes.
+let altGlyphMap =
+    Map.ofList
+        [ 'a', "br-xxbr~x(c)~xol3c xbr~b2x3(c)~(bbx)l~b(c)~bor"
+          'g', "(bx)l~x(c)~(bx)r2c~b2x(c)~ xc-xr b2xlc3W~blc3W (bd)l~bc~(bd)r~d(c)~" ]
 
 // parse
 
@@ -203,8 +219,38 @@ let parse_point (glyph: FontMetrics) def_raw =
             | 'w' -> glyph.W
             | _ -> invalidArg "x" (sprintf "Invalid X coord %A  (should be in %A)" c x_re))
 
-    let x_coord = List.average x_coords
+    let mutable x_coord = List.average x_coords
     def <- def.[match_x.Length ..]
+
+    // horizontal offset (mirrors the vertical offset above): moves the point
+    // inward toward the vertical centerline, used to carve short flat
+    // "shoulders" on bowls (e.g. B/D/P/R). Unlike the vertical 'o' offset,
+    // this shoulder shrinks as roundedness increases (and nearly vanishes at
+    // max roundedness) so that lower roundedness gives squarer letterforms.
+    // The shoulder spans 90% of the glyph width at roundedness=0, shrinking
+    // to the same length the old flat formula gave at roundedness=60 (i.e.
+    // 100-60=40 units at default width) by roundedness=100.
+    let matchXOffset = Regex.Match(def, "^" + offset_re)
+
+    if matchXOffset.Success then
+        def <- def.[matchXOffset.Length ..]
+
+        let isExtended = matchXOffset.Value = "e"
+
+        let offsetAmount =
+            if isExtended then
+                glyph.thickness
+            else
+                let maxFraction = 0.9
+                let minFraction = 40.0 / 300.0
+                let fraction = maxFraction - (maxFraction - minFraction) * (glyph.offset / 100.0)
+                -(glyph.R * fraction)
+
+        x_coord <-
+            if x_coord >= glyph.C then
+                x_coord + offsetAmount
+            else
+                x_coord - offsetAmount
 
     let match_dir = Regex.Match(def, "^" + direction_re)
 
@@ -344,14 +390,17 @@ let private parse_curves (glyph: FontMetrics) (def: string) debug =
                       parse_curve glyph d debug ]
         )
 
-let stringDefsToElem (glyph: FontMetrics) e debug =
-    let def = glyphMap.[e]
+let stringDefsToElemFromMap (map: Map<char, string>) (glyph: FontMetrics) e debug =
+    let def = map.[e]
     assert Regex.IsMatch(def, glyph_re)
 
     if debug then
         printfn "%A: %A" e def
 
     parse_curves glyph def debug
+
+let stringDefsToElem (glyph: FontMetrics) e debug =
+    stringDefsToElemFromMap glyphMap glyph e debug
 
 let rawDefToElem (glyph: FontMetrics) (rawDef: string) debug =
     try

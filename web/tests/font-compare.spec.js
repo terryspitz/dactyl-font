@@ -14,14 +14,16 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('visualDiffs compare-font upload overlay', async ({ page }) => {
-  // compare=font puts the tab in compare mode (Upload is the default source).
+  // compare=font puts the tab in compare mode (Google Fonts is the default source).
   await page.goto('?view=visualDiffs&compare=font&align=cap');
 
   // Use a short, deterministic string instead of the full character set.
   const textarea = page.locator('.input-wrapper textarea');
   await textarea.fill('Hagxo');
 
-  // Upload the fixture font through the real <input type="file">.
+  // Switch to the Upload source, then upload the fixture font through the
+  // real <input type="file">.
+  await page.locator('.font-compare-controls select[title="Font source"]').selectOption('upload');
   await page.locator('.font-compare-controls input[type="file"]').setInputFiles(FIXTURE);
 
   // The overlay SVG appears only once both the fixture font and Dactyl's

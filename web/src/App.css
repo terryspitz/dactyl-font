@@ -527,6 +527,25 @@
     font-size: 20px;
 }
 
+/* Grow tab download split-button menu */
+.grow-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font: inherit;
+    cursor: pointer;
+    text-align: left;
+}
+
+.grow-menu-item:hover {
+    background-color: var(--panel-bg-hover);
+}
+
 /* Tweens Grid */
 .tweens-grid {
     display: flex;
@@ -633,6 +652,30 @@
     color: white;
     font-size: 10px;
     font-weight: bold;
+}
+
+.legend-item input[type="checkbox"]:indeterminate {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+}
+
+.legend-item input[type="checkbox"]:indeterminate::after {
+    content: "–";
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+}
+
+.legend-heading {
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.legend-debug-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-left: 16px;
 }
 
 .swatch {
@@ -822,6 +865,10 @@
 .font-compare-controls.wrap {
     flex-wrap: wrap;
 }
+.compare-controls-break {
+    flex-basis: 100%;
+    height: 0;
+}
 .font-compare-controls input[type="file"] {
     font-size: 0.85em;
     max-width: 190px;
@@ -853,6 +900,15 @@
     max-width: 220px;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+.diff-config input[type="range"]#compare-size {
+    width: 90px;
+    vertical-align: middle;
+}
+.compare-size-val {
+    min-width: 38px;
+    color: var(--text-secondary, #666);
+    font-variant-numeric: tabular-nums;
 }
 
 /* Text-rendering overlay (Google CSS / system-name sources) */

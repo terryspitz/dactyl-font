@@ -12,6 +12,10 @@ const TABS = [
   { name: 'glyphs',           selector: '.svg-container' },
   { name: 'tweens',           selector: '.tweens-grid'   },
   { name: 'visualDiffs',      selector: '.svg-container' },
+  // Grow renders via a WebGL canvas when WebGL2 is available, else the SVG
+  // fallback; both only mount once the growth field/SVG has arrived.
+  { name: 'grow',             selector: '.preview-content canvas, .preview-content .svg-container',
+    extraWait: async (page) => { await page.waitForTimeout(500); } },
   { name: 'splines',          selector: '.se-canvas'     },
   { name: 'splineGrid',       selector: '.sg-grid',       tallViewport: true },
   { name: 'proofs-uppercase', selector: '.proof-text',

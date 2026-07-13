@@ -9,7 +9,7 @@ open GlyphStringDefs
 open SvgHelpers
 
 // Helper to convert the union type Controls to a JS-friendly object
-let getControlDetails (name: string, control: Controls, category: string) =
+let getControlDetails (name: string, control: Controls, category: string, description: string) =
     match control with
     | Range(min, max) ->
         {| name = name
@@ -17,34 +17,37 @@ let getControlDetails (name: string, control: Controls, category: string) =
            min = float min
            max = float max
            step = (float max - float min) / 20.0
-           category = category |}
+           category = category
+           description = description |}
     | FracRange(min, max) ->
         {| name = name
            type_ = "range"
            min = min
            max = max
            step = 0.05
-           category = category |}
+           category = category
+           description = description |}
     | Checkbox ->
         {| name = name
            type_ = "checkbox"
            min = 0.0
            max = 1.0
            step = 1.0
-           category = category |}
+           category = category
+           description = description |}
 
 let controlDefinitions = Axes.controls |> List.map getControlDetails |> Array.ofList
 
 let defaultAxes = Axes.DefaultAxes
 
 let allChars =
-    "abcdefg hijklm
-nopqrst uvwxyz
-01234 56789
-ABCDEFG HIJKLM
-NOPQRST UVWXYZ
-!\"#£$% &'()*+,-./:;
-<=>?@ [\\]^_`{|}~"
+    "abcdefghijklm
+nopqrstuvwxyz
+0123456789
+ABCDEFGHIJKLM
+NOPQRSTUVWXYZ
+!\"#£$%&'()*+,-./:;
+<=>?@[\\]^_`{|}~"
 
 let generateSvg (text: string) (axes: Axes) (autoscale: bool) (progress: (float -> unit) option) =
     let font = Font axes
@@ -365,16 +368,23 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
     toSvgDocument -50.0 fontSpline2.yBaselineOffset svgWidth fontSpline2.charHeight svgElements
     |> String.concat "\n"
 
-let getGlyphDefs (text: string) =
+let getGlyphDefs (text: string) (altAG: bool) =
     if System.String.IsNullOrEmpty(text) then
         ""
     else
         // Deduplicate chars to avoid spamming same def
         let chars = text |> Seq.map id |> Seq.distinct |> Seq.toList
 
+        let lookup c =
+            if altAG then
+                GlyphStringDefs.altGlyphMap.TryFind c
+                |> Option.orElseWith (fun () -> GlyphStringDefs.glyphMap.TryFind c)
+            else
+                GlyphStringDefs.glyphMap.TryFind c
+
         chars
         |> List.map (fun c ->
-            match GlyphStringDefs.glyphMap.TryFind c with
+            match lookup c with
             | Some def -> sprintf "'%c': %s" c def
             | None -> sprintf "'%c': (no definition)" c)
         |> String.concat "\n"
@@ -414,11 +424,29 @@ let solveSplineEditor (ctrlPts: DactylSpline.DControlPoint array) (isClosed: boo
 /// Return SVG path data for Spiro and Spline2 interpretations of the same control points.
 let solveAltSplines (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool) (inputAxes: Axes) =
     let baseAxes = { inputAxes with outline = false; filled = false; debug = false; show_tangents = false }
+    // The legacy Spiro and Spline2 renderers don't solve free ("fit") coordinates, so a knot
+    // with x=None or y=None would otherwise default to 0 and the curve would skip it. Solve the
+    // DactylSpline first (on a copy, so its tangent pre-processing doesn't mutate our knots) to
+    // get a concrete position for every fit point, so the alt curves pass through ALL knots —
+    // matching where the editor draws them. We still don't honour explicit tangents here.
+    let solved =
+        try
+            let copy = ctrlPts |> Array.map (fun cp -> { cp with ty = cp.ty })
+            Some(DactylSpline.DactylSpline(copy, isClosed)
+                    .solveAndGetPoints(inputAxes.max_spline_iter, inputAxes.flatness, inputAxes.end_flatness, false))
+        with _ -> None
+    let coordFor i (opt: float option) (pick: DactylSpline.BezierPoint -> float) =
+        match opt with
+        | Some v -> v
+        | None ->
+            match solved with
+            | Some bezPts when i < bezPts.Length && not (System.Double.IsNaN(pick bezPts.[i])) -> pick bezPts.[i]
+            | _ -> 0.0
     let knots =
         ctrlPts
-        |> Array.map (fun cp ->
-            { pt = { x = cp.x |> Option.defaultValue 0.0
-                     y = cp.y |> Option.defaultValue 0.0
+        |> Array.mapi (fun i cp ->
+            { pt = { x = coordFor i cp.x (fun bp -> bp.x)
+                     y = coordFor i cp.y (fun bp -> bp.y)
                      x_fit = false
                      y_fit = false }
               ty = splineToSpiroPointType cp.ty
@@ -573,7 +601,10 @@ let generateFontGlyphData (axes: Axes) =
     let fontAxes = { axes with outline = true; filled = true }
     let font = Font fontAxes
     let metrics = FontMetrics(axes)
-    let chars = allChars.Replace("\n", "")
+    // Exported/preview fonts need an actual space glyph (used to render proof
+    // text, font comparisons, etc.), so make sure one is always included even
+    // though allChars itself no longer contains a literal space character.
+    let chars = allChars.Replace("\n", "") + " "
     let thickness = float axes.thickness
 
     // Per-glyph: render outline, capture svg path, optionally sample edge profile.

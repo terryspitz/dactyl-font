@@ -1,31 +1,39 @@
 
 **TODOs**
-- add documentation tooltips, links
+- Artistic axes (not yet implemented):
+  - **pressure**: stroke width varies with curvature — tighter curves get thicker, straighter segments stay thin (mimics brush pressure). Tried (curvature-from-tangent-samples) but the result looked wrong/noisy; reverted. Needs a smoother curvature estimate.
+  - **bounce**: per-glyph random vertical baseline displacement for hand-lettering feel
+  - **ink_spread**: slight outward bulge at each stroke sample point, simulating ink bleeding into paper fibres
+  - **split_nib**: like nib but cleaves the stroke into two parallel thin lines (like a reed pen or double-stroke)
+  - **gravity**: the offset spine droops downward at the middle of each stroke (catenary sag)
+- add documentation links
 - flare with tangents wrong way round
 - move outline point inward only
 - improve serifs
-- join lines properly
+- join lines properly, including in m and A
+- fix italic 8
 - correct tight bend in '5'
 - render animation
 - try merging with https://magenta.tensorflow.org/svg-vae
 - add punctuation chars
-- 'bowtie' where lines all cross
 - mark joins to remove serifs
 - generate proofs, ideally using @font-face
 - calculate kerning
 - from https://www.typography.com/blog/typographic-illusions:
 -  overshoot
 -  balance (mid height > 1/2)
-- Add help tooltips on explorer sliders
 - fix fontforge errors: direction, non-integral coords
 - fix serifs: curve joints, check Y{}, spacing
 - Optional debug mode to show coordinates/curves
 - debug 'sharp bend' duplicate points in 'e'
 - mobius strip font
+- generated FontForge fonts
 -
 **DONE: Implemented Features**
+- Help tooltips on explorer sliders/checkboxes (hover title text, sourced from Axes.fs control descriptions)
+- **roughness**: random width jitter along the stroke edge, independent per side (perpendicular noise on the outline, distinct from wobble's spine displacement)
+- 'bowtie' where lines all cross
 - Backscratch font (made of 4 parallel lines)
-- Generated FontForge fonts
 - Variable font explorer: https://terryspitz.github.io/dactyl-font/
 - Mono (fixed-width) font
 - Horiz/vertical endcaps using axis_align_caps

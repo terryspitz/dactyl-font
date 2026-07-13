@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   loadFontFromFile, loadFontFromUrl, loadGoogleFontOutline, loadGoogleFontText,
   querySystemFonts, loadSystemFont, GOOGLE_FONTS,
@@ -14,28 +14,35 @@ import {
  */
 export default function FontCompareControls({
   mode, onModeChange,
-  align, onAlignChange,
+  size, onSizeChange,
   font, onFontChange,
   onError,
   axisControls,
 }) {
-  const [source, setSource] = useState('upload')
+  const [source, setSource] = useState('google')
   const [busy, setBusy] = useState(false)
   const [systemFonts, setSystemFonts] = useState(null)
   const [googleSel, setGoogleSel] = useState(GOOGLE_FONTS[0].name)
-  const [textInput, setTextInput] = useState('')
+  const [urlInput, setUrlInput] = useState('')
+  const [familyInput, setFamilyInput] = useState('')
+  // Guards against a stale request (e.g. an auto-load kicked off for a source
+  // the user has since switched away from) clobbering a later, faster one.
+  const requestIdRef = useRef(0)
 
   const run = async (fn) => {
+    const id = ++requestIdRef.current
     setBusy(true)
     onError(null)
     try {
       const result = await fn()
+      if (id !== requestIdRef.current) return
       if (result) onFontChange(result)
     } catch (e) {
+      if (id !== requestIdRef.current) return
       onFontChange(null)
       onError(e.message || String(e))
     } finally {
-      setBusy(false)
+      if (id === requestIdRef.current) setBusy(false)
     }
   }
 
@@ -44,17 +51,22 @@ export default function FontCompareControls({
     if (file) run(() => loadFontFromFile(file))
   }
 
-  const loadGoogleSelection = () => {
+  // Auto-load the selected curated Google Font whenever the source/selection changes.
+  useEffect(() => {
+    if (mode !== 'font' || source !== 'google') return
     const entry = GOOGLE_FONTS.find(g => g.name === googleSel)
     if (entry) run(() => loadGoogleFontOutline(entry))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, source, googleSel])
+
+  const loadUrl = () => {
+    const v = urlInput.trim()
+    if (v) run(() => loadFontFromUrl(v))
   }
 
-  // A free-text value can be a direct font URL (outline) or a family name (text).
-  const loadFreeText = () => {
-    const v = textInput.trim()
-    if (!v) return
-    if (/^https?:\/\//.test(v)) run(() => loadFontFromUrl(v))
-    else run(async () => loadGoogleFontText(v))
+  const loadCssFamily = () => {
+    const v = familyInput.trim()
+    if (v) run(async () => loadGoogleFontText(v))
   }
 
   const loadSystemList = () =>
@@ -78,9 +90,11 @@ export default function FontCompareControls({
       {mode === 'font' && (
         <>
           <select value={source} onChange={e => setSource(e.target.value)} title="Font source">
-            <option value="upload">Upload</option>
             <option value="google">Google Fonts</option>
             <option value="system">System fonts</option>
+            <option value="url">Load URL</option>
+            <option value="cssFamily">CSS Font Family</option>
+            <option value="upload">Upload</option>
           </select>
 
           {source === 'upload' && (
@@ -88,20 +102,31 @@ export default function FontCompareControls({
           )}
 
           {source === 'google' && (
-            <>
-              <select value={googleSel} onChange={e => setGoogleSel(e.target.value)}>
-                {GOOGLE_FONTS.map(g => <option key={g.name} value={g.name}>{g.name}</option>)}
-              </select>
-              <button className="compare-load-btn" onClick={loadGoogleSelection}>Load</button>
-              <input
-                type="text"
-                className="compare-text-input"
-                placeholder="…or family name / .ttf URL"
-                value={textInput}
-                onChange={e => setTextInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') loadFreeText() }}
-              />
-            </>
+            <select value={googleSel} onChange={e => setGoogleSel(e.target.value)}>
+              {GOOGLE_FONTS.map(g => <option key={g.name} value={g.name}>{g.name}</option>)}
+            </select>
+          )}
+
+          {source === 'url' && (
+            <input
+              type="text"
+              className="compare-text-input"
+              placeholder="https://…/font.ttf"
+              value={urlInput}
+              onChange={e => setUrlInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') loadUrl() }}
+            />
+          )}
+
+          {source === 'cssFamily' && (
+            <input
+              type="text"
+              className="compare-text-input"
+              placeholder="Font family name"
+              value={familyInput}
+              onChange={e => setFamilyInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') loadCssFamily() }}
+            />
           )}
 
           {source === 'system' && (
@@ -118,12 +143,17 @@ export default function FontCompareControls({
             )
           )}
 
-          <label htmlFor="compare-align">Align:</label>
-          <select id="compare-align" value={align} onChange={e => onAlignChange(e.target.value)} title="Normalize sizes by">
-            <option value="cap">cap-height</option>
-            <option value="x">x-height</option>
-            <option value="em">em</option>
-          </select>
+          <div className="compare-controls-break" />
+          <label htmlFor="compare-size">Size:</label>
+          <input
+            id="compare-size"
+            type="range"
+            min="0.6" max="1.5" step="0.05"
+            value={size}
+            onChange={e => onSizeChange(parseFloat(e.target.value))}
+            title="Comparison font size, relative to a cap-height match (1.0×)"
+          />
+          <span className="compare-size-val">{size.toFixed(2)}×</span>
 
           {busy && <span className="compare-status">Loading…</span>}
           {!busy && font && (
