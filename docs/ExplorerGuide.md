@@ -9,7 +9,7 @@ The [Dactyl Live Explorer](https://terryspitz.github.io/dactyl-font) lets you de
 ```
 ┌──────────────┬──────────────────────────────────────────┐
 │              │  [Font][Glyphs][Tweens][Visual Diffs]    │
-│   Sidebar    │  [Splines][Spline Grid][Proofs]  [ ⬇ ]  │
+│   Sidebar    │  [Splines][Spline Grid][Proofs][Grow] [⬇]│
 │  (Controls)  │                                           │
 │              │              Preview area                 │
 │              │                                           │
@@ -120,6 +120,33 @@ Renders the font using professionally designed proof texts (sourced from [typogr
 
 The Proofs tab renders using a live CSS `@font-face` built from the current axes, so it reflects the real typeset appearance (not SVG outlines).
 
+### Grow
+Grows the letterforms out of the current backbones — an experimental generative
+mode inspired by Namco's *Techno Drive* (1998) logotype.  Instead of offsetting
+each spine by a fixed thickness, every stroke swells into the surrounding
+whitespace until the channel between it and the nearest *opposing* stroke
+narrows to a constant gap.  Counters (the holes in `a`, `e`, `o`) stay open
+because the opposing stroke pushes back, while joints (`n`, `e`) don't pinch.
+All the usual axes still apply, since growth starts from the same backbones.
+
+**Controls in the top bar:**
+| Control | Effect |
+|---------|--------|
+| `grow` | 0 = classic constant offset … 1 = full space-filling bulge |
+| `gap` | Whitespace channel preserved between opposing strokes |
+| `layers` | Emit nested keyline bands (near-white core → light blue → dark blue → black keyline) that fuse between glyphs for a Y2K logotype look |
+| `animate` | Ramp the growth up and down so the letters visibly grow (WebGL only) |
+
+**Save controls** (top bar, right): a **copy** icon copies the result as a
+transparent PNG to the clipboard, and a **download** icon saves a PNG by
+default — its caret dropdown offers PNG (transparent, high-res) or SVG (vector).
+
+The preview renders on the GPU where WebGL2 is available: the worker computes a
+distance field once per text/axes change and a fragment shader thresholds it,
+so dragging `grow`/`gap`/`layers` never re-runs the worker.  Without WebGL2 it
+falls back to a worker-rendered SVG.  Multi-line text is supported; a
+determinate progress bar shows while the field is (re)built.
+
 ---
 
 ## URL parameters
@@ -128,7 +155,7 @@ All tabs and settings are bookmarkable via URL parameters.
 
 | Parameter | Values | Effect |
 |-----------|--------|--------|
-| `?view=` | `font` `glyphs` `tweens` `visualDiffs` `splines` `splineGrid` `proofs` | Open the named tab on load |
+| `?view=` | `font` `glyphs` `tweens` `visualDiffs` `splines` `splineGrid` `proofs` `grow` | Open the named tab on load |
 | `?zoom=` | e.g. `0.85` | Set initial zoom level for all tabs |
 | `?proof=` | `lowercase` `uppercase` `alphabet` `classic` | Select a proof preset |
 | `?book=` | integer index | Pre-select a specific classic book |
@@ -146,6 +173,11 @@ web/
 │   ├── App.jsx           — Root React component; tab routing, sidebar, worker orchestration
 │   ├── SplineEditor.jsx  — Interactive spline editor (Splines tab)
 │   ├── SplineGrid.jsx    — Grid view of spline shapes (Spline Grid tab)
+│   ├── GrowCanvas.jsx    — WebGL2 field-threshold preview (Grow tab)
+│   ├── growth.js         — Grow tab engine: distance field + marching-squares contours
+│   ├── growthSvg.js      — Grow tab back end: strokes → field / layered SVG (worker side)
+│   ├── glyphSpines.js    — Solves glyph backbones into polylines (Grow tab seed geometry)
+│   ├── growthExport.js   — Grow tab PNG/SVG save + clipboard helpers
 │   ├── fontExport.js     — OTF font assembly via opentype.js + paper.js boolean union
 │   ├── fontExport.test.js — Vitest unit tests for font export
 │   ├── worker.js         — Web worker: calls Fable-compiled F# API off the main thread

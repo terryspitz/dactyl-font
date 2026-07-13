@@ -4,7 +4,7 @@ NOTE: This README is best viewed at https://terryspitz.github.io/dactyl-font/REA
 
 ## tl;dr
 
-Play with the [Dactyl Live Explorer](https://terryspitz.github.io/dactyl-font) — design fonts interactively using 30+ axes, then download a custom OTF. Switch between tabs to inspect individual **Glyphs**, watch **Tweens** animate axis changes, compare **Visual Diffs** across settings, explore the **Spline** maths, or review **Proofs** with real text.
+Play with the [Dactyl Live Explorer](https://terryspitz.github.io/dactyl-font) — design fonts interactively using 30+ axes, then download a custom OTF. Switch between tabs to inspect individual **Glyphs**, watch **Tweens** animate axis changes, compare **Visual Diffs** across settings, explore the **Spline** maths, review **Proofs** with real text, or **Grow** letterforms into blobby Y2K logotypes.
 
 ## What & Why
 
@@ -38,6 +38,7 @@ The [Dactyl Live Explorer](https://terryspitz.github.io/dactyl-font) runs entire
 | **Splines** | Interactive spline curve editor |
 | **Spline Grid** | Grid of curve variations |
 | **Proofs** | Real prose rendered with the current font for proofing |
+| **Grow** | Grows strokes out of the backbones to fill whitespace (constant-gap inflation), with layered Y2K keylines; save as PNG/SVG |
 
 ## Documentation
 
@@ -46,6 +47,7 @@ The [Dactyl Live Explorer](https://terryspitz.github.io/dactyl-font) runs entire
 - [DactylSpline Documentation](docs/DactylSpline.md) — The DactylSpline curve implementation
 - [DactylSpline Optimization Suggestions](docs/suggestions.md) — Ideas for improving the spline solver
 - [Font Rendering Pipeline](docs/FontPipeline.md) — Spine → outline → SVG pipeline, caps, serifs, and font export
+- [Growing Fonts](docs/growth-brainstorm.md) — Design notes for the **Grow** tab and future generative-growth directions
 - [TODO](docs/TODO.md) — Planned features and known issues
 - [Developing](DEVELOPING.md) — Building, running, testing, and contributing
 

@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, allChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
+import GrowCanvas from './GrowCanvas'
+import { downloadBlob, svgBlob, svgToPngBlob, growFilenameBase } from './growthExport'
 import { downloadFont, buildFontDataUrl } from './fontExport'
 import { buildCompareOverlaySvg } from './fontCompare'
 import FontCompareControls from './FontCompareControls'
@@ -11,6 +13,9 @@ import './App.css'
 
 // Special Visual Diffs option: compare the old spiro/spline2 engine vs the new dactyl spline
 const SPLINE_ENGINE = 'spline_engine'
+
+// Glyphs floating tools legend: non-spline layerVisibility keys grouped under "Debug"
+const DEBUG_LAYER_KEYS = ['comb', 'tangents', 'guides', 'labels', 'knots']
 
 // Build the two axes variants (and key labels) for the Visual Diffs tab
 function getDiffAxes(axes, diffConfig) {
@@ -50,7 +55,8 @@ function App() {
       visualDiffs: allChars,
       splines: '',
       splineGrid: '',
-      proofs: proofTexts.lowercase
+      proofs: proofTexts.lowercase,
+      grow: 'dactyl'
     }
   })
   const [glyphsDefsText, setGlyphsDefsText] = useState(() => {
@@ -104,7 +110,7 @@ function App() {
   const [tabZooms, setTabZooms] = useState(() => {
     const urlZoom = parseFloat(new URLSearchParams(window.location.search).get('zoom'))
     const zoom = isNaN(urlZoom) ? 1.0 : urlZoom
-    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom }
+    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom, grow: zoom }
   })
   const [layerVisibility, setLayerVisibility] = useState({
     spiro: true,
@@ -116,19 +122,32 @@ function App() {
     tangents: true,
     labels: true,
   })
-  const [glyphsFilled, setGlyphsFilled] = useState(false)
+  const [glyphsFilled, setGlyphsFilled] = useState(true)
   const [legendPos, setLegendPos] = useState({ x: 0, y: 0 })
   const isDraggingRef = useRef(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
   const [tweenFilter, setTweenFilter] = useState(
     () => new URLSearchParams(window.location.search).get('tween') || ''
   )
+  // Grow tab: constant-gap growth parameters (see growth.js)
+  const [growParams, setGrowParams] = useState({ grow: 0.7, gap: 30, layers: true, animate: false })
+  // Grow tab GPU path: the worker builds the (d1, dOpp) field once per
+  // text/axes change; sliders only move shader uniforms (see GrowCanvas.jsx).
+  // Without WebGL2 the tab falls back to the worker-side SVG render.
+  const [growField, setGrowField] = useState(null)
+  const [savingGrow, setSavingGrow] = useState(false)
+  const [growCopied, setGrowCopied] = useState(false)
+  const [growMenuOpen, setGrowMenuOpen] = useState(false)
+  const growMenuRef = useRef(null)
+  const supportsWebGL2 = useMemo(() => {
+    try { return !!document.createElement('canvas').getContext('webgl2') } catch { return false }
+  }, [])
 
   // Check URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     let view = params.get('view')
-    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines', 'splineGrid', 'proofs'].includes(view)) {
+    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines', 'splineGrid', 'proofs', 'grow'].includes(view)) {
       setActiveTab(view)
     }
     const p = params.get('proof')
@@ -484,6 +503,23 @@ function App() {
       typeReq = 'visualDiffs'
       const { axesA, axesB, labelA, labelB } = getDiffAxes(axes, diffConfig)
       args = [text || allChars, axesA, axesB, labelA, labelB]
+    } else if (activeTab === 'grow') {
+      if (supportsWebGL2) {
+        // GPU path has its own dedicated effect — skip
+        setLoading(false)
+        clearTimeout(timer)
+        worker.terminate()
+        return
+      }
+      if (!text) {
+        setWorkerResult("")
+        setLoading(false)
+        clearTimeout(timer)
+        worker.terminate()
+        return
+      }
+      typeReq = 'growth'
+      args = [text, axes, growParams]
     } else if (activeTab === 'proofs') {
       // Proofs has its own dedicated effect — skip
       setLoading(false)
@@ -506,7 +542,22 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode])
+  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, growParams])
+
+  // Close the Grow download-format menu on outside click / Escape.
+  useEffect(() => {
+    if (!growMenuOpen) return
+    const onDown = (e) => {
+      if (growMenuRef.current && !growMenuRef.current.contains(e.target)) setGrowMenuOpen(false)
+    }
+    const onKey = (e) => { if (e.key === 'Escape') setGrowMenuOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [growMenuOpen])
 
   // Dedicated effect for proofs tab: generates full font and builds a data URL.
   // Deps are [axes, activeTab] only — switching proof text doesn't re-trigger.
@@ -542,6 +593,47 @@ function App() {
       worker.terminate()
     }
   }, [axes, activeTab])
+
+  // Dedicated effect for the Grow tab GPU path: rebuild the growth field only
+  // when text/axes change.  growParams are shader uniforms and don't re-trigger.
+  useEffect(() => {
+    if (activeTab !== 'grow' || !supportsWebGL2) return
+    if (!text) { setGrowField(null); return }
+
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    const id = ++renderIdRef.current
+    setLoading(true)
+    loadingRef.current = true
+    setError(null)
+    setProgressValue(0)
+
+    const timer = setTimeout(() => {
+      if (id === renderIdRef.current && loadingRef.current) setShowProgress(true)
+    }, 400)
+
+    worker.onmessage = (e) => {
+      const { id: msgId, result, error, type, value } = e.data
+      if (msgId !== renderIdRef.current) return
+      if (type === 'progress') {
+        setProgressValue(value)
+        if (value > 0) setShowProgress(true)
+        return
+      }
+      clearTimeout(timer)
+      if (error) { setError(error) }
+      else { setGrowField(result); setError(null) }
+      setLoading(false)
+      loadingRef.current = false
+      setShowProgress(false)
+    }
+
+    worker.postMessage({ id, type: 'growthField', args: [text, axes] })
+
+    return () => {
+      clearTimeout(timer)
+      worker.terminate()
+    }
+  }, [text, axes, activeTab, supportsWebGL2])
 
   // Inject/update the @font-face rule whenever a new proof font data URL arrives.
   useEffect(() => {
@@ -641,12 +733,19 @@ function App() {
     // Visual Diffs has its own renderer (axis worker SVG or compare-font mode).
     if (activeTab === 'visualDiffs') return renderVisualDiffs()
 
+    // Grow tab GPU path: render the field via the WebGL canvas (sliders are
+    // shader uniforms).  Falls through to the worker SVG result without WebGL2.
+    if (activeTab === 'grow' && supportsWebGL2) {
+      if (!growField) return null
+      return <GrowCanvas field={growField} params={growParams} zoom={zoom} />
+    }
+
     // Safety check: ensure result matches expected type for tab
     const content = workerResult
     if (!content) return null
 
     try {
-      if (activeTab === 'font') {
+      if (activeTab === 'font' || activeTab === 'grow') {
         if (typeof content !== 'string') return null
         return <div
           className="svg-container"
@@ -740,12 +839,92 @@ function App() {
     return <div className="svg-container" dangerouslySetInnerHTML={{ __html: compareSvg }} />
   }
 
+  // Render the current Grow view to a vector SVG string via a one-off worker.
+  // Used for both SVG and PNG downloads so the saved output matches the rule
+  // exactly, independent of which preview path (GPU / fallback) is on screen.
+  const requestGrowthSvg = () => new Promise((resolve, reject) => {
+    if (!text) { resolve(''); return }
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    worker.onmessage = (e) => {
+      worker.terminate()
+      if (e.data.error) reject(new Error(e.data.error))
+      else resolve(e.data.result)
+    }
+    worker.onerror = (err) => { worker.terminate(); reject(err) }
+    worker.postMessage({ id: 0, type: 'growth', args: [text, axes, growParams] })
+  })
+
+  const handleDownloadGrow = async (format) => {
+    setGrowMenuOpen(false)
+    setSavingGrow(true)
+    setError(null)
+    try {
+      const svg = await requestGrowthSvg()
+      if (!svg) return
+      const base = growFilenameBase(text)
+      if (format === 'svg') {
+        downloadBlob(svgBlob(svg), `${base}.svg`)
+      } else {
+        // Transparent background: the layered look drops onto any surface.
+        const png = await svgToPngBlob(svg, { scale: 3, background: null })
+        downloadBlob(png, `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Grow ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingGrow(false)
+    }
+  }
+
+  // Copy the grown logotype as a PNG to the clipboard.  ClipboardItem is fed a
+  // Promise<Blob> so Safari can defer the async rasterise inside the user
+  // gesture; Chrome/Firefox accept it too.
+  const handleCopyGrow = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    setSavingGrow(true)
+    setError(null)
+    try {
+      const svg = await requestGrowthSvg()
+      if (!svg) throw new Error('nothing to copy')
+      const png = await svgToPngBlob(svg, { scale: 3, background: null })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setGrowCopied(true)
+      setTimeout(() => setGrowCopied(false), 1500)
+    } catch (e) {
+      setError(`Grow copy failed: ${e.message}`)
+    } finally {
+      setSavingGrow(false)
+    }
+  }
+
   const handleControlChange = (name, value) => {
     setAxes(prev => ({ ...prev, [name]: value }))
   }
 
   const handleReset = () => {
     setAxes({ ...defaultAxes })
+  }
+
+  // "Debug" master checkbox in the glyphs floating tools: reflects/controls all
+  // non-spline layer toggles + Filled at once. Individual checkboxes below it
+  // can still be changed independently afterwards, overriding the parent.
+  const debugValues = [...DEBUG_LAYER_KEYS.map(k => layerVisibility[k]), glyphsFilled]
+  const allDebugOn = debugValues.every(Boolean)
+  const noDebugOn = debugValues.every(v => !v)
+  const setDebugMasterRef = el => {
+    if (el) el.indeterminate = !allDebugOn && !noDebugOn
+  }
+
+  const handleDebugMasterChange = (checked) => {
+    setLayerVisibility(prev => {
+      const next = { ...prev }
+      DEBUG_LAYER_KEYS.forEach(k => { next[k] = checked })
+      return next
+    })
+    setGlyphsFilled(checked)
   }
 
   // Only touch a fraction of axes per click, and bias sampled values toward
@@ -864,7 +1043,103 @@ function App() {
             <button className={`tab-button ${activeTab === 'splines' ? 'active' : ''}`} onClick={() => setTabWithUrl('splines')}>Splines</button>
             <button className={`tab-button ${activeTab === 'splineGrid' ? 'active' : ''}`} onClick={() => setTabWithUrl('splineGrid')}>Spline Grid</button>
             <button className={`tab-button ${activeTab === 'proofs' ? 'active' : ''}`} onClick={() => setTabWithUrl('proofs')}>Proofs</button>
+            <button className={`tab-button ${activeTab === 'grow' ? 'active' : ''}`} onClick={() => setTabWithUrl('grow')}>Grow</button>
           </div>
+          {activeTab === 'grow' && (
+            <div className="grow-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                grow
+                <input
+                  type="range" min="0" max="1" step="0.05"
+                  value={growParams.grow}
+                  onChange={e => setGrowParams(p => ({ ...p, grow: parseFloat(e.target.value) }))}
+                />
+                <span style={{ minWidth: '2.5em' }}>{growParams.grow.toFixed(2)}</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                gap
+                <input
+                  type="range" min="5" max="100" step="5"
+                  value={growParams.gap}
+                  onChange={e => setGrowParams(p => ({ ...p, gap: parseFloat(e.target.value) }))}
+                />
+                <span style={{ minWidth: '2em' }}>{growParams.gap}</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                layers
+                <input
+                  type="checkbox"
+                  checked={growParams.layers}
+                  onChange={e => setGrowParams(p => ({ ...p, layers: e.target.checked }))}
+                />
+              </label>
+              {supportsWebGL2 && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  animate
+                  <input
+                    type="checkbox"
+                    checked={growParams.animate}
+                    onChange={e => setGrowParams(p => ({ ...p, animate: e.target.checked }))}
+                  />
+                </label>
+              )}
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '4px' }}>
+                <button
+                  className="icon-button"
+                  onClick={handleCopyGrow}
+                  disabled={savingGrow || !text}
+                  title="Copy PNG to clipboard"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                    {growCopied ? 'check' : 'content_copy'}
+                  </span>
+                </button>
+                {/* Download defaults to PNG; the caret opens a PNG/SVG menu. */}
+                <span ref={growMenuRef} className="grow-download-split" style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
+                  <button
+                    className="icon-button"
+                    onClick={() => handleDownloadGrow('png')}
+                    disabled={savingGrow || !text}
+                    title="Download PNG (transparent, high-res)"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                      {savingGrow ? 'hourglass_empty' : 'download'}
+                    </span>
+                  </button>
+                  <button
+                    className="icon-button"
+                    onClick={() => setGrowMenuOpen(o => !o)}
+                    disabled={savingGrow || !text}
+                    title="Choose download format"
+                    aria-haspopup="menu"
+                    aria-expanded={growMenuOpen}
+                    style={{ width: '24px', minWidth: '24px', padding: '6px 0' }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_drop_down</span>
+                  </button>
+                  {growMenuOpen && (
+                    <div
+                      role="menu"
+                      style={{
+                        position: 'absolute', top: '100%', right: 0, marginTop: '4px', zIndex: 20,
+                        background: 'var(--panel-bg)', border: '1px solid var(--border-color)',
+                        borderRadius: 'var(--radius-md)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden', minWidth: '160px',
+                      }}
+                    >
+                      <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadGrow('png')}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>image</span>
+                        PNG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>transparent</span>
+                      </button>
+                      <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadGrow('svg')}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>polyline</span>
+                        SVG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>vector</span>
+                      </button>
+                    </div>
+                  )}
+                </span>
+              </span>
+            </div>
+          )}
           {activeTab === 'proofs' && (
             <div className="proof-chips">
               {proofCases.map(k => (
@@ -993,7 +1268,7 @@ function App() {
             <button
               className="text-reset-button"
               onClick={() => {
-                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', splineGrid: '', proofs: proofTexts[proofCase] }
+                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', splineGrid: '', proofs: proofTexts[proofCase], grow: 'dactyl' }
                 setText(defaults[activeTab])
               }}
               title="Reset Text to Default"
@@ -1053,7 +1328,7 @@ function App() {
             </button>
           </div>
           <div ref={previewRef} className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`} style={activeTab === 'splineGrid' ? { padding: 0 } : undefined}>
-            <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: (activeTab === 'tweens' || activeTab === 'proofs') ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
+            <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: (activeTab === 'tweens' || activeTab === 'proofs' || (activeTab === 'grow' && supportsWebGL2)) ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
               {renderContent()}
             </div>
           </div>
@@ -1099,56 +1374,67 @@ function App() {
                 <a href="#" onClick={(e) => { e.preventDefault(); setTabWithUrl('splines'); }} style={{ color: 'inherit', textDecoration: 'underline' }}>DactylSpline</a>
               </span>
             </div>
-            <div className="legend-item">
+            <div className="legend-item legend-heading">
               <input
+                ref={setDebugMasterRef}
                 type="checkbox"
-                checked={layerVisibility.comb}
-                onChange={e => setLayerVisibility(prev => ({ ...prev, comb: e.target.checked }))}
+                checked={allDebugOn}
+                onChange={e => handleDebugMasterChange(e.target.checked)}
               />
-              <span className="swatch" style={{ border: '1px solid black', backgroundColor: 'transparent' }}></span> Comb
+              <strong>Debug</strong>
             </div>
-            <div className="legend-item">
-              <input
-                type="checkbox"
-                checked={layerVisibility.tangents}
-                onChange={e => setLayerVisibility(prev => ({ ...prev, tangents: e.target.checked }))}
-              />
-              <span className="swatch" style={{ backgroundColor: '#e00000' }}></span> Tangents
-            </div>
-            <div className="legend-item">
-              <input
-                type="checkbox"
-                checked={layerVisibility.guides}
-                onChange={e => setLayerVisibility(prev => ({ ...prev, guides: e.target.checked }))}
-              />
-              <span className="swatch grey"></span> Guides
-            </div>
-            <div className="legend-item">
-              <input
-                type="checkbox"
-                checked={layerVisibility.labels}
-                onChange={e => setLayerVisibility(prev => ({ ...prev, labels: e.target.checked }))}
-              />
-              <span style={{ color: 'red', fontSize: '0.8em', fontWeight: 'bold', width: '24px', textAlign: 'center' }}>abc</span>
-              Labels
-            </div>
-            <div className="legend-item">
-              <input
-                type="checkbox"
-                checked={layerVisibility.knots}
-                onChange={e => setLayerVisibility(prev => ({ ...prev, knots: e.target.checked }))}
-              />
-              <span className="swatch lightBlue circle"></span>
-              <span className="swatch lightGreen circle"></span>
-              Knots
-            </div>
-            <div className="legend-item">
-              <input
-                type="checkbox"
-                checked={glyphsFilled}
-                onChange={e => setGlyphsFilled(e.target.checked)}
-              />
-              Filled
+            <div className="legend-debug-group">
+              <div className="legend-item">
+                <input
+                  type="checkbox"
+                  checked={layerVisibility.comb}
+                  onChange={e => setLayerVisibility(prev => ({ ...prev, comb: e.target.checked }))}
+                />
+                <span className="swatch" style={{ border: '1px solid black', backgroundColor: 'transparent' }}></span> Comb
+              </div>
+              <div className="legend-item">
+                <input
+                  type="checkbox"
+                  checked={layerVisibility.tangents}
+                  onChange={e => setLayerVisibility(prev => ({ ...prev, tangents: e.target.checked }))}
+                />
+                <span className="swatch" style={{ backgroundColor: '#e00000' }}></span> Tangents
+              </div>
+              <div className="legend-item">
+                <input
+                  type="checkbox"
+                  checked={layerVisibility.guides}
+                  onChange={e => setLayerVisibility(prev => ({ ...prev, guides: e.target.checked }))}
+                />
+                <span className="swatch grey"></span> Guides
+              </div>
+              <div className="legend-item">
+                <input
+                  type="checkbox"
+                  checked={layerVisibility.labels}
+                  onChange={e => setLayerVisibility(prev => ({ ...prev, labels: e.target.checked }))}
+                />
+                <span style={{ color: 'red', fontSize: '0.8em', fontWeight: 'bold', width: '24px', textAlign: 'center' }}>abc</span>
+                Labels
+              </div>
+              <div className="legend-item">
+                <input
+                  type="checkbox"
+                  checked={layerVisibility.knots}
+                  onChange={e => setLayerVisibility(prev => ({ ...prev, knots: e.target.checked }))}
+                />
+                <span className="swatch lightBlue circle"></span>
+                <span className="swatch lightGreen circle"></span>
+                Knots
+              </div>
+              <div className="legend-item">
+                <input
+                  type="checkbox"
+                  checked={glyphsFilled}
+                  onChange={e => setGlyphsFilled(e.target.checked)}
+                />
+                Filled
+              </div>
             </div>
           </div>
         )}
