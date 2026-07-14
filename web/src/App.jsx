@@ -129,7 +129,7 @@ function App() {
     () => new URLSearchParams(window.location.search).get('tween') || ''
   )
   // Grow tab: constant-gap growth parameters (see growth.js)
-  const [growParams, setGrowParams] = useState({ grow: 0.7, gap: 30, fuse: 0, layers: true, animate: false })
+  const [growParams, setGrowParams] = useState({ grow: 0.7, gap: 30, fuse: 0, warp: 0, layers: true, animate: false })
   // Grow tab GPU path: the worker builds the (d1, dOpp) field once per
   // text/axes change; sliders only move shader uniforms (see GrowCanvas.jsx).
   // Without WebGL2 the tab falls back to the worker-side SVG render.
@@ -1072,6 +1072,15 @@ function App() {
                   onChange={e => setGrowParams(p => ({ ...p, fuse: parseFloat(e.target.value) }))}
                 />
                 <span style={{ minWidth: '2.5em' }}>{growParams.fuse.toFixed(2)}</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Wobble the grown edges with value noise">
+                warp
+                <input
+                  type="range" min="0" max="1" step="0.05"
+                  value={growParams.warp}
+                  onChange={e => setGrowParams(p => ({ ...p, warp: parseFloat(e.target.value) }))}
+                />
+                <span style={{ minWidth: '2.5em' }}>{growParams.warp.toFixed(2)}</span>
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 layers

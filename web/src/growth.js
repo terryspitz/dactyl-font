@@ -41,6 +41,67 @@
 // the blur pass from smearing "no opponent found" sentinels into real data.
 export const DOPP_CAP = 400
 
+// Domain-warp defaults (SDF direction #6): `warp` in 0..1 displaces the field
+// lookup by smooth value noise, giving grown letters an organic hand-drawn
+// wobble.  WARP_MAX is the peak displacement in font units at warp=1; WARP_FREQ
+// is the noise frequency in cycles per font unit (≈130-unit wavelength).
+// Exported so GrowCanvas.jsx's fragment shader warps with the exact same
+// amplitude/frequency (its GLSL value noise mirrors valueNoise below).
+export const WARP_MAX = 40
+export const WARP_FREQ = 1 / 130
+
+// Value noise in [0,1): smooth-interpolated hash lattice.  hash/valueNoise are
+// mirrored in GLSL in GrowCanvas.jsx so the live preview and the vector export
+// share the same wobble character (float precision aside).
+function warpHash(x, y, seed) {
+    const s = Math.sin(x * 127.1 + y * 311.7 + seed) * 43758.5453
+    return s - Math.floor(s)
+}
+function valueNoise(x, y, seed) {
+    const ix = Math.floor(x), iy = Math.floor(y)
+    const fx = x - ix, fy = y - iy
+    const ux = fx * fx * (3 - 2 * fx)
+    const uy = fy * fy * (3 - 2 * fy)
+    const a = warpHash(ix, iy, seed)
+    const b = warpHash(ix + 1, iy, seed)
+    const c = warpHash(ix, iy + 1, seed)
+    const d = warpHash(ix + 1, iy + 1, seed)
+    return (a * (1 - ux) + b * ux) * (1 - uy) + (c * (1 - ux) + d * ux) * uy
+}
+
+/// Bilinear sample of field f (nx×ny) at fractional grid coords (gx, gy),
+/// clamped to the grid.
+function sampleBilinear(f, nx, ny, gx, gy) {
+    if (gx < 0) gx = 0; else if (gx > nx - 1) gx = nx - 1
+    if (gy < 0) gy = 0; else if (gy > ny - 1) gy = ny - 1
+    const ix = Math.floor(gx), iy = Math.floor(gy)
+    const fx = gx - ix, fy = gy - iy
+    const ix1 = Math.min(nx - 1, ix + 1), iy1 = Math.min(ny - 1, iy + 1)
+    const a = f[iy * nx + ix], b = f[iy * nx + ix1]
+    const c = f[iy1 * nx + ix], d = f[iy1 * nx + ix1]
+    return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy
+}
+
+/// Domain-warp a field: resample f at grid coords displaced by two-octave-free
+/// value noise.  ampGrid is the peak displacement in grid cells, freqGrid the
+/// noise frequency in cycles per grid cell (both derived from font-unit WARP_*
+/// so the wobble wavelength/amplitude are constant across cell sizes).  Grid
+/// indices start at 0 in both this and the shader, so their noise agrees.
+function domainWarp(f, nx, ny, ampGrid, freqGrid, seed) {
+    if (ampGrid <= 0) return f
+    const out = new Float32Array(nx * ny)
+    for (let iy = 0; iy < ny; iy++) {
+        for (let ix = 0; ix < nx; ix++) {
+            const n1 = valueNoise(ix * freqGrid, iy * freqGrid, seed)
+            const n2 = valueNoise(ix * freqGrid + 37.2, iy * freqGrid - 19.7, seed + 101)
+            const dgx = (n1 - 0.5) * 2 * ampGrid
+            const dgy = (n2 - 0.5) * 2 * ampGrid
+            out[iy * nx + ix] = sampleBilinear(f, nx, ny, ix + dgx, iy + dgy)
+        }
+    }
+    return out
+}
+
 // Techno-Drive-style keyline stack, innermost (ink core, iso 0) first.
 export const LAYER_COLORS = ['#f4fbff', '#7ec4ee', '#1660c8', '#0a0a14']
 
@@ -618,6 +679,9 @@ function simplify(pts, eps) {
 ///   fuse       – 0..1: melt neighbouring glyphs together by relaxing the gap
 ///                (and forcing overlap) only where opposition is cross-glyph;
 ///                counters within a glyph stay open (default 0)
+///   warp       – 0..1: domain-warp the grown field with value noise for an
+///                organic hand-drawn wobble (default 0)
+///   warpSeed   – integer seed for the warp noise (default 1)
 ///   counterK   – geodesic opposition threshold (default 2.2*thickness + 40)
 ///   cell       – field grid spacing in font units (default 4)
 ///   isoLevels  – field iso values to contour, e.g. [0, -14, -30]; 0 is the ink edge,
@@ -633,6 +697,8 @@ export function growStrokes(strokes, params = {}) {
     const growScale = params.growScale ?? 120
     const gap = params.gap ?? thickness * 0.8
     const fuse = params.fuse ?? 0
+    const warp = params.warp ?? 0
+    const warpSeed = params.warpSeed ?? 1
     const cell = params.cell ?? 4
     const isoLevels = params.isoLevels ?? [0]
     const smoothPasses = params.smoothPasses ?? 1
@@ -664,6 +730,15 @@ export function growStrokes(strokes, params = {}) {
         f[k] = rAllowed - rg[k * 3]
     }
     f = blurField(f, nx, ny, smoothPasses)
+
+    // Domain-warp the grown field for an organic wobble.  Warping f (not the
+    // raw field) keeps every keyline band displaced together, so the nested
+    // layers stay parallel.  Grid-space amplitude/frequency derive from the
+    // font-unit WARP_* constants so the wobble is cell-size independent, and
+    // match the shader's GLSL noise (grid indices start at 0 in both).
+    if (warp > 0) {
+        f = domainWarp(f, nx, ny, (warp * WARP_MAX) / cell, WARP_FREQ * cell, warpSeed)
+    }
 
     // --- Contour each requested level ---
     // Drop speck contours (grid-noise islands a couple of cells across).

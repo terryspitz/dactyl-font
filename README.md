@@ -38,7 +38,7 @@ The [Dactyl Live Explorer](https://terryspitz.github.io/dactyl-font) runs entire
 | **Splines** | Interactive spline curve editor |
 | **Spline Grid** | Grid of curve variations |
 | **Proofs** | Real prose rendered with the current font for proofing |
-| **Grow** | Grows strokes out of the backbones to fill whitespace (constant-gap inflation), fuses neighbouring letters into a logotype, with layered Y2K keylines; save as PNG/SVG |
+| **Grow** | Grows strokes out of the backbones to fill whitespace (constant-gap inflation), fuses neighbouring letters into a logotype, warps edges into an organic wobble, with layered Y2K keylines; save as PNG/SVG |
 
 ## Documentation
 

@@ -84,6 +84,24 @@ const t0 = Date.now()
     console.log('fuse-sweep.svg done', Date.now() - t0, 'ms')
 }
 
+// --- 2c. warp sweep (domain-warp wobble) -------------------------------------
+{
+    const text = 'grown'
+    const { strokes, width } = textToStrokes(text, axes)
+    let inner = ''
+    const rowH = 1300
+    const warps = [0, 0.25, 0.5, 0.85]
+    warps.forEach((warp, i) => {
+        const g = growStrokes(strokes, { thickness: axes.thickness, grow: 0.7, gap: 25, warp, warpSeed: 4, cell: 4 })
+        const path = contoursToPath(g.levels[0].contours)
+        const yOff = i * rowH
+        inner += `<g transform="translate(150 ${yOff + 900})"><path d="${path}" fill="black" fill-rule="evenodd"/></g>`
+        inner += label(40, yOff + 250, `warp=${warp}`, 48)
+    })
+    writeFileSync(join(outDir, 'warp-sweep.svg'), svgDoc(inner, 0, 0, width + 400, warps.length * rowH))
+    console.log('warp-sweep.svg done', Date.now() - t0, 'ms')
+}
+
 // --- 3. layered Y2K keylines ---------------------------------------------------
 {
     const text = 'dactyl'

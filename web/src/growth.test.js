@@ -130,6 +130,31 @@ describe('growStrokes', () => {
         expect(maxErr).toBeLessThan(cell * 0.75)
     })
 
+    it('warp=0 leaves the field unchanged; warp>0 wobbles the outline', () => {
+        const base = { thickness: 30, grow: 0.6, growScale: 100, gap: 25, cell: 3, smoothPasses: 0 }
+        const plain = growStrokes([hline(0, 300, 0)], { ...base, warp: 0 })
+        // warp=0 is a no-op: identical outline to omitting warp entirely.
+        expect(bbox(plain.levels[0].contours)).toEqual(
+            bbox(growStrokes([hline(0, 300, 0)], base).levels[0].contours))
+
+        const warped = growStrokes([hline(0, 300, 0)], { ...base, warp: 0.6, warpSeed: 7 })
+        // A single stroke stays one island, but its edge is displaced, so the
+        // bounding box shifts beyond floating-point noise.
+        expect(warped.levels[0].contours.length).toBe(1)
+        const bp = bbox(plain.levels[0].contours)
+        const bw = bbox(warped.levels[0].contours)
+        const moved = Math.abs(bw.minY - bp.minY) + Math.abs(bw.maxY - bp.maxY)
+            + Math.abs(bw.minX - bp.minX) + Math.abs(bw.maxX - bp.maxX)
+        expect(moved).toBeGreaterThan(5)
+    })
+
+    it('warp is deterministic for a given seed', () => {
+        const p = { thickness: 30, grow: 0.6, gap: 25, cell: 3, warp: 0.5, warpSeed: 3 }
+        const a = growStrokes([hline(0, 300, 0)], p)
+        const b = growStrokes([hline(0, 300, 0)], p)
+        expect(contoursToPath(a.levels[0].contours)).toBe(contoursToPath(b.levels[0].contours))
+    })
+
     it('emits outward keyline bands as extra iso levels', () => {
         const g = growStrokes([hline(0, 300, 0)], { thickness: 30, grow: 0.5, gap: 20, cell: 3, isoLevels: [0, -20] })
         expect(g.levels.length).toBe(2)

@@ -11,7 +11,7 @@
 // animating growth) re-renders on the GPU without touching the worker at all.
 
 import { useRef, useEffect } from 'react'
-import { LAYER_COLORS, layerIsoLevels } from './growth'
+import { LAYER_COLORS, layerIsoLevels, WARP_MAX, WARP_FREQ } from './growth'
 
 const VERT = `#version 300 es
 in vec2 aPos;
@@ -32,12 +32,31 @@ uniform float uRMax;
 uniform float uGap;
 uniform float uFuse;
 uniform float uFuseMerge;
+uniform float uWarpAmpGrid;
+uniform float uWarpFreqGrid;
+uniform float uWarpSeed;
 uniform int uBandCount;
 uniform float uBandOffsets[4];
 uniform vec3 uBandColors[4];
 uniform vec3 uBg;
 in vec2 vUV;
 out vec4 outColor;
+
+// Value noise mirroring growth.js valueNoise (grid indices from 0 in both).
+float warpHash(vec2 p, float seed) {
+  float s = sin(p.x * 127.1 + p.y * 311.7 + seed) * 43758.5453;
+  return s - floor(s);
+}
+float valueNoise(vec2 p, float seed) {
+  vec2 i = floor(p);
+  vec2 f = p - i;
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  float a = warpHash(i, seed);
+  float b = warpHash(i + vec2(1.0, 0.0), seed);
+  float c = warpHash(i + vec2(0.0, 1.0), seed);
+  float d = warpHash(i + vec2(1.0, 1.0), seed);
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
 
 vec3 sampleField(vec2 uv) {
   vec2 p = uv * uTexSize - 0.5;
@@ -54,7 +73,16 @@ vec3 sampleField(vec2 uv) {
 }
 
 void main() {
-  vec3 dd = sampleField(vUV);
+  vec2 uv = vUV;
+  // Domain-warp: displace the lookup by value noise in grid space.
+  if (uWarpAmpGrid > 0.0) {
+    vec2 gpos = vUV * uTexSize;
+    float n1 = valueNoise(gpos * uWarpFreqGrid, uWarpSeed);
+    float n2 = valueNoise(gpos * uWarpFreqGrid + vec2(37.2, -19.7), uWarpSeed + 101.0);
+    vec2 dg = (vec2(n1, n2) - 0.5) * 2.0 * uWarpAmpGrid;
+    uv = (gpos + dg) / uTexSize;
+  }
+  vec3 dd = sampleField(uv);
   // Relax (and overshoot) the gap only where opposition is cross-glyph.
   float g = uGap - dd.b * uFuse * (uGap + uFuseMerge);
   float f = clamp(dd.g - g, uRMin, uRMax) - dd.r;
@@ -116,6 +144,8 @@ function initGL(canvas) {
         u: {
             texSize: uni('uTexSize'), rMin: uni('uRMin'), rMax: uni('uRMax'),
             gap: uni('uGap'), fuse: uni('uFuse'), fuseMerge: uni('uFuseMerge'),
+            warpAmpGrid: uni('uWarpAmpGrid'), warpFreqGrid: uni('uWarpFreqGrid'),
+            warpSeed: uni('uWarpSeed'),
             bandCount: uni('uBandCount'),
             bandOffsets: uni('uBandOffsets'), bandColors: uni('uBandColors'),
             bg: uni('uBg'),
@@ -171,6 +201,9 @@ export default function GrowCanvas({ field, params, zoom }) {
             gl.uniform1f(u.gap, params.gap)
             gl.uniform1f(u.fuse, params.fuse ?? 0)
             gl.uniform1f(u.fuseMerge, rMin)
+            gl.uniform1f(u.warpAmpGrid, ((params.warp ?? 0) * WARP_MAX) / field.cell)
+            gl.uniform1f(u.warpFreqGrid, WARP_FREQ * field.cell)
+            gl.uniform1f(u.warpSeed, params.warpSeed ?? 1)
             gl.uniform1i(u.bandCount, isoLevels.length)
             const offsets = new Float32Array(4)
             isoLevels.forEach((v, i) => { offsets[i] = v })

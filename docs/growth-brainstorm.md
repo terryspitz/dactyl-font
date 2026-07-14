@@ -167,12 +167,16 @@ unlocks the standard SDF toolbox:
 5. **MSDF export.**  Dactyl generates the field natively, so exporting
    multi-channel SDF atlases (msdfgen-style) for game/GPU text rendering is
    unusually direct.
-6. **Farther out:** domain-warp the field with noise for field-space wobble;
-   run reaction–diffusion inside the SDF band so patterns hug the letterform;
-   extract the ridge (medial axis) of an *imported* font's SDF to
-   reverse-engineer backbones — Dactyl-izing arbitrary fonts.
+6. **Farther out:** domain-warp the field with noise for field-space wobble
+   *(shipped: a `warp` slider displaces the field lookup by value noise —
+   `domainWarp` in `growth.js`, matching GLSL noise + `uWarp*` uniforms in
+   `GrowCanvas.jsx`, seeded for determinism)*; run reaction–diffusion inside
+   the SDF band so patterns hug the letterform; extract the ridge (medial
+   axis) of an *imported* font's SDF to reverse-engineer backbones —
+   Dactyl-izing arbitrary fonts.
 
 Status: items 1–2 are implemented (JFA in `web/src/growth.js`, shader
 preview in `web/src/GrowCanvas.jsx`); item 3 is partly implemented (the
 cross-glyph `fuse` slider — field channel in `growth.js`, `uFuse` uniform in
-`GrowCanvas.jsx`); 4–6 are open.
+`GrowCanvas.jsx`); item 6's domain-warp `warp` slider is implemented; the rest
+of 4–6 are open.
