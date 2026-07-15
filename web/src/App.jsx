@@ -653,14 +653,34 @@ function App() {
   useEffect(() => {
     if (activeTab !== 'visualDiffs' || compareMode !== 'font') return
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    const id = ++renderIdRef.current
+    setLoading(true)
+    loadingRef.current = true
+    setShowProgress(false)
+    setProgressValue(0)
+
+    // generateFontGlyphData has no progress callback, so this is a plain
+    // (debounced) indeterminate spinner rather than a tracked percentage.
+    const timer = setTimeout(() => {
+      if (id === renderIdRef.current && loadingRef.current) setShowProgress(true)
+    }, 400)
+
     worker.onmessage = (e) => {
-      const { result, error } = e.data
+      const { id: msgId, result, error } = e.data
+      if (msgId !== renderIdRef.current) return
+      clearTimeout(timer)
       worker.terminate()
       if (error) setCompareError(error)
-      else setDactylGlyphData(result)
+      else { setDactylGlyphData(result); setCompareError(null) }
+      setLoading(false)
+      loadingRef.current = false
+      setShowProgress(false)
     }
-    worker.postMessage({ id: ++renderIdRef.current, type: 'fontData', args: [axes] })
-    return () => worker.terminate()
+    worker.postMessage({ id, type: 'fontData', args: [axes] })
+    return () => {
+      clearTimeout(timer)
+      worker.terminate()
+    }
   }, [axes, activeTab, compareMode])
 
   // Vector overlay SVG (outline sources). Rebuilt when the font, alignment,
