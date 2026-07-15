@@ -653,7 +653,6 @@ function App() {
   useEffect(() => {
     if (activeTab !== 'visualDiffs' || compareMode !== 'font') return
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
-    const id = ++renderIdRef.current
     setLoading(true)
     loadingRef.current = true
     setShowProgress(false)
@@ -661,13 +660,17 @@ function App() {
 
     // generateFontGlyphData has no progress callback, so this is a plain
     // (debounced) indeterminate spinner rather than a tracked percentage.
+    // Staleness here is only about *this* effect's own axes/mode changes, so
+    // a locally-scoped worker (cancelled via terminate() in cleanup) is the
+    // right guard — renderIdRef is shared with unrelated effects (e.g. the
+    // main render effect bumps it on every text change too) and would drop
+    // this effect's still-valid, still-in-flight response.
     const timer = setTimeout(() => {
-      if (id === renderIdRef.current && loadingRef.current) setShowProgress(true)
+      if (loadingRef.current) setShowProgress(true)
     }, 400)
 
     worker.onmessage = (e) => {
-      const { id: msgId, result, error } = e.data
-      if (msgId !== renderIdRef.current) return
+      const { result, error } = e.data
       clearTimeout(timer)
       worker.terminate()
       if (error) setCompareError(error)
@@ -676,7 +679,7 @@ function App() {
       loadingRef.current = false
       setShowProgress(false)
     }
-    worker.postMessage({ id, type: 'fontData', args: [axes] })
+    worker.postMessage({ id: ++renderIdRef.current, type: 'fontData', args: [axes] })
     return () => {
       clearTimeout(timer)
       worker.terminate()
