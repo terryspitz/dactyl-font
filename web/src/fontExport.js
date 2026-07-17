@@ -264,7 +264,7 @@ const EXPORT_UPM = 1000
  * All geometry is scaled from the generator's variable em to EXPORT_UPM.
  */
 export function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular') {
-  const { glyphs: glyphsData, ascender, descender, unitsPerEm } = glyphData
+  const { glyphs: glyphsData, ascender, descender, unitsPerEm, kerningPairs } = glyphData
 
   // Map generator units → the fixed 1000-unit export em.
   const scale = EXPORT_UPM / unitsPerEm
@@ -301,7 +301,7 @@ export function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular
       }),
   ]
 
-  return new opentype.Font({
+  const font = new opentype.Font({
     familyName,
     styleName,
     unitsPerEm: EXPORT_UPM,
@@ -313,6 +313,21 @@ export function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular
     licenseURL: 'https://openfontlicense.org',
     glyphs,
   })
+
+  // Emit the pair-kern overrides as a `kern` table. opentype.js keys
+  // kerningPairs by "leftGlyphIndex,rightGlyphIndex"; we map from unicode
+  // via charToGlyphIndex. Pairs whose chars aren't in the font are dropped.
+  if (kerningPairs && kerningPairs.length) {
+    const pairs = {}
+    for (const kp of kerningPairs) {
+      const li = font.charToGlyphIndex(String.fromCodePoint(kp.left))
+      const ri = font.charToGlyphIndex(String.fromCodePoint(kp.right))
+      if (li > 0 && ri > 0) pairs[`${li},${ri}`] = s(kp.value)
+    }
+    font.kerningPairs = pairs
+  }
+
+  return font
 }
 
 /**
