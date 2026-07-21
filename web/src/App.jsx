@@ -56,7 +56,8 @@ function App() {
       splines: '',
       splineGrid: '',
       proofs: proofTexts.lowercase,
-      grow: 'dactyl'
+      grow: 'dactyl',
+      branch: 'dactyl'
     }
   })
   const [glyphsDefsText, setGlyphsDefsText] = useState(() => {
@@ -110,7 +111,7 @@ function App() {
   const [tabZooms, setTabZooms] = useState(() => {
     const urlZoom = parseFloat(new URLSearchParams(window.location.search).get('zoom'))
     const zoom = isNaN(urlZoom) ? 1.0 : urlZoom
-    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom, grow: zoom }
+    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom, grow: zoom, branch: zoom }
   })
   const [layerVisibility, setLayerVisibility] = useState({
     spiro: true,
@@ -131,6 +132,10 @@ function App() {
   )
   // Grow tab: constant-gap growth parameters (see growth.js)
   const [growParams, setGrowParams] = useState({ grow: 0.7, gap: 30, layers: true, animate: false })
+  // Branch tab: space-colonisation branching parameters (see branching.js)
+  const [branchParams, setBranchParams] = useState({
+    density: 26, influence: 55, killDistance: 14, stepSize: 9, iterations: 60, seed: 1,
+  })
   // Grow tab GPU path: the worker builds the (d1, dOpp) field once per
   // text/axes change; sliders only move shader uniforms (see GrowCanvas.jsx).
   // Without WebGL2 the tab falls back to the worker-side SVG render.
@@ -147,7 +152,7 @@ function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     let view = params.get('view')
-    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines', 'splineGrid', 'proofs', 'grow'].includes(view)) {
+    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines', 'splineGrid', 'proofs', 'grow', 'branch'].includes(view)) {
       setActiveTab(view)
     }
     const p = params.get('proof')
@@ -520,6 +525,16 @@ function App() {
       }
       typeReq = 'growth'
       args = [text, axes, growParams]
+    } else if (activeTab === 'branch') {
+      if (!text) {
+        setWorkerResult("")
+        setLoading(false)
+        clearTimeout(timer)
+        worker.terminate()
+        return
+      }
+      typeReq = 'branch'
+      args = [text, axes, branchParams]
     } else if (activeTab === 'proofs') {
       // Proofs has its own dedicated effect — skip
       setLoading(false)
@@ -542,7 +557,7 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, growParams])
+  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, growParams, branchParams])
 
   // Close the Grow download-format menu on outside click / Escape.
   useEffect(() => {
@@ -745,7 +760,7 @@ function App() {
     if (!content) return null
 
     try {
-      if (activeTab === 'font' || activeTab === 'grow') {
+      if (activeTab === 'font' || activeTab === 'grow' || activeTab === 'branch') {
         if (typeof content !== 'string') return null
         return <div
           className="svg-container"
@@ -1044,6 +1059,7 @@ function App() {
             <button className={`tab-button ${activeTab === 'splineGrid' ? 'active' : ''}`} onClick={() => setTabWithUrl('splineGrid')}>Spline Grid</button>
             <button className={`tab-button ${activeTab === 'proofs' ? 'active' : ''}`} onClick={() => setTabWithUrl('proofs')}>Proofs</button>
             <button className={`tab-button ${activeTab === 'grow' ? 'active' : ''}`} onClick={() => setTabWithUrl('grow')}>Grow</button>
+            <button className={`tab-button ${activeTab === 'branch' ? 'active' : ''}`} onClick={() => setTabWithUrl('branch')}>Branch</button>
           </div>
           {activeTab === 'grow' && (
             <div className="grow-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -1138,6 +1154,64 @@ function App() {
                   )}
                 </span>
               </span>
+            </div>
+          )}
+          {activeTab === 'branch' && (
+            <div className="grow-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                density
+                <input
+                  type="range" min="10" max="60" step="2"
+                  value={branchParams.density}
+                  onChange={e => setBranchParams(p => ({ ...p, density: parseFloat(e.target.value) }))}
+                />
+                <span style={{ minWidth: '2em' }}>{branchParams.density}</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                influence
+                <input
+                  type="range" min="20" max="150" step="5"
+                  value={branchParams.influence}
+                  onChange={e => setBranchParams(p => ({ ...p, influence: parseFloat(e.target.value) }))}
+                />
+                <span style={{ minWidth: '2.5em' }}>{branchParams.influence}</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                kill dist
+                <input
+                  type="range" min="4" max="40" step="2"
+                  value={branchParams.killDistance}
+                  onChange={e => setBranchParams(p => ({ ...p, killDistance: parseFloat(e.target.value) }))}
+                />
+                <span style={{ minWidth: '2em' }}>{branchParams.killDistance}</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                step
+                <input
+                  type="range" min="3" max="20" step="1"
+                  value={branchParams.stepSize}
+                  onChange={e => setBranchParams(p => ({ ...p, stepSize: parseFloat(e.target.value) }))}
+                />
+                <span style={{ minWidth: '2em' }}>{branchParams.stepSize}</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                iterations
+                <input
+                  type="range" min="0" max="150" step="5"
+                  value={branchParams.iterations}
+                  onChange={e => setBranchParams(p => ({ ...p, iterations: parseFloat(e.target.value) }))}
+                />
+                <span style={{ minWidth: '2.5em' }}>{branchParams.iterations}</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                seed
+                <input
+                  type="range" min="1" max="50" step="1"
+                  value={branchParams.seed}
+                  onChange={e => setBranchParams(p => ({ ...p, seed: parseFloat(e.target.value) }))}
+                />
+                <span style={{ minWidth: '2em' }}>{branchParams.seed}</span>
+              </label>
             </div>
           )}
           {activeTab === 'proofs' && (
@@ -1268,7 +1342,7 @@ function App() {
             <button
               className="text-reset-button"
               onClick={() => {
-                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', splineGrid: '', proofs: proofTexts[proofCase], grow: 'dactyl' }
+                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', splineGrid: '', proofs: proofTexts[proofCase], grow: 'dactyl', branch: 'dactyl' }
                 setText(defaults[activeTab])
               }}
               title="Reset Text to Default"

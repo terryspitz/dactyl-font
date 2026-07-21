@@ -168,3 +168,24 @@ unlocks the standard SDF toolbox:
 
 Status: items 1–2 are implemented (JFA in `web/src/growth.js`, shader
 preview in `web/src/GrowCanvas.jsx`); 3–6 are open.
+
+## Idea 5 prototype: space colonisation (added after this slice shipped)
+
+A first slice of Idea 5 (branching growth off the spine) is implemented as a
+"Branch" tab: `web/src/branching.js` runs classic space colonisation
+(Runions et al.) — spine samples resampled into root nodes, attractors
+jittered into the counters/margins (reusing `growth.js`'s `SampleGrid`, now
+exported), twigs grown one step per iteration toward their nearest
+attractor's averaged direction, attractors killed on reach. `web/src/
+branchSvg.js` renders the result over the classic (`grow=0`) letterform
+outline as tapered SVG strokes (banded stroke-width, since SVG has no true
+variable-width stroke). Controls: `density`, `influence`, `killDistance`,
+`stepSize`, `iterations`, `seed` (deterministic via a seeded PRNG). At high
+density/low influence it reads as bristly flared serifs; at low density/high
+influence, longer forking ivy-like tendrils.
+
+Open follow-ups: DLA and L-system variants from the same idea are not yet
+implemented; the tapered stroke is a rendering approximation rather than a
+true vector outline (no OTF export path yet, unlike the Idea 1 growth
+field); multi-glyph fusion between branches of neighbouring letters is not
+attempted.
