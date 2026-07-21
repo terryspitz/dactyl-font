@@ -383,7 +383,8 @@ function App() {
     setDownloadingFont(true)
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
     worker.onmessage = (e) => {
-      const { result, error } = e.data
+      const { result, error, type } = e.data
+      if (type === 'progress') return
       worker.terminate()
       setDownloadingFont(false)
       if (error) {
