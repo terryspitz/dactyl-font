@@ -486,6 +486,40 @@
     font-weight: 600;
 }
 
+.proof-compare-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: 10px;
+    font-size: 0.8em;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+
+.proof-compare {
+    display: flex;
+    flex-direction: column;
+}
+
+.proof-compare-panel {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.proof-compare-panel:last-child {
+    border-bottom: none;
+}
+
+.proof-compare-label {
+    font-size: 0.75em;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 8px 20px 0;
+}
+
 .proof-book-title {
     margin-left: 10px;
     font-size: 0.75em;

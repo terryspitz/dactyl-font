@@ -185,6 +185,14 @@ function App() {
     window.history.pushState({}, '', url)
   }
 
+  const setCompareSpacingWithUrl = (on) => {
+    setCompareSpacing(on)
+    const url = new URL(window.location)
+    if (on) url.searchParams.set('compareSpacing', '1')
+    else url.searchParams.delete('compareSpacing')
+    window.history.replaceState({}, '', url)
+  }
+
   const setDiffConfigWithUrl = (cfg) => {
     setDiffConfig(cfg)
     const url = new URL(window.location)
@@ -372,6 +380,13 @@ function App() {
 
   const [downloadingFont, setDownloadingFont] = useState(false)
   const [proofFontUrl, setProofFontUrl] = useState(null)
+  // Proofs tab "Compare spacing" mode: stacks the same proof text rendered
+  // with kerning axes forced off (baseline) above the current axes, so
+  // manual + optical kerning / sidebearingScale changes are easy to spot.
+  const [compareSpacing, setCompareSpacing] = useState(
+    () => new URLSearchParams(window.location.search).get('compareSpacing') === '1'
+  )
+  const [baselineGlyphData, setBaselineGlyphData] = useState(null)
   const [classicBook, setClassicBook] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('proof') !== 'classic') return null
@@ -396,6 +411,11 @@ function App() {
   }
 
   const renderIdRef = useRef(0)
+  // Separate counter for the "Compare spacing" baseline fetch — it runs
+  // concurrently with the main proofs fontPreview effect, which uses
+  // renderIdRef to discard stale responses. Sharing the counter would bump
+  // it out from under that effect's in-flight request and drop its result.
+  const baselineRenderIdRef = useRef(0)
   const loadingRef = useRef(false)
   const previewRef = useRef(null)
   const activeTabRef = useRef(activeTab)
@@ -594,6 +614,23 @@ function App() {
     }
   }, [axes, activeTab])
 
+  // Compare-spacing baseline: fetch glyph data with kerning axes forced off,
+  // so "Compare spacing" can stack a no-kerning render above the live one.
+  // Only runs while the toggle is on to avoid the extra font build otherwise.
+  useEffect(() => {
+    if (activeTab !== 'proofs' || !compareSpacing) return
+
+    const baselineAxes = { ...axes, manualKerning: false, opticalKerning: false, sidebearingScale: 1.0 }
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    worker.onmessage = (e) => {
+      const { result, error } = e.data
+      worker.terminate()
+      if (!error) setBaselineGlyphData(result)
+    }
+    worker.postMessage({ id: ++baselineRenderIdRef.current, type: 'fontData', args: [baselineAxes] })
+    return () => worker.terminate()
+  }, [axes, activeTab, compareSpacing])
+
   // Dedicated effect for the Grow tab GPU path: rebuild the growth field only
   // when text/axes change.  growParams are shader uniforms and don't re-trigger.
   useEffect(() => {
@@ -646,6 +683,23 @@ function App() {
     }
     el.textContent = `@font-face { font-family: 'DactylPreview'; src: url('${proofFontUrl}') format('opentype'); }`
   }, [proofFontUrl])
+
+  // Build the no-kerning baseline @font-face from the fetched glyph data.
+  const baselineFontUrl = useMemo(() => {
+    if (!compareSpacing || !baselineGlyphData) return null
+    try { return buildFontDataUrl(baselineGlyphData, 'DactylBaseline') } catch { return null }
+  }, [compareSpacing, baselineGlyphData])
+
+  useEffect(() => {
+    if (!baselineFontUrl) return
+    let el = document.getElementById('dactyl-baseline-font')
+    if (!el) {
+      el = document.createElement('style')
+      el.id = 'dactyl-baseline-font'
+      document.head.appendChild(el)
+    }
+    el.textContent = `@font-face { font-family: 'DactylBaseline'; src: url('${baselineFontUrl}') format('opentype'); }`
+  }, [baselineFontUrl])
 
   // Compare-font mode: fetch Dactyl's outlines for the current axes once per
   // axes change. Used to build the vector overlay and (for text-mode sources)
@@ -712,19 +766,43 @@ function App() {
 
     // Proofs tab uses CSS font rendering — bypass SVG result check
     if (activeTab === 'proofs') {
+      const proofStyle = (fontFamily) => ({
+        fontFamily,
+        fontSize: `${18 * zoom}pt`,
+        lineHeight: 1.4,
+        whiteSpace: 'pre-wrap',
+        textAlign: 'left',
+        padding: '20px',
+        color: '#000',
+      })
+
+      if (compareSpacing) {
+        return (
+          <div className="proof-compare">
+            <div className="proof-compare-panel">
+              <div className="proof-compare-label">Before &mdash; no kerning</div>
+              <div
+                className="proof-text"
+                style={proofStyle(baselineFontUrl ? "'DactylBaseline', monospace" : 'monospace')}
+              >
+                {text}
+              </div>
+            </div>
+            <div className="proof-compare-panel">
+              <div className="proof-compare-label">After &mdash; current axes</div>
+              <div
+                className="proof-text"
+                style={proofStyle(proofFontUrl ? "'DactylPreview', monospace" : 'monospace')}
+              >
+                {text}
+              </div>
+            </div>
+          </div>
+        )
+      }
+
       return (
-        <div
-          className="proof-text"
-          style={{
-            fontFamily: proofFontUrl ? "'DactylPreview', monospace" : 'monospace',
-            fontSize: `${18 * zoom}pt`,
-            lineHeight: 1.4,
-            whiteSpace: 'pre-wrap',
-            textAlign: 'left',
-            padding: '20px',
-            color: '#000',
-          }}
-        >
+        <div className="proof-text" style={proofStyle(proofFontUrl ? "'DactylPreview', monospace" : 'monospace')}>
           {text}
         </div>
       )
@@ -1163,6 +1241,14 @@ function App() {
                   {classicBook.title} &mdash; {classicBook.author}
                 </span>
               )}
+              <label className="proof-compare-toggle">
+                <input
+                  type="checkbox"
+                  checked={compareSpacing}
+                  onChange={e => setCompareSpacingWithUrl(e.target.checked)}
+                />
+                Compare spacing
+              </label>
             </div>
           )}
           {activeTab === 'visualDiffs' && (() => {
