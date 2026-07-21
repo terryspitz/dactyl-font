@@ -383,7 +383,8 @@ function App() {
     setDownloadingFont(true)
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
     worker.onmessage = (e) => {
-      const { result, error } = e.data
+      const { result, error, type } = e.data
+      if (type === 'progress') return
       worker.terminate()
       setDownloadingFont(false)
       if (error) {
@@ -653,14 +654,41 @@ function App() {
   useEffect(() => {
     if (activeTab !== 'visualDiffs' || compareMode !== 'font') return
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    setLoading(true)
+    loadingRef.current = true
+    setShowProgress(false)
+    setProgressValue(0)
+
+    // Debounced so a fast regeneration doesn't flash the bar. Staleness here
+    // is only about *this* effect's own axes/mode changes, so a locally-scoped
+    // worker (cancelled via terminate() in cleanup) is the right guard —
+    // renderIdRef is shared with unrelated effects (e.g. the main render
+    // effect bumps it on every text change too) and would drop this effect's
+    // still-valid, still-in-flight response.
+    const timer = setTimeout(() => {
+      if (loadingRef.current) setShowProgress(true)
+    }, 400)
+
     worker.onmessage = (e) => {
-      const { result, error } = e.data
+      const { result, error, type, value } = e.data
+      if (type === 'progress') {
+        setProgressValue(value)
+        if (value > 0) setShowProgress(true)
+        return
+      }
+      clearTimeout(timer)
       worker.terminate()
       if (error) setCompareError(error)
-      else setDactylGlyphData(result)
+      else { setDactylGlyphData(result); setCompareError(null) }
+      setLoading(false)
+      loadingRef.current = false
+      setShowProgress(false)
     }
     worker.postMessage({ id: ++renderIdRef.current, type: 'fontData', args: [axes] })
-    return () => worker.terminate()
+    return () => {
+      clearTimeout(timer)
+      worker.terminate()
+    }
   }, [axes, activeTab, compareMode])
 
   // Vector overlay SVG (outline sources). Rebuilt when the font, alignment,
