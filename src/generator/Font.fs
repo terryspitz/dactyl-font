@@ -500,11 +500,24 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
         checkElem elem
 
+    /// True when a knot exactly at (X,Y) was explicitly declared an interior
+    /// joint via the `j` marker in the glyph string. Unlike the geometric
+    /// heuristic above this handles joints landing on curves (e.g. R's leg, m's
+    /// arches) and is always honoured, independent of the `joints` axis.
+    member this.isExplicitJoint elem X Y =
+        let rec checkElem e =
+            match e with
+            | Curve(knots, _) -> knots |> List.exists (fun k -> k.isJoint && k.pt.x = X && k.pt.y = Y)
+            | Dot(_) -> false
+            | EList(elems) -> List.exists checkElem elems
+            | Space -> false
+            | _ -> invalidArg "e" (sprintf "Unreduced element %A" e)
+
+        checkElem elem
+
     member this.isJoint elem X Y =
-        if axes.joints then
-            memoize this.isJointRaw elem X Y
-        else
-            false
+        this.isExplicitJoint elem X Y
+        || (axes.joints && memoize this.isJointRaw elem X Y)
 
     member this.maybeAlign angle =
         if this.axes.axis_align_caps then align angle else angle
@@ -526,31 +539,37 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 ty = Corner
                 th_in = firstThIn
                 th_out = firstThOut
+                isJoint = false
                 label = None }
               { pt = addPolarContrast X Y (thetaAligned + PI * 0.5 + serifAng) serifDist
                 ty = Corner
                 th_in = nnIn
                 th_out = nnOut
+                isJoint = false
                 label = None }
               { pt = addPolarContrast X Y (thetaAligned + PI * 0.5 - serifAng) serifDist
                 ty = Corner
                 th_in = nnIn
                 th_out = nnOut
+                isJoint = false
                 label = None }
               { pt = addPolarContrast X Y (thetaAligned - PI * 0.5 + serifAng) serifDist
                 ty = Corner
                 th_in = nnIn
                 th_out = nnOut
+                isJoint = false
                 label = None }
               { pt = addPolarContrast X Y (thetaAligned - PI * 0.5 - serifAng) serifDist
                 ty = Corner
                 th_in = nnIn
                 th_out = nnOut
+                isJoint = false
                 label = None }
               { pt = addPolarContrast X Y (thetaAligned - PI * 0.75) (fthickness * sqrt 2.0)
                 ty = ty
                 th_in = lastThIn
                 th_out = lastThOut
+                isJoint = false
                 label = None } ]
         elif this.axes.flare <> 0.0 && not isJoint then
             //make flared endcap
@@ -561,69 +580,82 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 ty = Corner
                 th_in = firstThIn
                 th_out = firstThOut
+                isJoint = false
                 label = None }
               { pt = addPolarContrast X Y (theta + preflareAng) preflareDist
                 ty = LineToCurve
                 th_in = nnIn
                 th_out = nnOut
+                isJoint = false
                 label = None }
               { pt = addPolarContrast X Y (thetaAligned + PI * 0.5 - flareAng) flareDist
                 ty = Corner
                 th_in = nnIn
                 th_out = nnOut
+                isJoint = false
                 label = None }
               { pt = addPolarContrast X Y (thetaAligned - PI * 0.5 + flareAng) flareDist
                 ty = Corner
                 th_in = nnIn
                 th_out = nnOut
+                isJoint = false
                 label = None }
               { pt = addPolarContrast X Y (theta - preflareAng) preflareDist
                 ty = CurveToLine
                 th_in = nnIn
                 th_out = nnOut
+                isJoint = false
                 label = None }
               { pt = addPolarContrast X Y (theta - PI * 0.75) (fthickness * sqrt 2.0)
                 ty = ty
                 th_in = lastThIn
                 th_out = lastThOut
+                isJoint = false
                 label = None } ]
         elif this.axes.end_bulb <> 0.0 && not isJoint then
             [ { pt = offsetPointRotated X Y thetaAligned (fthickness * (1. - this.axes.end_bulb)) fthickness
                 ty = Corner
                 th_in = firstThIn
                 th_out = firstThOut
+                isJoint = false
                 label = None }
               { pt = offsetPointRotated X Y thetaAligned fthickness 0.
                 ty = G2
                 th_in = nnIn
                 th_out = nnOut
+                isJoint = false
                 label = None }
               { pt = offsetPointRotated X Y thetaAligned (fthickness * (1. - this.axes.end_bulb)) -fthickness
                 ty = ty
                 th_in = lastThIn
                 th_out = lastThOut
+                isJoint = false
                 label = None } ]
         elif isJoint then // try forcing alignment
             [ { pt = offsetPointRotated X Y (align theta) fthickness fthickness
                 ty = Corner
                 th_in = firstThIn
                 th_out = firstThOut
+                isJoint = false
                 label = Some "joint" }
               { pt = offsetPointRotated X Y (align theta) fthickness -fthickness
                 ty = ty
                 th_in = lastThIn
                 th_out = lastThOut
+                isJoint = false
                 label = Some "joint" } ]
         else
             [ { pt = offsetPointRotated X Y thetaAligned fthickness fthickness
                 ty = Corner
                 th_in = firstThIn
                 th_out = firstThOut
+                isJoint = false
                 label = None }
               { pt = offsetPointRotated X Y thetaAligned fthickness -fthickness
                 ty = ty
                 th_in = lastThIn
                 th_out = lastThOut
+                isJoint = false
                 label = None } ]
 
     /// Start-cap knots: points at the beginning of an open stroke.
@@ -699,11 +731,13 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     ty = newType
                     th_in = Some lastSeg.tangentEnd
                     th_out = None
+                    isJoint = false
                     label = None }
                   { pt = segmentAddPolar seg (this.maybeAlign th2 + angle / 2.0) (dist * sqrt 2.0)
                     ty = newType
                     th_in = None
                     th_out = Some seg.tangentStart
+                    isJoint = false
                     label = None } ]
             else
                 // 90 degree corners (and shallower/inner) are sharp miters (single knot)
@@ -714,6 +748,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     ty = newType
                     th_in = Some lastSeg.tangentEnd
                     th_out = Some seg.tangentStart
+                    isJoint = false
                     label = None } ]
         | SpiroPointType.Right ->
             let t = Some seg.tangentStart
@@ -722,6 +757,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 ty = newType
                 th_in = t
                 th_out = t
+                isJoint = false
                 label = None } ]
         | SpiroPointType.Left ->
             let t = Some seg.tangentStart
@@ -730,6 +766,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 ty = newType
                 th_in = t
                 th_out = t
+                isJoint = false
                 label = None } ]
         | _ ->
             let t = Some seg.tangentStart
@@ -738,6 +775,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 ty = newType
                 th_in = t
                 th_out = t
+                isJoint = false
                 label = None } ]
 
     member this.offsetSegments (segments: list<Segment>) start endP reverse closed dist =
@@ -755,6 +793,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                             ty = seg.Type
                             th_in = Some seg.tangentStart
                             th_out = Some seg.tangentStart
+                            isJoint = false
                             label = None }
               elif i = segments.Length - 1 && not closed then
                   let lastSeg = segments.[i - 1]
@@ -764,6 +803,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                         ty = seg.Type
                         th_in = Some lastSeg.tangentEnd
                         th_out = Some lastSeg.tangentEnd
+                        isJoint = false
                         label = None }
               else
                   let lastSeg = segments.[i - 1]
@@ -971,11 +1011,13 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     ty = Corner
                     th_in = t
                     th_out = t
+                    isJoint = false
                     label = None }
                   { pt = offsetPointCap seg.X seg.Y (seg.tangentStart + PI * 0.75)
                     ty = Corner
                     th_in = t
                     th_out = t
+                    isJoint = false
                     label = None } ]
 
             let endCap (seg: Segment) (lastSeg: Segment) =
@@ -985,6 +1027,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     ty = Corner
                     th_in = t
                     th_out = t
+                    isJoint = false
                     label = None } ]
 
             match spiro with
@@ -1247,7 +1290,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             let n = bezPts.Length
             let segCount = if isClosed then n else n - 1
             let plainKnot pt =
-                { pt = pt; ty = Corner; th_in = None; th_out = None; label = None }
+                { pt = pt; ty = Corner; th_in = None; th_out = None; isJoint = false; label = None }
 
             // --- Spine sampling with cumulative arc length ---
 
@@ -1820,6 +1863,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
               ty = segment.Type
               th_in = tangent
               th_out = tangent
+              isJoint = false
               label = None }
 
         let spiroConstrain spiro =

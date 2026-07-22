@@ -452,6 +452,7 @@ let solveAltSplines (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool)
               ty = splineToSpiroPointType cp.ty
               th_in = cp.th_in
               th_out = cp.th_out
+              isJoint = false
               label = None })
         |> Array.toList
     let curve = Curve(knots, isClosed)
@@ -479,6 +480,7 @@ let getSplineOutlinePath (ctrlPts: DactylSpline.DControlPoint array) (isClosed: 
                   ty = splineToSpiroPointType cp.ty
                   th_in = cp.th_in
                   th_out = cp.th_out
+                  isJoint = false
                   label = None })
             |> Array.toList
         let curve = Curve(knots, isClosed)
