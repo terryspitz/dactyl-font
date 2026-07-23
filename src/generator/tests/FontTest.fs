@@ -814,7 +814,7 @@ type FontTests() =
 [<TestFixture>]
 type KnotSequenceValidationTests() =
     let pt x y = { x = x; y = y; x_fit = false; y_fit = false }
-    let knot ty x y = { pt = pt x y; ty = ty; th_in = None; th_out = None; label = None }
+    let knot ty x y = { pt = pt x y; ty = ty; th_in = None; th_out = None; isJoint = false; label = None }
 
     [<Test>]
     member _.Valid_AllG2_Closed() =
@@ -920,7 +920,7 @@ type KnotSequenceValidationTests() =
 [<TestFixture>]
 type ArtisticAxesTests() =
     let pt x y = { x = x; y = y; x_fit = false; y_fit = false }
-    let knot ty x y = { pt = pt x y; ty = ty; th_in = None; th_out = None; label = None }
+    let knot ty x y = { pt = pt x y; ty = ty; th_in = None; th_out = None; isJoint = false; label = None }
 
     /// A straight open stroke from (0,0) to (x,y).
     let strokeTo x y = Curve([ knot Corner 0. 0.; knot Corner x y ], false)
