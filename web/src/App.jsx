@@ -134,7 +134,7 @@ function App() {
   const [growParams, setGrowParams] = useState({ grow: 0.7, gap: 30, layers: true, animate: false })
   // Branch tab: space-colonisation branching parameters (see branching.js)
   const [branchParams, setBranchParams] = useState({
-    density: 26, influence: 55, killDistance: 14, stepSize: 9, iterations: 60, seed: 1,
+    density: 26, influence: 55, killDistance: 14, stepSize: 9, iterations: 60, seed: 1, backbone: true,
   })
   // Grow tab GPU path: the worker builds the (d1, dOpp) field once per
   // text/axes change; sliders only move shader uniforms (see GrowCanvas.jsx).
@@ -1211,6 +1211,14 @@ function App() {
                   onChange={e => setBranchParams(p => ({ ...p, seed: parseFloat(e.target.value) }))}
                 />
                 <span style={{ minWidth: '2em' }}>{branchParams.seed}</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                backbone
+                <input
+                  type="checkbox"
+                  checked={branchParams.backbone}
+                  onChange={e => setBranchParams(p => ({ ...p, backbone: e.target.checked }))}
+                />
               </label>
             </div>
           )}

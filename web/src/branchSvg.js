@@ -1,9 +1,16 @@
 // Branch tab back end (runs in the worker): space-colonisation branching off
 // the glyph spines (brainstorm docs/growth-brainstorm.md, Idea 5), rendered
 // as twigs over the classic (grow=0) letterform outline.
+//
+// The `backbone` param toggles that classic inflated outline off.  Twig
+// coverage from the space-colonisation simulation alone is not guaranteed to
+// reach every stretch of every glyph (a root node with no attractor in reach
+// stays bare), so with the backbone off a thin *stroked* trunk line retraces
+// the spine itself — full coverage by construction — keeping text legible at
+// any branch settings rather than only for lucky ones.
 
 import { collectStrokes } from './growthSvg.js'
-import { growStrokes, contoursToPath } from './growth.js'
+import { growStrokes, contoursToPath, strokesToPath } from './growth.js'
 import { growBranches, branchesToSvgPaths } from './branching.js'
 
 /// Pick the spine sampling resolution: finer for short texts, coarser so
@@ -20,11 +27,14 @@ export function generateBranchSvg(text, axes, params = {}, onProgress) {
     const cell = params.cell ?? cellFor(text)
     const maxReach = params.maxReach ?? 140
     const thickness = axes.thickness
+    const showBackbone = params.backbone ?? true
 
     const strokes = collectStrokes(text, axes, cell, maxReach,
         onProgress ? (f => onProgress(0.5 * f)) : undefined)
     if (strokes.length === 0) return ''
 
+    // Always solved (bbox needs it even with the backbone hidden), but only
+    // rendered when showBackbone is on.
     const letter = growStrokes(strokes, { thickness, grow: 0, gap: thickness * 0.8, isoLevels: [0], cell })
     const letterPath = contoursToPath(letter.levels[0].contours)
     if (onProgress) onProgress(0.6)
@@ -44,8 +54,18 @@ export function generateBranchSvg(text, axes, params = {}, onProgress) {
     const w = x1 - x0, h = y1 - y0
     if (w <= 0 || h <= 0) return ''
 
+    const backboneSvg = showBackbone
+        ? (letterPath ? `<path d="${letterPath}" fill="black" fill-rule="evenodd"/>` : '')
+        : (() => {
+            const trunkPath = strokesToPath(strokes)
+            const trunkWidth = thickness * 0.55
+            return trunkPath
+                ? `<path d="${trunkPath}" stroke="black" stroke-width="${trunkWidth.toFixed(1)}" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`
+                : ''
+        })()
+
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x0.toFixed(1)} ${(-y1).toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" width="${(w / 2).toFixed(0)}" height="${(h / 2).toFixed(0)}">` +
-        (letterPath ? `<path d="${letterPath}" fill="black" fill-rule="evenodd"/>` : '') +
+        backboneSvg +
         branchPaths +
         `</svg>`
 }
