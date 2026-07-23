@@ -8,33 +8,43 @@ open GeneratorTypes
 open GlyphStringDefs
 open SvgHelpers
 
-// Helper to convert the union type Controls to a JS-friendly object
+// Helper to convert the union type Controls to a JS-friendly object.
+// Each control also carries its Google Fonts axis-registry reconciliation:
+// the OpenType `tag`, whether it maps to a registered GF axis, and (when it
+// does) the registry display name, designspace range, precision, fallback_only
+// flag and named instances.  The registry designspace range is separate from
+// the UI slider (`min`/`max`/`step`), which stays in generator units.
 let getControlDetails (name: string, control: Controls, category: string, description: string) =
-    match control with
-    | Range(min, max) ->
-        {| name = name
-           type_ = "range"
-           min = float min
-           max = float max
-           step = (float max - float min) / 20.0
-           category = category
-           description = description |}
-    | FracRange(min, max) ->
-        {| name = name
-           type_ = "range"
-           min = min
-           max = max
-           step = 0.05
-           category = category
-           description = description |}
-    | Checkbox ->
-        {| name = name
-           type_ = "checkbox"
-           min = 0.0
-           max = 1.0
-           step = 1.0
-           category = category
-           description = description |}
+    let type_, min, max, step =
+        match control with
+        | Range(min, max) -> "range", float min, float max, (float max - float min) / 20.0
+        | FracRange(min, max) -> "range", min, max, 0.05
+        | Checkbox -> "checkbox", 0.0, 1.0, 1.0
+
+    let reg = Axes.registryInfo name
+
+    let fallbacks =
+        match reg with
+        | Some r -> r.fallbacks |> List.map (fun f -> {| name = f.name; value = f.value |})
+        | None -> []
+        |> Array.ofList
+
+    {| name = name
+       type_ = type_
+       min = min
+       max = max
+       step = step
+       category = category
+       description = description
+       tag = Axes.axisTag name
+       registered = Option.isSome reg
+       registryName = (match reg with Some r -> r.displayName | None -> "")
+       registryMin = (match reg with Some r -> r.minValue | None -> 0.0)
+       registryDefault = (match reg with Some r -> r.defaultValue | None -> 0.0)
+       registryMax = (match reg with Some r -> r.maxValue | None -> 0.0)
+       registryPrecision = (match reg with Some r -> r.precision | None -> 0)
+       fallbackOnly = (match reg with Some r -> r.fallbackOnly | None -> false)
+       fallbacks = fallbacks |}
 
 let controlDefinitions = Axes.controls |> List.map getControlDetails |> Array.ofList
 

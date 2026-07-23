@@ -6,6 +6,31 @@ type Controls =
     | FracRange of from: float * upto: float
     | Checkbox
 
+/// A named instance ("fallback") on an axis, mirroring the repeated `fallback`
+/// blocks of a Google Fonts axis-registry entry.
+type AxisFallback = { name: string; value: float }
+
+/// Google Fonts axis-registry metadata for a control, mirroring the fields of a
+/// registry `.textproto` entry:
+/// https://github.com/googlefonts/axisregistry/tree/main/Lib/axisregistry/data
+///
+/// NOTE: `minValue`/`defaultValue`/`maxValue` are in the *standard variable-font
+/// designspace* as published in the registry (e.g. wght 1..1000, wdth 25..200),
+/// NOT the generator's internal geometry units used by the UI sliders in
+/// `Axes.controls`.  They describe how a control maps onto a registered
+/// OpenType variation axis for labelling/export, and deliberately do not
+/// influence glyph generation.
+type Registry =
+    { tag: string //4-char OpenType axis tag (registry `tag`)
+      displayName: string //registry `display_name`
+      minValue: float //registry `min_value`
+      defaultValue: float //registry `default_value`
+      maxValue: float //registry `max_value`
+      precision: int //registry `precision`
+      fallbackOnly: bool //registry `fallback_only`
+      description: string //registry `description`
+      fallbacks: AxisFallback list } //registry repeated `fallback` blocks
+
 // Variable which define the font characteristics (named after Variable Font terminology)
 type Axes =
     { dactyl_spline: bool //use new dactyl splines with new glyph definitions
@@ -137,6 +162,192 @@ type Axes =
           "flatness", FracRange(0.0, 10.0), "experimental", "Weight of flatness (abs m) in objective function"
           "end_flatness", FracRange(0.0, 30.0), "experimental", "Quadratic curvature-span weight for open-curve endpoint segments (higher = more circular arc at stroke tips)"
           "debug", Checkbox, "debug", "Show debug info in console" ]
+
+    /// Reconciliation of dactyl controls against the Google Fonts axis registry
+    /// (https://github.com/googlefonts/axisregistry).  Keyed by control name,
+    /// this holds only the controls that correspond to a *registered* GF axis;
+    /// each entry carries the registry's canonical tag, name, designspace
+    /// range, precision, fallback_only flag, description and named instances.
+    /// Every other control uses a private-use tag (see `privateTags`/`axisTag`).
+    static member registry: Map<string, Registry> =
+        Map [ "thickness", // stroke width -> Weight
+                  { tag = "wght"
+                    displayName = "Weight"
+                    minValue = 1.0
+                    defaultValue = 400.0
+                    maxValue = 1000.0
+                    precision = 0
+                    fallbackOnly = false
+                    description = """Adjust the style from lighter to bolder in typographic color, by varying stroke weights, spacing and kerning, and other aspects of the type. This typically changes overall width, and so may be used in conjunction with Width and Grade axes."""
+                    fallbacks =
+                      [ { name = "Thin"; value = 100.0 }
+                        { name = "ExtraLight"; value = 200.0 }
+                        { name = "Light"; value = 300.0 }
+                        { name = "Regular"; value = 400.0 }
+                        { name = "Medium"; value = 500.0 }
+                        { name = "SemiBold"; value = 600.0 }
+                        { name = "Bold"; value = 700.0 }
+                        { name = "ExtraBold"; value = 800.0 }
+                        { name = "Black"; value = 900.0 } ] }
+              "width", // glyph width -> Width
+                  { tag = "wdth"
+                    displayName = "Width"
+                    minValue = 25.0
+                    defaultValue = 100.0
+                    maxValue = 200.0
+                    precision = -1
+                    fallbackOnly = false
+                    description = """Adjust the style from narrower to wider, by varying the proportions of counters, strokes, spacing and kerning, and other aspects of the type. This typically changes the typographic color in a subtle way, and so may be used in conjunction with Weight and Grade axes."""
+                    fallbacks =
+                      [ { name = "SuperCondensed"; value = 25.0 }
+                        { name = "UltraCondensed"; value = 50.0 }
+                        { name = "ExtraCondensed"; value = 62.5 }
+                        { name = "Condensed"; value = 75.0 }
+                        { name = "SemiCondensed"; value = 87.5 }
+                        { name = "Normal"; value = 100.0 }
+                        { name = "SemiExpanded"; value = 112.5 }
+                        { name = "Expanded"; value = 125.0 }
+                        { name = "ExtraExpanded"; value = 150.0 }
+                        { name = "UltraExpanded"; value = 200.0 } ] }
+              "italic", // shear/oblique -> Slant
+                  { tag = "slnt"
+                    displayName = "Slant"
+                    minValue = -90.0
+                    defaultValue = 0.0
+                    maxValue = 90.0
+                    precision = 0
+                    fallbackOnly = false
+                    description = """Adjust the style from upright to slanted. Negative values produce right-leaning forms, also known to typographers as an 'oblique' style. Positive values produce left-leaning forms, also called a 'backslanted' or 'reverse oblique' style."""
+                    fallbacks = [ { name = "Default"; value = 0.0 } ] }
+              "contrast", // vertical/horizontal stroke ratio -> Contrast
+                  { tag = "CTRS"
+                    displayName = "Contrast"
+                    minValue = -100.0
+                    defaultValue = 0.0
+                    maxValue = 100.0
+                    precision = 1
+                    fallbackOnly = false
+                    description = """Contrast describes the stroke width difference between the thick and thin parts of the font glyphs. A value of zero indicates no visible/apparent contrast. A positive number indicates an increase in contrast relative to the zero-contrast thickness, achieved by making the thin stroke thinner. A value of 100 indicates that the thin stroke has disappeared completely. A negative value indicates "reverse contrast": the strokes which would conventionally be thick in the writing system are instead made thinner. In western-language fonts this might be perceived as a 19th-century, "circus" or "old West" effect. A value of -100 indicates that the strokes which would normally be thick have disappeared completely."""
+                    fallbacks =
+                      [ { name = "Reversed"; value = -100.0 }
+                        { name = "None"; value = 0.0 }
+                        { name = "High"; value = 100.0 } ] }
+              "roundedness", // corner roundness -> Roundness
+                  { tag = "ROND"
+                    displayName = "Roundness"
+                    minValue = 0.0
+                    defaultValue = 0.0
+                    maxValue = 100.0
+                    precision = 0
+                    fallbackOnly = false
+                    description = """Adjust shapes from angular defaults (0%) to become increasingly rounded (up to 100%)."""
+                    fallbacks = [ { name = "Default"; value = 0.0 } ] }
+              "soft_corners", // corner softening -> Softness
+                  { tag = "SOFT"
+                    displayName = "Softness"
+                    minValue = 0.0
+                    defaultValue = 0.0
+                    maxValue = 100.0
+                    precision = -1
+                    fallbackOnly = false
+                    description = """Adjust letterforms to become more and more soft and rounded."""
+                    fallbacks =
+                      [ { name = "Sharp"; value = 0.0 }
+                        { name = "Soft"; value = 50.0 }
+                        { name = "SuperSoft"; value = 100.0 } ] }
+              "monospace", // proportional<->fixed width -> Monospace
+                  { tag = "MONO"
+                    displayName = "Monospace"
+                    minValue = 0.0
+                    defaultValue = 0.0
+                    maxValue = 1.0
+                    precision = -2
+                    fallbackOnly = false
+                    description = """Adjust the style from Proportional (natural widths, default) to Monospace (fixed width). With proportional spacing, each glyph takes up a unique amount of space on a line, while monospace is when all glyphs have the same total character width."""
+                    fallbacks =
+                      [ { name = "Proportional"; value = 0.0 }
+                        { name = "Monospace"; value = 1.0 } ] }
+              "flare", // terminal swelling -> Flare
+                  { tag = "FLAR"
+                    displayName = "Flare"
+                    minValue = 0.0
+                    defaultValue = 0.0
+                    maxValue = 100.0
+                    precision = 0
+                    fallbackOnly = false
+                    description = """As the flare axis grows, the stem terminals go from straight (0%) to develop a swelling (100%)."""
+                    fallbacks = [ { name = "Default"; value = 0.0 } ] }
+              "filled", // empty<->filled outlines -> Fill
+                  { tag = "FILL"
+                    displayName = "Fill"
+                    minValue = 0.0
+                    defaultValue = 0.0
+                    maxValue = 1.0
+                    precision = -2
+                    fallbackOnly = false
+                    description = """Fill in transparent forms with opaque ones. Sometimes interior opaque forms become transparent, to maintain contrasting shapes. This can be useful in animation or interaction to convey a state transition. Ranges from 0 (no treatment) to 1 (completely filled)."""
+                    fallbacks =
+                      [ { name = "Normal"; value = 0.0 }
+                        { name = "Filled"; value = 1.0 } ] }
+              "tracking", // inter-glyph gap -> Spacing
+                  { tag = "SPAC"
+                    displayName = "Spacing"
+                    minValue = -100.0
+                    defaultValue = 0.0
+                    maxValue = 100.0
+                    precision = -1
+                    fallbackOnly = false
+                    description = """Adjusts the overall letter spacing of a font. The range is a relative percentage change from the family's default spacing, so the default value is 0."""
+                    fallbacks = [ { name = "Default"; value = 0.0 } ] } ]
+
+    /// Private-use (author-defined) OpenType axis tags for the controls that do
+    /// NOT correspond to a registered Google Fonts axis.  Per the OpenType spec,
+    /// author-defined tags are all-uppercase; registered tags are in `registry`.
+    static member privateTags: Map<string, string> =
+        Map [ "dactyl_spline", "DSPL"
+              "spline2", "SPL2"
+              "constraints", "CNST"
+              "height", "CAPH"
+              "x_height", "XHGT"
+              "descender_depth", "DESC"
+              "leading", "LEAD"
+              "alt_a_g", "ALTG"
+              "serif", "SERF"
+              "end_bulb", "BULB"
+              "axis_align_caps", "ACAP"
+              "outline", "OTLN"
+              "stroked", "STRK"
+              "scratches", "SCRT"
+              "nib", "NIBB"
+              "nib_angle", "NANG"
+              "taper", "TAPR"
+              "taper_end", "TPRE"
+              "wobble", "WOBL"
+              "roughness", "RUFF"
+              "mobius", "MOBI"
+              "constant_offset", "COFF"
+              "max_spline_iter", "ITER"
+              "show_knots", "KNOT"
+              "show_tangents", "TANG"
+              "joints", "JYNT"
+              "smooth", "SMTH"
+              "clip_rect", "CLIP"
+              "flatness", "FLAT"
+              "end_flatness", "EFLT"
+              "debug", "DBUG" ]
+
+    /// Registry metadata for a control name, if it maps to a registered GF axis.
+    static member registryInfo(name: string) : Registry option = Map.tryFind name Axes.registry
+
+    /// The OpenType axis tag for a control: the registered tag when the control
+    /// maps to a Google Fonts registry axis, otherwise its private-use tag.
+    static member axisTag(name: string) : string =
+        match Map.tryFind name Axes.registry with
+        | Some r -> r.tag
+        | None ->
+            match Map.tryFind name Axes.privateTags with
+            | Some t -> t
+            | None -> (name.ToUpper() + "____").Substring(0, 4)
 
     /// True when an artistic axis that varies stroke width (or displaces the spine)
     /// along the stroke is active; these require the arc-length sampled outline path.
