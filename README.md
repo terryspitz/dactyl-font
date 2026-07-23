@@ -103,6 +103,13 @@ On letter spacing, tracking and kerning:
 - [Typography.com: Turning Type Sideways](https://www.typography.com/blog/turning-type-sideways)
 - [Google Fonts](https://design.google/library/google-fonts)
 
+## License
+
+The fonts and the generator that produces them are licensed under the
+[SIL Open Font License 1.1](OFL.txt). The proof texts under `proofs/` remain
+under CC BY-NC-SA 4.0. See [FONTLICENSE.md](FONTLICENSE.md) for why the two
+differ and what it means for reuse.
+
 ## Where It All Started
 
 [Donald Knuth's MetaFont paper](http://www.math.lsa.umich.edu/~millerpd/docs/501_Winter13/Knuth79.pdf)
