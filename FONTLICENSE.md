@@ -30,19 +30,28 @@ We deliberately chose the OFL over Creative Commons for the fonts because:
 
 ### Reserved Font Name
 
-`OFL.txt` currently declares **no Reserved Font Name**, which keeps the fonts
-eligible for Google Fonts (Google refuses fonts that reserve a name).
+`OFL.txt` reserves **"Dactyl"** as a Reserved Font Name. This means anyone who
+ships a *modified* version of the fonts must release it under a different
+primary family name — the word "Dactyl" cannot appear in a derivative's name.
+This protects the name so that a font called "Dactyl" always means the design
+released here, not someone else's altered copy. As the copyright holder, this
+restriction does not apply to your own releases.
 
-If you would rather stop others from shipping modified fonts under the
-"Dactyl" name, add a reserved-name line to the copyright block in `OFL.txt`:
+**Google Fonts caveat:** Google Fonts refuses fonts that carry a Reserved Font
+Name, because its build pipeline needs to rebuild and rename freely. So the
+reserved name and a Google Fonts listing are mutually exclusive *for the same
+files*.
+
+The OFL permits the same design to be distributed under separate copyright
+notices, so if you later want to put a family on Google Fonts, make a copy of
+`OFL.txt` for that distribution with the Reserved Font Name line removed:
 
 ```
-Copyright 2020 The Dactyl Project Authors ..., with Reserved Font Name "Dactyl".
+Copyright 2020 The Dactyl Project Authors (...)
 ```
 
-Note that doing so means the flagship family cannot be submitted to Google
-Fonts under that name — the two goals are mutually exclusive, so decide per
-distribution channel.
+Keep the RFN on your own releases (this repo, your site, dafont, FontSpace);
+drop it only on the specific copy submitted to Google Fonts.
 
 ## The proofs and prose → Creative Commons BY-NC-SA 4.0
 
