@@ -39,13 +39,24 @@ jobs:
       - name: Convert Markdown to HTML
         uses: natescherer/markdown-to-html-with-github-style-action@v1.1.0
         with:
-          path: README.md
+          path: README.md,DEVELOPING.md,docs/ExplorerGuide.md,docs/DactylGlyphs.md,docs/DactylSpline.md,docs/suggestions.md,docs/FontPipeline.md,docs/growth-brainstorm.md,docs/TODO.md
           outputpath: web/dist
+          matchpathstructure: true
+      - name: Rewrite internal doc links from .md to .html
+        # The README and docs cross-link each other with .md paths (which work
+        # when browsing on GitHub). On GitHub Pages we serve the converted
+        # .html files, so rewrite relative .md links to .html in the generated
+        # HTML. Only relative links are touched (paths containing ':' such as
+        # https:// are skipped).
+        run: |
+          find web/dist -name '*.html' -exec \
+            sed -i -E 's@href="([^":]*)\.md("|#)@href="\1.html\2@g' {} +
       - name: copy static files
         run: |
           cp output/allGlyphs.html web/dist
           cp gallery.html web/dist
           cp -r png/ web/dist
+          cp docs/*.svg web/dist/docs/
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
         with:
