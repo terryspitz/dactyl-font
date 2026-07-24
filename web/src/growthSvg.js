@@ -53,7 +53,7 @@ export function generateGrowthField(text, axes, params = {}, onProgress) {
         onProgress ? (f => onProgress(EXTRACT_SHARE * f)) : undefined)
     if (strokes.length === 0) return null
     return buildGrowthField(strokes, {
-        thickness: axes.thickness,
+        thickness: axes.weight,
         growScale: GROW_SCALE,
         cell,
         onProgress: onProgress ? (f => onProgress(EXTRACT_SHARE + (1 - EXTRACT_SHARE) * f)) : undefined,
@@ -66,7 +66,7 @@ export function generateGrowthSvg(text, axes, params = {}, onProgress) {
     const grow = params.grow ?? 0.7
     const gap = params.gap ?? 30
     const layers = params.layers ?? true
-    const thickness = axes.thickness
+    const thickness = axes.weight
     const cell = params.cell ?? cellFor(text)
 
     const allStrokes = collectStrokes(text, axes, cell,

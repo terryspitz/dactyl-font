@@ -103,17 +103,17 @@ let main argv =
         [
             // ("Dactyl Knots", "Extra Light", Font({Axes.DefaultAxes with show_knots = true}))
             // ("Dactyl Spiro", "Extra Light", Font({Axes.DefaultAxes with spline2 = false}))
-            ("Dactyl Sans Extra Light", "Extra Light", Font({ Axes.DefaultAxes with thickness = 3 }))
-            ("Dactyl Sans", "Regular", Font({ Axes.DefaultAxes with thickness = 30 }))
-            ("Dactyl Sans Italic", "Italic", Font({ Axes.DefaultAxes with italic = 0.15 }))
-            ("Dactyl Sans Bold", "Bold", Font({ Axes.DefaultAxes with thickness = 60 }))
+            ("Dactyl Sans Extra Light", "Extra Light", Font({ Axes.DefaultAxes with weight = 3 }))
+            ("Dactyl Sans", "Regular", Font({ Axes.DefaultAxes with weight = 30 }))
+            ("Dactyl Sans Italic", "Italic", Font({ Axes.DefaultAxes with slant = 0.15 }))
+            ("Dactyl Sans Bold", "Bold", Font({ Axes.DefaultAxes with weight = 60 }))
             ("Dactyl Round",
             "Round",
             Font(
                 { Axes.DefaultAxes with
                     end_bulb = 0.5
                     axis_align_caps = false
-                    thickness = 90 }
+                    weight = 90 }
             ))
             ("Dactyl Mono",
             "Regular",
@@ -126,14 +126,14 @@ let main argv =
             Font(
                 { Axes.DefaultAxes with
                     stroked = true
-                    thickness = 60 }
+                    weight = 60 }
             ))
             ("Dactyl Scratch",
             "Regular",
             Font(
                 { Axes.DefaultAxes with
                     scratches = true
-                    thickness = 60 }
+                    weight = 60 }
             ))
             ("Dactyl Roman", "Regular", Font({ Axes.DefaultAxes with serif = 30 }))
             ("Dactyl Smooth",
@@ -254,7 +254,7 @@ let main argv =
                             { Axes.DefaultAxes with
                                 x_height = float (11 - r) * 0.2
                                 roundedness = c * 30
-                                thickness = r * 6 }
+                                weight = r * 6 }
                         )
 
                     yield! font.stringToSvg [ str ] 0.0 0.0 true black None ]
