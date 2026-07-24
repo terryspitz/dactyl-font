@@ -161,3 +161,67 @@ describe('buildFont em normalisation', () => {
     expect(bb.y2 - bb.y1).toBe(100) // 200 * 0.5
   })
 })
+
+describe('buildFont metadata (fontbakery requirements)', () => {
+  // Glyph data including a space (U+0020), so buildFont adds the required
+  // no-break space and picks up a real advance width for it.
+  const glyphData = {
+    unitsPerEm: 1000,
+    ascender: 700,
+    descender: -300,
+    glyphs: [
+      { unicode: 32, advanceWidth: 250, pathData: '' },
+      { unicode: 65, advanceWidth: 400, pathData: 'M 0,0 L 100,0 L 100,200 L 0,200 Z' },
+      { unicode: 66, advanceWidth: 520, pathData: 'M 0,0 L 100,0 L 100,200 L 0,200 Z' },
+    ],
+  }
+
+  // opentype.js 1.3.4 defaults every unset name field to a single space, which
+  // fontbakery flags as empty / trailing-whitespace records.
+  it('emits no empty or whitespace-only name records', () => {
+    const names = buildFont(glyphData).names
+    for (const [key, langs] of Object.entries(names)) {
+      for (const value of Object.values(langs)) {
+        expect(value, key).toBeTruthy()
+        expect(value.trim(), key).not.toBe('')
+      }
+    }
+  })
+
+  it('sets matching version strings and a unique id', () => {
+    const names = buildFont(glyphData).names
+    expect(names.version.en).toBe('Version 1.000')
+    expect(names.uniqueID.en).toContain('1.000')
+  })
+
+  it('embeds the OFL copyright with the reserved font name', () => {
+    const copyright = buildFont(glyphData).names.copyright.en
+    expect(copyright).toContain('Terry Spitz')
+    expect(copyright).toContain('Reserved Font Name "Dactyl"')
+  })
+
+  it('links the designer URL to the live site and the repo in the copyright', () => {
+    const names = buildFont(glyphData).names
+    expect(names.designerURL.en).toBe('https://terryspitz.github.io/dactyl-font')
+    expect(names.copyright.en).toContain('https://github.com/terryspitz/dactyl-font')
+  })
+
+  it('includes a U+00A0 no-break space matching the space advance', () => {
+    const font = buildFont(glyphData)
+    const space = font.glyphs.get(font.charToGlyphIndex(' '))
+    const nbsp = font.glyphs.get(font.charToGlyphIndex(' '))
+    expect(nbsp).toBeTruthy()
+    expect(nbsp.unicode).toBe(0x00a0)
+    expect(nbsp.advanceWidth).toBe(space.advanceWidth)
+  })
+
+  it('gives .notdef a real outline and no wider advance than the widest glyph', () => {
+    const font = buildFont(glyphData)
+    const notdef = font.glyphs.get(0)
+    expect(notdef.name).toBe('.notdef')
+    expect(notdef.path.commands.length).toBeGreaterThan(0)
+    // Widest character glyph here is 'B' at 520; .notdef must not exceed it, or
+    // hmtx and hhea.advanceWidthMax disagree.
+    expect(notdef.advanceWidth).toBe(520)
+  })
+})
