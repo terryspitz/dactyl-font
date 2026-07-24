@@ -879,7 +879,10 @@
 .font-compare-controls.wrap {
     flex-wrap: wrap;
 }
-.compare-controls-break {
+/* Zero-height flex item that forces everything after it onto a new row of a
+   flex-wrap container — used wherever a dropdown/control needs to sit on its
+   own line rather than pack in next to its neighbour. */
+.controls-break {
     flex-basis: 100%;
     height: 0;
 }

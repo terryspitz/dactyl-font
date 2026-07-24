@@ -1169,6 +1169,7 @@ function App() {
                     <option value="branch">Branch</option>
                   </select>
                 </label>
+                <div className="controls-break" />
                 {generateMode === 'grow' && (<>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     grow
@@ -1346,6 +1347,7 @@ function App() {
                     </optgroup>
                   ))}
                 </select>
+                <div className="controls-break" />
                 {ctrl && ctrl.type_ === 'checkbox' && (
                   <span className="diff-onoff">
                     <span className="diff-label-a">{diffConfig.valueA ? 'on' : 'off'}</span>
