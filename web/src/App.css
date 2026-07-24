@@ -243,9 +243,26 @@
     flex: 1;
 }
 
-.input-area.with-defs .input-wrapper {
+.input-area.with-side-panel .input-wrapper {
     width: 50%;
     flex: 0 0 50%;
+}
+
+.controls-panel {
+    width: 50%;
+    flex: 0 0 50%;
+    box-sizing: border-box;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    align-items: center;
+}
+
+.controls-panel > * {
+    width: 100%;
 }
 
 .input-area textarea {
@@ -450,11 +467,10 @@
 
 .diff-config {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     align-items: center;
-    margin-left: 12px;
     font-size: 0.85em;
-    white-space: nowrap;
 }
 
 .diff-config select {
@@ -807,8 +823,9 @@
         flex-direction: column;
     }
 
-    .input-area.with-defs .input-wrapper,
-    .glyph-defs-panel {
+    .input-area.with-side-panel .input-wrapper,
+    .glyph-defs-panel,
+    .controls-panel {
         width: 100%;
         flex: 1 1 auto;
     }
@@ -859,13 +876,13 @@
     overflow: hidden;
 }
 /* ---- Visual Diffs: compare-font mode ---- */
-/* In axis mode keep the toolbar on a single row (children shrink to fit) so the
-   top-bar height — and thus the visualDiffs preview snapshot — is unchanged.
-   Only the busier compare-font controls are allowed to wrap. */
 .font-compare-controls.wrap {
     flex-wrap: wrap;
 }
-.compare-controls-break {
+/* Zero-height flex item that forces everything after it onto a new row of a
+   flex-wrap container — used wherever a dropdown/control needs to sit on its
+   own line rather than pack in next to its neighbour. */
+.controls-break {
     flex-basis: 100%;
     height: 0;
 }

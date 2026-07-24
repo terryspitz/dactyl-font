@@ -10,10 +10,11 @@ const GROW_SCALE = 120
 
 /// Lay out all lines of text and collect growth-ready strokes.
 /// Lines share one field so neighbouring lines interact (and keep `gap`)
-/// just like neighbouring glyphs; spacing assumes full growth so the layout
-/// doesn't shift as `grow` changes.
+/// just like neighbouring glyphs; `pad` is the max extra radius growth needs
+/// beyond the classic outline (keeps line spacing stable as growth params
+/// change, and keeps neighbouring lines far enough apart not to fuse).
 /// onProgress(frac 0..1) is reported across all glyphs of all lines.
-function collectStrokes(text, axes, cell, onProgress) {
+export function collectStrokes(text, axes, cell, pad, onProgress) {
     const lines = text.split('\n')
     const totalChars = lines.reduce((s, l) => s + (l.trim() ? l.length : 0), 0) || 1
     let doneChars = 0
@@ -24,7 +25,7 @@ function collectStrokes(text, axes, cell, onProgress) {
         const res = textToStrokes(line, axes, cell * 2,
             onProgress ? (f => onProgress((doneChars + f * lineChars) / totalChars)) : undefined)
         doneChars += lineChars
-        const lineH = (res.fontData.ascender - res.fontData.descender) + axes.leading + 2 * GROW_SCALE
+        const lineH = (res.fontData.ascender - res.fontData.descender) + axes.leading + 2 * pad
         const yOff = -li * lineH
         for (const s of res.strokes) {
             allStrokes.push({ ...s, pts: s.pts.map(([x, y]) => [x, y + yOff]) })
@@ -49,7 +50,7 @@ function cellFor(text) {
 /// spine extraction then the field build.
 export function generateGrowthField(text, axes, params = {}, onProgress) {
     const cell = params.cell ?? cellFor(text)
-    const strokes = collectStrokes(text, axes, cell,
+    const strokes = collectStrokes(text, axes, cell, GROW_SCALE,
         onProgress ? (f => onProgress(EXTRACT_SHARE * f)) : undefined)
     if (strokes.length === 0) return null
     return buildGrowthField(strokes, {
@@ -69,7 +70,7 @@ export function generateGrowthSvg(text, axes, params = {}, onProgress) {
     const thickness = axes.thickness
     const cell = params.cell ?? cellFor(text)
 
-    const allStrokes = collectStrokes(text, axes, cell,
+    const allStrokes = collectStrokes(text, axes, cell, GROW_SCALE,
         onProgress ? (f => onProgress(EXTRACT_SHARE * f)) : undefined)
     if (allStrokes.length === 0) return ''
 

@@ -56,7 +56,7 @@ function App() {
       splines: '',
       splineGrid: '',
       proofs: proofTexts.lowercase,
-      grow: 'dactyl'
+      generate: 'dactyl'
     }
   })
   const [glyphsDefsText, setGlyphsDefsText] = useState(() => {
@@ -110,7 +110,7 @@ function App() {
   const [tabZooms, setTabZooms] = useState(() => {
     const urlZoom = parseFloat(new URLSearchParams(window.location.search).get('zoom'))
     const zoom = isNaN(urlZoom) ? 1.0 : urlZoom
-    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom, grow: zoom }
+    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom, generate: zoom }
   })
   const [layerVisibility, setLayerVisibility] = useState({
     spiro: true,
@@ -129,9 +129,22 @@ function App() {
   const [tweenFilter, setTweenFilter] = useState(
     () => new URLSearchParams(window.location.search).get('tween') || ''
   )
-  // Grow tab: constant-gap growth parameters (see growth.js)
+  // Generate tab: which generative mode is active — grow (constant-gap SDF
+  // inflation) or branch (space-colonisation twigs). URL-addressable so a
+  // chosen mode is shareable/deep-linkable, same as compareMode.
+  const [generateMode, setGenerateMode] = useState(() => {
+    const m = new URLSearchParams(window.location.search).get('mode')
+    return m === 'branch' ? 'branch' : 'grow'
+  })
+  // Grow mode: constant-gap growth parameters (see growth.js)
   const [growParams, setGrowParams] = useState({ grow: 0.7, gap: 30, layers: true, animate: false })
-  // Grow tab GPU path: the worker builds the (d1, dOpp) field once per
+  // Branch mode: space-colonisation branching parameters (see branching.js).
+  // Dense/tight enough that twig coverage alone reads legibly with the
+  // backbone off, not just with it on.
+  const [branchParams, setBranchParams] = useState({
+    density: 18, influence: 40, killDistance: 8, stepSize: 6, iterations: 90, seed: 1, backbone: true,
+  })
+  // Grow mode GPU path: the worker builds the (d1, dOpp) field once per
   // text/axes change; sliders only move shader uniforms (see GrowCanvas.jsx).
   // Without WebGL2 the tab falls back to the worker-side SVG render.
   const [growField, setGrowField] = useState(null)
@@ -147,7 +160,7 @@ function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     let view = params.get('view')
-    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines', 'splineGrid', 'proofs', 'grow'].includes(view)) {
+    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines', 'splineGrid', 'proofs', 'generate'].includes(view)) {
       setActiveTab(view)
     }
     const p = params.get('proof')
@@ -206,6 +219,14 @@ function App() {
     const url = new URL(window.location)
     if (m === 'font') url.searchParams.set('compare', 'font')
     else url.searchParams.delete('compare')
+    window.history.replaceState({}, '', url)
+  }
+
+  const setGenerateModeWithUrl = (m) => {
+    setGenerateMode(m)
+    const url = new URL(window.location)
+    if (m === 'branch') url.searchParams.set('mode', 'branch')
+    else url.searchParams.delete('mode')
     window.history.replaceState({}, '', url)
   }
 
@@ -504,8 +525,8 @@ function App() {
       typeReq = 'visualDiffs'
       const { axesA, axesB, labelA, labelB } = getDiffAxes(axes, diffConfig)
       args = [text || allChars, axesA, axesB, labelA, labelB]
-    } else if (activeTab === 'grow') {
-      if (supportsWebGL2) {
+    } else if (activeTab === 'generate') {
+      if (generateMode === 'grow' && supportsWebGL2) {
         // GPU path has its own dedicated effect — skip
         setLoading(false)
         clearTimeout(timer)
@@ -519,8 +540,13 @@ function App() {
         worker.terminate()
         return
       }
-      typeReq = 'growth'
-      args = [text, axes, growParams]
+      if (generateMode === 'branch') {
+        typeReq = 'branch'
+        args = [text, axes, branchParams]
+      } else {
+        typeReq = 'growth'
+        args = [text, axes, growParams]
+      }
     } else if (activeTab === 'proofs') {
       // Proofs has its own dedicated effect — skip
       setLoading(false)
@@ -543,7 +569,7 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, growParams])
+  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, generateMode, growParams, branchParams])
 
   // Close the Grow download-format menu on outside click / Escape.
   useEffect(() => {
@@ -595,10 +621,10 @@ function App() {
     }
   }, [axes, activeTab])
 
-  // Dedicated effect for the Grow tab GPU path: rebuild the growth field only
+  // Dedicated effect for the Grow mode GPU path: rebuild the growth field only
   // when text/axes change.  growParams are shader uniforms and don't re-trigger.
   useEffect(() => {
-    if (activeTab !== 'grow' || !supportsWebGL2) return
+    if (activeTab !== 'generate' || generateMode !== 'grow' || !supportsWebGL2) return
     if (!text) { setGrowField(null); return }
 
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
@@ -634,7 +660,7 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, supportsWebGL2])
+  }, [text, axes, activeTab, generateMode, supportsWebGL2])
 
   // Inject/update the @font-face rule whenever a new proof font data URL arrives.
   useEffect(() => {
@@ -761,9 +787,10 @@ function App() {
     // Visual Diffs has its own renderer (axis worker SVG or compare-font mode).
     if (activeTab === 'visualDiffs') return renderVisualDiffs()
 
-    // Grow tab GPU path: render the field via the WebGL canvas (sliders are
-    // shader uniforms).  Falls through to the worker SVG result without WebGL2.
-    if (activeTab === 'grow' && supportsWebGL2) {
+    // Generate tab, grow mode GPU path: render the field via the WebGL canvas
+    // (sliders are shader uniforms).  Falls through to the worker SVG result
+    // without WebGL2, and branch mode always uses the worker SVG result.
+    if (activeTab === 'generate' && generateMode === 'grow' && supportsWebGL2) {
       if (!growField) return null
       return <GrowCanvas field={growField} params={growParams} zoom={zoom} />
     }
@@ -773,7 +800,7 @@ function App() {
     if (!content) return null
 
     try {
-      if (activeTab === 'font' || activeTab === 'grow') {
+      if (activeTab === 'font' || activeTab === 'generate') {
         if (typeof content !== 'string') return null
         return <div
           className="svg-container"
@@ -1071,103 +1098,8 @@ function App() {
             <button className={`tab-button ${activeTab === 'splines' ? 'active' : ''}`} onClick={() => setTabWithUrl('splines')}>Splines</button>
             <button className={`tab-button ${activeTab === 'splineGrid' ? 'active' : ''}`} onClick={() => setTabWithUrl('splineGrid')}>Spline Grid</button>
             <button className={`tab-button ${activeTab === 'proofs' ? 'active' : ''}`} onClick={() => setTabWithUrl('proofs')}>Proofs</button>
-            <button className={`tab-button ${activeTab === 'grow' ? 'active' : ''}`} onClick={() => setTabWithUrl('grow')}>Grow</button>
+            <button className={`tab-button ${activeTab === 'generate' ? 'active' : ''}`} onClick={() => setTabWithUrl('generate')}>Generate</button>
           </div>
-          {activeTab === 'grow' && (
-            <div className="grow-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                grow
-                <input
-                  type="range" min="0" max="1" step="0.05"
-                  value={growParams.grow}
-                  onChange={e => setGrowParams(p => ({ ...p, grow: parseFloat(e.target.value) }))}
-                />
-                <span style={{ minWidth: '2.5em' }}>{growParams.grow.toFixed(2)}</span>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                gap
-                <input
-                  type="range" min="5" max="100" step="5"
-                  value={growParams.gap}
-                  onChange={e => setGrowParams(p => ({ ...p, gap: parseFloat(e.target.value) }))}
-                />
-                <span style={{ minWidth: '2em' }}>{growParams.gap}</span>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                layers
-                <input
-                  type="checkbox"
-                  checked={growParams.layers}
-                  onChange={e => setGrowParams(p => ({ ...p, layers: e.target.checked }))}
-                />
-              </label>
-              {supportsWebGL2 && (
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  animate
-                  <input
-                    type="checkbox"
-                    checked={growParams.animate}
-                    onChange={e => setGrowParams(p => ({ ...p, animate: e.target.checked }))}
-                  />
-                </label>
-              )}
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '4px' }}>
-                <button
-                  className="icon-button"
-                  onClick={handleCopyGrow}
-                  disabled={savingGrow || !text}
-                  title="Copy PNG to clipboard"
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                    {growCopied ? 'check' : 'content_copy'}
-                  </span>
-                </button>
-                {/* Download defaults to PNG; the caret opens a PNG/SVG menu. */}
-                <span ref={growMenuRef} className="grow-download-split" style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
-                  <button
-                    className="icon-button"
-                    onClick={() => handleDownloadGrow('png')}
-                    disabled={savingGrow || !text}
-                    title="Download PNG (transparent, high-res)"
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                      {savingGrow ? 'hourglass_empty' : 'download'}
-                    </span>
-                  </button>
-                  <button
-                    className="icon-button"
-                    onClick={() => setGrowMenuOpen(o => !o)}
-                    disabled={savingGrow || !text}
-                    title="Choose download format"
-                    aria-haspopup="menu"
-                    aria-expanded={growMenuOpen}
-                    style={{ width: '24px', minWidth: '24px', padding: '6px 0' }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_drop_down</span>
-                  </button>
-                  {growMenuOpen && (
-                    <div
-                      role="menu"
-                      style={{
-                        position: 'absolute', top: '100%', right: 0, marginTop: '4px', zIndex: 20,
-                        background: 'var(--panel-bg)', border: '1px solid var(--border-color)',
-                        borderRadius: 'var(--radius-md)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden', minWidth: '160px',
-                      }}
-                    >
-                      <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadGrow('png')}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>image</span>
-                        PNG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>transparent</span>
-                      </button>
-                      <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadGrow('svg')}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>polyline</span>
-                        SVG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>vector</span>
-                      </button>
-                    </div>
-                  )}
-                </span>
-              </span>
-            </div>
-          )}
           {activeTab === 'proofs' && (
             <div className="proof-chips">
               {proofCases.map(k => (
@@ -1193,6 +1125,239 @@ function App() {
               )}
             </div>
           )}
+          {activeTab === 'font' && (
+            <button
+              className="icon-button"
+              onClick={handleDownloadFont}
+              disabled={downloadingFont}
+              title="Download Font (OTF)"
+            >
+              <span className="material-symbols-outlined">
+                {downloadingFont ? 'hourglass_empty' : 'download'}
+              </span>
+            </button>
+          )}
+        </div>
+
+        <div className={`input-area ${['glyphs', 'generate', 'visualDiffs'].includes(activeTab) ? 'with-side-panel' : ''}`} style={activeTab === 'splines' || activeTab === 'splineGrid' ? { display: 'none' } : undefined}>
+          <div className="input-wrapper">
+            <textarea
+              value={text}
+              onChange={e => setText(e.target.value)}
+              rows={3}
+              placeholder="Characters..."
+            />
+            <button
+              className="text-reset-button"
+              onClick={() => {
+                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', splineGrid: '', proofs: proofTexts[proofCase], generate: 'dactyl' }
+                setText(defaults[activeTab])
+              }}
+              title="Reset Text to Default"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>restart_alt</span>
+            </button>
+          </div>
+          {activeTab === 'glyphs' && (
+            <div className="glyph-defs-panel" style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <h3 style={{ margin: 0 }}>Glyph Definitions{' '}
+                <a
+                  href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontWeight: 'normal', textDecoration: 'underline' }}
+                >
+                  (docs)
+                </a>
+              </h3>
+              <textarea
+                value={glyphsDefsText}
+                onChange={e => setGlyphsDefsText(e.target.value)}
+                style={{ width: '100%', flex: '1', minHeight: '100px', fontFamily: 'monospace', resize: 'vertical' }}
+                spellCheck="false"
+              />
+              <div className="helper-key" style={{ fontSize: '0.85em', color: '#666' }}>
+                <strong>Key:</strong> y: (t)op, (x)-height, (h)alf, (b)ottom, (d)escender, (o)ffset in, (e)xtended out. <br />
+                x: (l)eft, (c)enter, (r)ight, (w)ide. Solo point → dot. <br />
+                Dirs: N,S,E,W. Lines: (-) straight, (~) curve. Brackets mean 'fit this coordinate instead'. <br />
+                Repeats average coordinates (e.g. "bt"="h"); a digit repeats the letter before it, so "b2t"="bbt" and "r4c"="rrrrc".
+              </div>
+            </div>
+          )}
+          {activeTab === 'generate' && (
+            <div className="controls-panel">
+              <div className="grow-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  mode
+                  <select
+                    value={generateMode}
+                    onChange={e => setGenerateModeWithUrl(e.target.value)}
+                  >
+                    <option value="grow">Grow</option>
+                    <option value="branch">Branch</option>
+                  </select>
+                </label>
+                <div className="controls-break" />
+                {generateMode === 'grow' && (<>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    grow
+                    <input
+                      type="range" min="0" max="1" step="0.05"
+                      value={growParams.grow}
+                      onChange={e => setGrowParams(p => ({ ...p, grow: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2.5em' }}>{growParams.grow.toFixed(2)}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    gap
+                    <input
+                      type="range" min="5" max="100" step="5"
+                      value={growParams.gap}
+                      onChange={e => setGrowParams(p => ({ ...p, gap: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2em' }}>{growParams.gap}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    layers
+                    <input
+                      type="checkbox"
+                      checked={growParams.layers}
+                      onChange={e => setGrowParams(p => ({ ...p, layers: e.target.checked }))}
+                    />
+                  </label>
+                  {supportsWebGL2 && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      animate
+                      <input
+                        type="checkbox"
+                        checked={growParams.animate}
+                        onChange={e => setGrowParams(p => ({ ...p, animate: e.target.checked }))}
+                      />
+                    </label>
+                  )}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '4px' }}>
+                    <button
+                      className="icon-button"
+                      onClick={handleCopyGrow}
+                      disabled={savingGrow || !text}
+                      title="Copy PNG to clipboard"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                        {growCopied ? 'check' : 'content_copy'}
+                      </span>
+                    </button>
+                    {/* Download defaults to PNG; the caret opens a PNG/SVG menu. */}
+                    <span ref={growMenuRef} className="grow-download-split" style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
+                      <button
+                        className="icon-button"
+                        onClick={() => handleDownloadGrow('png')}
+                        disabled={savingGrow || !text}
+                        title="Download PNG (transparent, high-res)"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                          {savingGrow ? 'hourglass_empty' : 'download'}
+                        </span>
+                      </button>
+                      <button
+                        className="icon-button"
+                        onClick={() => setGrowMenuOpen(o => !o)}
+                        disabled={savingGrow || !text}
+                        title="Choose download format"
+                        aria-haspopup="menu"
+                        aria-expanded={growMenuOpen}
+                        style={{ width: '24px', minWidth: '24px', padding: '6px 0' }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_drop_down</span>
+                      </button>
+                      {growMenuOpen && (
+                        <div
+                          role="menu"
+                          style={{
+                            position: 'absolute', top: '100%', right: 0, marginTop: '4px', zIndex: 20,
+                            background: 'var(--panel-bg)', border: '1px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden', minWidth: '160px',
+                          }}
+                        >
+                          <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadGrow('png')}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>image</span>
+                            PNG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>transparent</span>
+                          </button>
+                          <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadGrow('svg')}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>polyline</span>
+                            SVG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>vector</span>
+                          </button>
+                        </div>
+                      )}
+                    </span>
+                  </span>
+                </>)}
+                {generateMode === 'branch' && (<>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    density
+                    <input
+                      type="range" min="10" max="60" step="2"
+                      value={branchParams.density}
+                      onChange={e => setBranchParams(p => ({ ...p, density: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2em' }}>{branchParams.density}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    influence
+                    <input
+                      type="range" min="20" max="150" step="5"
+                      value={branchParams.influence}
+                      onChange={e => setBranchParams(p => ({ ...p, influence: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2.5em' }}>{branchParams.influence}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    kill dist
+                    <input
+                      type="range" min="4" max="40" step="2"
+                      value={branchParams.killDistance}
+                      onChange={e => setBranchParams(p => ({ ...p, killDistance: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2em' }}>{branchParams.killDistance}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    step
+                    <input
+                      type="range" min="3" max="20" step="1"
+                      value={branchParams.stepSize}
+                      onChange={e => setBranchParams(p => ({ ...p, stepSize: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2em' }}>{branchParams.stepSize}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    iterations
+                    <input
+                      type="range" min="0" max="150" step="5"
+                      value={branchParams.iterations}
+                      onChange={e => setBranchParams(p => ({ ...p, iterations: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2.5em' }}>{branchParams.iterations}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    seed
+                    <input
+                      type="range" min="1" max="50" step="1"
+                      value={branchParams.seed}
+                      onChange={e => setBranchParams(p => ({ ...p, seed: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2em' }}>{branchParams.seed}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    backbone
+                    <input
+                      type="checkbox"
+                      checked={branchParams.backbone}
+                      onChange={e => setBranchParams(p => ({ ...p, backbone: e.target.checked }))}
+                    />
+                  </label>
+                </>)}
+              </div>
+            </div>
+          )}
           {activeTab === 'visualDiffs' && (() => {
             const ctrl = controlDefinitions.find(c => c.name === diffConfig.axis)
             const axisControls = (
@@ -1210,6 +1375,7 @@ function App() {
                     </optgroup>
                   ))}
                 </select>
+                <div className="controls-break" />
                 {ctrl && ctrl.type_ === 'checkbox' && (
                   <span className="diff-onoff">
                     <span className="diff-label-a">{diffConfig.valueA ? 'on' : 'off'}</span>
@@ -1259,77 +1425,20 @@ function App() {
               </>
             )
             return (
-              <FontCompareControls
-                mode={compareMode}
-                onModeChange={setCompareModeWithUrl}
-                size={compareSize}
-                onSizeChange={setCompareSizeWithUrl}
-                font={compareFont}
-                onFontChange={(f) => { setCompareFont(f); setCompareError(null) }}
-                onError={setCompareError}
-                axisControls={axisControls}
-              />
+              <div className="controls-panel">
+                <FontCompareControls
+                  mode={compareMode}
+                  onModeChange={setCompareModeWithUrl}
+                  size={compareSize}
+                  onSizeChange={setCompareSizeWithUrl}
+                  font={compareFont}
+                  onFontChange={(f) => { setCompareFont(f); setCompareError(null) }}
+                  onError={setCompareError}
+                  axisControls={axisControls}
+                />
+              </div>
             )
           })()}
-          {activeTab === 'font' && (
-            <button
-              className="icon-button"
-              onClick={handleDownloadFont}
-              disabled={downloadingFont}
-              title="Download Font (OTF)"
-            >
-              <span className="material-symbols-outlined">
-                {downloadingFont ? 'hourglass_empty' : 'download'}
-              </span>
-            </button>
-          )}
-        </div>
-
-        <div className={`input-area ${activeTab === 'glyphs' ? 'with-defs' : ''}`} style={activeTab === 'splines' || activeTab === 'splineGrid' ? { display: 'none' } : undefined}>
-          <div className="input-wrapper">
-            <textarea
-              value={text}
-              onChange={e => setText(e.target.value)}
-              rows={3}
-              placeholder="Characters..."
-            />
-            <button
-              className="text-reset-button"
-              onClick={() => {
-                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', splineGrid: '', proofs: proofTexts[proofCase], grow: 'dactyl' }
-                setText(defaults[activeTab])
-              }}
-              title="Reset Text to Default"
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>restart_alt</span>
-            </button>
-          </div>
-          {activeTab === 'glyphs' && (
-            <div className="glyph-defs-panel" style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-              <h3 style={{ margin: 0 }}>Glyph Definitions{' '}
-                <a
-                  href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontWeight: 'normal', textDecoration: 'underline' }}
-                >
-                  (docs)
-                </a>
-              </h3>
-              <textarea
-                value={glyphsDefsText}
-                onChange={e => setGlyphsDefsText(e.target.value)}
-                style={{ width: '100%', flex: '1', minHeight: '100px', fontFamily: 'monospace', resize: 'vertical' }}
-                spellCheck="false"
-              />
-              <div className="helper-key" style={{ fontSize: '0.85em', color: '#666' }}>
-                <strong>Key:</strong> y: (t)op, (x)-height, (h)alf, (b)ottom, (d)escender, (o)ffset in, (e)xtended out. <br />
-                x: (l)eft, (c)enter, (r)ight, (w)ide. Solo point → dot. <br />
-                Dirs: N,S,E,W. Lines: (-) straight, (~) curve. Brackets mean 'fit this coordinate instead'. <br />
-                Repeats average coordinates (e.g. "bt"="h"); a digit repeats the letter before it, so "b2t"="bbt" and "r4c"="rrrrc".
-              </div>
-            </div>
-          )}
         </div>
         <div className="preview">
           {showProgress && (
@@ -1356,7 +1465,7 @@ function App() {
             </button>
           </div>
           <div ref={previewRef} className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`} style={activeTab === 'splineGrid' ? { padding: 0 } : undefined}>
-            <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: (activeTab === 'tweens' || activeTab === 'proofs' || (activeTab === 'grow' && supportsWebGL2)) ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
+            <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: (activeTab === 'tweens' || activeTab === 'proofs' || (activeTab === 'generate' && generateMode === 'grow' && supportsWebGL2)) ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
               {renderContent()}
             </div>
           </div>

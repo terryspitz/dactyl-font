@@ -60,8 +60,9 @@ function resample(pts, closed, spacing) {
     return out
 }
 
-/// Uniform-grid spatial hash over point samples, used for junction detection.
-class SampleGrid {
+/// Uniform-grid spatial hash over point samples, used for junction detection
+/// (and, via `nearest`, reused by branching.js for space-colonisation queries).
+export class SampleGrid {
     constructor(xs, ys, bucket) {
         this.xs = xs
         this.ys = ys
@@ -107,6 +108,17 @@ class SampleGrid {
             }
         }
         return out
+    }
+
+    /// Index of the nearest sample to (x, y) within radius r, or -1.
+    nearest(x, y, r) {
+        let best = -1, bestD = Infinity
+        for (const i of this.within(x, y, r)) {
+            const dx = this.xs[i] - x, dy = this.ys[i] - y
+            const d = dx * dx + dy * dy
+            if (d < bestD) { bestD = d; best = i }
+        }
+        return best
     }
 }
 
