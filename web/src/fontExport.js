@@ -343,7 +343,8 @@ export function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular
     version: FONT_VERSION,
     copyright: COPYRIGHT,
     designer: 'Terry Spitz',
-    designerURL: 'https://github.com/terryspitz/dactyl-font',
+    // Points at the live Explorer site; the source repo is in the copyright.
+    designerURL: 'https://terryspitz.github.io/dactyl-font',
     manufacturer: 'Terry Spitz',
     license: 'This Font Software is licensed under the SIL Open Font License, Version 1.1.',
     licenseURL: 'https://openfontlicense.org',

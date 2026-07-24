@@ -200,6 +200,12 @@ describe('buildFont metadata (fontbakery requirements)', () => {
     expect(copyright).toContain('Reserved Font Name "Dactyl"')
   })
 
+  it('links the designer URL to the live site and the repo in the copyright', () => {
+    const names = buildFont(glyphData).names
+    expect(names.designerURL.en).toBe('https://terryspitz.github.io/dactyl-font')
+    expect(names.copyright.en).toContain('https://github.com/terryspitz/dactyl-font')
+  })
+
   it('includes a U+00A0 no-break space matching the space advance', () => {
     const font = buildFont(glyphData)
     const space = font.glyphs.get(font.charToGlyphIndex(' '))
