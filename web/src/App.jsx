@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, allChars } from './lib/fable/Api' // Adjust path if needed
+import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, useCursiveAlt, allChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
 import GrowCanvas from './GrowCanvas'
@@ -61,7 +61,7 @@ function App() {
   })
   const [glyphsDefsText, setGlyphsDefsText] = useState(() => {
     const initialText = tabTexts['glyphs'] || 'a'
-    return getGlyphDefs(initialText, defaultAxes.alt_a_g)
+    return getGlyphDefs(initialText, useCursiveAlt(defaultAxes.cursive, defaultAxes.slant))
   })
   const [axes, setAxes] = useState({ ...defaultAxes })
   const [activeTab, setActiveTab] = useState('font')
@@ -258,20 +258,21 @@ function App() {
     setTabTexts(prev => ({ ...prev, [activeTab]: newVal }))
     if (activeTab === 'glyphs') {
       localStorage.setItem('glyphText', newVal)
-      setGlyphsDefsText(getGlyphDefs(newVal || 'a', axes.alt_a_g))
+      setGlyphsDefsText(getGlyphDefs(newVal || 'a', useCursiveAlt(axes.cursive, axes.slant)))
     }
   }
 
   // The Glyphs tab's def textarea holds resolved definition strings (picked from
   // altGlyphMap vs glyphMap), not a live axes lookup, so — unlike every other axis,
-  // which the renderer applies to the existing defs on the fly — toggling alt_a_g
-  // needs to re-derive the text to pick up the alternate 'a'/'g' shapes.
+  // which the renderer applies to the existing defs on the fly — changing the
+  // cursive/slant axes needs to re-derive the text to pick up the alternate
+  // 'a'/'g' shapes.
   useEffect(() => {
     if (activeTab === 'glyphs') {
-      setGlyphsDefsText(getGlyphDefs(tabTexts.glyphs || 'a', axes.alt_a_g))
+      setGlyphsDefsText(getGlyphDefs(tabTexts.glyphs || 'a', useCursiveAlt(axes.cursive, axes.slant)))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [axes.alt_a_g])
+  }, [axes.cursive, axes.slant])
 
   // Group controls by category
   const controlsByCategory = useMemo(() => {

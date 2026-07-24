@@ -48,8 +48,8 @@ type Axes =
       spacing: int //gap between glyphs (GF Spacing axis, SPAC)
       leading: int //gap between lines
       monospace: float //fraction to interpolate widths to monospaces
-      italic: float //fraction to sheer glyphs
-      alt_a_g: bool //use two-storey alternate shapes for 'a' and 'g'
+      slant: float //fraction to shear glyphs (GF Slant axis, slnt)
+      cursive: float //cursive (single-storey) a/g forms: 0=Roman two-storey, 0.5=Auto (cursive when slanted), 1=Cursive single-storey (GF Cursive axis, CRSV)
       serif: int //serif size
       end_bulb: float //fraction of thickness to apply curves to endcaps
       flare: float //end caps expand by this amount
@@ -91,8 +91,8 @@ type Axes =
           spacing = 40
           leading = 50
           monospace = 0.0
-          italic = 0.0
-          alt_a_g = false
+          slant = 0.0
+          cursive = 1.0
           serif = 0
           end_bulb = 0.0
           flare = 0.0
@@ -130,8 +130,8 @@ type Axes =
           "spacing", Range(0, 200), "backbone", "Gap between glyphs"
           "leading", Range(-100, 200), "backbone", "Gap between lines"
           "monospace", FracRange(0.0, 1.0), "backbone", "Fraction to interpolate widths to monospace"
-          "italic", FracRange(0.0, 1.0), "backbone", "Fraction to shear glyphs"
-          "alt_a_g", Checkbox, "backbone", "Use two-storey alternate shapes for 'a' and 'g'"
+          "slant", FracRange(0.0, 1.0), "backbone", "Fraction to shear glyphs"
+          "cursive", FracRange(0.0, 1.0), "backbone", "Cursive a/g forms: 0=Roman (two-storey), 0.5=Auto (cursive when slanted), 1=Cursive (single-storey)"
           "roundedness", Range(0, 100), "backbone", "Roundedness"
           "weight", Range(1, 200), "outline", "Stroke width"
           "contrast", FracRange(-0.5, 0.5), "outline", "Make vertical lines thicker"
@@ -209,7 +209,7 @@ type Axes =
                         { name = "Expanded"; value = 125.0 }
                         { name = "ExtraExpanded"; value = 150.0 }
                         { name = "UltraExpanded"; value = 200.0 } ] }
-              "italic", // shear/oblique -> Slant
+              "slant", // shear/oblique -> Slant
                   { tag = "slnt"
                     displayName = "Slant"
                     minValue = -90.0
@@ -219,6 +219,19 @@ type Axes =
                     fallbackOnly = false
                     description = """Adjust the style from upright to slanted. Negative values produce right-leaning forms, also known to typographers as an 'oblique' style. Positive values produce left-leaning forms, also called a 'backslanted' or 'reverse oblique' style."""
                     fallbacks = [ { name = "Default"; value = 0.0 } ] }
+              "cursive", // Roman/cursive a,g substitution -> Cursive
+                  { tag = "CRSV"
+                    displayName = "Cursive"
+                    minValue = 0.0
+                    defaultValue = 0.5
+                    maxValue = 1.0
+                    precision = -1
+                    fallbackOnly = true
+                    description = """Control the substitution of cursive forms along the Slant axis. 'Off' (0) maintains Roman letterforms such as a double-storey a and g, 'Auto' (0.5) allows for Cursive substitution, and 'On' (1) asserts cursive forms even in upright text with a Slant of 0."""
+                    fallbacks =
+                      [ { name = "Roman"; value = 0.0 }
+                        { name = "Auto"; value = 0.5 }
+                        { name = "Cursive"; value = 1.0 } ] }
               "contrast", // vertical/horizontal stroke ratio -> Contrast
                   { tag = "CTRS"
                     displayName = "Contrast"
@@ -338,7 +351,6 @@ type Axes =
               "spline2", "SPL2"
               "constraints", "CNST"
               "leading", "LEAD"
-              "alt_a_g", "ALTG"
               "serif", "SERF"
               "end_bulb", "BULB"
               "axis_align_caps", "ACAP"
@@ -375,6 +387,19 @@ type Axes =
             match Map.tryFind name Axes.privateTags with
             | Some t -> t
             | None -> (name.ToUpper() + "____").Substring(0, 4)
+
+    /// Whether the two-storey Roman ("alt") a/g shapes should be used, given the
+    /// `cursive` axis and current `slant`.  Cursive: 0=Roman (two-storey alt
+    /// shapes), 1=Cursive (single-storey default shapes), 0.5=Auto (Roman when
+    /// upright, cursive when slanted).  Single source of truth for both the
+    /// generator and the glyph-definition preview.
+    static member cursiveUsesAlt (cursive: float) (slant: float) : bool =
+        if cursive < 0.25 then true // Roman: two-storey alt shapes
+        elif cursive > 0.75 then false // Cursive: single-storey default shapes
+        else slant = 0.0 // Auto: Roman when upright, cursive when slanted
+
+    /// Whether this axis set selects the two-storey Roman ("alt") a/g shapes.
+    member this.useCursiveAlt = Axes.cursiveUsesAlt this.cursive this.slant
 
     /// True when an artistic axis that varies stroke width (or displaces the spine)
     /// along the stroke is active; these require the arc-length sampled outline path.

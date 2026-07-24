@@ -105,7 +105,7 @@ let main argv =
             // ("Dactyl Spiro", "Extra Light", Font({Axes.DefaultAxes with spline2 = false}))
             ("Dactyl Sans Extra Light", "Extra Light", Font({ Axes.DefaultAxes with weight = 3 }))
             ("Dactyl Sans", "Regular", Font({ Axes.DefaultAxes with weight = 30 }))
-            ("Dactyl Sans Italic", "Italic", Font({ Axes.DefaultAxes with italic = 0.15 }))
+            ("Dactyl Sans Italic", "Italic", Font({ Axes.DefaultAxes with slant = 0.15 }))
             ("Dactyl Sans Bold", "Bold", Font({ Axes.DefaultAxes with weight = 60 }))
             ("Dactyl Round",
             "Round",

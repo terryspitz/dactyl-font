@@ -132,7 +132,7 @@ let glyphMap =
           'Z', "tl-tr-bl-br"
           'z', "xl-xr-bl-br" ]
 
-/// Alternate (stylistic-alternate) glyph shapes, selected by the `alt_a_g` axis.
+/// Alternate (stylistic-alternate) glyph shapes, selected by the `cursive` axis.
 /// The default 'a' and 'g' above are single-storey forms (a circular bowl with a
 /// straight stem, and an open-tail g).  These provide two-storey forms modelled
 /// on humanist sans faces like Open Sans:

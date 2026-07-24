@@ -378,6 +378,11 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
     toSvgDocument -50.0 fontSpline2.yBaselineOffset svgWidth fontSpline2.charHeight svgElements
     |> String.concat "\n"
 
+/// Whether the two-storey Roman ("alt") a/g shapes are used for the given
+/// cursive/slant values.  Exposed so the JS glyph-definition preview stays in
+/// sync with the generator's cursive-substitution rule.
+let useCursiveAlt (cursive: float) (slant: float) : bool = Axes.cursiveUsesAlt cursive slant
+
 let getGlyphDefs (text: string) (altAG: bool) =
     if System.String.IsNullOrEmpty(text) then
         ""
