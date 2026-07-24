@@ -171,8 +171,10 @@ preview in `web/src/GrowCanvas.jsx`); 3–6 are open.
 
 ## Idea 5 prototype: space colonisation (added after this slice shipped)
 
-A first slice of Idea 5 (branching growth off the spine) is implemented as a
-"Branch" tab: `web/src/branching.js` runs classic space colonisation
+A first slice of Idea 5 (branching growth off the spine) is implemented as
+"Branch" mode of the "Generate" tab (which also holds Idea 1's "Grow" mode,
+picked via a Mode dropdown): `web/src/branching.js` runs classic space
+colonisation
 (Runions et al.) — spine samples resampled into root nodes, attractors
 jittered into the counters/margins (reusing `growth.js`'s `SampleGrid`, now
 exported), twigs grown one step per iteration toward their nearest
