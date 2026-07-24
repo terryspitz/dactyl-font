@@ -825,7 +825,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     /// The arc point types are adapted to the neighbour context: LineToCurve/CurveToLine
     /// when the adjacent segment is a straight line, G2 when it is a smooth curve.
     member this.roundCorners (pts: Knot list) (isClosed: bool) : Knot list =
-        let radius = axes.soft_corners * thickness
+        let radius = axes.softness * thickness
 
         if radius < 1.0 || pts.Length < 3 then
             pts
@@ -888,7 +888,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
     /// Apply roundCorners to an Element (Curve or EList of Curves).
     member this.applySoftCorners elem =
-        if axes.soft_corners <= 0.0 then
+        if axes.softness <= 0.0 then
             elem
         else
             let rec apply e =
@@ -995,7 +995,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
     member this.getStroked =
         applyToSegments (this.spiroToLines 4)
-        >> Font({ Axes.DefaultAxes with thickness = 2 }).getSpiroSansOutlines
+        >> Font({ Axes.DefaultAxes with weight = 2 }).getSpiroSansOutlines
 
     member this.getScratches e =
         let spiroToScratchOutlines spiro =
@@ -2058,7 +2058,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
     member this.width e =
         (e |> this.reduce |> this.monospace |> this.elemWidth)
-        + float this.axes.tracking
+        + float this.axes.spacing
         + ((1.0 + this.axes.contrast) * thickness * 2.0 + float this.axes.serif)
 
     member this.charWidth ch = this.width (Glyph(ch))

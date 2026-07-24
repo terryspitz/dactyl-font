@@ -390,14 +390,14 @@ type FontTests() =
     [<Test>]
     member this.SoftCorners_V_Glyph_ProducesRoundedCorners() =
         // The 'V' glyph (bl-tc-br) has sharp corners at tc and at the miter points.
-        // With soft_corners > 0, corners should be replaced with arcs (CurveToLine→G2→LineToCurve).
+        // With softness > 0, corners should be replaced with arcs (CurveToLine→G2→LineToCurve).
         // End caps should remain intact (not distorted by rounding).
         let fontSharp =
             Font.Font(
                 { Axes.DefaultAxes with
                     dactyl_spline = true
                     outline = true
-                    soft_corners = 0.0
+                    softness = 0.0
                     constant_offset = false }
             )
 
@@ -406,7 +406,7 @@ type FontTests() =
                 { Axes.DefaultAxes with
                     dactyl_spline = true
                     outline = true
-                    soft_corners = 0.5
+                    softness = 0.5
                     constant_offset = false }
             )
 
@@ -431,7 +431,7 @@ type FontTests() =
 
     [<Test>]
     member this.SoftCorners_Zero_MatchesDefault() =
-        // With soft_corners = 0, output should be identical to default (no rounding).
+        // With softness = 0, output should be identical to default (no rounding).
         let fontDefault =
             Font.Font(
                 { Axes.DefaultAxes with
@@ -444,23 +444,23 @@ type FontTests() =
                 { Axes.DefaultAxes with
                     dactyl_spline = true
                     outline = true
-                    soft_corners = 0.0 }
+                    softness = 0.0 }
             )
 
         for ch in [ 'A'; 'V'; 'M'; 'o' ] do
             let svgDefault = fontDefault.charToSvg ch 0.0 0.0 "black" |> String.concat " "
             let svgZero = fontZero.charToSvg ch 0.0 0.0 "black" |> String.concat " "
-            Assert.That(svgZero, Is.EqualTo(svgDefault), sprintf "soft_corners=0 should match default for '%c'" ch)
+            Assert.That(svgZero, Is.EqualTo(svgDefault), sprintf "softness=0 should match default for '%c'" ch)
 
     [<Test>]
     member this.SoftCorners_AllGlyphs_RenderWithoutException() =
-        // Smoke test: every glyph should render without crashing with soft_corners enabled.
+        // Smoke test: every glyph should render without crashing with softness enabled.
         let font =
             Font.Font(
                 { Axes.DefaultAxes with
                     dactyl_spline = true
                     outline = true
-                    soft_corners = 0.8 }
+                    softness = 0.8 }
             )
 
         for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" do
@@ -496,7 +496,7 @@ type FontTests() =
             { Axes.DefaultAxes with
                 dactyl_spline = true
                 outline = true
-                thickness = 30
+                weight = 30
                 constant_offset = false }
 
         let font = Font.Font(axes)
@@ -549,7 +549,7 @@ type FontTests() =
             )
 
         let backbone = font.charToElem 'a'
-        let t = float Axes.DefaultAxes.thickness  // 30
+        let t = float Axes.DefaultAxes.weight  // 30
         let r = float Axes.DefaultAxes.width       // 300 → R
         let roundedness = float Axes.DefaultAxes.roundedness  // 60
         let borX = r + t          // 330
@@ -563,15 +563,15 @@ type FontTests() =
 
     [<Test>]
     member this.SoftCorners_A_Glyph_JointCornersNotRounded() =
-        // With joints=true and soft_corners > 0, corners at joint positions must be
+        // With joints=true and softness > 0, corners at joint positions must be
         // preserved (not rounded), so the SVG should not gain extra curve commands at
-        // those joints compared to soft_corners=0.
+        // those joints compared to softness=0.
         let mkFont sc jt =
             Font.Font(
                 { Axes.DefaultAxes with
                     dactyl_spline = true
                     outline = true
-                    soft_corners = sc
+                    softness = sc
                     joints = jt
                     constant_offset = false }
             )
@@ -602,7 +602,7 @@ type FontTests() =
         Assert.That(
             cWithJoints,
             Is.GreaterThanOrEqualTo(cNoRounding),
-            sprintf "soft_corners should still add some rounding even with joints (got %d C, baseline %d)" cWithJoints cNoRounding
+            sprintf "softness should still add some rounding even with joints (got %d C, baseline %d)" cWithJoints cNoRounding
         )
 
     [<Test>]
@@ -798,7 +798,7 @@ type FontTests() =
         let ys = pts |> List.map snd
         let maxY = List.max ys
         let minY = List.min ys
-        let translate = float axes.thickness
+        let translate = float axes.weight
         let capT = float axes.height + translate
         Assert.That(
             maxY,
@@ -927,7 +927,7 @@ type ArtisticAxesTests() =
 
     // contrast=0 keeps offsets exactly perpendicular so widths are easy to assert
     let baseAxes = { Axes.DefaultAxes with contrast = 0.0 }
-    let fthickness = float Axes.DefaultAxes.thickness
+    let fthickness = float Axes.DefaultAxes.weight
 
     [<Test>]
     member _.NibAxis_WidthFollowsStrokeDirection() =

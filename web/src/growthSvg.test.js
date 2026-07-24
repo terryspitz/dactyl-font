@@ -53,7 +53,7 @@ describe('generateGrowthField', () => {
         expect(f.nx).toBeGreaterThan(0)
         expect(f.ny).toBeGreaterThan(0)
         expect(f.rg.length).toBe(f.nx * f.ny * 2)
-        expect(f.thickness).toBe(axes.thickness)
+        expect(f.thickness).toBe(axes.weight)
         // d1 is 0 on the spine and positive away from it, within the cap.
         let minD1 = Infinity, maxD1 = -Infinity
         for (let k = 0; k < f.nx * f.ny; k++) {

@@ -802,7 +802,7 @@ function App() {
         return (
           <div className="tweens-grid">
             {(() => {
-              const EXCLUDED_TWEEN_AXES = ['tracking', 'leading']
+              const EXCLUDED_TWEEN_AXES = ['spacing', 'leading']
               return controlDefinitions
                 .filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name) && c.category !== 'debug')
                 .filter(c => !tweenFilter || c.name === tweenFilter)
@@ -985,7 +985,7 @@ function App() {
   return (
     <div className="container">
       <div className="sidebar">
-        <div className="sidebar-title" dangerouslySetInnerHTML={{ __html: generateTweenSvg("Dactyl", { ...defaultAxes, thickness: 35 }) }} />
+        <div className="sidebar-title" dangerouslySetInnerHTML={{ __html: generateTweenSvg("Dactyl", { ...defaultAxes, weight: 35 }) }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
           <h2 style={{ margin: 0 }}>Controls</h2>
           <div className="toolbar" style={{ display: 'flex', gap: '5px' }}>

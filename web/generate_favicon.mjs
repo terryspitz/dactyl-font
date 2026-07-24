@@ -2,7 +2,7 @@ import { generateTweenSvg, defaultAxes } from './src/lib/fable/Api.js';
 import fs from 'fs';
 
 // Configure axes for Bold D
-const axes = { ...defaultAxes, thickness: 35 };
+const axes = { ...defaultAxes, weight: 35 };
 
 // Generate SVG
 const svgContent = generateTweenSvg("D", axes);

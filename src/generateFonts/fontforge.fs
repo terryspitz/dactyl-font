@@ -15,7 +15,7 @@ let spiroCircle x y r =
 
 let charToFontForge (font: Font) (ch: char) =
     // reverse engineered from saved font
-    let thickness = font.axes.thickness
+    let thickness = font.axes.weight
     //let scpToString (scp : SCP) = sprintf "%f %f %c" scp.X scp.Y (char scp.Type)
     let elemToFF addSpiro elem =
         //rearrange SVG bezier curve format to fontforge format
@@ -53,7 +53,7 @@ let charToFontForge (font: Font) (ch: char) =
     let spineSpiros =
         Font(
             { font.axes with
-                thickness = 2
+                weight = 2
                 outline = true }
         )
             .CharToOutline
