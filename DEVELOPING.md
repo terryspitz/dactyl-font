@@ -79,3 +79,57 @@ dotnet restore
 dotnet tool restore
 cd web && npm ci && cd ..
 ```
+
+## Web directory structure (`web/`)
+
+```
+web/
+├── src/
+│   ├── App.jsx           — Root React component; tab routing, sidebar, worker orchestration
+│   ├── SplineEditor.jsx  — Interactive spline editor (Splines tab)
+│   ├── SplineGrid.jsx    — Grid view of spline shapes (Spline Grid tab)
+│   ├── GrowCanvas.jsx    — WebGL2 field-threshold preview (Grow tab)
+│   ├── growth.js         — Grow tab engine: distance field + marching-squares contours
+│   ├── growthSvg.js      — Grow tab back end: strokes → field / layered SVG (worker side)
+│   ├── glyphSpines.js    — Solves glyph backbones into polylines (Grow tab seed geometry)
+│   ├── growthExport.js   — Grow tab PNG/SVG save + clipboard helpers
+│   ├── fontExport.js     — OTF font assembly via opentype.js + paper.js boolean union
+│   ├── fontExport.test.js — Vitest unit tests for font export
+│   ├── worker.js         — Web worker: calls Fable-compiled F# API off the main thread
+│   ├── proofs.js         — Proof text data (wrap/strip helpers, book list)
+│   ├── proofs/
+│   │   ├── lowercase.txt — Lowercase frequency proof text
+│   │   ├── uppercase.txt — Uppercase frequency proof text
+│   │   └── books.js      — Classic book excerpts for the "Classic" proof mode
+│   └── lib/
+│       └── fmin/         — Nelder-Mead minimiser (git submodule, used by DactylSpline)
+├── tests/
+│   ├── tabs.spec.js              — Playwright: screenshot each tab against baselines
+│   ├── tweens.spec.js            — Playwright: screenshot each tween axis against baselines
+│   ├── font-download.spec.js     — Playwright: OTF download smoke test
+│   ├── tabs.spec.js-snapshots/   — Committed baseline PNGs for tab tests
+│   ├── tweens.spec.js-snapshots/ — Committed baseline PNGs for tween tests
+│   └── font-download.spec.js-snapshots/
+├── public/               — Static assets served at root
+├── index.html            — Vite entry point
+├── vite.config.js        — Vite config (base: '/dactyl-font/', Vitest config)
+├── playwright.config.js  — Playwright config (runs against `vite preview`)
+└── package.json          — npm scripts and dependencies
+```
+
+### Key npm scripts
+
+| Script | What it runs |
+|--------|-------------|
+| `npm run dev` | (from repo root) Fable watch + Vite dev server |
+| `npm run build` | Vite production build to `web/dist/` |
+| `npm run preview` | Serve the production build locally |
+| `npm test` | Vitest unit tests (`src/**/*.test.js`) |
+| `npm run test:tabs` | Playwright tab screenshot tests (needs `npm run build` first) |
+| `npm run test:tweens` | Playwright tween screenshot tests |
+| `npm run test:font-download` | Playwright OTF download smoke test |
+| `npm run test:tabs:update` | Regenerate tab baseline PNGs |
+
+### Worker architecture
+
+`worker.js` runs the Fable-compiled F# on a dedicated Web Worker thread so the main UI thread stays responsive during long solves.  All calls go through a simple promise-based `postMessage` protocol keyed by a sequential `id`.  Progress callbacks post intermediate `{ type: 'progress', value: 0..1 }` messages that App.jsx uses to drive the progress bar.
