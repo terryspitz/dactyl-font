@@ -71,13 +71,13 @@ let glyphMap =
           '3', "tol~t(c)~(th)r~hc-hllr hllr-hc~(bh)r~b(c)~bol"
           '4', "br3l-tr3l-bhl-bhr"
           '5', "tr-tl-hl hl~ttb(c)~(bbt)r~b(c)~bol"
-          '6', "tor~t(c)~(h)l~bbtl~b(c)~bbtr~ttbc~bbtlN"
+          '6', "tor~t(c)~(h)l~bbtl~b(c)~bbtr~ttbc~bbtlNj"
           '7', "tl-tr-bcl"
           //  two loops:
           //  '8', "hc~thl~tc~thr~ hc~bhl~bc~bhr~"
           // figure of eight:
           '8', "hc~(th)l~t(c)~(th)r~hc~(bh)l~b(c)~(bh)r~"
-          '9', "bol~b(c)~(h)r~ttbr~t(c)~ttbl~bbtc~ttbrS"
+          '9', "bol~b(c)~(h)r~ttbr~t(c)~ttbl~bbtc~ttbrSj"
 
           'A', "bl-tc-br bhlcj-bhrcj"
           'a', "xr-br xor~x(c)~(xb)l~b(c)~bor"
@@ -85,7 +85,7 @@ let glyphMap =
           'b', "tl-bl bol~b(c)~(xb)r~x(c)~xol"
           'C', "tor~t(c)~(h)l~b(c)~bor"
           'c', "xor~x(c)~(xb)l~b(c)~bor"
-          'D', "tl-bl-blo~(h)r~tlo-tl"
+          'D', "tl-bl-blo~(h)r~tlo-tlj"
           'd', "tr-br xor~x(c)~(xb)l~b(c)~bor"
           'E', "tr-tl-bl-br hl-hr"
           'e', "xbl-xbrN~x(c)~xblS~b(c)~bor5c"
@@ -127,7 +127,7 @@ let glyphMap =
           'w', "xl-bl3w-xlw-blw3-xw"
           'X', "tl-br tr-bl"
           'x', "xl-br xr-bl"
-          'Y', "tl-hc-tr hc-bc"
+          'Y', "tl-hc-tr hcj-bc"
           'y', "xl-xbl~b(c)~xbr-xr xr-br~d(c)~dol"
           'Z', "tl-tr-bl-br"
           'z', "xl-xr-bl-br" ]
