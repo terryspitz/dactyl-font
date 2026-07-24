@@ -685,20 +685,3 @@ export function contoursToPath(contours, decimals = 1) {
     }
     return d
 }
-
-/// Spine strokes (font units, y up) → SVG path data tracing the polylines
-/// themselves (for a *stroked* trunk line, not a filled inflated outline —
-/// see branchSvg.js, which uses this to keep letters legible with the
-/// classic inflated backbone turned off).
-export function strokesToPath(strokes, decimals = 1) {
-    const fmt = (v) => v.toFixed(decimals).replace(/\.0$/, '')
-    let d = ''
-    for (const s of strokes) {
-        const pts = s.pts
-        if (pts.length === 0) continue
-        d += `M${fmt(pts[0][0])} ${fmt(-pts[0][1])}`
-        for (let i = 1; i < pts.length; i++) d += `L${fmt(pts[i][0])} ${fmt(-pts[i][1])}`
-        if (s.closed) d += 'Z'
-    }
-    return d
-}

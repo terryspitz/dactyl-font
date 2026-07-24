@@ -2,15 +2,11 @@
 // the glyph spines (brainstorm docs/growth-brainstorm.md, Idea 5), rendered
 // as twigs over the classic (grow=0) letterform outline.
 //
-// The `backbone` param toggles that classic inflated outline off.  Twig
-// coverage from the space-colonisation simulation alone is not guaranteed to
-// reach every stretch of every glyph (a root node with no attractor in reach
-// stays bare), so with the backbone off a thin *stroked* trunk line retraces
-// the spine itself — full coverage by construction — keeping text legible at
-// any branch settings rather than only for lucky ones.
+// The `backbone` param toggles that classic inflated outline off, leaving
+// only the grown twigs.
 
 import { collectStrokes } from './growthSvg.js'
-import { growStrokes, contoursToPath, strokesToPath } from './growth.js'
+import { growStrokes, contoursToPath } from './growth.js'
 import { growBranches, branchesToSvgPaths } from './branching.js'
 
 /// Pick the spine sampling resolution: finer for short texts, coarser so
@@ -54,15 +50,7 @@ export function generateBranchSvg(text, axes, params = {}, onProgress) {
     const w = x1 - x0, h = y1 - y0
     if (w <= 0 || h <= 0) return ''
 
-    const backboneSvg = showBackbone
-        ? (letterPath ? `<path d="${letterPath}" fill="black" fill-rule="evenodd"/>` : '')
-        : (() => {
-            const trunkPath = strokesToPath(strokes)
-            const trunkWidth = thickness * 0.55
-            return trunkPath
-                ? `<path d="${trunkPath}" stroke="black" stroke-width="${trunkWidth.toFixed(1)}" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`
-                : ''
-        })()
+    const backboneSvg = showBackbone && letterPath ? `<path d="${letterPath}" fill="black" fill-rule="evenodd"/>` : ''
 
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x0.toFixed(1)} ${(-y1).toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" width="${(w / 2).toFixed(0)}" height="${(h / 2).toFixed(0)}">` +
         backboneSvg +

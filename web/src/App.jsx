@@ -132,9 +132,11 @@ function App() {
   )
   // Grow tab: constant-gap growth parameters (see growth.js)
   const [growParams, setGrowParams] = useState({ grow: 0.7, gap: 30, layers: true, animate: false })
-  // Branch tab: space-colonisation branching parameters (see branching.js)
+  // Branch tab: space-colonisation branching parameters (see branching.js).
+  // Dense/tight enough that twig coverage alone reads legibly with the
+  // backbone off, not just with it on.
   const [branchParams, setBranchParams] = useState({
-    density: 26, influence: 55, killDistance: 14, stepSize: 9, iterations: 60, seed: 1, backbone: true,
+    density: 18, influence: 40, killDistance: 8, stepSize: 6, iterations: 90, seed: 1, backbone: true,
   })
   // Grow tab GPU path: the worker builds the (d1, dOpp) field once per
   // text/axes change; sliders only move shader uniforms (see GrowCanvas.jsx).
