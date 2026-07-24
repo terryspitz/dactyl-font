@@ -49,18 +49,18 @@ function seedNodes(strokes, spacing) {
     return nodes
 }
 
-/// Scatter attractor points on a jittered grid (spacing `density`) over
+/// Scatter attractor points on a jittered grid (cell size `spacing`) over
 /// `bbox`, keeping only points between `minGap` (clear of the ink) and
 /// `maxReach` (still within reach of some spine sample) of the nearest spine
 /// sample — i.e. seeded in the counters and margins, not on top of a stroke
 /// or out in empty space nothing will ever grow into.
 function scatterAttractors(spineGrid, opts, rng) {
-    const { density, minGap, maxReach, bbox } = opts
+    const { spacing, minGap, maxReach, bbox } = opts
     const attractors = []
-    for (let cy = bbox.y0; cy < bbox.y1; cy += density) {
-        for (let cx = bbox.x0; cx < bbox.x1; cx += density) {
-            const x = cx + (rng() - 0.5) * density
-            const y = cy + (rng() - 0.5) * density
+    for (let cy = bbox.y0; cy < bbox.y1; cy += spacing) {
+        for (let cx = bbox.x0; cx < bbox.x1; cx += spacing) {
+            const x = cx + (rng() - 0.5) * spacing
+            const y = cy + (rng() - 0.5) * spacing
             const near = spineGrid.nearest(x, y, maxReach)
             if (near < 0) continue
             const d = Math.hypot(spineGrid.xs[near] - x, spineGrid.ys[near] - y)
@@ -71,12 +71,19 @@ function scatterAttractors(spineGrid, opts, rng) {
     return attractors
 }
 
+/// density's grid-spacing constant: spacing = DENSITY_K / density, anchored
+/// so the default density (52) lands on spacing 18 — the value this module
+/// was tuned against before density became an inverted, user-facing knob.
+const DENSITY_K = 52 * 18
+
 /// Run space colonisation over a set of spine strokes.
 ///
 /// strokes: [{ pts: [[x,y],...], closed: bool }] in font units (y up), as
 /// produced by glyphSpines.js.
 /// opts:
-///   density      – attractor spacing / target sparsity (default 26)
+///   density      – how densely attractors pack the counters/margins; higher
+///                  is denser (default 52). Inverted internally to a grid
+///                  spacing (DENSITY_K / density) for scattering.
 ///   influence    – radius within which a node "sees" an attractor (default 55)
 ///   killDistance – radius within which a reached attractor is consumed (default 14)
 ///   stepSize     – twig segment length per growth iteration (default 9)
@@ -90,7 +97,8 @@ function scatterAttractors(spineGrid, opts, rng) {
 /// Returns { nodes, edges, attractors }; edges are
 /// [{ x1, y1, x2, y2, depth }] (depth = steps from the nearest root, for tapering).
 export function growBranches(strokes, opts = {}) {
-    const density = opts.density ?? 26
+    const density = opts.density ?? 52
+    const spacing = DENSITY_K / density
     const influence = opts.influence ?? 55
     const killDistance = opts.killDistance ?? 14
     const stepSize = opts.stepSize ?? 9
@@ -108,10 +116,10 @@ export function growBranches(strokes, opts = {}) {
         if (sx[i] < x0) x0 = sx[i]; if (sx[i] > x1) x1 = sx[i]
         if (sy[i] < y0) y0 = sy[i]; if (sy[i] > y1) y1 = sy[i]
     }
-    const spineGrid = new SampleGrid(sx, sy, Math.max(16, density))
+    const spineGrid = new SampleGrid(sx, sy, Math.max(16, spacing))
 
     const attractors = scatterAttractors(spineGrid, {
-        density, minGap, maxReach,
+        spacing, minGap, maxReach,
         bbox: { x0: x0 - maxReach, y0: y0 - maxReach, x1: x1 + maxReach, y1: y1 + maxReach },
     }, rng)
 

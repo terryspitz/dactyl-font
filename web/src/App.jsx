@@ -142,7 +142,7 @@ function App() {
   // Dense/tight enough that twig coverage alone reads legibly with the
   // backbone off, not just with it on.
   const [branchParams, setBranchParams] = useState({
-    density: 18, influence: 40, killDistance: 8, stepSize: 6, iterations: 90, seed: 1, backbone: true,
+    density: 52, influence: 40, killDistance: 8, stepSize: 6, iterations: 90, seed: 1, backbone: true,
   })
   // Grow mode GPU path: the worker builds the (d1, dOpp) field once per
   // text/axes change; sliders only move shader uniforms (see GrowCanvas.jsx).
