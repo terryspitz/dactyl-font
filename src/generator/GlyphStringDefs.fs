@@ -90,7 +90,7 @@ let glyphMap =
           'E', "tr-tl-bl-br hl-hr"
           'e', "xbl-xbrN~x(c)~xblS~b(c)~bor5c"
           'F', "bl-tl-tr hl-hrc"
-          'f', "bllc-xtllc~tcrW xl-xc"
+          'f', "dlE~bllc-xtllc~tcrW xl-xc" //cursive (descending) f; Roman upright f is in altGlyphMap
           'G', "tor~t(c)~(h)l~b(c)~bhr-hr-hc"
           'g', "xr-bdr~d(c)~dol xor~x(c)~(xb)l~b(c)~bor"
           'H', "tl-bl hl-hr tr-br"
@@ -132,21 +132,25 @@ let glyphMap =
           'Z', "tl-tr-bl-br"
           'z', "xl-xr-bl-br" ]
 
-/// Alternate (stylistic-alternate) glyph shapes, selected by the `cursive` axis.
-/// The default 'a' and 'g' above are single-storey forms (a circular bowl with a
-/// straight stem, and an open-tail g).  These provide two-storey forms modelled
-/// on humanist sans faces like Open Sans:
-///   'a': a right stem whose top arches over into an open hood ending high on
-///        the left, over a flat-topped bowl occupying the lower ~60%.
-///   'g': a binocular g — a small round bowl hanging from x-height, a flat ear
-///        at x-height reaching the right edge, and a short central neck down to
-///        a wider, flatter loop sitting wholly below the baseline.
-/// Both are written in the same coordinate language as glyphMap, so they inherit
-/// width, x-height, thickness, roundedness, italic, etc. from the other axes.
+/// Roman (non-cursive) glyph shapes, selected when the `cursive` axis is toward
+/// 0.  The default 'a', 'g' and 'f' in glyphMap above are cursive forms (a
+/// single-storey circular-bowl a, an open-tail g, and a descending f).  These
+/// provide the upright Roman counterparts:
+///   'a': a two-storey a — a right stem whose top arches over into an open hood
+///        ending high on the left, over a flat-topped bowl occupying the lower
+///        ~60%.
+///   'g': a binocular (two-storey) g — a small round bowl hanging from x-height,
+///        a flat ear at x-height reaching the right edge, and a short central
+///        neck down to a wider, flatter loop sitting wholly below the baseline.
+///   'f': a straight Roman f sitting on the baseline (no descender), with the
+///        arched top hood and x-height crossbar.
+/// All are written in the same coordinate language as glyphMap, so they inherit
+/// width, x-height, thickness, roundedness, slant, etc. from the other axes.
 let altGlyphMap =
     Map.ofList
         [ 'a', "br-xxbr~x(c)~xol3c xbr~b2x3(c)~(bbx)l~b(c)~bor"
-          'g', "(bx)l~x(c)~(bx)r2c~b2x(c)~ xc-xr b2xlc3W~blc3W (bd)l~bc~(bd)r~d(c)~" ]
+          'g', "(bx)l~x(c)~(bx)r2c~b2x(c)~ xc-xr b2xlc3W~blc3W (bd)l~bc~(bd)r~d(c)~"
+          'f', "bllc-xtllc~tcrW xl-xc" ]
 
 // parse
 

@@ -333,9 +333,10 @@ type FontTests() =
 
     [<Test>]
     member this.Cursive_Axis_ChangesAAndG_ButNotOthers() =
-        // The cursive axis swaps 'a' and 'g' between single-storey (Cursive, the
-        // default) and two-storey Roman alternate shapes.  It must change the
-        // output of 'a' and 'g' and leave every other glyph untouched.
+        // The cursive axis swaps 'a', 'f' and 'g' between their cursive forms
+        // (the default: single-storey a, single-storey g, descending f) and the
+        // two-storey Roman / non-descending alternates.  It must change the
+        // output of 'a', 'f' and 'g' and leave every other glyph untouched.
         let mkFont cursive =
             Font.Font(
                 { Axes.DefaultAxes with
@@ -350,8 +351,8 @@ type FontTests() =
         let svg (font: Font.Font) ch =
             font.charToSvg ch 0.0 0.0 "black" |> String.concat " "
 
-        // 'a' and 'g' should render cleanly and differ between the two settings.
-        for ch in [ 'a'; 'g' ] do
+        // 'a', 'f' and 'g' should render cleanly and differ between the two settings.
+        for ch in [ 'a'; 'f'; 'g' ] do
             let sCursive = svg fontCursive ch
             let sRoman = svg fontRoman ch
             Assert.That(sRoman, Does.Contain("M "), sprintf "Roman '%c' should render a moveto" ch)
@@ -360,7 +361,7 @@ type FontTests() =
             Assert.That(sRoman, Is.Not.EqualTo(sCursive), sprintf "cursive should change '%c'" ch)
 
         // Every other glyph must be identical with the axis on or off.
-        for ch in "bcdefhijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" do
+        for ch in "bcdehijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" do
             Assert.That(svg fontRoman ch, Is.EqualTo(svg fontCursive ch),
                 sprintf "cursive should not change '%c'" ch)
 
