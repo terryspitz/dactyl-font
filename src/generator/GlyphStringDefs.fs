@@ -75,7 +75,7 @@ let glyphMap =
           '8', "hc~(th)l~t(c)~(th)r~hc~(bh)l~b(c)~(bh)r~"
           '9', "bol~b(c)~(h)r~ttbr~t(c)~ttbl~bbtc~ttbrS"
 
-          'A', "bl-tc-br bhlc-bhrc"
+          'A', "bl-tc-br bhl3c-bhcr3"
           'a', "xr-br xor~x(c)~(xb)l~b(c)~bor"
           'B', "hl-hlo~(bh)r~blo-bl-tl-tlo~(th)r~hlo-hl"
           'b', "tl-bl bol~b(c)~(xb)r~x(c)~xol"
@@ -96,7 +96,7 @@ let glyphMap =
           'J', "tl-tr-hr~b(c)~bol"
           'j', "xc-bdc~dlE ttxc"
           'K', "tl-bl tr-hl hl-br"
-          'k', "tl-bl xcr-xbl xbl-bcr"
+          'k', "tl-bl xb2l-xcr xbl2r-bcr"
           'L', "tl-bl-br"
           'l', "tl-xbl~bcW"
           'M', "bl-tl-blw-tw-bw"
