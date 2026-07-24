@@ -257,6 +257,24 @@ function buildFilename(overrides, family = 'Dactyl') {
 // issue #115.  We scale every coordinate and metric to this em on export.
 const EXPORT_UPM = 1000
 
+// Font metadata, kept in sync with OFL.txt at the repo root.  fontbakery's
+// Google Fonts profile compares the embedded copyright/version against these,
+// so any change here must match the licence file.
+const COPYRIGHT =
+  'Copyright 2020 Terry Spitz (https://github.com/terryspitz/dactyl-font), with Reserved Font Name "Dactyl".'
+const FONT_VERSION = 1.0
+const VERSION_STRING = 'Version 1.000'
+
+// A visible outline for .notdef (a hollow box), which OpenType requires to be a
+// real drawing rather than blank — the inner contour winds opposite the outer
+// so the non-zero fill leaves it hollow.
+function notdefPath() {
+  const p = new opentype.Path()
+  p.moveTo(80, 0); p.lineTo(520, 0); p.lineTo(520, 700); p.lineTo(80, 700); p.close()
+  p.moveTo(160, 80); p.lineTo(160, 620); p.lineTo(440, 620); p.lineTo(440, 80); p.close()
+  return p
+}
+
 /**
  * Build an opentype.Font from the glyph data returned by generateFontGlyphData.
  * Coordinates from the F# generator are already Y-up (baseline at 0, positive
@@ -270,49 +288,78 @@ export function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular
   const scale = EXPORT_UPM / unitsPerEm
   const s = (n) => Math.round(n * scale)
 
+  const charGlyphs = glyphsData
+    .filter(g => g.unicode >= 32 && (g.pathData || g.unicode === 32))
+    .sort((a, b) => a.unicode - b.unicode)
+    .filter((g, i, arr) => i === 0 || g.unicode !== arr[i - 1].unicode)
+    .map(g => {
+      const path = new opentype.Path()
+      for (const cmd of unionPath(g.pathData)) {
+        switch (cmd.type) {
+          case 'M': path.moveTo(s(cmd.x), s(cmd.y)); break
+          case 'L': path.lineTo(s(cmd.x), s(cmd.y)); break
+          case 'C': path.bezierCurveTo(s(cmd.x1), s(cmd.y1), s(cmd.x2), s(cmd.y2), s(cmd.x), s(cmd.y)); break
+          case 'Z': path.close(); break
+        }
+      }
+      return new opentype.Glyph({
+        name: `uni${g.unicode.toString(16).padStart(4, '0')}`,
+        unicode: g.unicode,
+        advanceWidth: s(g.advanceWidth),
+        path,
+      })
+    })
+
+  // U+00A0 no-break space: required whitespace glyph, drawn as an empty outline
+  // with the same advance as the regular space (U+0020) so the two match.
+  const space = charGlyphs.find(g => g.unicode === 32)
+  if (space) {
+    charGlyphs.push(new opentype.Glyph({
+      name: 'uni00a0',
+      unicode: 0x00a0,
+      advanceWidth: space.advanceWidth,
+      path: new opentype.Path(),
+    }))
+  }
+
+  // opentype.js derives hhea.advanceWidthMax from the character glyphs, so give
+  // .notdef the same max advance rather than a wider one that would make hmtx
+  // and hhea disagree.
+  const maxAdvance = charGlyphs.reduce((m, g) => Math.max(m, g.advanceWidth), 0)
   const notdef = new opentype.Glyph({
     name: '.notdef',
-    advanceWidth: Math.round(EXPORT_UPM / 2),
-    path: new opentype.Path(),
+    advanceWidth: maxAdvance,
+    path: notdefPath(),
   })
 
-  const glyphs = [
-    notdef,
-    ...glyphsData
-      .filter(g => g.unicode >= 32 && (g.pathData || g.unicode === 32))
-      .sort((a, b) => a.unicode - b.unicode)
-      .filter((g, i, arr) => i === 0 || g.unicode !== arr[i - 1].unicode)
-      .map(g => {
-        const path = new opentype.Path()
-        for (const cmd of unionPath(g.pathData)) {
-          switch (cmd.type) {
-            case 'M': path.moveTo(s(cmd.x), s(cmd.y)); break
-            case 'L': path.lineTo(s(cmd.x), s(cmd.y)); break
-            case 'C': path.bezierCurveTo(s(cmd.x1), s(cmd.y1), s(cmd.x2), s(cmd.y2), s(cmd.x), s(cmd.y)); break
-            case 'Z': path.close(); break
-          }
-        }
-        return new opentype.Glyph({
-          name: `uni${g.unicode.toString(16).padStart(4, '0')}`,
-          unicode: g.unicode,
-          advanceWidth: s(g.advanceWidth),
-          path,
-        })
-      }),
-  ]
+  const glyphs = [notdef, ...charGlyphs]
 
-  return new opentype.Font({
+  const font = new opentype.Font({
     familyName,
     styleName,
     unitsPerEm: EXPORT_UPM,
     ascender: s(ascender),
     descender: s(descender),
-    copyright: `Copyright ${new Date().getFullYear()} Terry Spitz`,
+    version: FONT_VERSION,
+    copyright: COPYRIGHT,
     designer: 'Terry Spitz',
+    // Points at the live Explorer site; the source repo is in the copyright.
+    designerURL: 'https://terryspitz.github.io/dactyl-font',
+    manufacturer: 'Terry Spitz',
     license: 'This Font Software is licensed under the SIL Open Font License, Version 1.1.',
     licenseURL: 'https://openfontlicense.org',
     glyphs,
   })
+
+  // opentype.js 1.3.4 fills every unset name field with a single space, which
+  // fontbakery flags as empty / trailing-whitespace records.  Drop the ones we
+  // don't populate, and set explicit version and unique-id strings (the latter
+  // is otherwise built from the now-removed manufacturer field).
+  for (const key of ['manufacturerURL', 'description', 'trademark']) delete font.names[key]
+  font.names.version = { en: VERSION_STRING }
+  font.names.uniqueID = { en: `1.000;Terry Spitz;${familyName}-${styleName}` }
+
+  return font
 }
 
 /**

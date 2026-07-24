@@ -42,14 +42,14 @@ The [Dactyl Live Explorer](https://terryspitz.github.io/dactyl-font) runs entire
 
 ## Documentation
 
-- [Explorer Guide](docs/ExplorerGuide.md) — UI tabs, sidebar controls, URL parameters, and web directory layout
+- [Explorer Guide](docs/ExplorerGuide.md) — UI tabs, sidebar controls, and URL parameters
 - [DactylGlyph Documentation](docs/DactylGlyphs.md) — How glyph string definitions work
 - [DactylSpline Documentation](docs/DactylSpline.md) — The DactylSpline curve implementation
 - [DactylSpline Optimization Suggestions](docs/suggestions.md) — Ideas for improving the spline solver
 - [Font Rendering Pipeline](docs/FontPipeline.md) — Spine → outline → SVG pipeline, caps, serifs, and font export
 - [Growing Fonts](docs/growth-brainstorm.md) — Design notes for the **Grow** tab and future generative-growth directions
 - [TODO](docs/TODO.md) — Planned features and known issues
-- [Developing](DEVELOPING.md) — Building, running, testing, and contributing
+- [Developing](DEVELOPING.md) — Building, running, testing, contributing, and the web directory layout
 
 ## Spline Curves
 
@@ -102,6 +102,13 @@ On letter spacing, tracking and kerning:
 - [Typography.com: Typographic Illusions](https://www.typography.com/blog/typographic-illusions)
 - [Typography.com: Turning Type Sideways](https://www.typography.com/blog/turning-type-sideways)
 - [Google Fonts](https://design.google/library/google-fonts)
+
+## License
+
+The fonts and the generator that produces them are licensed under the
+[SIL Open Font License 1.1](OFL.txt). The proof texts under `proofs/` remain
+under CC BY-NC-SA 4.0. See [FONTLICENSE.md](FONTLICENSE.md) for why the two
+differ and what it means for reuse.
 
 ## Where It All Started
 

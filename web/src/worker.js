@@ -94,12 +94,14 @@ self.onmessage = (e) => {
             }
             case 'fontData': {
                 const [fontAxes] = args
-                result = generateFontGlyphData(fontAxes)
+                result = generateFontGlyphData(fontAxes, (p) => {
+                    self.postMessage({ id, type: 'progress', value: p });
+                })
                 break
             }
             case 'fontPreview': {
                 const [fontAxes] = args
-                result = buildFontDataUrl(generateFontGlyphData(fontAxes), 'DactylPreview')
+                result = buildFontDataUrl(generateFontGlyphData(fontAxes, undefined), 'DactylPreview')
                 break
             }
             case 'splineOutline': {

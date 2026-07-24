@@ -70,7 +70,7 @@ export function glyphToSpines(char, axes, spacing = 8) {
 /// onProgress(frac 0..1) is called after each glyph is solved (solving each
 /// glyph's splines via the Fable API is the dominant cost of growth).
 export function textToStrokes(text, axes, spacing = 8, onProgress) {
-    const fontData = generateFontGlyphData(axes)
+    const fontData = generateFontGlyphData(axes, undefined)
     const advance = new Map()
     for (const g of fontData.glyphs) advance.set(g.unicode, g.advanceWidth)
 

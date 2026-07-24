@@ -15,10 +15,14 @@ let y_re = "[txhbd0-9]+|\([txhbd0-9]+\)"
 let offset_re = "[oe]"
 let x_re = "[lrcw0-9]+|\([lrcw0-9]+\)"
 let direction_re = "[NSEW]"
+// Explicit interior-joint marker: a trailing `j` on a point declares that an
+// open-stroke endpoint landing here is a joint against another stroke, so its
+// cap (serif/flare/bulb) is suppressed. See Font.isJointRaw and DactylGlyphs.md.
+let joint_re = "j"
 let line_re = "[-~]"
 let separator_re = " "
 let optional_re x = x + "?"
-let point_re = y_re + optional_re offset_re + x_re + optional_re offset_re + optional_re direction_re
+let point_re = y_re + optional_re offset_re + x_re + optional_re offset_re + optional_re direction_re + optional_re joint_re
 let curve_re = "(" + point_re + line_re + ")*" + point_re + optional_re line_re
 let glyph_re = "^ ?$|^(" + curve_re + separator_re + ")*" + curve_re + "$"
 
@@ -67,21 +71,21 @@ let glyphMap =
           '3', "tol~t(c)~(th)r~hc-hllr hllr-hc~(bh)r~b(c)~bol"
           '4', "br3l-tr3l-bhl-bhr"
           '5', "tr-tl-hl hl~ttb(c)~(bbt)r~b(c)~bol"
-          '6', "tor~t(c)~(h)l~bbtl~b(c)~bbtr~ttbc~bbtlN"
+          '6', "tor~t(c)~(h)l~bbtl~b(c)~bbtr~ttbc~bbtlNj"
           '7', "tl-tr-bcl"
           //  two loops:
           //  '8', "hc~thl~tc~thr~ hc~bhl~bc~bhr~"
           // figure of eight:
           '8', "hc~(th)l~t(c)~(th)r~hc~(bh)l~b(c)~(bh)r~"
-          '9', "bol~b(c)~(h)r~ttbr~t(c)~ttbl~bbtc~ttbrS"
+          '9', "bol~b(c)~(h)r~ttbr~t(c)~ttbl~bbtc~ttbrSj"
 
-          'A', "bl-tc-br bhl3c-bhcr3"
+          'A', "bl-tc-br bhl3cj-bhcr3j"
           'a', "xr-br xor~x(c)~(xb)l~b(c)~bor"
           'B', "hl-hlo~(bh)r~blo-bl-tl-tlo~(th)r~hlo-hl"
           'b', "tl-bl bol~b(c)~(xb)r~x(c)~xol"
           'C', "tor~t(c)~(h)l~b(c)~bor"
           'c', "xor~x(c)~(xb)l~b(c)~bor"
-          'D', "tl-bl-blo~(h)r~tlo-tl"
+          'D', "tl-bl-blo~(h)r~tlo-tlj"
           'd', "tr-br xor~x(c)~(xb)l~b(c)~bor"
           'E', "tr-tl-bl-br hl-hr"
           'e', "xbl-xbrN~x(c)~xblS~b(c)~bor5c"
@@ -96,11 +100,11 @@ let glyphMap =
           'J', "tl-tr-hr~b(c)~bol"
           'j', "xc-bdc~dlE ttxc"
           'K', "tl-bl tr-hl hl-br"
-          'k', "tl-bl xb2l-xcr xbl2r-bcr"
+          'k', "tl-bl xb2l-xcr xbl2rj-bcr"
           'L', "tl-bl-br"
           'l', "tl-xbl~bcW"
           'M', "bl-tl-blw-tw-bw"
-          'm', "xl-bl xol~x(llw)~xxblw-blw xolw~x(lw4)~xxbw-bw"
+          'm', "xl-bl xolj~x(llw)~xxblw-blw xolwj~x(lw4)~xxbw-bw"
           'N', "bl-tl-br-tr"
           'n', "xl-bl xol~x(c)~xbr-br"
           'O', "(h)l~t(c)~(h)r~b(c)~"
@@ -109,7 +113,7 @@ let glyphMap =
           'p', "xl-dl bol~b(c)~(xb)r~x(c)~xol"
           'Q', "(h)l~t(c)~(h)r~b(c)~ br-hbc"
           'q', "xr-dr xor~x(c)~(xb)l~b(c)~bor"
-          'R', "bl-tl-tlo~(th)r~hlo-hl hc-br"
+          'R', "bl-tl-tlo~(th)r~hlo-hlj hcj-br"
           'r', "xl-bl xol~xlcc~xoccr"
           'S', "thr~t(c)~(ttb)l~hc~(tbb)r~b(c)~bhl"
           's', "xor~x(c)~(xxb)l~xbcE~(xbb)r~b(c)~bol"
@@ -123,7 +127,7 @@ let glyphMap =
           'w', "xl-bl3w-xlw-blw3-xw"
           'X', "tl-br tr-bl"
           'x', "xl-br xr-bl"
-          'Y', "tl-hc-tr hc-bc"
+          'Y', "tl-hc-tr hcj-bc"
           'y', "xl-xbl~b(c)~xbr-xr xr-br~d(c)~dol"
           'Z', "tl-tr-bl-br"
           'z', "xl-xr-bl-br" ]
@@ -268,23 +272,31 @@ let parse_point (glyph: FontMetrics) def_raw =
             )
         else
             None
-    
+
+    // optional explicit-joint marker
+    let match_joint = Regex.Match(def, "^" + joint_re)
+    let isJoint = match_joint.Success
+    if match_joint.Success then
+        def <- def.[match_joint.Length ..]
+
     let label = start_def.Substring(0, start_def.Length - def.Length)
-    { y = y_coord; x = x_coord; y_fit = y_fit; x_fit = x_fit }, tangent, label, def
+    { y = y_coord; x = x_coord; y_fit = y_fit; x_fit = x_fit }, tangent, isJoint, label, def
 
 let parse_curve (glyph: FontMetrics) raw_def debug =
     let mutable pts = []
     let mutable explicit_tangents = []
+    let mutable joints = []
     let mutable labels = []
     let mutable seps_out = []
     let mutable def: string = raw_def
 
     while def.Length > 0 do
-        let pt, tangent, label, new_def = parse_point glyph def
+        let pt, tangent, isJoint, label, new_def = parse_point glyph def
         def <- new_def
 
         pts <- pts @ [ pt ]
         explicit_tangents <- explicit_tangents @ [ tangent ]
+        joints <- joints @ [ isJoint ]
         labels <- labels @ [ label ]
         // line_re
         let match_ = Regex.Match(def, "^" + line_re)
@@ -363,7 +375,7 @@ let parse_curve (glyph: FontMetrics) raw_def debug =
                   if ty = CurveToLine && tIn.IsSome then ty <- Corner
                   if ty = LineToCurve && tOut.IsSome then ty <- Corner
 
-                  { pt = pts.[i]; ty = ty; th_in = tIn; th_out = tOut; label = Some labels.[i] } ]
+                  { pt = pts.[i]; ty = ty; th_in = tIn; th_out = tOut; isJoint = joints.[i]; label = Some labels.[i] } ]
             |> mergeConsecutive
                 (fun k -> System.Math.Round(k.pt.x, 3), System.Math.Round(k.pt.y, 3))
                 (fun k1 k2 ->
@@ -373,6 +385,7 @@ let parse_curve (glyph: FontMetrics) raw_def debug =
                         ty = ty
                         th_in = Option.orElse k1.th_in k2.th_in
                         th_out = Option.orElse k2.th_out k1.th_out
+                        isJoint = k1.isJoint || k2.isJoint
                         label = Option.orElse k1.label k2.label })
 
         validateKnotSequence knots isClosed

@@ -452,6 +452,7 @@ let solveAltSplines (ctrlPts: DactylSpline.DControlPoint array) (isClosed: bool)
               ty = splineToSpiroPointType cp.ty
               th_in = cp.th_in
               th_out = cp.th_out
+              isJoint = false
               label = None })
         |> Array.toList
     let curve = Curve(knots, isClosed)
@@ -479,6 +480,7 @@ let getSplineOutlinePath (ctrlPts: DactylSpline.DControlPoint array) (isClosed: 
                   ty = splineToSpiroPointType cp.ty
                   th_in = cp.th_in
                   th_out = cp.th_out
+                  isJoint = false
                   label = None })
             |> Array.toList
         let curve = Curve(knots, isClosed)
@@ -597,7 +599,7 @@ let solveSplineGrid () =
                                error = error |})
     results.ToArray()
 
-let generateFontGlyphData (axes: Axes) =
+let generateFontGlyphData (axes: Axes) (progress: (float -> unit) option) =
     let fontAxes = { axes with outline = true; filled = true }
     let font = Font fontAxes
     let metrics = FontMetrics(axes)
@@ -610,9 +612,18 @@ let generateFontGlyphData (axes: Axes) =
     // does not trigger O(n²) NelderMead; cached on the font instance.
     let outlineFont = font.outlineFont
 
+    let totalChars = chars.Length
+    let mutable charCount = 0
+
     let glyphs =
         chars
         |> Seq.map (fun c ->
+            charCount <- charCount + 1
+
+            match progress with
+            | Some p -> p (float charCount / float totalChars)
+            | None -> ()
+
             try
                 let outline = font.CharToOutline c
                 let svg, _, _ = outlineFont.elementToSvg outline
