@@ -1,5 +1,5 @@
 
-**TODOs**
+# TODOs
 - Artistic axes (not yet implemented):
   - **pressure**: stroke width varies with curvature — tighter curves get thicker, straighter segments stay thin (mimics brush pressure). Tried (curvature-from-tangent-samples) but the result looked wrong/noisy; reverted. Needs a smoother curvature estimate.
   - **bounce**: per-glyph random vertical baseline displacement for hand-lettering feel
