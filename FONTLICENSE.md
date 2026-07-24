@@ -47,7 +47,7 @@ notices, so if you later want to put a family on Google Fonts, make a copy of
 `OFL.txt` for that distribution with the Reserved Font Name line removed:
 
 ```
-Copyright 2020 The Dactyl Project Authors (...)
+Copyright 2020 Terry Spitz (...)
 ```
 
 Keep the RFN on your own releases (this repo, your site, dafont, FontSpace);

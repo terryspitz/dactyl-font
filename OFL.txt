@@ -1,4 +1,4 @@
-Copyright 2020 The Dactyl Project Authors (https://github.com/terryspitz/dactyl-font),
+Copyright 2020 Terry Spitz (https://github.com/terryspitz/dactyl-font),
 with Reserved Font Name "Dactyl".
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
