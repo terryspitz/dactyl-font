@@ -20,6 +20,19 @@
 -  balance (mid height > 1/2)
 - debug 'sharp bend' duplicate points in 'e'
 -
+**Publishing to freeware font sites** (see FONTLICENSE.md)
+- licensing: fonts under SIL OFL 1.1 with Reserved Font Name "Dactyl" (done); proofs stay CC BY-NC-SA
+- exporter now produces fontbakery-clean OTFs (name table, version, .notdef, nbspace) — done
+- curate a small flagship family (a few static styles) to submit; do NOT bulk-submit generated variants — dafont/FontSpace review by hand and flag mass/duplicate uploads
+- host the full generated corpus on GitHub/Pages instead (bulk is fine there)
+- add kerning (GPOS) — currently a fontbakery WARN (see "calculate kerning" above)
+- run fontbakery in CI against exported OTFs to catch regressions
+- Google Fonts submission (highest-value channel, separate packaging effort):
+  - make an RFN-stripped copy of OFL.txt for the GF distribution (Google refuses Reserved Font Names)
+  - add METADATA.pb, DESCRIPTION.en_us.html / article/, and a reproducible open-source build of the OTF from source
+  - sign the Google Contributor License Agreement
+- submit curated fonts to dafont and FontSpace for reach
+
 **DONE: Implemented Features**
 - add documentation links
 - add punctuation chars
