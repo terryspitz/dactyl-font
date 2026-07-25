@@ -3,7 +3,9 @@ import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyp
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
 import GrowCanvas from './GrowCanvas'
-import { downloadBlob, svgBlob, svgToPngBlob, growFilenameBase } from './growthExport'
+import { downloadBlob, svgBlob, svgToPngBlob, filenameBase } from './growthExport'
+import { LAYER_COLORS } from './growth'
+import { DEFAULT_BRANCH_COLOR } from './branching'
 import { downloadFont, buildFontDataUrl } from './fontExport'
 import { buildCompareOverlaySvg } from './fontCompare'
 import FontCompareControls from './FontCompareControls'
@@ -129,29 +131,42 @@ function App() {
   const [tweenFilter, setTweenFilter] = useState(
     () => new URLSearchParams(window.location.search).get('tween') || ''
   )
-  // Generate tab: which generative mode is active — grow (constant-gap SDF
-  // inflation) or branch (space-colonisation twigs). URL-addressable so a
-  // chosen mode is shareable/deep-linkable, same as compareMode.
+  // Generate tab: which generative mode is active. Two UI-facing values:
+  // 'bubble' (constant-gap SDF inflation, implemented in growth.js/growParams
+  // — code keeps the "grow" name since that's the algorithm's name) and
+  // 'grow' (space-colonisation twigs, implemented in branching.js/branchParams
+  // — code keeps the "branch" name). URL-addressable so a chosen mode is
+  // shareable/deep-linkable, same as compareMode.
   const [generateMode, setGenerateMode] = useState(() => {
     const m = new URLSearchParams(window.location.search).get('mode')
-    return m === 'branch' ? 'branch' : 'grow'
+    return m === 'grow' ? 'grow' : 'bubble'
   })
-  // Grow mode: constant-gap growth parameters (see growth.js)
-  const [growParams, setGrowParams] = useState({ grow: 0.7, gap: 30, layers: true, animate: false })
-  // Branch mode: space-colonisation branching parameters (see branching.js).
-  // Dense/tight enough that twig coverage alone reads legibly with the
-  // backbone off, not just with it on.
+  // Bubble mode ('grow' internally): constant-gap growth parameters (see growth.js)
+  const [growParams, setGrowParams] = useState({
+    grow: 0.7, gap: 30, growScale: 120, layers: true, animate: false,
+    color: '#000000', layerColors: [...LAYER_COLORS],
+  })
+  // Grow mode ('branch' internally): space-colonisation branching parameters
+  // (see branching.js). Dense/tight enough that twig coverage alone reads
+  // legibly with the backbone off, not just with it on.
   const [branchParams, setBranchParams] = useState({
-    density: 52, influence: 40, killDistance: 8, stepSize: 6, iterations: 90, seed: 1, backbone: true,
+    density: 52, influence: 40, killDistance: 8, stepSize: 6, iterations: 90, seed: 1,
+    backbone: true, color: DEFAULT_BRANCH_COLOR, backboneColor: '#000000',
+    maxReach: 140, baseRadius: 10, minRadius: 1.2, maxDepthForTaper: 14,
   })
-  // Grow mode GPU path: the worker builds the (d1, dOpp) field once per
-  // text/axes change; sliders only move shader uniforms (see GrowCanvas.jsx).
-  // Without WebGL2 the tab falls back to the worker-side SVG render.
+  // Bubble mode GPU path: the worker builds the (d1, dOpp) field once per
+  // text/axes/growScale change; other sliders only move shader uniforms (see
+  // GrowCanvas.jsx). Without WebGL2 the tab falls back to the worker-side SVG render.
   const [growField, setGrowField] = useState(null)
   const [savingGrow, setSavingGrow] = useState(false)
   const [growCopied, setGrowCopied] = useState(false)
   const [growMenuOpen, setGrowMenuOpen] = useState(false)
   const growMenuRef = useRef(null)
+  // Grow mode (branch-mode) export state — mirrors the Bubble mode ones above.
+  const [savingBranch, setSavingBranch] = useState(false)
+  const [branchCopied, setBranchCopied] = useState(false)
+  const [branchMenuOpen, setBranchMenuOpen] = useState(false)
+  const branchMenuRef = useRef(null)
   const supportsWebGL2 = useMemo(() => {
     try { return !!document.createElement('canvas').getContext('webgl2') } catch { return false }
   }, [])
@@ -225,7 +240,7 @@ function App() {
   const setGenerateModeWithUrl = (m) => {
     setGenerateMode(m)
     const url = new URL(window.location)
-    if (m === 'branch') url.searchParams.set('mode', 'branch')
+    if (m === 'grow') url.searchParams.set('mode', 'grow')
     else url.searchParams.delete('mode')
     window.history.replaceState({}, '', url)
   }
@@ -525,7 +540,7 @@ function App() {
       const { axesA, axesB, labelA, labelB } = getDiffAxes(axes, diffConfig)
       args = [text || allChars, axesA, axesB, labelA, labelB]
     } else if (activeTab === 'generate') {
-      if (generateMode === 'grow' && supportsWebGL2) {
+      if (generateMode === 'bubble' && supportsWebGL2) {
         // GPU path has its own dedicated effect — skip
         setLoading(false)
         clearTimeout(timer)
@@ -539,7 +554,7 @@ function App() {
         worker.terminate()
         return
       }
-      if (generateMode === 'branch') {
+      if (generateMode === 'grow') {
         typeReq = 'branch'
         args = [text, axes, branchParams]
       } else {
@@ -570,7 +585,7 @@ function App() {
     }
   }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, generateMode, growParams, branchParams])
 
-  // Close the Grow download-format menu on outside click / Escape.
+  // Close the Bubble download-format menu on outside click / Escape.
   useEffect(() => {
     if (!growMenuOpen) return
     const onDown = (e) => {
@@ -584,6 +599,21 @@ function App() {
       document.removeEventListener('keydown', onKey)
     }
   }, [growMenuOpen])
+
+  // Close the Grow download-format menu on outside click / Escape.
+  useEffect(() => {
+    if (!branchMenuOpen) return
+    const onDown = (e) => {
+      if (branchMenuRef.current && !branchMenuRef.current.contains(e.target)) setBranchMenuOpen(false)
+    }
+    const onKey = (e) => { if (e.key === 'Escape') setBranchMenuOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [branchMenuOpen])
 
   // Dedicated effect for proofs tab: generates full font and builds a data URL.
   // Deps are [axes, activeTab] only — switching proof text doesn't re-trigger.
@@ -620,10 +650,12 @@ function App() {
     }
   }, [axes, activeTab])
 
-  // Dedicated effect for the Grow mode GPU path: rebuild the growth field only
-  // when text/axes change.  growParams are shader uniforms and don't re-trigger.
+  // Dedicated effect for the Bubble mode GPU path: rebuild the growth field
+  // when text/axes/growScale change (growScale sizes the field's padding, so
+  // it needs a rebuild); the rest of growParams are shader uniforms and don't
+  // re-trigger.
   useEffect(() => {
-    if (activeTab !== 'generate' || generateMode !== 'grow' || !supportsWebGL2) return
+    if (activeTab !== 'generate' || generateMode !== 'bubble' || !supportsWebGL2) return
     if (!text) { setGrowField(null); return }
 
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
@@ -653,13 +685,13 @@ function App() {
       setShowProgress(false)
     }
 
-    worker.postMessage({ id, type: 'growthField', args: [text, axes] })
+    worker.postMessage({ id, type: 'growthField', args: [text, axes, { growScale: growParams.growScale }] })
 
     return () => {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, generateMode, supportsWebGL2])
+  }, [text, axes, activeTab, generateMode, supportsWebGL2, growParams.growScale])
 
   // Inject/update the @font-face rule whenever a new proof font data URL arrives.
   useEffect(() => {
@@ -759,10 +791,10 @@ function App() {
     // Visual Diffs has its own renderer (axis worker SVG or compare-font mode).
     if (activeTab === 'visualDiffs') return renderVisualDiffs()
 
-    // Generate tab, grow mode GPU path: render the field via the WebGL canvas
-    // (sliders are shader uniforms).  Falls through to the worker SVG result
-    // without WebGL2, and branch mode always uses the worker SVG result.
-    if (activeTab === 'generate' && generateMode === 'grow' && supportsWebGL2) {
+    // Generate tab, Bubble mode GPU path: render the field via the WebGL
+    // canvas (sliders are shader uniforms).  Falls through to the worker SVG
+    // result without WebGL2, and Grow mode always uses the worker SVG result.
+    if (activeTab === 'generate' && generateMode === 'bubble' && supportsWebGL2) {
       if (!growField) return null
       return <GrowCanvas field={growField} params={growParams} zoom={zoom} />
     }
@@ -866,7 +898,7 @@ function App() {
     return <div className="svg-container" dangerouslySetInnerHTML={{ __html: compareSvg }} />
   }
 
-  // Render the current Grow view to a vector SVG string via a one-off worker.
+  // Render the current Bubble view to a vector SVG string via a one-off worker.
   // Used for both SVG and PNG downloads so the saved output matches the rule
   // exactly, independent of which preview path (GPU / fallback) is on screen.
   const requestGrowthSvg = () => new Promise((resolve, reject) => {
@@ -888,7 +920,7 @@ function App() {
     try {
       const svg = await requestGrowthSvg()
       if (!svg) return
-      const base = growFilenameBase(text)
+      const base = filenameBase('bubble', text)
       if (format === 'svg') {
         downloadBlob(svgBlob(svg), `${base}.svg`)
       } else {
@@ -897,7 +929,7 @@ function App() {
         downloadBlob(png, `${base}.png`)
       }
     } catch (e) {
-      setError(`Grow ${format.toUpperCase()} export failed: ${e.message}`)
+      setError(`Bubble ${format.toUpperCase()} export failed: ${e.message}`)
     } finally {
       setSavingGrow(false)
     }
@@ -921,9 +953,65 @@ function App() {
       setGrowCopied(true)
       setTimeout(() => setGrowCopied(false), 1500)
     } catch (e) {
-      setError(`Grow copy failed: ${e.message}`)
+      setError(`Bubble copy failed: ${e.message}`)
     } finally {
       setSavingGrow(false)
+    }
+  }
+
+  // Render the current Grow (branch-mode) view to a vector SVG string via a
+  // one-off worker, for both SVG and PNG downloads — mirrors requestGrowthSvg.
+  const requestBranchSvg = () => new Promise((resolve, reject) => {
+    if (!text) { resolve(''); return }
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    worker.onmessage = (e) => {
+      worker.terminate()
+      if (e.data.error) reject(new Error(e.data.error))
+      else resolve(e.data.result)
+    }
+    worker.onerror = (err) => { worker.terminate(); reject(err) }
+    worker.postMessage({ id: 0, type: 'branch', args: [text, axes, branchParams] })
+  })
+
+  const handleDownloadBranch = async (format) => {
+    setBranchMenuOpen(false)
+    setSavingBranch(true)
+    setError(null)
+    try {
+      const svg = await requestBranchSvg()
+      if (!svg) return
+      const base = filenameBase('grow', text)
+      if (format === 'svg') {
+        downloadBlob(svgBlob(svg), `${base}.svg`)
+      } else {
+        const png = await svgToPngBlob(svg, { scale: 3, background: null })
+        downloadBlob(png, `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Grow ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingBranch(false)
+    }
+  }
+
+  const handleCopyBranch = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    setSavingBranch(true)
+    setError(null)
+    try {
+      const svg = await requestBranchSvg()
+      if (!svg) throw new Error('nothing to copy')
+      const png = await svgToPngBlob(svg, { scale: 3, background: null })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setBranchCopied(true)
+      setTimeout(() => setBranchCopied(false), 1500)
+    } catch (e) {
+      setError(`Grow copy failed: ${e.message}`)
+    } finally {
+      setSavingBranch(false)
     }
   }
 
@@ -1159,18 +1247,22 @@ function App() {
           {activeTab === 'generate' && (
             <div className="controls-panel">
               <div className="grow-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  mode
-                  <select
-                    value={generateMode}
-                    onChange={e => setGenerateModeWithUrl(e.target.value)}
+                <div className="proof-chips" style={{ marginLeft: 0 }}>
+                  <button
+                    className={`proof-chip ${generateMode === 'bubble' ? 'selected' : ''}`}
+                    onClick={() => setGenerateModeWithUrl('bubble')}
                   >
-                    <option value="grow">Grow</option>
-                    <option value="branch">Branch</option>
-                  </select>
-                </label>
+                    Bubble
+                  </button>
+                  <button
+                    className={`proof-chip ${generateMode === 'grow' ? 'selected' : ''}`}
+                    onClick={() => setGenerateModeWithUrl('grow')}
+                  >
+                    Grow
+                  </button>
+                </div>
                 <div className="controls-break" />
-                {generateMode === 'grow' && (<>
+                {generateMode === 'bubble' && (<>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     grow
                     <input
@@ -1190,6 +1282,15 @@ function App() {
                     <span style={{ minWidth: '2em' }}>{growParams.gap}</span>
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    scale
+                    <input
+                      type="range" min="40" max="220" step="10"
+                      value={growParams.growScale}
+                      onChange={e => setGrowParams(p => ({ ...p, growScale: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2.5em' }}>{growParams.growScale}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     layers
                     <input
                       type="checkbox"
@@ -1207,6 +1308,32 @@ function App() {
                       />
                     </label>
                   )}
+                  <div className="controls-break" />
+                  {!growParams.layers && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      colour
+                      <input
+                        type="color"
+                        value={growParams.color}
+                        onChange={e => setGrowParams(p => ({ ...p, color: e.target.value }))}
+                      />
+                    </label>
+                  )}
+                  {growParams.layers && ['core', 'band 2', 'band 3', 'outline'].map((label, i) => (
+                    <label key={label} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {label}
+                      <input
+                        type="color"
+                        value={growParams.layerColors[i]}
+                        onChange={e => setGrowParams(p => {
+                          const layerColors = [...p.layerColors]
+                          layerColors[i] = e.target.value
+                          return { ...p, layerColors }
+                        })}
+                      />
+                    </label>
+                  ))}
+                  <div className="controls-break" />
                   <span style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '4px' }}>
                     <button
                       className="icon-button"
@@ -1263,7 +1390,7 @@ function App() {
                     </span>
                   </span>
                 </>)}
-                {generateMode === 'branch' && (<>
+                {generateMode === 'grow' && (<>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     density
                     <input
@@ -1318,6 +1445,44 @@ function App() {
                     />
                     <span style={{ minWidth: '2em' }}>{branchParams.seed}</span>
                   </label>
+                  <div className="controls-break" />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    reach
+                    <input
+                      type="range" min="40" max="250" step="10"
+                      value={branchParams.maxReach}
+                      onChange={e => setBranchParams(p => ({ ...p, maxReach: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2.5em' }}>{branchParams.maxReach}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    base radius
+                    <input
+                      type="range" min="2" max="30" step="1"
+                      value={branchParams.baseRadius}
+                      onChange={e => setBranchParams(p => ({ ...p, baseRadius: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2em' }}>{branchParams.baseRadius}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    min radius
+                    <input
+                      type="range" min="0.5" max="6" step="0.5"
+                      value={branchParams.minRadius}
+                      onChange={e => setBranchParams(p => ({ ...p, minRadius: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2em' }}>{branchParams.minRadius}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    taper depth
+                    <input
+                      type="range" min="4" max="40" step="2"
+                      value={branchParams.maxDepthForTaper}
+                      onChange={e => setBranchParams(p => ({ ...p, maxDepthForTaper: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2em' }}>{branchParams.maxDepthForTaper}</span>
+                  </label>
+                  <div className="controls-break" />
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     backbone
                     <input
@@ -1326,6 +1491,80 @@ function App() {
                       onChange={e => setBranchParams(p => ({ ...p, backbone: e.target.checked }))}
                     />
                   </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    colour
+                    <input
+                      type="color"
+                      value={branchParams.color}
+                      onChange={e => setBranchParams(p => ({ ...p, color: e.target.value }))}
+                    />
+                  </label>
+                  {branchParams.backbone && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      backbone colour
+                      <input
+                        type="color"
+                        value={branchParams.backboneColor}
+                        onChange={e => setBranchParams(p => ({ ...p, backboneColor: e.target.value }))}
+                      />
+                    </label>
+                  )}
+                  <div className="controls-break" />
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '4px' }}>
+                    <button
+                      className="icon-button"
+                      onClick={handleCopyBranch}
+                      disabled={savingBranch || !text}
+                      title="Copy PNG to clipboard"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                        {branchCopied ? 'check' : 'content_copy'}
+                      </span>
+                    </button>
+                    {/* Download defaults to PNG; the caret opens a PNG/SVG menu. */}
+                    <span ref={branchMenuRef} className="grow-download-split" style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
+                      <button
+                        className="icon-button"
+                        onClick={() => handleDownloadBranch('png')}
+                        disabled={savingBranch || !text}
+                        title="Download PNG (transparent, high-res)"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                          {savingBranch ? 'hourglass_empty' : 'download'}
+                        </span>
+                      </button>
+                      <button
+                        className="icon-button"
+                        onClick={() => setBranchMenuOpen(o => !o)}
+                        disabled={savingBranch || !text}
+                        title="Choose download format"
+                        aria-haspopup="menu"
+                        aria-expanded={branchMenuOpen}
+                        style={{ width: '24px', minWidth: '24px', padding: '6px 0' }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_drop_down</span>
+                      </button>
+                      {branchMenuOpen && (
+                        <div
+                          role="menu"
+                          style={{
+                            position: 'absolute', top: '100%', right: 0, marginTop: '4px', zIndex: 20,
+                            background: 'var(--panel-bg)', border: '1px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden', minWidth: '160px',
+                          }}
+                        >
+                          <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadBranch('png')}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>image</span>
+                            PNG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>transparent</span>
+                          </button>
+                          <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadBranch('svg')}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>polyline</span>
+                            SVG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>vector</span>
+                          </button>
+                        </div>
+                      )}
+                    </span>
+                  </span>
                 </>)}
               </div>
             </div>
@@ -1437,7 +1676,7 @@ function App() {
             </button>
           </div>
           <div ref={previewRef} className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`} style={activeTab === 'splineGrid' ? { padding: 0 } : undefined}>
-            <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: (activeTab === 'tweens' || activeTab === 'proofs' || (activeTab === 'generate' && generateMode === 'grow' && supportsWebGL2)) ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
+            <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: (activeTab === 'tweens' || activeTab === 'proofs' || (activeTab === 'generate' && generateMode === 'bubble' && supportsWebGL2)) ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
               {renderContent()}
             </div>
           </div>

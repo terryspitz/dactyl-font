@@ -1,29 +1,29 @@
 import { describe, it, expect } from 'vitest'
-import { svgBlob, growFilenameBase } from './growthExport'
+import { svgBlob, filenameBase } from './growthExport'
 
 // svgToPngBlob needs a DOM Image/canvas, so it is exercised by the Playwright
 // checks; the pure helpers are covered here.
 
-describe('growFilenameBase', () => {
-    it('derives a safe basename from the text', () => {
-        expect(growFilenameBase('dactyl')).toBe('dactyl-grow-dactyl')
-        expect(growFilenameBase('hi there')).toBe('dactyl-grow-hi-there')
+describe('filenameBase', () => {
+    it('derives a safe basename from the mode and text', () => {
+        expect(filenameBase('bubble', 'dactyl')).toBe('dactyl-bubble-dactyl')
+        expect(filenameBase('grow', 'hi there')).toBe('dactyl-grow-hi-there')
     })
 
     it('strips unsafe characters and trims separators', () => {
-        expect(growFilenameBase('a/b\\c?*')).toBe('dactyl-grow-abc')
-        expect(growFilenameBase('  spaced  ')).toBe('dactyl-grow-spaced')
-        expect(growFilenameBase('!!!')).toBe('dactyl-grow')
+        expect(filenameBase('bubble', 'a/b\\c?*')).toBe('dactyl-bubble-abc')
+        expect(filenameBase('bubble', '  spaced  ')).toBe('dactyl-bubble-spaced')
+        expect(filenameBase('bubble', '!!!')).toBe('dactyl-bubble')
     })
 
     it('falls back to a bare name for empty text', () => {
-        expect(growFilenameBase('')).toBe('dactyl-grow')
-        expect(growFilenameBase(null)).toBe('dactyl-grow')
+        expect(filenameBase('bubble', '')).toBe('dactyl-bubble')
+        expect(filenameBase('bubble', null)).toBe('dactyl-bubble')
     })
 
     it('caps very long text', () => {
-        const base = growFilenameBase('x'.repeat(100))
-        expect(base.length).toBeLessThanOrEqual('dactyl-grow-'.length + 24)
+        const base = filenameBase('bubble', 'x'.repeat(100))
+        expect(base.length).toBeLessThanOrEqual('dactyl-bubble-'.length + 24)
     })
 })
 

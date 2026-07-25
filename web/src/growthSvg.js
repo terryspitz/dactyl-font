@@ -1,7 +1,7 @@
-// Grow tab back end (runs in the worker): extract spines for each text line
-// and either build the two-channel growth field for the GPU preview
-// (generateGrowthField) or grow + contour to a full SVG (generateGrowthSvg,
-// the vector path and non-WebGL fallback).
+// Generate tab's Bubble mode back end (runs in the worker): extract spines
+// for each text line and either build the two-channel growth field for the
+// GPU preview (generateGrowthField) or grow + contour to a full SVG
+// (generateGrowthSvg, the vector path and non-WebGL fallback).
 
 import { textToStrokes } from './glyphSpines.js'
 import { growStrokes, contoursToPath, buildGrowthField, layerIsoLevels, LAYER_COLORS } from './growth.js'
@@ -50,12 +50,13 @@ function cellFor(text) {
 /// spine extraction then the field build.
 export function generateGrowthField(text, axes, params = {}, onProgress) {
     const cell = params.cell ?? cellFor(text)
-    const strokes = collectStrokes(text, axes, cell, GROW_SCALE,
+    const growScale = params.growScale ?? GROW_SCALE
+    const strokes = collectStrokes(text, axes, cell, growScale,
         onProgress ? (f => onProgress(EXTRACT_SHARE * f)) : undefined)
     if (strokes.length === 0) return null
     return buildGrowthField(strokes, {
         thickness: axes.thickness,
-        growScale: GROW_SCALE,
+        growScale,
         cell,
         onProgress: onProgress ? (f => onProgress(EXTRACT_SHARE + (1 - EXTRACT_SHARE) * f)) : undefined,
     })
@@ -66,19 +67,20 @@ export function generateGrowthField(text, axes, params = {}, onProgress) {
 export function generateGrowthSvg(text, axes, params = {}, onProgress) {
     const grow = params.grow ?? 0.7
     const gap = params.gap ?? 30
+    const growScale = params.growScale ?? GROW_SCALE
     const layers = params.layers ?? true
     const thickness = axes.thickness
     const cell = params.cell ?? cellFor(text)
 
-    const allStrokes = collectStrokes(text, axes, cell, GROW_SCALE,
+    const allStrokes = collectStrokes(text, axes, cell, growScale,
         onProgress ? (f => onProgress(EXTRACT_SHARE * f)) : undefined)
     if (allStrokes.length === 0) return ''
 
     const isoLevels = layers ? layerIsoLevels(thickness) : [0]
-    const colors = layers ? LAYER_COLORS : ['black']
+    const colors = layers ? (params.layerColors ?? LAYER_COLORS) : [params.color ?? 'black']
 
     const g = growStrokes(allStrokes, {
-        thickness, grow, growScale: GROW_SCALE, gap, cell, isoLevels,
+        thickness, grow, growScale, gap, cell, isoLevels,
         onProgress: onProgress ? (f => onProgress(EXTRACT_SHARE + (1 - EXTRACT_SHARE) * f)) : undefined,
     })
     if (!g.bbox) return ''

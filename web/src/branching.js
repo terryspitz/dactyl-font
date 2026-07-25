@@ -177,6 +177,8 @@ export function growBranches(strokes, opts = {}) {
     return { nodes, edges, attractors }
 }
 
+export const DEFAULT_BRANCH_COLOR = '#2f7a3d'
+
 /// Render edges as tapered SVG strokes: bucket by depth (shallow = thick,
 /// near a root; deep = thin, near a twig tip) into a handful of <path>
 /// elements sharing one stroke-width each.  SVG has no true variable-width
@@ -187,7 +189,7 @@ export function branchesToSvgPaths(edges, opts = {}) {
     const baseRadius = opts.baseRadius ?? (opts.thickness ?? 30) * 0.32
     const minRadius = opts.minRadius ?? 1.2
     const maxDepthForTaper = opts.maxDepthForTaper ?? 14
-    const color = opts.color ?? '#2f7a3d'
+    const color = opts.color ?? DEFAULT_BRANCH_COLOR
     const bands = 8
 
     let paths = ''

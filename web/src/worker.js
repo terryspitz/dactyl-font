@@ -86,8 +86,8 @@ self.onmessage = (e) => {
                 break
             }
             case 'growthField': {
-                const [gText, gAxes] = args
-                result = generateGrowthField(gText, gAxes, {}, (p) => {
+                const [gText, gAxes, gParams] = args
+                result = generateGrowthField(gText, gAxes, gParams ?? {}, (p) => {
                     self.postMessage({ id, type: 'progress', value: p });
                 })
                 if (result) transfer = [result.rg.buffer]

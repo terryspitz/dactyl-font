@@ -1,7 +1,7 @@
-// Save helpers for the Grow tab.  Both preview paths (GPU canvas and SVG
-// fallback) render the same growth rule, so downloads are driven from the
-// vector SVG the worker produces: it's deterministic, resolution-independent,
-// and works even without WebGL2.  PNG is that SVG rasterised at high res.
+// Save helpers for the Generate tab's two modes (Bubble and Grow).  Both
+// modes' preview paths render from the same vector SVG the worker produces,
+// so downloads are driven from that: deterministic, resolution-independent,
+// and available even without WebGL2.  PNG is that SVG rasterised at high res.
 
 /// Trigger a browser download of `blob` as `filename`.
 export function downloadBlob(blob, filename) {
@@ -61,12 +61,13 @@ export function svgToPngBlob(svg, { scale = 3, background = null, maxDim = 4096 
     })
 }
 
-/// A filesystem-safe basename derived from the grown text.
-export function growFilenameBase(text) {
+/// A filesystem-safe basename derived from the generative mode and its text,
+/// e.g. filenameBase('bubble', 'dactyl') -> 'dactyl-bubble-dactyl'.
+export function filenameBase(mode, text) {
     const cleaned = (text || '')
         .replace(/\s+/g, '-')
         .replace(/[^\w-]/g, '')
         .slice(0, 24)
         .replace(/^-+|-+$/g, '')
-    return `dactyl-grow${cleaned ? '-' + cleaned : ''}`
+    return `dactyl-${mode}${cleaned ? '-' + cleaned : ''}`
 }

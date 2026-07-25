@@ -1,6 +1,8 @@
-// Branch tab back end (runs in the worker): space-colonisation branching off
-// the glyph spines (brainstorm docs/growth-brainstorm.md, Idea 5), rendered
-// as twigs over the classic (grow=0) letterform outline.
+// Generate tab's Grow mode back end (runs in the worker): space-colonisation
+// branching off the glyph spines (brainstorm docs/growth-brainstorm.md, Idea
+// 5 — the UI calls this mode "Grow", the code keeps the "branch" name since
+// that's the algorithm's name), rendered as twigs over the classic (grow=0)
+// letterform outline.
 //
 // The `backbone` param toggles that classic inflated outline off, leaving
 // only the grown twigs.
@@ -10,7 +12,7 @@ import { growStrokes, contoursToPath } from './growth.js'
 import { growBranches, branchesToSvgPaths } from './branching.js'
 
 /// Pick the spine sampling resolution: finer for short texts, coarser so
-/// long texts stay responsive (same rule as the Grow tab).
+/// long texts stay responsive (same rule as the Bubble mode).
 function cellFor(text) {
     const chars = text.replace(/\s/g, '').length
     return chars <= 10 ? 3 : chars <= 30 ? 4 : 6
@@ -36,7 +38,10 @@ export function generateBranchSvg(text, axes, params = {}, onProgress) {
     if (onProgress) onProgress(0.6)
 
     const { nodes, edges } = growBranches(strokes, { ...params, thickness, maxReach })
-    const branchPaths = branchesToSvgPaths(edges, { thickness, color: params.color })
+    const branchPaths = branchesToSvgPaths(edges, {
+        thickness, color: params.color,
+        baseRadius: params.baseRadius, minRadius: params.minRadius, maxDepthForTaper: params.maxDepthForTaper,
+    })
     if (onProgress) onProgress(1)
 
     let x0 = letter.bbox?.x0 ?? 0, y0 = letter.bbox?.y0 ?? 0
@@ -50,7 +55,8 @@ export function generateBranchSvg(text, axes, params = {}, onProgress) {
     const w = x1 - x0, h = y1 - y0
     if (w <= 0 || h <= 0) return ''
 
-    const backboneSvg = showBackbone && letterPath ? `<path d="${letterPath}" fill="black" fill-rule="evenodd"/>` : ''
+    const backboneColor = params.backboneColor ?? 'black'
+    const backboneSvg = showBackbone && letterPath ? `<path d="${letterPath}" fill="${backboneColor}" fill-rule="evenodd"/>` : ''
 
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x0.toFixed(1)} ${(-y1).toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" width="${(w / 2).toFixed(0)}" height="${(h / 2).toFixed(0)}">` +
         backboneSvg +
