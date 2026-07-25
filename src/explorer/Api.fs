@@ -47,7 +47,8 @@ nopqrstuvwxyz
 ABCDEFGHIJKLM
 NOPQRSTUVWXYZ
 !\"#£$%&'()*+,-./:;
-<=>?@[\\]^_`{|}~"
+<=>?@[\\]^_`{|}~
+‘’“”–—…•"
 
 let generateSvg (text: string) (axes: Axes) (autoscale: bool) (progress: (float -> unit) option) =
     let font = Font axes

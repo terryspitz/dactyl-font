@@ -36,6 +36,7 @@
 **DONE: Implemented Features**
 - add documentation links
 - add punctuation chars
+- add typographic punctuation: smart quotes ‘’ “”, en/em dashes – —, ellipsis …, bullet •
 - mark joins to remove serifs
 - generate proofs, ideally using @font-face
 - mobius strip font

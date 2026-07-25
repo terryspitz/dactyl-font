@@ -39,13 +39,24 @@ let glyphMap =
           '&', "hbbr~b(c)~(hb)l~thcr~tlcc~thl-br"
           ''', "tel-tthl"
           '’', "telc-tthl"
+          // Smart quotes: raised ticks matching the apostrophe style. The
+          // opening pair (‘ “) slant one way, the closing pair (’ ”) mirror it.
+          '‘', "tel-tthlc"
+          '“', "tel-tthlc tec-tthcr"
+          '”', "telc-tthl tecr-tthc"
           '`', "tel-tthlc"
           '(', "telc~hl~belc"
           ')', "tel~hlc~bel"
           '*', "xl-xbr xbl-xr txxc-xbbc"
           '+', "hl-hr htc-hbc"
           '-', "hl-hr"
+          // Dashes at hyphen height, progressively wider: hyphen (to R) <
+          // en dash (to R..W midpoint) < em dash (to W).
+          '–', "hl-hrw"
+          '—', "hl-hw"
           '.', "bl"
+          '•', "hc"          // bullet: a single mid-height dot
+          '…', "bl bc br"    // ellipsis: three baseline dots
           ',', "blc-bbdl"
           '/', "bel-ter"
           ':', "xbl bl"
