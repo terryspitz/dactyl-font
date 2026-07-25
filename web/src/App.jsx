@@ -32,6 +32,11 @@ const defaultBranchParams = () => ({
   maxReach: 140, baseRadius: 10, minRadius: 1.2, maxDepthForTaper: 14,
 })
 
+// Field grid spacing used for the "fast preview" toggle — coarser than the
+// normal 3–6 cellFor(text) range, so slider drags stay responsive on slow
+// modes (Grow especially) instead of recomputing at full resolution.
+const PREVIEW_CELL = 10
+
 // Build the two axes variants (and key labels) for the Visual Diffs tab
 function getDiffAxes(axes, diffConfig) {
   if (diffConfig.axis === SPLINE_ENGINE) {
@@ -160,6 +165,9 @@ function App() {
   // (see branching.js). Dense/tight enough that twig coverage alone reads
   // legibly with the backbone off, not just with it on.
   const [branchParams, setBranchParams] = useState(defaultBranchParams)
+  // Fast preview: render just the first character at PREVIEW_CELL resolution
+  // instead of the full text, for responsive slider dragging on slow modes.
+  const [fastPreview, setFastPreview] = useState(false)
   // Bubble mode GPU path: the worker builds the (d1, dOpp) field once per
   // text/axes/growScale change; other sliders only move shader uniforms (see
   // GrowCanvas.jsx). Without WebGL2 the tab falls back to the worker-side SVG render.
@@ -560,12 +568,16 @@ function App() {
         worker.terminate()
         return
       }
+      // Fast preview: render just the first character at a coarser field
+      // resolution, so dragging a slider stays responsive on slow modes
+      // (Grow especially) instead of recomputing the full text every tick.
+      const previewText = fastPreview ? (text.trim().charAt(0) || text) : text
       if (generateMode === 'grow') {
         typeReq = 'branch'
-        args = [text, axes, branchParams]
+        args = [previewText, axes, fastPreview ? { ...branchParams, cell: PREVIEW_CELL } : branchParams]
       } else {
         typeReq = 'growth'
-        args = [text, axes, growParams]
+        args = [previewText, axes, fastPreview ? { ...growParams, cell: PREVIEW_CELL } : growParams]
       }
     } else if (activeTab === 'proofs') {
       // Proofs has its own dedicated effect — skip
@@ -589,7 +601,7 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, generateMode, growParams, branchParams])
+  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, generateMode, growParams, branchParams, fastPreview])
 
   // Close the Bubble download-format menu on outside click / Escape.
   useEffect(() => {
@@ -691,13 +703,17 @@ function App() {
       setShowProgress(false)
     }
 
-    worker.postMessage({ id, type: 'growthField', args: [text, axes, { growScale: growParams.growScale }] })
+    const previewText = fastPreview ? (text.trim().charAt(0) || text) : text
+    worker.postMessage({
+      id, type: 'growthField',
+      args: [previewText, axes, { growScale: growParams.growScale, cell: fastPreview ? PREVIEW_CELL : undefined }],
+    })
 
     return () => {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, generateMode, supportsWebGL2, growParams.growScale])
+  }, [text, axes, activeTab, generateMode, supportsWebGL2, growParams.growScale, fastPreview])
 
   // Inject/update the @font-face rule whenever a new proof font data URL arrives.
   useEffect(() => {
@@ -1281,6 +1297,17 @@ function App() {
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>restart_alt</span>
                 </button>
+                <label
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                  title="Render just the first character at lower resolution, for responsive slider dragging (Grow mode especially is slow at full text)"
+                >
+                  fast preview
+                  <input
+                    type="checkbox"
+                    checked={fastPreview}
+                    onChange={e => setFastPreview(e.target.checked)}
+                  />
+                </label>
                 <div className="controls-break" />
                 {generateMode === 'bubble' && (<>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
