@@ -19,6 +19,19 @@ const SPLINE_ENGINE = 'spline_engine'
 // Glyphs floating tools legend: non-spline layerVisibility keys grouped under "Debug"
 const DEBUG_LAYER_KEYS = ['comb', 'tangents', 'guides', 'labels', 'knots']
 
+// Generate tab defaults, factored out so the per-mode "reset" button can
+// restore them without touching which mode is selected. Functions (not plain
+// objects) so layerColors gets a fresh array each time, never a shared one.
+const defaultGrowParams = () => ({
+  grow: 0.7, gap: 30, growScale: 120, layers: true, animate: false,
+  color: '#000000', layerColors: [...LAYER_COLORS],
+})
+const defaultBranchParams = () => ({
+  density: 52, influence: 40, killDistance: 8, stepSize: 6, iterations: 90, seed: 1,
+  backbone: true, color: DEFAULT_BRANCH_COLOR, backboneColor: '#000000',
+  maxReach: 140, baseRadius: 10, minRadius: 1.2, maxDepthForTaper: 14,
+})
+
 // Build the two axes variants (and key labels) for the Visual Diffs tab
 function getDiffAxes(axes, diffConfig) {
   if (diffConfig.axis === SPLINE_ENGINE) {
@@ -142,18 +155,11 @@ function App() {
     return m === 'grow' ? 'grow' : 'bubble'
   })
   // Bubble mode ('grow' internally): constant-gap growth parameters (see growth.js)
-  const [growParams, setGrowParams] = useState({
-    grow: 0.7, gap: 30, growScale: 120, layers: true, animate: false,
-    color: '#000000', layerColors: [...LAYER_COLORS],
-  })
+  const [growParams, setGrowParams] = useState(defaultGrowParams)
   // Grow mode ('branch' internally): space-colonisation branching parameters
   // (see branching.js). Dense/tight enough that twig coverage alone reads
   // legibly with the backbone off, not just with it on.
-  const [branchParams, setBranchParams] = useState({
-    density: 52, influence: 40, killDistance: 8, stepSize: 6, iterations: 90, seed: 1,
-    backbone: true, color: DEFAULT_BRANCH_COLOR, backboneColor: '#000000',
-    maxReach: 140, baseRadius: 10, minRadius: 1.2, maxDepthForTaper: 14,
-  })
+  const [branchParams, setBranchParams] = useState(defaultBranchParams)
   // Bubble mode GPU path: the worker builds the (d1, dOpp) field once per
   // text/axes/growScale change; other sliders only move shader uniforms (see
   // GrowCanvas.jsx). Without WebGL2 the tab falls back to the worker-side SVG render.
@@ -1023,6 +1029,13 @@ function App() {
     setAxes({ ...defaultAxes })
   }
 
+  // Reset the active Generate mode's own settings to their defaults, leaving
+  // the mode selection (and the other mode's settings) untouched.
+  const handleResetGenerateParams = () => {
+    if (generateMode === 'bubble') setGrowParams(defaultGrowParams())
+    else setBranchParams(defaultBranchParams())
+  }
+
   // "Debug" master checkbox in the glyphs floating tools: reflects/controls all
   // non-spline layer toggles + Filled at once. Individual checkboxes below it
   // can still be changed independently afterwards, overriding the parent.
@@ -1261,6 +1274,13 @@ function App() {
                     Grow
                   </button>
                 </div>
+                <button
+                  className="icon-button"
+                  onClick={handleResetGenerateParams}
+                  title="Reset settings to default"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>restart_alt</span>
+                </button>
                 <div className="controls-break" />
                 {generateMode === 'bubble' && (<>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
