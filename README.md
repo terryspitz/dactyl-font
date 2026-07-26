@@ -77,11 +77,11 @@ Dactyl is also inspired by Variable Fonts technology. Unfortunately it isn't eas
 
 ## Font Creation / Import Formats
 
-[FontForge](https://fontforge.org/en-US) is an open-source font editor which supports Spiro.
+None of the font interop formats I found support spiros directly, so Dactyl
+converts its splines to beziers and assembles an OTF directly in the web app
+(`web/src/fontExport.js`), which can be downloaded from the explorer and
+installed or loaded into any font editor.
 
-Since none of the font interop formats I found support spiros directly, the Dactyl generator writes files in FontForge native format (a .fsdir directory of .glyph files), which can be loaded into FontForge and used to generate TTF fonts. FontForge is also useful to view and interact with the letter glyphs in detail: it has great validation, viewing and editing features.
-
-- [Design With FontForge: Importing Glyphs](http://designwithfontforge.com/en-US/Importing_Glyphs_from_Other_Programs.html)
 - [Unified Font Object (UFO3) Spec](http://unifiedfontobject.org/versions/ufo3/glyphs/glif)
 - [OpenType.js Glyph Inspector](https://opentype.js.org/glyph-inspector.html)
 
