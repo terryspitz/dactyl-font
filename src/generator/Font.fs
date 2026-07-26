@@ -631,14 +631,29 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 th_out = lastThOut
                 isJoint = false
                 label = None } ]
-        elif isJoint then // try forcing alignment
-            [ { pt = offsetPointRotated X Y (align theta) fthickness fthickness
+        elif isJoint then
+            // Interior joint: cut the stroke off flat, exactly at the endpoint and
+            // perpendicular to the stroke, adding no extension along it.
+            //
+            // The previous cap extended a full thickness past the endpoint (and
+            // axis-aligned the direction). For a joint crossing another stroke at
+            // angle theta, a cap corner sits e*sin(theta) + t*cos(theta) from the
+            // covering spine, so staying inside that stroke's ink needs
+            // e <= t*tan(theta/2). At theta=90 that permits exactly e=t — the old
+            // value — but every shallower joint was over-extended and poked out
+            // past the covering edge (visible on A's crossbar and R's leg).
+            //
+            // e=0 makes the corners t*cos(theta) from the spine, which is <= t for
+            // any angle, so a flat cut can never poke out. It relies on the joint
+            // knot already lying inside the covering ink; every `j` knot now sits
+            // exactly on its covering spine, so that holds at all weights.
+            [ { pt = offsetPointRotated X Y theta 0.0 fthickness
                 ty = Corner
                 th_in = firstThIn
                 th_out = firstThOut
                 isJoint = false
                 label = Some "joint" }
-              { pt = offsetPointRotated X Y (align theta) fthickness -fthickness
+              { pt = offsetPointRotated X Y theta 0.0 -fthickness
                 ty = ty
                 th_in = lastThIn
                 th_out = lastThOut
