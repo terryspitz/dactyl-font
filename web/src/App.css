@@ -385,7 +385,6 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 0;
-    gap: 12px;
 }
 
 .tabs {
@@ -394,10 +393,6 @@
     border-radius: var(--radius-lg);
     padding: 4px;
     border: 1px solid var(--border-color);
-    /* when the window is too narrow, scroll the tabs rather than squeezing the
-       per-tab tools off the right-hand edge */
-    min-width: 0;
-    overflow-x: auto;
 }
 
 .tab-button {
