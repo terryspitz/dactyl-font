@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, allChars } from './lib/fable/Api' // Adjust path if needed
+import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, allChars, alphabetChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
 import GrowCanvas from './GrowCanvas'
@@ -49,7 +49,7 @@ function App() {
     const savedGlyphs = localStorage.getItem('glyphText') || localStorage.getItem('splineText')
 
     return {
-      font: allChars,
+      font: alphabetChars,
       glyphs: savedGlyphs !== null ? savedGlyphs : 'font',
       tweens: 'a',
       visualDiffs: allChars,
@@ -1296,7 +1296,7 @@ function App() {
             <button
               className="text-reset-button"
               onClick={() => {
-                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', splineGrid: '', proofs: proofTexts[proofCase], grow: 'dactyl' }
+                const defaults = { font: alphabetChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', splineGrid: '', proofs: proofTexts[proofCase], grow: 'dactyl' }
                 setText(defaults[activeTab])
               }}
               title="Reset Text to Default"
