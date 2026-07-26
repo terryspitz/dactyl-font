@@ -25,7 +25,7 @@ The **sidebar** on the left holds all font axis controls.  The **top bar** holds
 ### Toolbar icons
 | Icon | Action |
 |------|--------|
-| ↺ Reset | Restore all axes to their default values |
+| ↺ Reset | Restore all axes to their default values (also clears per-glyph randomisation) |
 | 🎲 Randomize | Randomise all non-experimental axes |
 | 📖 Documentation | Open the README in a new tab |
 
@@ -50,6 +50,10 @@ Each axis shows a labelled slider (for numeric ranges) or a toggle switch (for b
 
 ### Font
 Renders the full character set (or whatever text is in the text box) using the current axis values.  Supports zoom via the +/−/↺ buttons or Ctrl+scroll.
+
+The **shuffle button** (🔀) in the top-right randomises *every glyph independently* — each character gets its own axis values, following the same rules as the sidebar 🎲 button but nudged around the current axes rather than the defaults (so the sliders still drive the overall look; `leading` is left alone as it is a line property, not a glyph one).
+
+The result is **stable**: clicking the button rolls a single seed, and every character's settings are derived from that seed plus its code point.  So a given letter looks the same everywhere it appears, and the variant font survives re-renders, sidebar tweaks and tab switches.  It also feeds the OTF export, the Proofs tab and the Visual Diffs font comparison.  Click again for a new set; the ✕ next to it (or the sidebar ↺ Reset) turns it off.
 
 The **download button** (⬇) in the top-right exports a custom OTF font file built from the current axes.
 

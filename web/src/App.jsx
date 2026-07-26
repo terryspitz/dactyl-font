@@ -9,6 +9,7 @@ import { buildCompareOverlaySvg } from './fontCompare'
 import FontCompareControls from './FontCompareControls'
 import FontCompareTextOverlay from './FontCompareTextOverlay'
 import { proofTexts, proofLabels, proofCases, classicBooks } from './proofs'
+import { randomizeAxes, buildGlyphAxes, newGlyphSeed } from './glyphRandom'
 import './App.css'
 
 // Special Visual Diffs option: compare the old spiro/spline2 engine vs the new dactyl spline
@@ -64,6 +65,11 @@ function App() {
     return getGlyphDefs(initialText, defaultAxes.alt_a_g)
   })
   const [axes, setAxes] = useState({ ...defaultAxes })
+  // "Randomise every glyph": null = off, otherwise the seed that every
+  // character's axes are derived from.  Holding a seed (rather than a big map of
+  // per-glyph axes) is what makes the variant font stable — it only changes when
+  // the button is clicked again or Reset clears it.
+  const [glyphSeed, setGlyphSeed] = useState(null)
   const [activeTab, setActiveTab] = useState('font')
   // Visual Diffs config: which axis to diff and the two values to compare.
   // SPLINE_ENGINE is a special compound option (old spiro/spline2 vs new dactyl spline).
@@ -379,6 +385,19 @@ function App() {
     return (!isNaN(idx) && idx >= 0 && idx < classicBooks.length) ? classicBooks[idx] : null
   })
 
+  // Per-glyph random axes, as the parallel (chars, axesList) arrays the F# API
+  // takes.  Two variants so the whole-font one (export / proofs / comparisons)
+  // doesn't churn every time the typed text changes.
+  const perGlyphFontAxes = useMemo(
+    () => glyphSeed === null ? null : buildGlyphAxes(allChars.replace(/\n/g, '') + ' ', glyphSeed, axes, controlDefinitions),
+    [glyphSeed, axes]
+  )
+  const perGlyphTextAxes = useMemo(
+    () => glyphSeed === null ? null : buildGlyphAxes(text || '', glyphSeed, axes, controlDefinitions),
+    [glyphSeed, axes, text]
+  )
+  const perGlyphFontArgs = perGlyphFontAxes ? [perGlyphFontAxes.chars, perGlyphFontAxes.axesList] : []
+
   const handleDownloadFont = () => {
     setDownloadingFont(true)
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
@@ -393,7 +412,7 @@ function App() {
         downloadFont(result, axes, defaultAxes)
       }
     }
-    worker.postMessage({ id: 1, type: 'fontData', args: [axes] })
+    worker.postMessage({ id: 1, type: 'fontData', args: [axes, ...perGlyphFontArgs] })
   }
 
   const renderIdRef = useRef(0)
@@ -480,8 +499,13 @@ function App() {
         worker.terminate()
         return
       }
-      typeReq = 'font'
-      args = [text, axes, false]
+      if (perGlyphTextAxes) {
+        typeReq = 'fontPerGlyph'
+        args = [text, axes, perGlyphTextAxes.chars, perGlyphTextAxes.axesList, false]
+      } else {
+        typeReq = 'font'
+        args = [text, axes, false]
+      }
     } else if (activeTab === 'glyphs') {
       typeReq = 'glyphsFromDefs'
       args = [glyphsDefsText, { ...axes, filled: glyphsFilled }]
@@ -543,7 +567,7 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, growParams])
+  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, growParams, perGlyphTextAxes])
 
   // Close the Grow download-format menu on outside click / Escape.
   useEffect(() => {
@@ -587,13 +611,13 @@ function App() {
       setShowProgress(false)
     }
 
-    worker.postMessage({ id, type: 'fontPreview', args: [axes] })
+    worker.postMessage({ id, type: 'fontPreview', args: [axes, ...perGlyphFontArgs] })
 
     return () => {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [axes, activeTab])
+  }, [axes, activeTab, perGlyphFontAxes])
 
   // Dedicated effect for the Grow tab GPU path: rebuild the growth field only
   // when text/axes change.  growParams are shader uniforms and don't re-trigger.
@@ -684,12 +708,12 @@ function App() {
       loadingRef.current = false
       setShowProgress(false)
     }
-    worker.postMessage({ id: ++renderIdRef.current, type: 'fontData', args: [axes] })
+    worker.postMessage({ id: ++renderIdRef.current, type: 'fontData', args: [axes, ...perGlyphFontArgs] })
     return () => {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [axes, activeTab, compareMode])
+  }, [axes, activeTab, compareMode, perGlyphFontAxes])
 
   // Vector overlay SVG (outline sources). Rebuilt when the font, alignment,
   // text or Dactyl outlines change.
@@ -934,6 +958,7 @@ function App() {
 
   const handleReset = () => {
     setAxes({ ...defaultAxes })
+    setGlyphSeed(null)
   }
 
   // "Debug" master checkbox in the glyphs floating tools: reflects/controls all
@@ -955,30 +980,16 @@ function App() {
     setGlyphsFilled(checked)
   }
 
-  // Only touch a fraction of axes per click, and bias sampled values toward
-  // the default (nudge, don't reroll) so extreme/rare effects don't stack up.
-  const RANDOMIZE_PROBABILITY = 0.35
-  const RANDOMIZE_SPREAD = 0.3
-
+  // Randomize around the *defaults* so repeated clicks don't compound.
   const handleRandom = () => {
-    const newAxes = { ...axes }
-    controlDefinitions.forEach(ctrl => {
-      if (ctrl.category === 'experimental' || ctrl.category === 'debug') return
-      // reset to default before re-randomizing, so clicks don't compound
-      newAxes[ctrl.name] = defaultAxes[ctrl.name]
-      if (Math.random() > RANDOMIZE_PROBABILITY) return
+    setAxes(randomizeAxes(axes, defaultAxes, controlDefinitions, Math.random))
+  }
 
-      if (ctrl.type_ === 'checkbox') {
-        newAxes[ctrl.name] = Math.random() > 0.5
-      } else {
-        const center = defaultAxes[ctrl.name] ?? (ctrl.min + ctrl.max) / 2
-        const range = ctrl.max - ctrl.min
-        // triangular distribution centered on 0: most draws land near `center`
-        const offset = (Math.random() - Math.random()) * range * RANDOMIZE_SPREAD
-        newAxes[ctrl.name] = Math.min(ctrl.max, Math.max(ctrl.min, center + offset))
-      }
-    })
-    setAxes(newAxes)
+  // "Randomise every glyph": roll a new seed. Everything downstream (font tab
+  // render, proofs, OTF export, font comparison) derives its per-glyph axes from
+  // it, so the variant font is stable until this is clicked again or Reset.
+  const handleRandomEveryGlyph = () => {
+    setGlyphSeed(newGlyphSeed())
   }
 
 
@@ -1272,16 +1283,36 @@ function App() {
             )
           })()}
           {activeTab === 'font' && (
-            <button
-              className="icon-button"
-              onClick={handleDownloadFont}
-              disabled={downloadingFont}
-              title="Download Font (OTF)"
-            >
-              <span className="material-symbols-outlined">
-                {downloadingFont ? 'hourglass_empty' : 'download'}
-              </span>
-            </button>
+            <div className="toolbar">
+              <button
+                className={`icon-button ${glyphSeed !== null ? 'active' : ''}`}
+                onClick={handleRandomEveryGlyph}
+                title={glyphSeed === null
+                  ? 'Randomise every glyph — give each character its own settings'
+                  : 'Randomise every glyph again (new set)'}
+              >
+                <span className="material-symbols-outlined">shuffle</span>
+              </button>
+              {glyphSeed !== null && (
+                <button
+                  className="icon-button"
+                  onClick={() => setGlyphSeed(null)}
+                  title="Turn off per-glyph randomisation"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              )}
+              <button
+                className="icon-button"
+                onClick={handleDownloadFont}
+                disabled={downloadingFont}
+                title="Download Font (OTF)"
+              >
+                <span className="material-symbols-outlined">
+                  {downloadingFont ? 'hourglass_empty' : 'download'}
+                </span>
+              </button>
+            </div>
           )}
         </div>
 
