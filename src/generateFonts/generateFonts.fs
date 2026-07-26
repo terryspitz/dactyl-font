@@ -9,7 +9,6 @@ open System.Diagnostics
 
 open Axes
 open Font
-open FontForge
 open DactylSpline
 open Curves
 open SvgHelpers
@@ -101,14 +100,13 @@ let main argv =
 
     let fonts =
         [
-            // ("Dactyl Knots", "Extra Light", Font({Axes.DefaultAxes with show_knots = true}))
-            // ("Dactyl Spiro", "Extra Light", Font({Axes.DefaultAxes with spline2 = false}))
-            ("Dactyl Sans Extra Light", "Extra Light", Font({ Axes.DefaultAxes with thickness = 3 }))
-            ("Dactyl Sans", "Regular", Font({ Axes.DefaultAxes with thickness = 30 }))
-            ("Dactyl Sans Italic", "Italic", Font({ Axes.DefaultAxes with italic = 0.15 }))
-            ("Dactyl Sans Bold", "Bold", Font({ Axes.DefaultAxes with thickness = 60 }))
+            // ("Dactyl Knots", Font({Axes.DefaultAxes with show_knots = true}))
+            // ("Dactyl Spiro", Font({Axes.DefaultAxes with spline2 = false}))
+            ("Dactyl Sans Extra Light", Font({ Axes.DefaultAxes with thickness = 3 }))
+            ("Dactyl Sans", Font({ Axes.DefaultAxes with thickness = 30 }))
+            ("Dactyl Sans Italic", Font({ Axes.DefaultAxes with italic = 0.15 }))
+            ("Dactyl Sans Bold", Font({ Axes.DefaultAxes with thickness = 60 }))
             ("Dactyl Round",
-            "Round",
             Font(
                 { Axes.DefaultAxes with
                     end_bulb = 0.5
@@ -116,28 +114,24 @@ let main argv =
                     thickness = 90 }
             ))
             ("Dactyl Mono",
-            "Regular",
             Font(
                 { Axes.DefaultAxes with
                     monospace = 1.0 }
             ))
             ("Dactyl Stroked",
-            "Regular",
             Font(
                 { Axes.DefaultAxes with
                     stroked = true
                     thickness = 60 }
             ))
             ("Dactyl Scratch",
-            "Regular",
             Font(
                 { Axes.DefaultAxes with
                     scratches = true
                     thickness = 60 }
             ))
-            ("Dactyl Roman", "Regular", Font({ Axes.DefaultAxes with serif = 30 }))
+            ("Dactyl Roman", Font({ Axes.DefaultAxes with serif = 30 }))
             ("Dactyl Smooth",
-            "Regular",
             Font(
                 { Axes.DefaultAxes with
                     spline2 = true
@@ -154,7 +148,7 @@ let main argv =
                 (+)
                 0.0
                 [ for i in 0 .. fonts.Length - 1 do
-                      let _, _, font = fonts.[i] in (200.0 + font.charHeight * 2.0) ]
+                      let _, font = fonts.[i] in (200.0 + font.charHeight * 2.0) ]
         // let text = ["THE QUICK BROWN FOX JUMPS over the lazy dog 0123456789"
         //             """the quick brown fox jumps OVER THE LAZY DOG !"#£$%&'()*+,-./"""]
         let text =
@@ -162,7 +156,7 @@ let main argv =
               """ABCDEFGHIJKLMNOPQRSTUVWXYZ !"#£$%&'()*+,-./""" ]
 
         [ for i in 0 .. fonts.Length - 1 do
-              let name, _, font = fonts.[i]
+              let name, font = fonts.[i]
               printfn "\n%s\n" name
               yield sprintf "<g id='%s%d'>" name i
               let y = rowHeights.[i]
@@ -194,7 +188,7 @@ let main argv =
         let targetWidth = 20000
 
         for i in 0 .. fonts.Length - 1 do
-            let name, _, font = fonts.[i]
+            let name, font = fonts.[i]
             let charsPerLine = targetWidth / Axes.DefaultAxes.width
 
             let wrap lines (w: string) =
@@ -216,30 +210,6 @@ let main argv =
 
             font.stringToSvg lines 0.0 0.0 true black None
             |> writeFile (sprintf @"output\proofs %s lower.svg" name)
-
-    // FontForge output
-    let writeFonts = false
-
-    if writeFonts then
-        for i in 0 .. fonts.Length - 1 do
-            let name, weight, font = fonts.[i]
-            let dir = sprintf @"output\fontforge\%s.sfdir" name
-            printfn "Writing font to %s" dir
-
-            if not (Directory.Exists dir) then
-                Directory.CreateDirectory dir |> printfn "%A"
-
-            writeFile (dir + @"\font.props") (fontForgeProps name weight)
-
-            let allChars =
-                [ 'A' .. 'Z' ]
-                @ [ 'a' .. 'z' ]
-                @ [ '0' .. '9' ]
-                @ List.ofSeq """!"#£$%&'()*+,-./"""
-
-            for ch in allChars do
-                charToFontForge font ch
-                |> writeFile (sprintf @"%s\%s.glyph" dir (fontForgeGlyphFile ch))
 
     // Interpolate along font variable axes as in https://levien.com/spiro/s_interp2.png
     let outputInterpolatedStr = false
