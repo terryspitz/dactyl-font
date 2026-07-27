@@ -1,4 +1,4 @@
-import { generateSvg, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, controlDefinitions, solveSplineEditor, solveSplineGrid, solveAltSplines, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphData, getSplineOutlinePath } from './lib/fable/Api'
+import { generateSvg, generateSvgPerGlyph, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, controlDefinitions, solveSplineEditor, solveSplineGrid, solveAltSplines, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphDataPerGlyph, getSplineOutlinePath } from './lib/fable/Api'
 import { buildFontDataUrl } from './fontExport'
 import { generateGrowthSvg, generateGrowthField } from './growthSvg'
 import { DControlPoint } from './lib/fable/generator/DactylSpline'
@@ -15,6 +15,14 @@ self.onmessage = (e) => {
                     self.postMessage({ id, type: 'progress', value: p });
                 })
                 break
+            // Same as 'font' but every character gets its own axes (see glyphRandom.js)
+            case 'fontPerGlyph': {
+                const [fText, fBaseAxes, fChars, fAxesList, fAutoscale] = args
+                result = generateSvgPerGlyph(fText, fBaseAxes, fChars, fAxesList, fAutoscale, (p) => {
+                    self.postMessage({ id, type: 'progress', value: p });
+                })
+                break
+            }
             case 'glyphsFromDefs':
                 result = generateSplineDebugSvgFromDefs(...args, (p) => {
                     self.postMessage({ id, type: 'progress', value: p });
@@ -92,16 +100,17 @@ self.onmessage = (e) => {
                 if (result) transfer = [result.rg.buffer]
                 break
             }
+            // chars/axesList are the optional per-glyph random overrides; empty = uniform font
             case 'fontData': {
-                const [fontAxes] = args
-                result = generateFontGlyphData(fontAxes, (p) => {
+                const [fontAxes, chars = '', axesList = []] = args
+                result = generateFontGlyphDataPerGlyph(fontAxes, chars, axesList, (p) => {
                     self.postMessage({ id, type: 'progress', value: p });
                 })
                 break
             }
             case 'fontPreview': {
-                const [fontAxes] = args
-                result = buildFontDataUrl(generateFontGlyphData(fontAxes, undefined), 'DactylPreview')
+                const [fontAxes, chars = '', axesList = []] = args
+                result = buildFontDataUrl(generateFontGlyphDataPerGlyph(fontAxes, chars, axesList, undefined), 'DactylPreview')
                 break
             }
             case 'splineOutline': {

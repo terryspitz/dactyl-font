@@ -60,6 +60,93 @@ let generateSvg (text: string) (axes: Axes) (autoscale: bool) (progress: (float 
 
     font.stringToSvg lines 0.0 0.0 autoscale "black" progress |> String.concat "\n"
 
+/// Build a char -> Font lookup from two parallel inputs: `chars.[i]` is rendered
+/// with `axesList.[i]`.  Characters not listed fall back to `fallback`.
+let private fontLookup (chars: string) (axesList: Axes array) (tweak: Axes -> Axes) (fallback: Font) =
+    let byChar =
+        Seq.init (min chars.Length axesList.Length) id
+        |> Seq.map (fun i -> chars.[i], Font(tweak axesList.[i]))
+        |> Map.ofSeq
+
+    fun ch ->
+        match Map.tryFind ch byChar with
+        | Some f -> f
+        | None -> fallback
+
+/// Render text with a different set of axes per character — the "randomise every
+/// glyph" mode.  `chars` and `axesList` are parallel arrays; every occurrence of
+/// `chars.[i]` is drawn with `axesList.[i]`, anything else uses `baseAxes`.
+///
+/// Line spacing and the baseline of each line come from `baseAxes` so that glyphs
+/// with different heights/thicknesses still sit on a common baseline; advance
+/// widths come from each glyph's own axes.
+let generateSvgPerGlyph
+    (text: string)
+    (baseAxes: Axes)
+    (chars: string)
+    (axesList: Axes array)
+    (autoscale: bool)
+    (progress: (float -> unit) option)
+    =
+    let baseFont = Font baseAxes
+    let fontFor = fontLookup chars axesList id baseFont
+
+    let lines =
+        if System.String.IsNullOrEmpty(text) then
+            []
+        else
+            text.Replace("\r\n", "\n").Split('\n') |> List.ofArray
+
+    let totalChars = lines |> List.sumBy (fun s -> s.Length)
+    let mutable charCount = 0
+
+    // SVG y of the baseline (glyph y=0) for line i, matching the placement
+    // Font.stringToSvgLineInternal would give it under baseAxes.
+    let baselineY i =
+        baseFont.charHeight * float (i + 1) + baseFont.metrics.D - baseFont.metrics.thickness
+
+    let svg, lineWidths =
+        List.unzip
+            [ for i in 0 .. lines.Length - 1 do
+                  let str = lines.[i]
+                  let fonts = [ for ch in str -> fontFor ch ]
+
+                  let widths =
+                      List.map2 (fun (f: Font) (ch: char) -> f.charWidth ch) fonts (List.ofSeq str)
+
+                  let offsetXs = List.scan (+) 0.0 widths
+
+                  let lineSvg =
+                      [ for c in 0 .. str.Length - 1 do
+                            let font = fonts.[c]
+                            charCount <- charCount + 1
+
+                            match progress with
+                            | Some p -> p (float charCount / float totalChars)
+                            | None -> ()
+
+                            // glyph coords are pre-shifted by their own thickness, so add
+                            // it back here to land every glyph on the shared baseline
+                            yield!
+                                font.charToSvg
+                                    str.[c]
+                                    offsetXs.[c]
+                                    (baselineY i + font.metrics.thickness)
+                                    "black" ]
+
+                  (lineSvg, List.sum widths) ]
+
+    let margin = 50.0
+
+    let w, h =
+        if autoscale then
+            (List.max (0.0 :: lineWidths)) + margin,
+            baseFont.charHeight * float lines.Length + margin
+        else
+            6000.0, 6000.0
+
+    toSvgDocument -margin -margin w h (List.collect id svg) |> String.concat "\n"
+
 let generateTweenSvg (text: string) (axes: Axes) =
     let font = Font axes
 
@@ -599,24 +686,31 @@ let solveSplineGrid () =
                                error = error |})
     results.ToArray()
 
-let generateFontGlyphData (axes: Axes) (progress: (float -> unit) option) =
-    let fontAxes = { axes with outline = true; filled = true }
-    let font = Font fontAxes
+/// Glyph outlines + advance widths for the exported/preview font, allowing a
+/// different set of axes per character (see `generateSvgPerGlyph`).  Pass empty
+/// `chars`/`axesList` for a uniform font.  The font-wide metrics (ascender,
+/// descender, unitsPerEm) always come from `axes` so per-glyph variation stays
+/// inside the em box rather than rescaling the font.
+let generateFontGlyphDataPerGlyph
+    (axes: Axes)
+    (chars: string)
+    (axesList: Axes array)
+    (progress: (float -> unit) option)
+    =
+    let asFontAxes (a: Axes) = { a with outline = true; filled = true }
+    let font = Font(asFontAxes axes)
     let metrics = FontMetrics(axes)
+    let fontFor = fontLookup chars axesList asFontAxes font
     // Exported/preview fonts need an actual space glyph (used to render proof
     // text, font comparisons, etc.), so make sure one is always included even
     // though allChars itself no longer contains a literal space character.
-    let chars = allChars.Replace("\n", "") + " "
+    let glyphChars = allChars.Replace("\n", "") + " "
 
-    // outlineFont has smooth=false so rendering the sampled Corner outline knots
-    // does not trigger O(n²) NelderMead; cached on the font instance.
-    let outlineFont = font.outlineFont
-
-    let totalChars = chars.Length
+    let totalChars = glyphChars.Length
     let mutable charCount = 0
 
     let glyphs =
-        chars
+        glyphChars
         |> Seq.map (fun c ->
             charCount <- charCount + 1
 
@@ -624,15 +718,19 @@ let generateFontGlyphData (axes: Axes) (progress: (float -> unit) option) =
             | Some p -> p (float charCount / float totalChars)
             | None -> ()
 
+            let charFont = fontFor c
+
             try
-                let outline = font.CharToOutline c
-                let svg, _, _ = outlineFont.elementToSvg outline
+                let outline = charFont.CharToOutline c
+                // outlineFont has smooth=false so rendering the sampled Corner outline knots
+                // does not trigger O(n²) NelderMead; cached on the font instance.
+                let svg, _, _ = charFont.outlineFont.elementToSvg outline
                 {| unicode = int c
-                   advanceWidth = font.charWidth c
+                   advanceWidth = charFont.charWidth c
                    pathData = String.concat " " svg |}
             with _ ->
                 {| unicode = int c
-                   advanceWidth = font.charWidth c
+                   advanceWidth = charFont.charWidth c
                    pathData = "" |})
         |> Array.ofSeq
 
@@ -641,6 +739,9 @@ let generateFontGlyphData (axes: Axes) (progress: (float -> unit) option) =
        ascender = metrics.T + thickness
        descender = metrics.D - thickness
        unitsPerEm = font.charHeight |}
+
+let generateFontGlyphData (axes: Axes) (progress: (float -> unit) option) =
+    generateFontGlyphDataPerGlyph axes "" [||] progress
 
 let private knotToObj (k: Knot) : obj =
     // When x_fit/y_fit is true the solver treats the coordinate as a free variable (None).
