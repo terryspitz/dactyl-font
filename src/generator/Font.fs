@@ -647,6 +647,10 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             // any angle, so a flat cut can never poke out. It relies on the joint
             // knot already lying inside the covering ink; every `j` knot now sits
             // exactly on its covering spine, so that holds at all weights.
+            //
+            // joint_gap recession is NOT applied here: the caller trims the spine by
+            // arc length and hands us the trimmed endpoint, so the cap is already in
+            // the right place and the body stops there too.
             [ { pt = offsetPointRotated X Y theta 0.0 fthickness
                 ty = Corner
                 th_in = firstThIn
@@ -677,13 +681,19 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     /// Outline path: ... revOffset → startCap[first] → ... → startCap[last] → fwdOffset ...
     /// First point faces reversed offset (tangent flipped), last faces forward offset.
     member this.startCap (seg: Segment) elem shouldAlign ty =
+        this.startCapEx seg elem shouldAlign ty false
+
+    /// As startCap, but forceJoint treats the end as an interior joint regardless of
+    /// where seg sits. Needed when joint_gap has trimmed the spine: the cap has moved
+    /// off the joint knot, so the positional isJoint test would no longer fire there.
+    member this.startCapEx (seg: Segment) elem shouldAlign ty forceJoint =
         let bt = seg.tangentStart
 
         this.cap
             seg.X
             seg.Y
             (seg.tangentStart + PI)
-            (this.isJoint elem seg.X seg.Y)
+            (forceJoint || this.isJoint elem seg.X seg.Y)
             ty
             (Some(norm (bt + PI)))
             None
@@ -695,13 +705,17 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     /// Outline path: ... fwdOffset → endCap[first] → ... → endCap[last] → revOffset ...
     /// First point faces forward offset, last faces reversed offset (tangent flipped).
     member this.endCap (seg: Segment) (lastSeg: Segment) elem shouldAlign ty =
+        this.endCapEx seg lastSeg elem shouldAlign ty false
+
+    /// As endCap, with the same forceJoint escape hatch as startCapEx.
+    member this.endCapEx (seg: Segment) (lastSeg: Segment) elem shouldAlign ty forceJoint =
         let bt = lastSeg.tangentEnd
 
         this.cap
             seg.X
             seg.Y
             lastSeg.tangentEnd
-            (this.isJoint elem seg.X seg.Y)
+            (forceJoint || this.isJoint elem seg.X seg.Y)
             ty
             (Some bt)
             None
@@ -1404,6 +1418,59 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                        let (x, y, th, _) = displace (bp.x, bp.y, thMid, sLen)
                        (x, y, th - thMid, sLen) |]
 
+            /// Ordered (x, y, tangent, arc length) along the whole displaced spine, so a
+            /// point can be found at an arbitrary arc length rather than only at samples.
+            let spineSeq =
+                [| let (x0, y0, d0, s0) = dispBez.[0]
+                   yield (x0, y0, bezPts.[0].th_out + d0, s0)
+                   for i in 0 .. segCount - 1 do
+                       yield! spineSamples.[i]
+                       let j = min (i + 1) (n - 1)
+                       let (bx, by, db, bs) = dispBez.[j]
+                       yield (bx, by, bezPts.[j].th_in + db, bs) |]
+
+            /// Spine position and tangent at a global arc length.
+            let spineAt (target: float) =
+                let m = spineSeq.Length
+                let mutable i = 0
+                while i < m - 2 && (let (_, _, _, s) = spineSeq.[i + 1] in s) < target do
+                    i <- i + 1
+                let (x1, y1, t1, s1) = spineSeq.[i]
+                let (x2, y2, t2, s2) = spineSeq.[min (i + 1) (m - 1)]
+                let f = if s2 - s1 < 1e-9 then 0.0 else (target - s1) / (s2 - s1)
+                (x1 + (x2 - x1) * f, y1 + (y2 - y1) * f, t1 + norm (t2 - t1) * f)
+
+            // --- joint_gap: recede joint ends by trimming the spine ---
+            // The recession has to follow the curve. Translating the cap back along the
+            // straight tangent leaves the offset body still starting at the original
+            // endpoint, so on a curved stroke the connecting edge chords across and
+            // self-intersects (the wedge that showed up on m's arches). Instead we trim
+            // the spine by arc length and rebuild the cap at the trimmed point, so the
+            // body simply stops earlier along its own path.
+            // jointGapRecession remaps the axis so its whole travel is visible: the first
+            // thickness of recession only reaches the covering stroke's edge. See Axes.fs.
+            let jointTrimAt (x: float) (y: float) =
+                if this.axes.joint_gap > 0.0 && not isClosed && this.isJoint eForJoints x y then
+                    this.axes.jointGapRecession * fthickness
+                else
+                    0.0
+
+            let startTrim, endTrim =
+                let s = jointTrimAt bezPts.[0].x bezPts.[0].y
+                let e = jointTrimAt bezPts.[n - 1].x bezPts.[n - 1].y
+                // Always leave some stroke behind, however large the axis is set.
+                let room = totalLen * 0.75
+                if s + e > room && s + e > 1e-9 then
+                    let k = room / (s + e)
+                    s * k, e * k
+                else
+                    s, e
+
+            let bodyStart = startTrim
+            let bodyEnd = totalLen - endTrim
+            let hasTrim = startTrim > 1e-9 || endTrim > 1e-9
+            let inBody sLen = sLen >= bodyStart - 1e-6 && sLen <= bodyEnd + 1e-6
+
             /// Broad-nib width factor for a stroke running at angle th: 1.0 when the stroke
             /// is perpendicular to the nib, shrinking toward 0.05 when it runs along the nib.
             let nibFactor th = max (1.0 - nib * (1.0 - abs (sin (th - nibAngle)))) 0.05
@@ -1456,13 +1523,24 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 let perpAngle = sign * PI / 2.
                 let knots = System.Collections.Generic.List<Knot>()
 
-                let emitPerp x y th sLen =
+                let emitPerpRaw x y th sLen =
                     let w = widthAt sLen th |> roughen sign sLen
                     knots.Add(plainKnot (addPolarContrast x y (th + perpAngle) w))
+
+                // Samples outside the trimmed span belong to the receded joint end.
+                let emitPerp x y th sLen =
+                    if inBody sLen then emitPerpRaw x y th sLen
+
+                /// Exact body edge point at a trim boundary, so the body stops on the
+                /// boundary rather than at whichever sample happens to fall nearest it.
+                let emitAtArcLen (s: float) =
+                    let (x, y, th) = spineAt s
+                    emitPerpRaw x y th s
 
                 let emitAtBezPt (i: int) =
                     let bp = bezPts.[i]
                     let (bx, by, dTh, sLen) = dispBez.[i]
+                    if not (inBody sLen) then () else
                     let isCorner = abs (norm (bp.th_out - bp.th_in)) > 1e-3
                     if not isCorner then
                         emitPerp bx by (bp.th_in + dTh) sLen
@@ -1551,14 +1629,16 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 else
                     // Open: caps own bp[0] and bp[n-1]; emit only interior bezier points,
                     // unless the end style needs the body to reach the stroke endpoints.
-                    if includeEnds then
+                    if startTrim > 1e-9 then emitAtArcLen bodyStart
+                    elif includeEnds then
                         let (bx, by, dTh, _) = dispBez.[0]
                         emitPerp bx by (bezPts.[0].th_out + dTh) 0.0
                     emitMidSamples 0
                     for i in 1 .. n - 2 do
                         emitAtBezPt i
                         emitMidSamples i
-                    if includeEnds then
+                    if endTrim > 1e-9 then emitAtArcLen bodyEnd
+                    elif includeEnds then
                         let (bx, by, dTh, _) = dispBez.[n - 1]
                         emitPerp bx by (bezPts.[n - 1].th_in + dTh) totalLen
 
@@ -1576,10 +1656,22 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             // Strip them so the cap-to-body edges are straight lines, matching the body
             // polyline. Intermediate cap knots (serif/flare/bulb) are untouched.
             let makeCaps () =
-                let firstSeg     = makeCapSeg bezPts.[0]   bezPts.[0].th_out   bezPts.[0].th_out
-                let endpointSeg  = makeCapSeg bezPts.[n-1] bezPts.[n-1].th_in  bezPts.[n-1].th_in
+                // With joint_gap the cap sits at the trimmed spine point, facing along the
+                // spine there, so it closes the body exactly where the body now stops.
+                let trimmedSeg (s: float) =
+                    let (cx, cy, cth) = spineAt s
+                    { X = cx; Y = cy; tangentStart = cth; tangentEnd = cth; seg_ch = 1.0; Type = Corner }
+
+                let firstSeg =
+                    if startTrim > 1e-9 then trimmedSeg bodyStart
+                    else makeCapSeg bezPts.[0] bezPts.[0].th_out bezPts.[0].th_out
+                let endpointSeg =
+                    if endTrim > 1e-9 then trimmedSeg bodyEnd
+                    else makeCapSeg bezPts.[n-1] bezPts.[n-1].th_in bezPts.[n-1].th_in
                 // penultimateSeg.tangentEnd is the incoming tangent at the final point
-                let penultSeg    = makeCapSeg bezPts.[n-2] bezPts.[n-2].th_out bezPts.[n-1].th_in
+                let penultSeg =
+                    if endTrim > 1e-9 then trimmedSeg bodyEnd
+                    else makeCapSeg bezPts.[n-2] bezPts.[n-2].th_out bezPts.[n-1].th_in
 
                 let stripBoundaryTangents (caps: Knot list) =
                     match caps with
@@ -1593,8 +1685,8 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                             else k)
 
                 // Use original element (before reduce) so isJoint detects stroke intersections.
-                let startCapKnots = this.startCap firstSeg eForJoints startAlign Corner |> stripBoundaryTangents
-                let endCapKnots   = this.endCap endpointSeg penultSeg eForJoints endAlign Corner |> stripBoundaryTangents
+                let startCapKnots = this.startCapEx firstSeg eForJoints startAlign Corner (startTrim > 1e-9) |> stripBoundaryTangents
+                let endCapKnots   = this.endCapEx endpointSeg penultSeg eForJoints endAlign Corner (endTrim > 1e-9) |> stripBoundaryTangents
                 startCapKnots, endCapKnots
 
             // --- Möbius ribbon panels ---

@@ -28,6 +28,7 @@ type Axes =
       serif: int //serif size
       end_bulb: float //fraction of thickness to apply curves to endcaps
       flare: float //end caps expand by this amount
+      joint_gap: float //interior joints stop short of the stroke they join, in units of thickness (0=flush)
       axis_align_caps: bool //round angle of caps to horizontal/vertical
       //spine : bool              //show the single width glyph, use with outline off or filled off
       filled: bool //(svg only) filled or empty outlines
@@ -71,6 +72,7 @@ type Axes =
           serif = 0
           end_bulb = 0.0
           flare = 0.0
+          joint_gap = 0.0
           axis_align_caps = true
           filled = true
           outline = true
@@ -117,6 +119,7 @@ type Axes =
           "smooth", Checkbox, "experimental", "No corners"
           "end_bulb", FracRange(-1.0, 3.0), "artistic", "Fraction of thickness to apply curves to endcaps"
           "flare", FracRange(-1.0, 1.0), "artistic", "End caps expand by this amount"
+          "joint_gap", FracRange(0.0, 1.0), "artistic", "Stencil effect: interior joints stop short of the stroke they join (0=flush/off, just above 0=parting from its edge, 1=a full thickness of clear air)"
           "stroked", Checkbox, "artistic", "Each stroke is 4 parallel lines"
           "scratches", Checkbox, "artistic", "Horror/paint strokes font"
           "nib", FracRange(0.0, 1.0), "artistic", "Broad-nib pen: stroke width follows stroke direction (0=off, 1=full nib effect)"
@@ -142,3 +145,17 @@ type Axes =
     /// along the stroke is active; these require the arc-length sampled outline path.
     member this.sampledArtistic =
         this.nib > 0.0 || this.taper > 0.0 || this.wobble > 0.0 || this.roughness > 0.0 || this.mobius > 0.0
+        // joint_gap trims the spine by arc length, which only the sampled path can do.
+        || this.joint_gap > 0.0
+
+    /// Actual joint recession, in thicknesses back from the covering stroke's spine.
+    ///
+    /// The first thickness is invisible: it only walks the joint end back to the
+    /// covering stroke's edge, where the two are still touching. Handing that dead
+    /// travel to the user wastes half the slider, so the axis maps
+    ///     0        -> 0      (flush, off)
+    ///     (0, 1]   -> (1, 2]
+    /// putting the whole visible range — edge to a full thickness of clear air —
+    /// across the axis, and keeping 0 as an exact no-op.
+    member this.jointGapRecession =
+        if this.joint_gap <= 0.0 then 0.0 else 1.0 + this.joint_gap
