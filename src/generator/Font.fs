@@ -1447,9 +1447,11 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             // self-intersects (the wedge that showed up on m's arches). Instead we trim
             // the spine by arc length and rebuild the cap at the trimmed point, so the
             // body simply stops earlier along its own path.
+            // jointGapRecession remaps the axis so its whole travel is visible: the first
+            // thickness of recession only reaches the covering stroke's edge. See Axes.fs.
             let jointTrimAt (x: float) (y: float) =
                 if this.axes.joint_gap > 0.0 && not isClosed && this.isJoint eForJoints x y then
-                    this.axes.joint_gap * fthickness
+                    this.axes.jointGapRecession * fthickness
                 else
                     0.0
 

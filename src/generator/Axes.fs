@@ -119,7 +119,7 @@ type Axes =
           "smooth", Checkbox, "experimental", "No corners"
           "end_bulb", FracRange(-1.0, 3.0), "artistic", "Fraction of thickness to apply curves to endcaps"
           "flare", FracRange(-1.0, 1.0), "artistic", "End caps expand by this amount"
-          "joint_gap", FracRange(0.0, 3.0), "artistic", "Stencil effect: interior joints stop short of the stroke they join, measured in thicknesses back from its spine (0=flush, 1=touching its edge, 2=a full thickness of clear air)"
+          "joint_gap", FracRange(0.0, 1.0), "artistic", "Stencil effect: interior joints stop short of the stroke they join (0=flush/off, just above 0=parting from its edge, 1=a full thickness of clear air)"
           "stroked", Checkbox, "artistic", "Each stroke is 4 parallel lines"
           "scratches", Checkbox, "artistic", "Horror/paint strokes font"
           "nib", FracRange(0.0, 1.0), "artistic", "Broad-nib pen: stroke width follows stroke direction (0=off, 1=full nib effect)"
@@ -147,3 +147,15 @@ type Axes =
         this.nib > 0.0 || this.taper > 0.0 || this.wobble > 0.0 || this.roughness > 0.0 || this.mobius > 0.0
         // joint_gap trims the spine by arc length, which only the sampled path can do.
         || this.joint_gap > 0.0
+
+    /// Actual joint recession, in thicknesses back from the covering stroke's spine.
+    ///
+    /// The first thickness is invisible: it only walks the joint end back to the
+    /// covering stroke's edge, where the two are still touching. Handing that dead
+    /// travel to the user wastes half the slider, so the axis maps
+    ///     0        -> 0      (flush, off)
+    ///     (0, 1]   -> (1, 2]
+    /// putting the whole visible range — edge to a full thickness of clear air —
+    /// across the axis, and keeping 0 as an exact no-op.
+    member this.jointGapRecession =
+        if this.joint_gap <= 0.0 then 0.0 else 1.0 + this.joint_gap
