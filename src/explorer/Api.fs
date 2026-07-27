@@ -631,6 +631,34 @@ let generateFontGlyphData (axes: Axes) =
        descender = metrics.D - thickness
        unitsPerEm = font.charHeight |}
 
+/// Lightweight counterpart to generateFontGlyphData: advance widths (and
+/// ascender/descender) for only the characters in `text`, skipping the
+/// per-glyph outline solve + SVG serialisation that dominates the full
+/// function's cost (~1.5s for the whole charset, regardless of how much of
+/// it is actually needed). charWidth alone never solves a spline — it's a
+/// cheap lookup over the glyph's raw, unsolved control points — so this is
+/// the right tool for callers (the Generate tab's growth.js/branching.js)
+/// that only need to lay a handful of glyphs along a baseline.
+/// Characters with no glyph definition are silently omitted (matching how
+/// generateFontGlyphData never included them either), leaving the caller's
+/// existing fallback-width behaviour intact.
+let generateAdvanceData (text: string) (axes: Axes) =
+    let font = Font axes
+    let metrics = FontMetrics(axes)
+    let thickness = float axes.thickness
+    // Always include a space (see generateFontGlyphData) plus every distinct
+    // character actually present in the requested text.
+    let chars = (text.Replace("\n", "") + " ") |> Seq.distinct
+    let glyphs =
+        chars
+        |> Seq.choose (fun c ->
+            try Some {| unicode = int c; advanceWidth = font.charWidth c |}
+            with _ -> None)
+        |> Array.ofSeq
+    {| glyphs = glyphs
+       ascender = metrics.T + thickness
+       descender = metrics.D - thickness |}
+
 let private knotToObj (k: Knot) : obj =
     // When x_fit/y_fit is true the solver treats the coordinate as a free variable (None).
     // Pass null (JS) / None (F#) so the spline editor matches the full font pipeline.
