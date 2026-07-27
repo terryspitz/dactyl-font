@@ -47,7 +47,18 @@ nopqrstuvwxyz
 ABCDEFGHIJKLM
 NOPQRSTUVWXYZ
 !\"#£$%&'()*+,-./:;
-<=>?@[\\]^_`{|}~"
+<=>?@[\\]^_`{|}~
+‘’“”–—…•"
+
+/// Letters and numbers only — the default sample for the Font tab and the
+/// "Alphabet" proof, kept small so glyphs render large. `allChars` (above)
+/// remains the full set including punctuation, used by the "All glyphs" proof.
+let alphabetChars =
+    "abcdefghijklm
+nopqrstuvwxyz
+ABCDEFGHIJKLM
+NOPQRSTUVWXYZ
+0123456789"
 
 let generateSvg (text: string) (axes: Axes) (autoscale: bool) (progress: (float -> unit) option) =
     let font = Font axes
