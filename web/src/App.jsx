@@ -3,7 +3,7 @@ import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyp
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
 import GrowCanvas from './GrowCanvas'
-import { downloadBlob, svgBlob, svgToPngBlob, growFilenameBase } from './growthExport'
+import { downloadBlob, svgBlob, svgToPngBlob, growFilenameBase, filenameBase } from './growthExport'
 import { downloadFont, buildFontDataUrl } from './fontExport'
 import { buildCompareOverlaySvg } from './fontCompare'
 import FontCompareControls from './FontCompareControls'
@@ -145,6 +145,11 @@ function App() {
   const [growCopied, setGrowCopied] = useState(false)
   const [growMenuOpen, setGrowMenuOpen] = useState(false)
   const growMenuRef = useRef(null)
+  // Font tab image export (same PNG/SVG copy + download as Grow, on the canvas)
+  const [savingFontImage, setSavingFontImage] = useState(false)
+  const [fontCopied, setFontCopied] = useState(false)
+  const [fontMenuOpen, setFontMenuOpen] = useState(false)
+  const fontMenuRef = useRef(null)
   const supportsWebGL2 = useMemo(() => {
     try { return !!document.createElement('canvas').getContext('webgl2') } catch { return false }
   }, [])
@@ -409,10 +414,75 @@ function App() {
       if (error) {
         console.error('Font generation error:', error)
       } else {
-        downloadFont(result, axes, defaultAxes)
+        downloadFont(result, axes, defaultAxes, glyphSeed)
       }
     }
     worker.postMessage({ id: 1, type: 'fontData', args: [axes, ...perGlyphFontArgs] })
+  }
+
+  // Render the Font tab's text to a tightly-cropped vector SVG via a one-off
+  // worker.  The on-screen preview uses a fixed 6000x6000 viewBox (autoscale
+  // off), which would export mostly empty space, so this re-renders with
+  // autoscale on.  Per-glyph randomisation is carried through, so what you save
+  // is what you see.
+  const requestFontSvg = () => new Promise((resolve, reject) => {
+    if (!text) { resolve(''); return }
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    worker.onmessage = (e) => {
+      if (e.data.type === 'progress') return
+      worker.terminate()
+      if (e.data.error) reject(new Error(e.data.error))
+      else resolve(e.data.result)
+    }
+    worker.onerror = (err) => { worker.terminate(); reject(err) }
+    worker.postMessage(perGlyphTextAxes
+      ? { id: 0, type: 'fontPerGlyph', args: [text, axes, perGlyphTextAxes.chars, perGlyphTextAxes.axesList, true] }
+      : { id: 0, type: 'font', args: [text, axes, true] })
+  })
+
+  const fontImageBase = () =>
+    filenameBase('dactyl', text, glyphSeed === null ? '' : `random${glyphSeed}`)
+
+  const handleDownloadFontImage = async (format) => {
+    setFontMenuOpen(false)
+    setSavingFontImage(true)
+    setError(null)
+    try {
+      const svg = await requestFontSvg()
+      if (!svg) return
+      const base = fontImageBase()
+      if (format === 'svg') {
+        downloadBlob(svgBlob(svg), `${base}.svg`)
+      } else {
+        // Transparent background, matching the Grow tab's export.
+        downloadBlob(await svgToPngBlob(svg, { scale: 3, background: null }), `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Font ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingFontImage(false)
+    }
+  }
+
+  const handleCopyFontImage = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    setSavingFontImage(true)
+    setError(null)
+    try {
+      const svg = await requestFontSvg()
+      if (!svg) throw new Error('nothing to copy')
+      const png = await svgToPngBlob(svg, { scale: 3, background: null })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setFontCopied(true)
+      setTimeout(() => setFontCopied(false), 1500)
+    } catch (e) {
+      setError(`Font copy failed: ${e.message}`)
+    } finally {
+      setSavingFontImage(false)
+    }
   }
 
   const renderIdRef = useRef(0)
@@ -583,6 +653,21 @@ function App() {
       document.removeEventListener('keydown', onKey)
     }
   }, [growMenuOpen])
+
+  // Same for the Font tab's download-format menu.
+  useEffect(() => {
+    if (!fontMenuOpen) return
+    const onDown = (e) => {
+      if (fontMenuRef.current && !fontMenuRef.current.contains(e.target)) setFontMenuOpen(false)
+    }
+    const onKey = (e) => { if (e.key === 'Escape') setFontMenuOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [fontMenuOpen])
 
   // Dedicated effect for proofs tab: generates full font and builds a data URL.
   // Deps are [axes, activeTab] only — switching proof text doesn't re-trigger.
@@ -1376,6 +1461,66 @@ function App() {
             </div>
           )}
           <div className="zoom-controls">
+            {/* Image export for the typed string, alongside the zoom buttons.
+                Font tab only for now — the other tabs render debug overlays,
+                grids or their own canvases that don't export meaningfully. */}
+            {activeTab === 'font' && (
+              <>
+                <button
+                  onClick={handleCopyFontImage}
+                  disabled={savingFontImage || !text}
+                  title="Copy PNG to clipboard"
+                >
+                  <span className="material-symbols-outlined">
+                    {fontCopied ? 'check' : 'content_copy'}
+                  </span>
+                </button>
+                {/* Download defaults to PNG; the caret opens a PNG/SVG menu. */}
+                <span ref={fontMenuRef} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+                  <button
+                    onClick={() => handleDownloadFontImage('png')}
+                    disabled={savingFontImage || !text}
+                    title="Download PNG (transparent, high-res)"
+                  >
+                    <span className="material-symbols-outlined">
+                      {savingFontImage ? 'hourglass_empty' : 'download'}
+                    </span>
+                  </button>
+                  {/* overflow:hidden keeps the caret glyph inside its button, so it
+                      can't sit on top of the download button and swallow its clicks */}
+                  <button
+                    onClick={() => setFontMenuOpen(o => !o)}
+                    disabled={savingFontImage || !text}
+                    title="Choose download format"
+                    aria-haspopup="menu"
+                    aria-expanded={fontMenuOpen}
+                    style={{ width: '20px', minWidth: '20px', padding: '6px 0', overflow: 'hidden' }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_drop_down</span>
+                  </button>
+                  {fontMenuOpen && (
+                    <div
+                      role="menu"
+                      style={{
+                        position: 'absolute', top: '100%', right: 0, marginTop: '8px', zIndex: 20,
+                        background: 'var(--panel-bg)', border: '1px solid var(--border-color)',
+                        borderRadius: 'var(--radius-md)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden', minWidth: '160px',
+                      }}
+                    >
+                      <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadFontImage('png')}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>image</span>
+                        PNG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>transparent</span>
+                      </button>
+                      <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadFontImage('svg')}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>polyline</span>
+                        SVG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>vector</span>
+                      </button>
+                    </div>
+                  )}
+                </span>
+                <span style={{ width: '1px', background: 'rgba(255,255,255,0.2)', margin: '2px 2px' }} />
+              </>
+            )}
             <button onClick={() => setZoom(z => Math.min(z + 0.1, 5.0))} title="Zoom In">
               <span className="material-symbols-outlined">add</span>
             </button>

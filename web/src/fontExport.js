@@ -238,14 +238,26 @@ function formatAxisOverride(key, val) {
   return `${key}${s}`
 }
 
-function buildStyleName(overrides) {
-  if (!overrides.length) return 'Regular'
-  return overrides.map(([k, v]) => formatAxisOverride(k, v)).join(' ')
+// A per-glyph-random export is not described by its axes — every glyph has its
+// own — so the seed goes in the name instead.  It is the whole state, so naming
+// the file after it makes a saved font traceable back to the settings that
+// produced it.
+function randomTag(glyphSeed) {
+  return glyphSeed === null || glyphSeed === undefined ? '' : `Random${glyphSeed}`
 }
 
-function buildFilename(overrides, family = 'Dactyl') {
-  if (!overrides.length) return `${family}-Regular.otf`
-  return `${family}-${overrides.map(([k, v]) => formatAxisOverride(k, v)).join('-')}.otf`
+export function buildStyleName(overrides, glyphSeed = null) {
+  const parts = overrides.map(([k, v]) => formatAxisOverride(k, v))
+  const tag = randomTag(glyphSeed)
+  if (tag) parts.push(tag)
+  return parts.length ? parts.join(' ') : 'Regular'
+}
+
+export function buildFilename(overrides, glyphSeed = null, family = 'Dactyl') {
+  const parts = overrides.map(([k, v]) => formatAxisOverride(k, v))
+  const tag = randomTag(glyphSeed)
+  if (tag) parts.push(tag)
+  return `${family}-${parts.length ? parts.join('-') : 'Regular'}.otf`
 }
 
 // The font is always exported at this em size.  The F# generator uses a
@@ -379,10 +391,10 @@ export function buildFontDataUrl(glyphData, familyName = 'DactylPreview') {
  * Build a font from the glyph data and trigger a browser download of the OTF file.
  * Pass axes and defaultAxes to embed overridden axis values in the filename and style name.
  */
-export function downloadFont(glyphData, axes, defaultAxes) {
+export function downloadFont(glyphData, axes, defaultAxes, glyphSeed = null) {
   const overrides = axes && defaultAxes ? getOverriddenAxes(axes, defaultAxes) : []
-  const styleName = buildStyleName(overrides)
-  const filename = buildFilename(overrides)
+  const styleName = buildStyleName(overrides, glyphSeed)
+  const filename = buildFilename(overrides, glyphSeed)
   const font = buildFont(glyphData, 'Dactyl', styleName)
   const buffer = font.toArrayBuffer()
   const blob = new Blob([buffer], { type: 'font/otf' })

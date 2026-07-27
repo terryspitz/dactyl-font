@@ -55,7 +55,16 @@ The **shuffle button** (🔀) in the top-right randomises *every glyph independe
 
 The result is **stable**: clicking the button rolls a single seed, and every character's settings are derived from that seed plus its code point.  So a given letter looks the same everywhere it appears, and the variant font survives re-renders, sidebar tweaks and tab switches.  It also feeds the OTF export, the Proofs tab and the Visual Diffs font comparison.  Click again for a new set; the ✕ next to it (or the sidebar ↺ Reset) turns it off.
 
-The **download button** (⬇) in the top-right exports a custom OTF font file built from the current axes.
+The **download button** (⬇) in the top-right exports a custom OTF font file built from the current axes.  With per-glyph randomisation on, the seed goes in the font's style name and filename (`Dactyl-Random216973057.otf`) — a random font isn't described by its axes, so the seed is what makes a saved file traceable back to the settings that produced it.
+
+**Saving the typed string as a picture.** On the canvas, next to the zoom buttons, are a **copy** (⧉) and a **download** (⬇) button, the same pair the Grow tab has:
+
+| Button | What it does |
+|--------|-------------|
+| ⧉ Copy | Rasterises the current string to a transparent PNG and puts it on the clipboard |
+| ⬇ Download | Saves a transparent PNG; the caret beside it offers PNG or SVG |
+
+Both re-render the string tightly cropped (the on-screen preview uses a fixed large viewBox, which would export as mostly empty space), and both carry per-glyph randomisation through, so what you save is what you see.  Filenames are built from the text and the seed, e.g. `dactyl-Hamburgefonstiv-random216973057.png`.
 
 ### Glyphs
 Renders individual glyphs and shows the underlying curve geometry.  Most useful for authoring new glyph string definitions.
