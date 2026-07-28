@@ -24,7 +24,7 @@ const DEBUG_LAYER_KEYS = ['comb', 'tangents', 'guides', 'labels', 'knots']
 // restore them without touching which mode is selected. Functions (not plain
 // objects) so layerColors gets a fresh array each time, never a shared one.
 const defaultGrowParams = () => ({
-  grow: 0.7, gap: 30, growScale: 120, layers: true, animate: false,
+  grow: 0.7, gap: 30, growScale: 120, fuse: 0, warp: 0, layers: true, animate: false,
   color: '#000000', layerColors: [...LAYER_COLORS],
 })
 const defaultBranchParams = () => ({
@@ -1471,6 +1471,24 @@ function App() {
                       onChange={e => setGrowParams(p => ({ ...p, gap: parseFloat(e.target.value) }))}
                     />
                     <span style={{ minWidth: '2em' }}>{growParams.gap}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Melt neighbouring letters into a logotype">
+                    fuse
+                    <input
+                      type="range" min="0" max="1" step="0.05"
+                      value={growParams.fuse}
+                      onChange={e => setGrowParams(p => ({ ...p, fuse: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2.5em' }}>{growParams.fuse.toFixed(2)}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Wobble the grown edges with value noise">
+                    warp
+                    <input
+                      type="range" min="0" max="1" step="0.05"
+                      value={growParams.warp}
+                      onChange={e => setGrowParams(p => ({ ...p, warp: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2.5em' }}>{growParams.warp.toFixed(2)}</span>
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     scale

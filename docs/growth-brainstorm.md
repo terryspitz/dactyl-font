@@ -155,26 +155,38 @@ unlocks the standard SDF toolbox:
 3. **Shape algebra.**  smooth-min between per-glyph SDFs = controllable
    fusion/ligatures (a blend-radius `fuse` slider); erode-then-dilate =
    a field-space `soft_corners`; subtraction = counter protection.
+   *(Partly shipped: a `fuse` slider melts neighbouring glyphs into a logotype
+   by relaxing — and overshooting — the constant gap only where the opposition
+   is cross-glyph.  A third field channel, `cross`, tags cross-glyph
+   opposition, so counters inside a glyph stay open at any fuse.  This is the
+   field-relaxation form of the same idea; a literal per-glyph smooth-min is
+   still open for smoother fillets and erode/dilate corners.)*
 4. **Exact segment SDFs.**  Distance to the resampled polyline's *segments*
    (capsule SDF) instead of to point samples decouples field accuracy from
    sample spacing.
 5. **MSDF export.**  Dactyl generates the field natively, so exporting
    multi-channel SDF atlases (msdfgen-style) for game/GPU text rendering is
    unusually direct.
-6. **Farther out:** domain-warp the field with noise for field-space wobble;
-   run reaction–diffusion inside the SDF band so patterns hug the letterform;
-   extract the ridge (medial axis) of an *imported* font's SDF to
-   reverse-engineer backbones — Dactyl-izing arbitrary fonts.
+6. **Farther out:** domain-warp the field with noise for field-space wobble
+   *(shipped: a `warp` slider displaces the field lookup by value noise —
+   `domainWarp` in `growth.js`, matching GLSL noise + `uWarp*` uniforms in
+   `GrowCanvas.jsx`, seeded for determinism)*; run reaction–diffusion inside
+   the SDF band so patterns hug the letterform; extract the ridge (medial
+   axis) of an *imported* font's SDF to reverse-engineer backbones —
+   Dactyl-izing arbitrary fonts.
 
 Status: items 1–2 are implemented (JFA in `web/src/growth.js`, shader
-preview in `web/src/GrowCanvas.jsx`); 3–6 are open.
+preview in `web/src/GrowCanvas.jsx`); item 3 is partly implemented (the
+cross-glyph `fuse` slider — field channel in `growth.js`, `uFuse` uniform in
+`GrowCanvas.jsx`); item 6's domain-warp `warp` slider is implemented; the rest
+of 4–6 are open.
 
 ## Idea 5 prototype: space colonisation (added after this slice shipped)
 
 A first slice of Idea 5 (branching growth off the spine) is implemented as
-"Branch" mode of the "Generate" tab (which also holds Idea 1's "Grow" mode,
-picked via a Mode dropdown): `web/src/branching.js` runs classic space
-colonisation
+"Grow" mode of the "Generate" tab (which also holds Idea 1's SDF-inflation
+algorithm, now labelled "Bubble" mode, picked via a mode toolbar):
+`web/src/branching.js` runs classic space colonisation
 (Runions et al.) — spine samples resampled into root nodes, attractors
 jittered into the counters/margins (reusing `growth.js`'s `SampleGrid`, now
 exported), twigs grown one step per iteration toward their nearest
