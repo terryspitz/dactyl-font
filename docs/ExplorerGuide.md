@@ -25,7 +25,7 @@ The **sidebar** on the left holds all font axis controls.  The **top bar** holds
 ### Toolbar icons
 | Icon | Action |
 |------|--------|
-| ↺ Reset | Restore all axes to their default values |
+| ↺ Reset | Restore all axes to their default values (also clears per-glyph randomisation) |
 | 🎲 Randomize | Randomise all non-experimental axes |
 | 📖 Documentation | Open the README in a new tab |
 
@@ -51,7 +51,20 @@ Each axis shows a labelled slider (for numeric ranges) or a toggle switch (for b
 ### Font
 Renders the full character set (or whatever text is in the text box) using the current axis values.  Supports zoom via the +/−/↺ buttons or Ctrl+scroll.
 
-The **download button** (⬇) in the top-right exports a custom OTF font file built from the current axes.
+The **shuffle button** (🔀) in the top-right randomises *every glyph independently* — each character gets its own axis values, following the same rules as the sidebar 🎲 button but nudged around the current axes rather than the defaults (so the sliders still drive the overall look; `leading` is left alone as it is a line property, not a glyph one).
+
+The result is **stable**: clicking the button rolls a single seed, and every character's settings are derived from that seed plus its code point.  So a given letter looks the same everywhere it appears, and the variant font survives re-renders, sidebar tweaks and tab switches.  It also feeds the OTF export, the Proofs tab and the Visual Diffs font comparison.  Click again for a new set; the ✕ next to it (or the sidebar ↺ Reset) turns it off.
+
+The **download button** (⬇) in the top-right exports a custom OTF font file built from the current axes.  With per-glyph randomisation on, the seed goes in the font's style name and filename (`Dactyl-Random216973057.otf`) — a random font isn't described by its axes, so the seed is what makes a saved file traceable back to the settings that produced it.
+
+**Saving the typed string as a picture.** On the canvas, next to the zoom buttons, are a **copy** (⧉) and a **download** (⬇) button, the same pair the Grow tab has:
+
+| Button | What it does |
+|--------|-------------|
+| ⧉ Copy | Rasterises the current string to a transparent PNG and puts it on the clipboard |
+| ⬇ Download | Saves a transparent PNG; the caret beside it offers PNG or SVG |
+
+Both re-render the string tightly cropped (the on-screen preview uses a fixed large viewBox, which would export as mostly empty space), and both carry per-glyph randomisation through, so what you save is what you see.  Filenames are built from the text and the seed, e.g. `dactyl-Hamburgefonstiv-random216973057.png`.
 
 ### Glyphs
 Renders individual glyphs and shows the underlying curve geometry.  Most useful for authoring new glyph string definitions.
@@ -162,59 +175,3 @@ All tabs and settings are bookmarkable via URL parameters.
 | `?tween=` | axis name, e.g. `thickness` | Show only that axis row in Tweens |
 | `?diffAxis=` | axis name or `spline_engine` | Pre-set the Visual Diffs axis |
 | `?diffA=`, `?diffB=` | numbers | Pre-set the A and B diff values |
-
----
-
-## Web directory structure (`web/`)
-
-```
-web/
-├── src/
-│   ├── App.jsx           — Root React component; tab routing, sidebar, worker orchestration
-│   ├── SplineEditor.jsx  — Interactive spline editor (Splines tab)
-│   ├── SplineGrid.jsx    — Grid view of spline shapes (Spline Grid tab)
-│   ├── GrowCanvas.jsx    — WebGL2 field-threshold preview (Grow tab)
-│   ├── growth.js         — Grow tab engine: distance field + marching-squares contours
-│   ├── growthSvg.js      — Grow tab back end: strokes → field / layered SVG (worker side)
-│   ├── glyphSpines.js    — Solves glyph backbones into polylines (Grow tab seed geometry)
-│   ├── growthExport.js   — Grow tab PNG/SVG save + clipboard helpers
-│   ├── fontExport.js     — OTF font assembly via opentype.js + paper.js boolean union
-│   ├── fontExport.test.js — Vitest unit tests for font export
-│   ├── worker.js         — Web worker: calls Fable-compiled F# API off the main thread
-│   ├── proofs.js         — Proof text data (wrap/strip helpers, book list)
-│   ├── proofs/
-│   │   ├── lowercase.txt — Lowercase frequency proof text
-│   │   ├── uppercase.txt — Uppercase frequency proof text
-│   │   └── books.js      — Classic book excerpts for the "Classic" proof mode
-│   └── lib/
-│       └── fmin/         — Nelder-Mead minimiser (git submodule, used by DactylSpline)
-├── tests/
-│   ├── tabs.spec.js              — Playwright: screenshot each tab against baselines
-│   ├── tweens.spec.js            — Playwright: screenshot each tween axis against baselines
-│   ├── font-download.spec.js     — Playwright: OTF download smoke test
-│   ├── tabs.spec.js-snapshots/   — Committed baseline PNGs for tab tests
-│   ├── tweens.spec.js-snapshots/ — Committed baseline PNGs for tween tests
-│   └── font-download.spec.js-snapshots/
-├── public/               — Static assets served at root
-├── index.html            — Vite entry point
-├── vite.config.js        — Vite config (base: '/dactyl-font/', Vitest config)
-├── playwright.config.js  — Playwright config (runs against `vite preview`)
-└── package.json          — npm scripts and dependencies
-```
-
-### Key npm scripts
-
-| Script | What it runs |
-|--------|-------------|
-| `npm run dev` | (from repo root) Fable watch + Vite dev server |
-| `npm run build` | Vite production build to `web/dist/` |
-| `npm run preview` | Serve the production build locally |
-| `npm test` | Vitest unit tests (`src/**/*.test.js`) |
-| `npm run test:tabs` | Playwright tab screenshot tests (needs `npm run build` first) |
-| `npm run test:tweens` | Playwright tween screenshot tests |
-| `npm run test:font-download` | Playwright OTF download smoke test |
-| `npm run test:tabs:update` | Regenerate tab baseline PNGs |
-
-### Worker architecture
-
-`worker.js` runs the Fable-compiled F# on a dedicated Web Worker thread so the main UI thread stays responsive during long solves.  All calls go through a simple promise-based `postMessage` protocol keyed by a sequential `id`.  Progress callbacks post intermediate `{ type: 'progress', value: 0..1 }` messages that App.jsx uses to drive the progress bar.

@@ -59,6 +59,11 @@ type Knot =
       ty: SpiroPointType
       th_in: float option
       th_out: float option
+      // Explicitly-declared interior joint (via the `j` marker in the glyph
+      // string language). When true, an open-stroke endpoint at this knot
+      // suppresses its cap (serif/flare/bulb) regardless of the geometric
+      // joint heuristic — see Font.isJointRaw.
+      isJoint: bool
       label: string option }
 
 type SCP = SpiroControlPoint
@@ -73,7 +78,7 @@ type Element =
 
 // Helpers to create Curve from simpler point lists
 let withNoTangents pts =
-    List.map (fun (p, t) -> { pt = p; ty = t; th_in = None; th_out = None; label = None }) pts
+    List.map (fun (p, t) -> { pt = p; ty = t; th_in = None; th_out = None; isJoint = false; label = None }) pts
 
 let openCurve pts = Curve(withNoTangents pts, false)
 let closedCurve pts = Curve(withNoTangents pts, true)

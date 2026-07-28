@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, allChars } from './lib/fable/Api' // Adjust path if needed
+import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, allChars, alphabetChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
 import GrowCanvas from './GrowCanvas'
-import { downloadBlob, svgBlob, svgToPngBlob, filenameBase } from './growthExport'
+import { downloadBlob, svgBlob, svgToPngBlob, growFilenameBase, filenameBase } from './growthExport'
 import { LAYER_COLORS } from './growth'
 import { DEFAULT_BRANCH_COLOR } from './branching'
 import { downloadFont, buildFontDataUrl } from './fontExport'
@@ -11,6 +11,7 @@ import { buildCompareOverlaySvg } from './fontCompare'
 import FontCompareControls from './FontCompareControls'
 import FontCompareTextOverlay from './FontCompareTextOverlay'
 import { proofTexts, proofLabels, proofCases, classicBooks } from './proofs'
+import { randomizeAxes, buildGlyphAxes, newGlyphSeed } from './glyphRandom'
 import './App.css'
 
 // Special Visual Diffs option: compare the old spiro/spline2 engine vs the new dactyl spline
@@ -69,7 +70,7 @@ function App() {
     const savedGlyphs = localStorage.getItem('glyphText') || localStorage.getItem('splineText')
 
     return {
-      font: allChars,
+      font: alphabetChars,
       glyphs: savedGlyphs !== null ? savedGlyphs : 'font',
       tweens: 'a',
       visualDiffs: allChars,
@@ -84,6 +85,11 @@ function App() {
     return getGlyphDefs(initialText, defaultAxes.alt_a_g)
   })
   const [axes, setAxes] = useState({ ...defaultAxes })
+  // "Randomise every glyph": null = off, otherwise the seed that every
+  // character's axes are derived from.  Holding a seed (rather than a big map of
+  // per-glyph axes) is what makes the variant font stable — it only changes when
+  // the button is clicked again or Reset clears it.
+  const [glyphSeed, setGlyphSeed] = useState(null)
   const [activeTab, setActiveTab] = useState('font')
   // Visual Diffs config: which axis to diff and the two values to compare.
   // SPLINE_ENGINE is a special compound option (old spiro/spline2 vs new dactyl spline).
@@ -181,6 +187,11 @@ function App() {
   const [branchCopied, setBranchCopied] = useState(false)
   const [branchMenuOpen, setBranchMenuOpen] = useState(false)
   const branchMenuRef = useRef(null)
+  // Font tab image export (same PNG/SVG copy + download as Grow, on the canvas)
+  const [savingFontImage, setSavingFontImage] = useState(false)
+  const [fontCopied, setFontCopied] = useState(false)
+  const [fontMenuOpen, setFontMenuOpen] = useState(false)
+  const fontMenuRef = useRef(null)
   const supportsWebGL2 = useMemo(() => {
     try { return !!document.createElement('canvas').getContext('webgl2') } catch { return false }
   }, [])
@@ -429,20 +440,99 @@ function App() {
     return (!isNaN(idx) && idx >= 0 && idx < classicBooks.length) ? classicBooks[idx] : null
   })
 
+  // Per-glyph random axes, as the parallel (chars, axesList) arrays the F# API
+  // takes.  Two variants so the whole-font one (export / proofs / comparisons)
+  // doesn't churn every time the typed text changes.
+  const perGlyphFontAxes = useMemo(
+    () => glyphSeed === null ? null : buildGlyphAxes(allChars.replace(/\n/g, '') + ' ', glyphSeed, axes, controlDefinitions),
+    [glyphSeed, axes]
+  )
+  const perGlyphTextAxes = useMemo(
+    () => glyphSeed === null ? null : buildGlyphAxes(text || '', glyphSeed, axes, controlDefinitions),
+    [glyphSeed, axes, text]
+  )
+  const perGlyphFontArgs = perGlyphFontAxes ? [perGlyphFontAxes.chars, perGlyphFontAxes.axesList] : []
+
   const handleDownloadFont = () => {
     setDownloadingFont(true)
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
     worker.onmessage = (e) => {
-      const { result, error } = e.data
+      const { result, error, type } = e.data
+      if (type === 'progress') return
       worker.terminate()
       setDownloadingFont(false)
       if (error) {
         console.error('Font generation error:', error)
       } else {
-        downloadFont(result, axes, defaultAxes)
+        downloadFont(result, axes, defaultAxes, glyphSeed)
       }
     }
-    worker.postMessage({ id: 1, type: 'fontData', args: [axes] })
+    worker.postMessage({ id: 1, type: 'fontData', args: [axes, ...perGlyphFontArgs] })
+  }
+
+  // Render the Font tab's text to a tightly-cropped vector SVG via a one-off
+  // worker.  The on-screen preview uses a fixed 6000x6000 viewBox (autoscale
+  // off), which would export mostly empty space, so this re-renders with
+  // autoscale on.  Per-glyph randomisation is carried through, so what you save
+  // is what you see.
+  const requestFontSvg = () => new Promise((resolve, reject) => {
+    if (!text) { resolve(''); return }
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    worker.onmessage = (e) => {
+      if (e.data.type === 'progress') return
+      worker.terminate()
+      if (e.data.error) reject(new Error(e.data.error))
+      else resolve(e.data.result)
+    }
+    worker.onerror = (err) => { worker.terminate(); reject(err) }
+    worker.postMessage(perGlyphTextAxes
+      ? { id: 0, type: 'fontPerGlyph', args: [text, axes, perGlyphTextAxes.chars, perGlyphTextAxes.axesList, true] }
+      : { id: 0, type: 'font', args: [text, axes, true] })
+  })
+
+  const fontImageBase = () =>
+    filenameBase('dactyl', text, glyphSeed === null ? '' : `random${glyphSeed}`)
+
+  const handleDownloadFontImage = async (format) => {
+    setFontMenuOpen(false)
+    setSavingFontImage(true)
+    setError(null)
+    try {
+      const svg = await requestFontSvg()
+      if (!svg) return
+      const base = fontImageBase()
+      if (format === 'svg') {
+        downloadBlob(svgBlob(svg), `${base}.svg`)
+      } else {
+        // Transparent background, matching the Grow tab's export.
+        downloadBlob(await svgToPngBlob(svg, { scale: 3, background: null }), `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Font ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingFontImage(false)
+    }
+  }
+
+  const handleCopyFontImage = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    setSavingFontImage(true)
+    setError(null)
+    try {
+      const svg = await requestFontSvg()
+      if (!svg) throw new Error('nothing to copy')
+      const png = await svgToPngBlob(svg, { scale: 3, background: null })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setFontCopied(true)
+      setTimeout(() => setFontCopied(false), 1500)
+    } catch (e) {
+      setError(`Font copy failed: ${e.message}`)
+    } finally {
+      setSavingFontImage(false)
+    }
   }
 
   const renderIdRef = useRef(0)
@@ -529,8 +619,13 @@ function App() {
         worker.terminate()
         return
       }
-      typeReq = 'font'
-      args = [text, axes, false]
+      if (perGlyphTextAxes) {
+        typeReq = 'fontPerGlyph'
+        args = [text, axes, perGlyphTextAxes.chars, perGlyphTextAxes.axesList, false]
+      } else {
+        typeReq = 'font'
+        args = [text, axes, false]
+      }
     } else if (activeTab === 'glyphs') {
       typeReq = 'glyphsFromDefs'
       args = [glyphsDefsText, { ...axes, filled: glyphsFilled }]
@@ -601,7 +696,7 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, generateMode, growParams, branchParams, fastPreview])
+  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, generateMode, growParams, branchParams, fastPreview, perGlyphTextAxes])
 
   // Close the Bubble download-format menu on outside click / Escape.
   useEffect(() => {
@@ -633,6 +728,21 @@ function App() {
     }
   }, [branchMenuOpen])
 
+  // Same for the Font tab's download-format menu.
+  useEffect(() => {
+    if (!fontMenuOpen) return
+    const onDown = (e) => {
+      if (fontMenuRef.current && !fontMenuRef.current.contains(e.target)) setFontMenuOpen(false)
+    }
+    const onKey = (e) => { if (e.key === 'Escape') setFontMenuOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [fontMenuOpen])
+
   // Dedicated effect for proofs tab: generates full font and builds a data URL.
   // Deps are [axes, activeTab] only — switching proof text doesn't re-trigger.
   // Old font stays visible until the new one arrives (proofFontUrl is not cleared).
@@ -660,13 +770,13 @@ function App() {
       setShowProgress(false)
     }
 
-    worker.postMessage({ id, type: 'fontPreview', args: [axes] })
+    worker.postMessage({ id, type: 'fontPreview', args: [axes, ...perGlyphFontArgs] })
 
     return () => {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [axes, activeTab])
+  }, [axes, activeTab, perGlyphFontAxes])
 
   // Dedicated effect for the Bubble mode GPU path: rebuild the growth field
   // when text/axes/growScale change (growScale sizes the field's padding, so
@@ -733,15 +843,42 @@ function App() {
   useEffect(() => {
     if (activeTab !== 'visualDiffs' || compareMode !== 'font') return
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    setLoading(true)
+    loadingRef.current = true
+    setShowProgress(false)
+    setProgressValue(0)
+
+    // Debounced so a fast regeneration doesn't flash the bar. Staleness here
+    // is only about *this* effect's own axes/mode changes, so a locally-scoped
+    // worker (cancelled via terminate() in cleanup) is the right guard —
+    // renderIdRef is shared with unrelated effects (e.g. the main render
+    // effect bumps it on every text change too) and would drop this effect's
+    // still-valid, still-in-flight response.
+    const timer = setTimeout(() => {
+      if (loadingRef.current) setShowProgress(true)
+    }, 400)
+
     worker.onmessage = (e) => {
-      const { result, error } = e.data
+      const { result, error, type, value } = e.data
+      if (type === 'progress') {
+        setProgressValue(value)
+        if (value > 0) setShowProgress(true)
+        return
+      }
+      clearTimeout(timer)
       worker.terminate()
       if (error) setCompareError(error)
-      else setDactylGlyphData(result)
+      else { setDactylGlyphData(result); setCompareError(null) }
+      setLoading(false)
+      loadingRef.current = false
+      setShowProgress(false)
     }
-    worker.postMessage({ id: ++renderIdRef.current, type: 'fontData', args: [axes] })
-    return () => worker.terminate()
-  }, [axes, activeTab, compareMode])
+    worker.postMessage({ id: ++renderIdRef.current, type: 'fontData', args: [axes, ...perGlyphFontArgs] })
+    return () => {
+      clearTimeout(timer)
+      worker.terminate()
+    }
+  }, [axes, activeTab, compareMode, perGlyphFontAxes])
 
   // Vector overlay SVG (outline sources). Rebuilt when the font, alignment,
   // text or Dactyl outlines change.
@@ -1043,6 +1180,7 @@ function App() {
 
   const handleReset = () => {
     setAxes({ ...defaultAxes })
+    setGlyphSeed(null)
   }
 
   // Reset the active Generate mode's own settings to their defaults, leaving
@@ -1071,30 +1209,16 @@ function App() {
     setGlyphsFilled(checked)
   }
 
-  // Only touch a fraction of axes per click, and bias sampled values toward
-  // the default (nudge, don't reroll) so extreme/rare effects don't stack up.
-  const RANDOMIZE_PROBABILITY = 0.35
-  const RANDOMIZE_SPREAD = 0.3
-
+  // Randomize around the *defaults* so repeated clicks don't compound.
   const handleRandom = () => {
-    const newAxes = { ...axes }
-    controlDefinitions.forEach(ctrl => {
-      if (ctrl.category === 'experimental' || ctrl.category === 'debug') return
-      // reset to default before re-randomizing, so clicks don't compound
-      newAxes[ctrl.name] = defaultAxes[ctrl.name]
-      if (Math.random() > RANDOMIZE_PROBABILITY) return
+    setAxes(randomizeAxes(axes, defaultAxes, controlDefinitions, Math.random))
+  }
 
-      if (ctrl.type_ === 'checkbox') {
-        newAxes[ctrl.name] = Math.random() > 0.5
-      } else {
-        const center = defaultAxes[ctrl.name] ?? (ctrl.min + ctrl.max) / 2
-        const range = ctrl.max - ctrl.min
-        // triangular distribution centered on 0: most draws land near `center`
-        const offset = (Math.random() - Math.random()) * range * RANDOMIZE_SPREAD
-        newAxes[ctrl.name] = Math.min(ctrl.max, Math.max(ctrl.min, center + offset))
-      }
-    })
-    setAxes(newAxes)
+  // "Randomise every glyph": roll a new seed. Everything downstream (font tab
+  // render, proofs, OTF export, font comparison) derives its per-glyph axes from
+  // it, so the variant font is stable until this is clicked again or Reset.
+  const handleRandomEveryGlyph = () => {
+    setGlyphSeed(newGlyphSeed())
   }
 
 
@@ -1215,16 +1339,36 @@ function App() {
             </div>
           )}
           {activeTab === 'font' && (
-            <button
-              className="icon-button"
-              onClick={handleDownloadFont}
-              disabled={downloadingFont}
-              title="Download Font (OTF)"
-            >
-              <span className="material-symbols-outlined">
-                {downloadingFont ? 'hourglass_empty' : 'download'}
-              </span>
-            </button>
+            <div className="toolbar">
+              <button
+                className={`icon-button ${glyphSeed !== null ? 'active' : ''}`}
+                onClick={handleRandomEveryGlyph}
+                title={glyphSeed === null
+                  ? 'Randomise every glyph — give each character its own settings'
+                  : 'Randomise every glyph again (new set)'}
+              >
+                <span className="material-symbols-outlined">shuffle</span>
+              </button>
+              {glyphSeed !== null && (
+                <button
+                  className="icon-button"
+                  onClick={() => setGlyphSeed(null)}
+                  title="Turn off per-glyph randomisation"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              )}
+              <button
+                className="icon-button"
+                onClick={handleDownloadFont}
+                disabled={downloadingFont}
+                title="Download Font (OTF)"
+              >
+                <span className="material-symbols-outlined">
+                  {downloadingFont ? 'hourglass_empty' : 'download'}
+                </span>
+              </button>
+            </div>
           )}
         </div>
 
@@ -1239,7 +1383,7 @@ function App() {
             <button
               className="text-reset-button"
               onClick={() => {
-                const defaults = { font: allChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', splineGrid: '', proofs: proofTexts[proofCase], generate: 'dactyl' }
+                const defaults = { font: alphabetChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', splineGrid: '', proofs: proofTexts[proofCase], generate: 'dactyl' }
                 setText(defaults[activeTab])
               }}
               title="Reset Text to Default"
@@ -1712,6 +1856,66 @@ function App() {
             </div>
           )}
           <div className="zoom-controls">
+            {/* Image export for the typed string, alongside the zoom buttons.
+                Font tab only for now — the other tabs render debug overlays,
+                grids or their own canvases that don't export meaningfully. */}
+            {activeTab === 'font' && (
+              <>
+                <button
+                  onClick={handleCopyFontImage}
+                  disabled={savingFontImage || !text}
+                  title="Copy PNG to clipboard"
+                >
+                  <span className="material-symbols-outlined">
+                    {fontCopied ? 'check' : 'content_copy'}
+                  </span>
+                </button>
+                {/* Download defaults to PNG; the caret opens a PNG/SVG menu. */}
+                <span ref={fontMenuRef} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+                  <button
+                    onClick={() => handleDownloadFontImage('png')}
+                    disabled={savingFontImage || !text}
+                    title="Download PNG (transparent, high-res)"
+                  >
+                    <span className="material-symbols-outlined">
+                      {savingFontImage ? 'hourglass_empty' : 'download'}
+                    </span>
+                  </button>
+                  {/* overflow:hidden keeps the caret glyph inside its button, so it
+                      can't sit on top of the download button and swallow its clicks */}
+                  <button
+                    onClick={() => setFontMenuOpen(o => !o)}
+                    disabled={savingFontImage || !text}
+                    title="Choose download format"
+                    aria-haspopup="menu"
+                    aria-expanded={fontMenuOpen}
+                    style={{ width: '20px', minWidth: '20px', padding: '6px 0', overflow: 'hidden' }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_drop_down</span>
+                  </button>
+                  {fontMenuOpen && (
+                    <div
+                      role="menu"
+                      style={{
+                        position: 'absolute', top: '100%', right: 0, marginTop: '8px', zIndex: 20,
+                        background: 'var(--panel-bg)', border: '1px solid var(--border-color)',
+                        borderRadius: 'var(--radius-md)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden', minWidth: '160px',
+                      }}
+                    >
+                      <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadFontImage('png')}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>image</span>
+                        PNG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>transparent</span>
+                      </button>
+                      <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadFontImage('svg')}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>polyline</span>
+                        SVG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>vector</span>
+                      </button>
+                    </div>
+                  )}
+                </span>
+                <span style={{ width: '1px', background: 'rgba(255,255,255,0.2)', margin: '2px 2px' }} />
+              </>
+            )}
             <button onClick={() => setZoom(z => Math.min(z + 0.1, 5.0))} title="Zoom In">
               <span className="material-symbols-outlined">add</span>
             </button>

@@ -10,7 +10,6 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="fontforge.fs" />
     <Compile Include="generateFonts.fs" />
   </ItemGroup>
 </Project>

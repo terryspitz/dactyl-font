@@ -539,6 +539,13 @@
     border-color: var(--border-light);
 }
 
+/* Toggled-on icon button (e.g. per-glyph randomisation is active) */
+.icon-button.active {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+    color: #fff;
+}
+
 .material-symbols-outlined {
     font-size: 20px;
 }
