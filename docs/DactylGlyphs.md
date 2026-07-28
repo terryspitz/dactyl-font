@@ -23,7 +23,7 @@ Before diving into the detailed syntax rules, here is what Dactyl Glyphs look li
 A point in a Dactyl Glyph definition string is mapped to specific horizontal (X) and vertical (Y) typographic guides.
 
 Each point typically takes the format:
-`[Y-Coordinates][Offset?][X-Coordinates][Tangent?]`
+`[Y-Coordinates][Offset?][X-Coordinates][Offset?][Tangent?][Joint?]`
 
 ### Y-Coordinates (Vertical)
 Vertical coordinates are defined first. You can use single letters or combine them to average their heights (e.g., `tb` is halfway between top and bottom).
@@ -98,6 +98,28 @@ spike when the outline is stroked.
 You can optionally append a direction to explicitly force the curve's heading as it passes through the point:
 - `N` (North), `S` (South), `E` (East), `W` (West)
 *Example:* `blS` places a point at the bottom-left and mandates that curves entering or exiting this point must travel vertically downward (South).
+
+### Explicit Joints (`j`)
+Many letters are drawn as several separate strokes that **meet in the middle**
+of another stroke rather than at a free end — the crossbar of `A`, the leg of
+`R` springing off the bowl, the arches of `m` springing off the stem. At such
+an **interior joint** you do *not* want the stroke end decorated like a free
+terminal: a serif, flare or end-bulb poking out of the middle of the letter
+looks wrong.
+
+Append a trailing **`j`** to the endpoint that lands on another stroke to
+declare it an interior joint. Its cap (serif / flare / bulb) is then suppressed
+and the join is cleanly aligned instead.
+- *Example:* in `R = "bl-tl-tlo~(th)r~hlo-hlj hcj-br"`, the bowl end `hlj` and
+  the leg top `hcj` are joints, while the leg foot `br` stays a real terminal
+  that still receives a serif.
+
+The generator also has a geometric heuristic (the debug **`joints`** axis) that
+auto-detects joints where an endpoint lands on a *straight* segment of another
+stroke. The explicit `j` marker is more reliable: it also covers endpoints that
+land on **curves** (which the heuristic cannot see) or that sit just past a
+neighbouring stroke's last knot, and it applies regardless of the `joints`
+axis. Prefer marking joints explicitly with `j`.
 
 ---
 

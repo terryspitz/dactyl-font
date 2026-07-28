@@ -38,18 +38,18 @@ The [Dactyl Live Explorer](https://terryspitz.github.io/dactyl-font) runs entire
 | **Splines** | Interactive spline curve editor |
 | **Spline Grid** | Grid of curve variations |
 | **Proofs** | Real prose rendered with the current font for proofing |
-| **Grow** | Grows strokes out of the backbones to fill whitespace (constant-gap inflation), with layered Y2K keylines; save as PNG/SVG |
+| **Grow** | Grows strokes out of the backbones to fill whitespace (constant-gap inflation), fuses neighbouring letters into a logotype, warps edges into an organic wobble, with layered Y2K keylines; save as PNG/SVG |
 
 ## Documentation
 
-- [Explorer Guide](docs/ExplorerGuide.md) — UI tabs, sidebar controls, URL parameters, and web directory layout
+- [Explorer Guide](docs/ExplorerGuide.md) — UI tabs, sidebar controls, and URL parameters
 - [DactylGlyph Documentation](docs/DactylGlyphs.md) — How glyph string definitions work
 - [DactylSpline Documentation](docs/DactylSpline.md) — The DactylSpline curve implementation
 - [DactylSpline Optimization Suggestions](docs/suggestions.md) — Ideas for improving the spline solver
 - [Font Rendering Pipeline](docs/FontPipeline.md) — Spine → outline → SVG pipeline, caps, serifs, and font export
 - [Growing Fonts](docs/growth-brainstorm.md) — Design notes for the **Grow** tab and future generative-growth directions
 - [TODO](docs/TODO.md) — Planned features and known issues
-- [Developing](DEVELOPING.md) — Building, running, testing, and contributing
+- [Developing](DEVELOPING.md) — Building, running, testing, contributing, and the web directory layout
 
 ## Spline Curves
 
@@ -77,11 +77,11 @@ Dactyl is also inspired by Variable Fonts technology. Unfortunately it isn't eas
 
 ## Font Creation / Import Formats
 
-[FontForge](https://fontforge.org/en-US) is an open-source font editor which supports Spiro.
+None of the font interop formats I found support spiros directly, so Dactyl
+converts its splines to beziers and assembles an OTF directly in the web app
+(`web/src/fontExport.js`), which can be downloaded from the explorer and
+installed or loaded into any font editor.
 
-Since none of the font interop formats I found support spiros directly, the Dactyl generator writes files in FontForge native format (a .fsdir directory of .glyph files), which can be loaded into FontForge and used to generate TTF fonts. FontForge is also useful to view and interact with the letter glyphs in detail: it has great validation, viewing and editing features.
-
-- [Design With FontForge: Importing Glyphs](http://designwithfontforge.com/en-US/Importing_Glyphs_from_Other_Programs.html)
 - [Unified Font Object (UFO3) Spec](http://unifiedfontobject.org/versions/ufo3/glyphs/glif)
 - [OpenType.js Glyph Inspector](https://opentype.js.org/glyph-inspector.html)
 
@@ -102,6 +102,13 @@ On letter spacing, tracking and kerning:
 - [Typography.com: Typographic Illusions](https://www.typography.com/blog/typographic-illusions)
 - [Typography.com: Turning Type Sideways](https://www.typography.com/blog/turning-type-sideways)
 - [Google Fonts](https://design.google/library/google-fonts)
+
+## License
+
+The fonts and the generator that produces them are licensed under the
+[SIL Open Font License 1.1](OFL.txt). The proof texts under `proofs/` remain
+under CC BY-NC-SA 4.0. See [FONTLICENSE.md](FONTLICENSE.md) for why the two
+differ and what it means for reuse.
 
 ## Where It All Started
 

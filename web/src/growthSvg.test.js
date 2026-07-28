@@ -33,6 +33,18 @@ describe('generateGrowthSvg', () => {
         expect(generateGrowthSvg('   ', axes, {})).toBe('')
     })
 
+    it('fuse merges adjacent letters (fewer ink islands) but keeps counters', () => {
+        // Count separate contours via the single ink layer's M commands.
+        const islands = (svg) => (svg.match(/M/g) || []).length
+        const p = { grow: 0.8, gap: 25, layers: false }
+        const apart = islands(generateGrowthSvg('oo', axes, { ...p, fuse: 0 }))
+        const fused = islands(generateGrowthSvg('oo', axes, { ...p, fuse: 1 }))
+        // Two o's: fuse=0 keeps both bowls separate; fuse=1 merges the outers
+        // while both counters survive, so the island count drops but stays >= 2.
+        expect(fused).toBeLessThan(apart)
+        expect(fused).toBeGreaterThanOrEqual(2)
+    }, 30000)
+
     it('grows wider as grow increases', () => {
         // The grown stem is fatter at high grow, so its ink spans a wider
         // x-range (field padding is fixed, so compare the path data, not the viewBox).
@@ -47,18 +59,19 @@ describe('generateGrowthSvg', () => {
 })
 
 describe('generateGrowthField', () => {
-    it('builds a two-channel field with sane dimensions', () => {
+    it('builds a three-channel field with sane dimensions', () => {
         const f = generateGrowthField('o', axes)
         expect(f).not.toBeNull()
         expect(f.nx).toBeGreaterThan(0)
         expect(f.ny).toBeGreaterThan(0)
-        expect(f.rg.length).toBe(f.nx * f.ny * 2)
+        expect(f.channels).toBe(3)
+        expect(f.rg.length).toBe(f.nx * f.ny * 3)
         expect(f.thickness).toBe(axes.thickness)
         // d1 is 0 on the spine and positive away from it, within the cap.
         let minD1 = Infinity, maxD1 = -Infinity
         for (let k = 0; k < f.nx * f.ny; k++) {
-            minD1 = Math.min(minD1, f.rg[k * 2])
-            maxD1 = Math.max(maxD1, f.rg[k * 2])
+            minD1 = Math.min(minD1, f.rg[k * 3])
+            maxD1 = Math.max(maxD1, f.rg[k * 3])
         }
         expect(minD1).toBeLessThan(f.cell) // some cell sits on/near a spine
         expect(maxD1).toBeLessThanOrEqual(DOPP_CAP)

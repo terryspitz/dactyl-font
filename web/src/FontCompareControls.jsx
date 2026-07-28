@@ -84,6 +84,7 @@ export default function FontCompareControls({
         <option value="axis">Axis diff</option>
         <option value="font">Compare font</option>
       </select>
+      <div className="controls-break" />
 
       {mode === 'axis' && axisControls}
 
@@ -96,6 +97,7 @@ export default function FontCompareControls({
             <option value="cssFamily">CSS Font Family</option>
             <option value="upload">Upload</option>
           </select>
+          <div className="controls-break" />
 
           {source === 'upload' && (
             <input type="file" accept=".ttf,.otf,.woff" onChange={handleFile} title="Upload .ttf/.otf/.woff" />
@@ -143,7 +145,7 @@ export default function FontCompareControls({
             )
           )}
 
-          <div className="compare-controls-break" />
+          <div className="controls-break" />
           <label htmlFor="compare-size">Size:</label>
           <input
             id="compare-size"
