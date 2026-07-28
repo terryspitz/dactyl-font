@@ -645,38 +645,22 @@ let generateFontGlyphData (axes: Axes) =
                    pathData = "" |})
         |> Array.ofSeq
 
-    // Manual overrides — authoritative over optical when present and when
-    // axes.manualKerning is on. With manualKerning off, optical kerns flow
-    // through unchanged for every pair.
-    let manualPairs =
-        if axes.manualKerning then
-            Spacing.kerningOverrides
-            |> Map.toArray
-            |> Array.map (fun ((l, r), v) ->
-                {| left = int l; right = int r; value = v |})
-        else [||]
-
-    // Optical kerns for every pair not covered by manualPairs.
-    // Emits ALL non-zero values so the OTF kern table matches what the
-    // SVG render path applies — the SVG path doesn't filter, and any
-    // mismatch shows up as text laid out differently between the two.
-    let opticalPairs =
+    // Optical kerns for every glyph pair. Emits ALL non-zero values so the
+    // OTF kern table matches what the SVG render path applies — the SVG path
+    // doesn't filter, and any mismatch shows up as text laid out differently
+    // between the two.
+    let kerningPairs =
         if axes.opticalKerning then
             let acc = ResizeArray()
-            let isManual cL cR =
-                axes.manualKerning && Spacing.kerningOverrides.ContainsKey(cL, cR)
             for KeyValue(cL, pL) in profileMap do
                 let advanceL = font.charWidth cL
                 for KeyValue(cR, pR) in profileMap do
-                    if not (isManual cL cR) then
-                        let k = GlyphProfile.pairKern (float axes.kerningTarget) advanceL pL pR
-                        if k <> 0 then
-                            acc.Add({| left = int cL; right = int cR; value = k |})
+                    let k = GlyphProfile.pairKern (float axes.kerningTarget) advanceL pL pR
+                    if k <> 0 then
+                        acc.Add({| left = int cL; right = int cR; value = k |})
             acc.ToArray()
         else
             [||]
-
-    let kerningPairs = Array.append manualPairs opticalPairs
 
     {| glyphs = glyphs
        ascender = metrics.T + thickness

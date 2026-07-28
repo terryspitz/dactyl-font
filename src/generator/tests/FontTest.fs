@@ -7,7 +7,6 @@ open DactylSpline
 open Axes
 open GeneratorTypes
 open Font
-open Spacing
 
 let dcp = DactylSpline.dcp
 
@@ -454,14 +453,13 @@ type FontTests() =
             Assert.That(svgZero, Is.EqualTo(svgDefault), sprintf "soft_corners=0 should match default for '%c'" ch)
 
     [<Test>]
-    member this.Kerning_ManualOverrideTable_IsEmpty() =
-        // Kerning is currently driven entirely by optical sampling; the manual
-        // exception list is deliberately empty. If pairs are added back later,
-        // this test should become "Font.pairKern surfaces the override verbatim".
-        Assert.That(Spacing.kerningOverrides, Is.Empty)
+    member this.Kerning_OpticalOff_AllPairsKernToZero() =
+        // Kerning is driven entirely by optical sampling, so turning the axis
+        // off must leave every pair completely unkerned.
         let font = Font.Font({ Axes.DefaultAxes with opticalKerning = false })
-        Assert.That(font.pairKern 'A' 'V', Is.EqualTo(0.0),
-                    "with no overrides and optical off, every pair kerns to 0")
+        for (a, b) in [ ('A', 'V'); ('T', 'o'); ('f', 'j'); ('K', 'O') ] do
+            Assert.That(font.pairKern a b, Is.EqualTo(0.0),
+                        sprintf "kern(%c,%c) should be 0 with optical off" a b)
 
     [<Test>]
     member this.Kerning_UnknownPair_ReturnsZero() =
@@ -530,9 +528,9 @@ type FontTests() =
                 sprintf "kern(%c,%c) should not depend on italic axis" a b)
 
     [<Test>]
-    [<Explicit("Diagnostic — print manual vs optical kern for tuned pairs")>]
-    member this.Diagnostic_ManualVsOpticalKern() =
-        // Run with: dotnet test --filter "Diagnostic_ManualVsOpticalKern" \
+    [<Explicit("Diagnostic — print optical kern values for notable pairs")>]
+    member this.Diagnostic_OpticalKernValues() =
+        // Run with: dotnet test --filter "Diagnostic_OpticalKernValues" \
         //                       --logger "console;verbosity=detailed"
         let axes = { Axes.DefaultAxes with opticalKerning = true; outline = true; filled = true }
         let font = Font.Font(axes)
@@ -557,7 +555,7 @@ type FontTests() =
             if profiles.ContainsKey(a) && profiles.ContainsKey(b) then
                 GlyphProfile.pairKern (float axes.kerningTarget) (font.charWidth a) profiles.[a] profiles.[b]
             else 0
-        // Just-tuned pairs and adjacent comparisons
+        // Notable pairs: diagonals, overhangs, round-to-round and slab sequences.
         let pairs = [
             'V', 'o'; 'V', 'a'; 'V', 'e'; 'V', 'u'
             'Y', 'o'; 'Y', 'a'; 'Y', 'e'; 'Y', 'u'
@@ -565,25 +563,18 @@ type FontTests() =
             'T', 'o'; 'T', 'a'; 'T', 'e'; 'T', 'u'
             'A', 'V'; 'A', 'W'; 'A', 'Y'; 'A', 'T'
             'L', 'T'; 'L', 'V'; 'L', 'W'; 'L', 'Y'
+            'K', 'O'; 'K', 'o'; 'K', 'e'; 'K', 'u'
             'M', 'o'; 'M', 'i'; 'M', 'a'; 'M', 'e'
             'f', 'a'; 'f', 'e'; 'f', 'o'; 'f', 'u'; 'f', 'i'; 'f', 'l'; 'f', 'j'
             'r', 'n'; 'r', 'm'; 'r', 'u'; 'r', 'a'
+            'l', 'o'; 'o', 'l'; 'n', 'n'; 'o', 'o'
         ]
         printfn ""
-        printfn "================ MANUAL vs OPTICAL KERN ================"
-        printfn "  pair  manual  optical  delta  status"
+        printfn "============ OPTICAL KERN (target=%d) ============" axes.kerningTarget
+        printfn "  pair  kern"
         for (a, b) in pairs do
-            let m = Spacing.pairKernInt a b
-            let o = opticalRaw a b
-            let mLabel = if m = 0 then "-" else string m
-            let delta = if m = 0 then "-" else string (m - o)
-            let status =
-                if m = 0 then "(optical only)"
-                else if abs (m - o) < 5 then "agree"
-                else if m < o then "manual TIGHTER by " + string (o - m)
-                else "manual LOOSER by " + string (m - o)
-            printfn "  %c%c    %6s  %6d   %5s  %s" a b mLabel o delta status
-        printfn "========================================================="
+            printfn "  %c%c    %5d" a b (opticalRaw a b)
+        printfn "================================================="
         Assert.Pass()
 
     [<Test>]
@@ -616,14 +607,11 @@ type FontTests() =
                     let cmds = GlyphProfile.parseSvgCommands path
                     profiles.[c] <- GlyphProfile.sampleProfile bandY0 bandY1 bandCount cmds
             with _ -> ()
-        // Compute "OTF kern" exactly as Api would: manual override XOR optical.
+        // Compute "OTF kern" exactly as Api would: outline-sampled optical kern.
         let otfKern (a: char) (b: char) : int =
-            match Map.tryFind (a, b) Spacing.kerningOverrides with
-            | Some v -> v
-            | None ->
-                if profiles.ContainsKey(a) && profiles.ContainsKey(b) then
-                    GlyphProfile.pairKern (float axes.kerningTarget) (font.charWidth a) profiles.[a] profiles.[b]
-                else 0
+            if profiles.ContainsKey(a) && profiles.ContainsKey(b) then
+                GlyphProfile.pairKern (float axes.kerningTarget) (font.charWidth a) profiles.[a] profiles.[b]
+            else 0
         // Compare across all ordered pairs of test chars.
         let mismatches = ResizeArray()
         for a in testChars do
@@ -661,10 +649,7 @@ type FontTests() =
         //                       --logger "console;verbosity=detailed"
         let allChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!\"#$%&'()*+,-./:;<=>?@"
         let runOnce (opticalOn: bool) =
-            // manualKerning off in both cases so this isolates optical's own cost —
-            // the Spacing.kerningOverrides lookup below is skipped entirely rather
-            // than gating on it, matching how Api.fs treats manualKerning=false.
-            let axes = { Axes.DefaultAxes with opticalKerning = opticalOn; manualKerning = false; outline = true; filled = true }
+            let axes = { Axes.DefaultAxes with opticalKerning = opticalOn; outline = true; filled = true }
             let font = Font.Font(axes)
             let metrics = FontMetrics(axes)
             let thickness = float axes.thickness
@@ -691,9 +676,8 @@ type FontTests() =
                 for KeyValue(cL, pL) in profiles do
                     let advanceL = font.charWidth cL
                     for KeyValue(cR, pR) in profiles do
-                        if not (Spacing.kerningOverrides.ContainsKey(cL, cR)) then
-                            let k = GlyphProfile.pairKern (float axes.kerningTarget) advanceL pL pR
-                            if abs k >= 3 then opticalCount <- opticalCount + 1
+                        let k = GlyphProfile.pairKern (float axes.kerningTarget) advanceL pL pR
+                        if abs k >= 3 then opticalCount <- opticalCount + 1
             let kernMs = sw.ElapsedMilliseconds
             glyphsMs, kernMs, glyphCount, opticalCount
         // warm-up

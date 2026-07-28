@@ -2098,14 +2098,10 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             let pb = this.glyphProfile b
             GlyphProfile.pairKern (float axes.kerningTarget) (this.charWidth a) pa pb
 
-    /// Kerning for the ordered pair (a, b). Manual override (Spacing) is
-    /// authoritative when present; otherwise fall back to outline-sampled
-    /// optical kerning. Each layer is gated by its own axis so they can be
-    /// turned off independently for diff inspection.
+    /// Kerning for the ordered pair (a, b), from outline-sampled optical
+    /// kerning. Returns 0 when axes.opticalKerning is off.
     member this.pairKern (a: char) (b: char) : float =
-        let manual = if axes.manualKerning then Spacing.pairKernInt a b else 0
-        if manual <> 0 then float manual
-        else float (this.opticalPairKern a b)
+        float (this.opticalPairKern a b)
 
     /// Pair-kern adjustments for an N-character string, one per adjacent pair.
     /// Length is `max 0 (str.Length - 1)`.

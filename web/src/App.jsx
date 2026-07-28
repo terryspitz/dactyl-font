@@ -620,7 +620,7 @@ function App() {
   useEffect(() => {
     if (activeTab !== 'proofs' || !compareSpacing) return
 
-    const baselineAxes = { ...axes, manualKerning: false, opticalKerning: false, sidebearingScale: 1.0 }
+    const baselineAxes = { ...axes, opticalKerning: false, sidebearingScale: 1.0 }
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
     worker.onmessage = (e) => {
       const { result, error } = e.data

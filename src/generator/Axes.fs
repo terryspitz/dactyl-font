@@ -51,7 +51,6 @@ type Axes =
       flatness: float //weight of flatness (abs m) in objective function
       end_flatness: float //quadratic curvature-span weight for open-curve endpoint segments (higher = more circular arc at stroke tips)
       sidebearingScale: float //multiplier on the per-glyph thickness sidebearing padding
-      manualKerning: bool //apply hand-tuned pair overrides from Spacing.fs
       opticalKerning: bool //sample glyph outlines and add optical kern pairs
       kerningTarget: int //target minimum gap (glyph coord units) for optical kerning
       debug: bool } //show debug info in console
@@ -98,7 +97,6 @@ type Axes =
           flatness = 0.5
           end_flatness = 10.0
           sidebearingScale = 1.2
-          manualKerning = true
           opticalKerning = true
           kerningTarget = 50
           debug = false }
@@ -145,7 +143,6 @@ type Axes =
           "flatness", FracRange(0.0, 10.0), "experimental", "Weight of flatness (abs m) in objective function"
           "end_flatness", FracRange(0.0, 30.0), "experimental", "Quadratic curvature-span weight for open-curve endpoint segments (higher = more circular arc at stroke tips)"
           "sidebearingScale", FracRange(0.0, 2.0), "experimental", "Multiplier on the per-glyph thickness sidebearing padding"
-          "manualKerning", Checkbox, "experimental", "Apply hand-tuned pair overrides from Spacing.fs"
           "opticalKerning", Checkbox, "experimental", "Sample glyph outlines and add optical kern pairs"
           "kerningTarget", Range(0, 100), "experimental", "Target minimum gap (glyph coord units) for optical kerning"
           "debug", Checkbox, "debug", "Show debug info in console" ]
