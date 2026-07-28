@@ -24,13 +24,28 @@ export function svgBlob(svg) {
 ///   scale       – device-pixel multiplier over the SVG's natural pixel size
 ///   background  – CSS colour to fill first, or null for transparent
 ///   maxDim      – clamp the longest side (keeps huge words from OOMing)
+/// The SVG's natural pixel size, from its width/height attributes, or failing
+/// that its viewBox.  The F# generator's toSvgDocument emits a viewBox only, so
+/// without the fallback a wide line of text would rasterise into a 1000x1000
+/// box and come out letterboxed with a slab of empty space.
+export function svgPixelSize(svg, fallback = 1000) {
+    const root = svg.match(/<svg[^>]*>/)?.[0] ?? ''
+    const attr = (name) => {
+        const m = root.match(new RegExp(`\\b${name}=["']([\\d.]+)`))
+        return m ? parseFloat(m[1]) : null
+    }
+    const viewBox = root.match(/\bviewBox=["']\s*([-\d.]+)[\s,]+([-\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/)
+    const vbW = viewBox ? parseFloat(viewBox[3]) : null
+    const vbH = viewBox ? parseFloat(viewBox[4]) : null
+    return {
+        w: attr('width') ?? vbW ?? fallback,
+        h: attr('height') ?? vbH ?? fallback,
+    }
+}
+
 export function svgToPngBlob(svg, { scale = 3, background = null, maxDim = 4096 } = {}) {
     return new Promise((resolve, reject) => {
-        const root = svg.match(/<svg[^>]*>/)?.[0] ?? ''
-        const wMatch = root.match(/\bwidth="([\d.]+)"/)
-        const hMatch = root.match(/\bheight="([\d.]+)"/)
-        const w = wMatch ? parseFloat(wMatch[1]) : 1000
-        const h = hMatch ? parseFloat(hMatch[1]) : 1000
+        const { w, h } = svgPixelSize(svg)
         let s = scale
         if (w * s > maxDim || h * s > maxDim) s = Math.min(maxDim / w, maxDim / h)
         const cw = Math.max(1, Math.round(w * s))
@@ -61,12 +76,18 @@ export function svgToPngBlob(svg, { scale = 3, background = null, maxDim = 4096 
     })
 }
 
-/// A filesystem-safe basename derived from the grown text.
-export function growFilenameBase(text) {
+/// A filesystem-safe basename: `prefix` plus a cleaned-up slice of `text`.
+/// `suffix` is appended verbatim (already safe), e.g. a random seed.
+export function filenameBase(prefix, text, suffix = '') {
     const cleaned = (text || '')
         .replace(/\s+/g, '-')
         .replace(/[^\w-]/g, '')
         .slice(0, 24)
         .replace(/^-+|-+$/g, '')
-    return `dactyl-grow${cleaned ? '-' + cleaned : ''}`
+    return `${prefix}${cleaned ? '-' + cleaned : ''}${suffix ? '-' + suffix : ''}`
+}
+
+/// A filesystem-safe basename derived from the grown text.
+export function growFilenameBase(text) {
+    return filenameBase('dactyl-grow', text)
 }

@@ -1,5 +1,35 @@
 import { describe, it, expect } from 'vitest'
-import { parseSvgPath, unionPath, buildFont } from './fontExport'
+import { parseSvgPath, unionPath, buildFont, buildStyleName, buildFilename } from './fontExport'
+
+describe('export naming', () => {
+  const overrides = [['thickness', 42], ['italic', 0.3]]
+
+  it('names an unmodified font Regular', () => {
+    expect(buildStyleName([])).toBe('Regular')
+    expect(buildFilename([])).toBe('Dactyl-Regular.otf')
+  })
+
+  it('lists axis overrides', () => {
+    expect(buildStyleName(overrides)).toBe('thickness42 italic0.3')
+    expect(buildFilename(overrides)).toBe('Dactyl-thickness42-italic0.3.otf')
+  })
+
+  it('tags a per-glyph random export with its seed', () => {
+    expect(buildStyleName([], 1837462901)).toBe('Random1837462901')
+    expect(buildFilename([], 1837462901)).toBe('Dactyl-Random1837462901.otf')
+  })
+
+  it('keeps the seed alongside axis overrides', () => {
+    expect(buildStyleName(overrides, 7)).toBe('thickness42 italic0.3 Random7')
+    expect(buildFilename(overrides, 7)).toBe('Dactyl-thickness42-italic0.3-Random7.otf')
+  })
+
+  it('treats seed 0 as a real seed, not "off"', () => {
+    expect(buildFilename([], 0)).toBe('Dactyl-Random0.otf')
+    expect(buildFilename([], null)).toBe('Dactyl-Regular.otf')
+    expect(buildFilename([])).toBe('Dactyl-Regular.otf')
+  })
+})
 
 describe('parseSvgPath', () => {
   it('parses M command', () => {
