@@ -454,13 +454,14 @@ type FontTests() =
             Assert.That(svgZero, Is.EqualTo(svgDefault), sprintf "soft_corners=0 should match default for '%c'" ch)
 
     [<Test>]
-    member this.Kerning_PairOverride_MatchesSpacingTable() =
-        // The Spacing module declares explicit kerning for AV, and Font.pairKern
-        // must surface that value verbatim (float-cast of the int override).
-        let font = Font.Font(Axes.DefaultAxes)
-        let expected = float (Spacing.pairKernInt 'A' 'V')
-        Assert.That(expected, Is.LessThan(0.0), "AV should have a negative override")
-        Assert.That(font.pairKern 'A' 'V', Is.EqualTo(expected))
+    member this.Kerning_ManualOverrideTable_IsEmpty() =
+        // Kerning is currently driven entirely by optical sampling; the manual
+        // exception list is deliberately empty. If pairs are added back later,
+        // this test should become "Font.pairKern surfaces the override verbatim".
+        Assert.That(Spacing.kerningOverrides, Is.Empty)
+        let font = Font.Font({ Axes.DefaultAxes with opticalKerning = false })
+        Assert.That(font.pairKern 'A' 'V', Is.EqualTo(0.0),
+                    "with no overrides and optical off, every pair kerns to 0")
 
     [<Test>]
     member this.Kerning_UnknownPair_ReturnsZero() =
@@ -477,7 +478,8 @@ type FontTests() =
         let widthSum = s |> Seq.sumBy font.charWidth
         let kernSum = List.sum (font.pairKerns s)
         Assert.That(font.stringWidth s, Is.EqualTo(widthSum + kernSum).Within(1e-9))
-        Assert.That(kernSum, Is.LessThan(0.0), "AVATAR contains AV and AT kern pairs (negative)")
+        // AVATAR's AV/AT diagonal pairs tuck in, so optical kerning nets negative.
+        Assert.That(kernSum, Is.LessThan(0.0), "AVATAR's diagonal pairs should kern negative")
 
     [<Test>]
     member this.Kerning_NoKernPairs_StringWidthUnchanged() =
@@ -516,9 +518,9 @@ type FontTests() =
 
     [<Test>]
     member this.Kerning_ItalicInvariant_OverridesSurviveShear()  =
-        // Manual overrides are independent of italic shear (shear is X-of-Y, so
-        // horizontal distances at the baseline are untouched for the advance
-        // frame). pairKern must return identical values regardless of italic.
+        // Kerns are independent of italic shear: profiles are sampled in the
+        // pre-italic design frame, and any manual override is a static value.
+        // pairKern must return identical values regardless of italic.
         let upright = Font.Font({ Axes.DefaultAxes with italic = 0.0 })
         let slanted = Font.Font({ Axes.DefaultAxes with italic = 0.3 })
         for (a, b) in [ ('A', 'V'); ('T', 'o'); ('L', 'T'); ('f', 'i') ] do
@@ -659,7 +661,10 @@ type FontTests() =
         //                       --logger "console;verbosity=detailed"
         let allChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!\"#$%&'()*+,-./:;<=>?@"
         let runOnce (opticalOn: bool) =
-            let axes = { Axes.DefaultAxes with opticalKerning = opticalOn; outline = true; filled = true }
+            // manualKerning off in both cases so this isolates optical's own cost —
+            // the Spacing.kerningOverrides lookup below is skipped entirely rather
+            // than gating on it, matching how Api.fs treats manualKerning=false.
+            let axes = { Axes.DefaultAxes with opticalKerning = opticalOn; manualKerning = false; outline = true; filled = true }
             let font = Font.Font(axes)
             let metrics = FontMetrics(axes)
             let thickness = float axes.thickness

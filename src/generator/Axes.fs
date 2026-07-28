@@ -100,7 +100,7 @@ type Axes =
           sidebearingScale = 1.2
           manualKerning = true
           opticalKerning = true
-          kerningTarget = 30
+          kerningTarget = 50
           debug = false }
 
     static member controls =
