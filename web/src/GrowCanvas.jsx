@@ -1,5 +1,7 @@
-// GPU preview for the Grow tab.  The worker computes the three-channel growth
-// field (d1 = distance to nearest spine, dOpp = distance to nearest opposing
+// GPU preview for the Generate tab's Bubble mode (constant-gap SDF inflation
+// — the UI calls this "Bubble", the code keeps the "grow" name since that's
+// the algorithm's name).  The worker computes the three-channel growth field
+// (d1 = distance to nearest spine, dOpp = distance to nearest opposing
 // spine, cross = cross-glyph opposition flag) once per text/axes change; this
 // component uploads it as an RGB32F texture and derives the ink + keyline
 // bands in a fragment shader:
@@ -178,7 +180,7 @@ export default function GrowCanvas({ field, params, zoom }) {
 
         const thickness = field.thickness
         const isoLevels = params.layers ? layerIsoLevels(thickness) : [0]
-        const colors = (params.layers ? LAYER_COLORS : ['#000000']).map(hexToRgb)
+        const colors = (params.layers ? (params.layerColors ?? LAYER_COLORS) : [params.color ?? '#000000']).map(hexToRgb)
         const rMin = thickness / 2
 
         // Field texel grid → display pixels: same 0.5 scale as the SVG path,

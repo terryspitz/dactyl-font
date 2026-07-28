@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { svgBlob, growFilenameBase, filenameBase, svgPixelSize } from './growthExport'
 
+// svgToPngBlob needs a DOM Image/canvas, so it is exercised by the Playwright
+// checks; the pure helpers are covered here.
+
 describe('svgPixelSize', () => {
     it('prefers explicit width/height attributes', () => {
         expect(svgPixelSize('<svg width="800" height="200" viewBox="0 0 10 10">')).toEqual({ w: 800, h: 200 })
@@ -36,31 +39,21 @@ describe('filenameBase', () => {
     it('strips unsafe characters from the text but not the suffix', () => {
         expect(filenameBase('dactyl', 'a/b\\c?*', 'random7')).toBe('dactyl-abc-random7')
     })
-})
 
-// svgToPngBlob needs a DOM Image/canvas, so it is exercised by the Playwright
-// checks; the pure helpers are covered here.
-
-describe('growFilenameBase', () => {
-    it('derives a safe basename from the text', () => {
-        expect(growFilenameBase('dactyl')).toBe('dactyl-grow-dactyl')
-        expect(growFilenameBase('hi there')).toBe('dactyl-grow-hi-there')
-    })
-
-    it('strips unsafe characters and trims separators', () => {
-        expect(growFilenameBase('a/b\\c?*')).toBe('dactyl-grow-abc')
-        expect(growFilenameBase('  spaced  ')).toBe('dactyl-grow-spaced')
-        expect(growFilenameBase('!!!')).toBe('dactyl-grow')
-    })
-
-    it('falls back to a bare name for empty text', () => {
-        expect(growFilenameBase('')).toBe('dactyl-grow')
-        expect(growFilenameBase(null)).toBe('dactyl-grow')
+    it('derives a safe basename for the Generate tab modes', () => {
+        expect(filenameBase('dactyl-bubble', 'dactyl')).toBe('dactyl-bubble-dactyl')
+        expect(filenameBase('dactyl-grow', 'hi there')).toBe('dactyl-grow-hi-there')
     })
 
     it('caps very long text', () => {
-        const base = growFilenameBase('x'.repeat(100))
-        expect(base.length).toBeLessThanOrEqual('dactyl-grow-'.length + 24)
+        const base = filenameBase('dactyl-bubble', 'x'.repeat(100))
+        expect(base.length).toBeLessThanOrEqual('dactyl-bubble-'.length + 24)
+    })
+})
+
+describe('growFilenameBase', () => {
+    it('is a dactyl-grow-prefixed shorthand', () => {
+        expect(growFilenameBase('dactyl')).toBe('dactyl-grow-dactyl')
     })
 })
 

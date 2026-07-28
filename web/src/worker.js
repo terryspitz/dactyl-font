@@ -1,6 +1,7 @@
 import { generateSvg, generateSvgPerGlyph, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, controlDefinitions, solveSplineEditor, solveSplineGrid, solveAltSplines, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphDataPerGlyph, getSplineOutlinePath } from './lib/fable/Api'
 import { buildFontDataUrl } from './fontExport'
 import { generateGrowthSvg, generateGrowthField } from './growthSvg'
+import { generateBranchSvg } from './branchSvg'
 import { DControlPoint } from './lib/fable/generator/DactylSpline'
 
 self.onmessage = (e) => {
@@ -93,11 +94,18 @@ self.onmessage = (e) => {
                 break
             }
             case 'growthField': {
-                const [gText, gAxes] = args
-                result = generateGrowthField(gText, gAxes, {}, (p) => {
+                const [gText, gAxes, gParams] = args
+                result = generateGrowthField(gText, gAxes, gParams ?? {}, (p) => {
                     self.postMessage({ id, type: 'progress', value: p });
                 })
                 if (result) transfer = [result.rg.buffer]
+                break
+            }
+            case 'branch': {
+                const [brText, brAxes, brParams] = args
+                result = generateBranchSvg(brText, brAxes, brParams, (p) => {
+                    self.postMessage({ id, type: 'progress', value: p });
+                })
                 break
             }
             // chars/axesList are the optional per-glyph random overrides; empty = uniform font

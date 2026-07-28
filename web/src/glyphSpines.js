@@ -3,10 +3,11 @@
 // Uses the same Fable API surface as the Splines tab: parseGlyphToControlPoints
 // gives each glyph's backbone control points, solveSplineEditor solves them into
 // cubic bezier spines (including free "fit" coordinates), and we then flatten
-// the cubics into polylines.  generateFontGlyphData supplies advance widths so
-// glyphs can be laid out along a baseline.
+// the cubics into polylines.  generateAdvanceData supplies advance widths (for
+// just the characters actually used, not the whole charset — see its doc
+// comment in Api.fs) so glyphs can be laid out along a baseline.
 
-import { parseGlyphToControlPoints, solveSplineEditor, generateFontGlyphData } from './lib/fable/Api.js'
+import { parseGlyphToControlPoints, solveSplineEditor, generateAdvanceData } from './lib/fable/Api.js'
 import { DControlPoint } from './lib/fable/generator/DactylSpline.js'
 
 /// Evaluate the cubic bezier segment between two solved BezierPoints at parameter t.
@@ -70,7 +71,7 @@ export function glyphToSpines(char, axes, spacing = 8) {
 /// onProgress(frac 0..1) is called after each glyph is solved (solving each
 /// glyph's splines via the Fable API is the dominant cost of growth).
 export function textToStrokes(text, axes, spacing = 8, onProgress) {
-    const fontData = generateFontGlyphData(axes, undefined)
+    const fontData = generateAdvanceData(text, axes)
     const advance = new Map()
     for (const g of fontData.glyphs) advance.set(g.unicode, g.advanceWidth)
 
