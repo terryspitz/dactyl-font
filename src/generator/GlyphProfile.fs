@@ -136,25 +136,45 @@ let sampleProfile (bandY0: float) (bandY1: float) (bandCount: int) (cmds: Cmd li
 
 /// Optical kern between two glyphs.
 /// Caller passes the advance of the left glyph; we shift the right glyph by
-/// `kern` so the minimum band-wise gap equals `target`.
+/// `kern` so the closest band-wise gap equals an *effective* target that
+/// scales with how much of the profile is actually in close contact.
 ///
 /// Geometry: with B's origin at x = advanceA + kern and bands b in [0, n):
 ///   gap(b) = (advanceA + kern + B.LeftEdges[b]) - A.RightEdges[b]
-/// Solving min_b gap(b) = target gives:
-///   kern = target - advanceA - min_b (B.LeftEdges[b] - A.RightEdges[b])
+///
+/// A hard min over gap(b) conflates two visually different situations: a
+/// long parallel contact (e.g. the A/V diagonals, where most of the
+/// overlapping bands sit at nearly the same close gap) reads as needing
+/// MORE separation than a single tangent point (e.g. f's crossbar briefly
+/// nearing j, where only one or two bands are that close) — perceived
+/// space between glyphs is closer to an area than a single distance.
+///
+/// Fix: after finding the true minimum gap (deltaMin), measure what
+/// fraction of the vertically-overlapping bands are "near" it (within
+/// nearMinTolerance). A broad parallel contact (AV/AW diagonals, most of
+/// the overlap is near-minimum) needs EXTRA room on top of `target` to
+/// avoid reading as a collision; an isolated tangent point (fj/rn/fl,
+/// only a band or two is that close) is fine at the bare `target` — adding
+/// slack there would undo kerning that was already correct.
+let private nearMinTolerance = 20.0
+let private maxSlackForBroadContact = 60.0
+
 let pairKern (target: float) (advanceA: float) (a: GlyphProfile) (b: GlyphProfile) : int =
     if not a.HasInk || not b.HasInk || a.BandCount <> b.BandCount then 0
     else
-        let mutable deltaMin = posInf
-        for i in 0 .. a.BandCount - 1 do
-            let ra = a.RightEdges.[i]
-            let lb = b.LeftEdges.[i]
-            if ra > negInf && lb < posInf then
-                let d = lb - ra
-                if d < deltaMin then deltaMin <- d
-        if System.Double.IsPositiveInfinity(deltaMin) then 0
+        let gaps =
+            [| for i in 0 .. a.BandCount - 1 do
+                   let ra = a.RightEdges.[i]
+                   let lb = b.LeftEdges.[i]
+                   if ra > negInf && lb < posInf then
+                       yield lb - ra |]
+        if gaps.Length = 0 then 0
         else
-            let raw = target - advanceA - deltaMin
+            let deltaMin = Array.min gaps
+            let nearMinCount = gaps |> Array.filter (fun g -> g <= deltaMin + nearMinTolerance) |> Array.length
+            let fractionNearMin = float nearMinCount / float gaps.Length
+            let effectiveTarget = target + maxSlackForBroadContact * fractionNearMin
+            let raw = effectiveTarget - advanceA - deltaMin
             // clip to a sane range so a degenerate profile can't push glyphs through each other
             let clipped = max -200.0 (min 80.0 raw)
             int (System.Math.Round(clipped))
