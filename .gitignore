@@ -343,7 +343,6 @@ healthchecksdb
 
 .fake
 .ionide/
-ttf/DactylSansBold.sfd/
 
 # Generated Fable files
 explorer/public/fable/
