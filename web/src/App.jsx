@@ -807,7 +807,8 @@ function App() {
     const baselineAxes = { ...axes, opticalKerning: false, sidebearingScale: 1.0 }
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
     worker.onmessage = (e) => {
-      const { result, error } = e.data
+      const { result, error, type } = e.data
+      if (type === 'progress') return
       worker.terminate()
       if (!error) setBaselineGlyphData(result)
     }
@@ -877,7 +878,12 @@ function App() {
   // Build the no-kerning baseline @font-face from the fetched glyph data.
   const baselineFontUrl = useMemo(() => {
     if (!compareSpacing || !baselineGlyphData) return null
-    try { return buildFontDataUrl(baselineGlyphData, 'DactylBaseline') } catch { return null }
+    try {
+      return buildFontDataUrl(baselineGlyphData, 'DactylBaseline')
+    } catch (err) {
+      console.error('Failed to build baseline comparison font:', err)
+      return null
+    }
   }, [compareSpacing, baselineGlyphData])
 
   useEffect(() => {
