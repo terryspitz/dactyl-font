@@ -442,8 +442,8 @@ function App() {
   const [downloadingFont, setDownloadingFont] = useState(false)
   const [proofFontUrl, setProofFontUrl] = useState(null)
   // Proofs tab "Compare spacing" mode: stacks the same proof text rendered
-  // with kerning axes forced off (baseline) above the current axes, so
-  // manual + optical kerning / sidebearingScale changes are easy to spot.
+  // with opticalKerning forced off (baseline) above the current axes, so
+  // kerning's own effect is easy to spot in isolation.
   const [compareSpacing, setCompareSpacing] = useState(
     () => new URLSearchParams(window.location.search).get('compareSpacing') === '1'
   )
@@ -798,13 +798,16 @@ function App() {
     }
   }, [axes, activeTab, perGlyphFontAxes])
 
-  // Compare-spacing baseline: fetch glyph data with kerning axes forced off,
-  // so "Compare spacing" can stack a no-kerning render above the live one.
+  // Compare-spacing baseline: fetch glyph data with the kerning axes forced
+  // off, so "Compare spacing" can stack a no-kerning render above the live
+  // one. sidebearingScale is deliberately NOT overridden — it stays at
+  // whatever the live axes have, so the only difference between the two
+  // panels is kerning itself, not a second unrelated spacing change.
   // Only runs while the toggle is on to avoid the extra font build otherwise.
   useEffect(() => {
     if (activeTab !== 'proofs' || !compareSpacing) return
 
-    const baselineAxes = { ...axes, opticalKerning: false, sidebearingScale: 1.0 }
+    const baselineAxes = { ...axes, opticalKerning: false }
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
     worker.onmessage = (e) => {
       const { result, error, type } = e.data
@@ -1397,39 +1400,6 @@ function App() {
             <button className={`tab-button ${activeTab === 'proofs' ? 'active' : ''}`} onClick={() => setTabWithUrl('proofs')}>Proofs</button>
             <button className={`tab-button ${activeTab === 'generate' ? 'active' : ''}`} onClick={() => setTabWithUrl('generate')}>Generate</button>
           </div>
-          {activeTab === 'proofs' && (
-            <div className="proof-chips">
-              {proofCases.map(k => (
-                <button
-                  key={k}
-                  className={`proof-chip ${proofCase === k ? 'selected' : ''}`}
-                  onClick={() => setProofCaseWithUrl(k)}
-                >
-                  {proofLabels[k]}
-                </button>
-              ))}
-              <button
-                className={`proof-chip ${proofCase === 'classic' ? 'selected' : ''}`}
-                onClick={handlePickClassic}
-                title="Pick a random classic"
-              >
-                Classic &#x21BA;
-              </button>
-              {proofCase === 'classic' && classicBook && (
-                <span className="proof-book-title">
-                  {classicBook.title} &mdash; {classicBook.author}
-                </span>
-              )}
-              <label className="proof-compare-toggle">
-                <input
-                  type="checkbox"
-                  checked={compareSpacing}
-                  onChange={e => setCompareSpacingWithUrl(e.target.checked)}
-                />
-                Compare spacing
-              </label>
-            </div>
-          )}
           {activeTab === 'font' && (
             <div className="toolbar">
               <button
@@ -1471,7 +1441,43 @@ function App() {
               onChange={e => setText(e.target.value)}
               rows={3}
               placeholder="Characters..."
+              style={activeTab === 'proofs' ? { paddingTop: '54px' } : undefined}
             />
+            {activeTab === 'proofs' && (
+              <div className="proof-chips-bar">
+                <div className="proof-chips" style={{ marginLeft: 0 }}>
+                  {proofCases.map(k => (
+                    <button
+                      key={k}
+                      className={`proof-chip ${proofCase === k ? 'selected' : ''}`}
+                      onClick={() => setProofCaseWithUrl(k)}
+                    >
+                      {proofLabels[k]}
+                    </button>
+                  ))}
+                  <button
+                    className={`proof-chip ${proofCase === 'classic' ? 'selected' : ''}`}
+                    onClick={handlePickClassic}
+                    title="Pick a random classic"
+                  >
+                    Classic &#x21BA;
+                  </button>
+                  {proofCase === 'classic' && classicBook && (
+                    <span className="proof-book-title">
+                      {classicBook.title} &mdash; {classicBook.author}
+                    </span>
+                  )}
+                  <label className="proof-compare-toggle">
+                    <input
+                      type="checkbox"
+                      checked={compareSpacing}
+                      onChange={e => setCompareSpacingWithUrl(e.target.checked)}
+                    />
+                    Compare spacing
+                  </label>
+                </div>
+              </div>
+            )}
             <button
               className="text-reset-button"
               onClick={() => {
