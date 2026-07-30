@@ -51,7 +51,7 @@ type Axes =
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
       flatness: float //weight of flatness (abs m) in objective function
       end_flatness: float //quadratic curvature-span weight for open-curve endpoint segments (higher = more circular arc at stroke tips)
-      sidebearingScale: float //multiplier on the per-glyph thickness sidebearing padding
+      sidebearingScale: float //multiplier on the sidebearing padding added to every glyph's width, derived from the font-wide thickness/contrast/serif axes
       opticalKerning: bool //sample glyph outlines and add optical kern pairs
       kerningTarget: int //target minimum gap (glyph coord units) for optical kerning
       debug: bool } //show debug info in console
@@ -116,6 +116,9 @@ type Axes =
           "italic", FracRange(0.0, 1.0), "backbone", "Fraction to shear glyphs"
           "alt_a_g", Checkbox, "backbone", "Use two-storey alternate shapes for 'a' and 'g'"
           "roundedness", Range(0, 100), "backbone", "Roundedness"
+          "sidebearingScale", FracRange(0.0, 2.0), "backbone", "Multiplier on the sidebearing padding added to every glyph's width, derived from the thickness/contrast/serif axes"
+          "opticalKerning", Checkbox, "backbone", "Sample glyph outlines and add optical kern pairs"
+          "kerningTarget", Range(0, 100), "backbone", "Target minimum gap (glyph coord units) for optical kerning"
           "thickness", Range(1, 200), "outline", "Stroke width"
           "contrast", FracRange(-0.5, 0.5), "outline", "Make vertical lines thicker"
           "soft_corners", FracRange(0.0, 1.0), "outline", "Radius of rounding applied at angled corners (0=sharp, 1=max)"
@@ -145,9 +148,6 @@ type Axes =
           "clip_rect", Checkbox, "debug", "Clip each glyph to its bounding rect (helps with degenerate curves)"
           "flatness", FracRange(0.0, 10.0), "experimental", "Weight of flatness (abs m) in objective function"
           "end_flatness", FracRange(0.0, 30.0), "experimental", "Quadratic curvature-span weight for open-curve endpoint segments (higher = more circular arc at stroke tips)"
-          "sidebearingScale", FracRange(0.0, 2.0), "experimental", "Multiplier on the per-glyph thickness sidebearing padding"
-          "opticalKerning", Checkbox, "experimental", "Sample glyph outlines and add optical kern pairs"
-          "kerningTarget", Range(0, 100), "experimental", "Target minimum gap (glyph coord units) for optical kerning"
           "debug", Checkbox, "debug", "Show debug info in console" ]
 
     /// True when an artistic axis that varies stroke width (or displaces the spine)
