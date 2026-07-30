@@ -6,6 +6,8 @@ NOTE: This README is best viewed at https://terryspitz.github.io/dactyl-font/REA
 
 Play with the [Dactyl Live Explorer](https://terryspitz.github.io/dactyl-font) — design fonts interactively using 30+ axes, then download a custom OTF. Switch between tabs to inspect individual **Glyphs**, watch **Tweens** animate axis changes, compare **Visual Diffs** across settings, explore the **Spline** maths, review **Proofs** with real text, or **Grow** letterforms into blobby Y2K logotypes.
 
+See some of the chequered development history at the [Dactyl Font Gallery](gallery.html), a rotating gallery of past renders.
+
 ## What & Why
 
 Dactyl is a functional font generator written in F#, in service of ticking 'create a font' off my bucket list!
