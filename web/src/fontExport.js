@@ -226,7 +226,7 @@ export function parseSvgPath(pathData) {
 }
 
 /** Find axes whose values differ from the defaults. */
-function getOverriddenAxes(axes, defaultAxes) {
+export function getOverriddenAxes(axes, defaultAxes) {
   return Object.entries(axes).filter(([key, val]) => val !== defaultAxes[key])
 }
 

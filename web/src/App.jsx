@@ -6,7 +6,7 @@ import GrowCanvas from './GrowCanvas'
 import { downloadBlob, svgBlob, svgToPngBlob, growFilenameBase, filenameBase } from './growthExport'
 import { LAYER_COLORS } from './growth'
 import { DEFAULT_BRANCH_COLOR } from './branching'
-import { downloadFont, buildFontDataUrl } from './fontExport'
+import { downloadFont, buildFontDataUrl, getOverriddenAxes } from './fontExport'
 import { buildCompareOverlaySvg } from './fontCompare'
 import FontCompareControls from './FontCompareControls'
 import FontCompareTextOverlay from './FontCompareTextOverlay'
@@ -63,6 +63,12 @@ function getDiffAxes(axes, diffConfig) {
     labelA: `${diffConfig.axis}=${Number(diffConfig.valueA.toFixed(2))}`,
     labelB: `${diffConfig.axis}=${Number(diffConfig.valueB.toFixed(2))}`,
   }
+}
+
+/** Format one axis value for the Compare-spacing overrides summary. */
+function formatAxisValue(val) {
+  if (typeof val === 'boolean') return val ? 'on' : 'off'
+  return Number(val.toFixed(2))
 }
 
 function App() {
@@ -798,16 +804,16 @@ function App() {
     }
   }, [axes, activeTab, perGlyphFontAxes])
 
-  // Compare-spacing baseline: fetch glyph data with the kerning axes forced
-  // off, so "Compare spacing" can stack a no-kerning render above the live
-  // one. sidebearingScale is deliberately NOT overridden — it stays at
-  // whatever the live axes have, so the only difference between the two
-  // panels is kerning itself, not a second unrelated spacing change.
-  // Only runs while the toggle is on to avoid the extra font build otherwise.
+  // Compare-spacing baseline: fetch glyph data for the untouched default
+  // axes, so "Compare spacing" can stack a default-axes render above the
+  // live one — comparing whatever the user has changed on the left against
+  // a fixed reference rather than against a moving "no kerning" target.
+  // Default axes never change, so this only needs to run once per tab/toggle
+  // activation, not on every axes edit. Only runs while the toggle is on to
+  // avoid the extra font build otherwise.
   useEffect(() => {
     if (activeTab !== 'proofs' || !compareSpacing) return
 
-    const baselineAxes = { ...axes, opticalKerning: false }
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
     worker.onmessage = (e) => {
       const { result, error, type } = e.data
@@ -815,9 +821,9 @@ function App() {
       worker.terminate()
       if (!error) setBaselineGlyphData(result)
     }
-    worker.postMessage({ id: ++baselineRenderIdRef.current, type: 'fontData', args: [baselineAxes] })
+    worker.postMessage({ id: ++baselineRenderIdRef.current, type: 'fontData', args: [defaultAxes] })
     return () => worker.terminate()
-  }, [axes, activeTab, compareSpacing])
+  }, [activeTab, compareSpacing])
 
   // Dedicated effect for the Bubble mode GPU path: rebuild the growth field
   // when text/axes/growScale change (growScale sizes the field's padding, so
@@ -878,7 +884,7 @@ function App() {
     el.textContent = `@font-face { font-family: 'DactylPreview'; src: url('${proofFontUrl}') format('opentype'); }`
   }, [proofFontUrl])
 
-  // Build the no-kerning baseline @font-face from the fetched glyph data.
+  // Build the default-axes baseline @font-face from the fetched glyph data.
   const baselineFontUrl = useMemo(() => {
     if (!compareSpacing || !baselineGlyphData) return null
     try {
@@ -899,6 +905,14 @@ function App() {
     }
     el.textContent = `@font-face { font-family: 'DactylBaseline'; src: url('${baselineFontUrl}') format('opentype'); }`
   }, [baselineFontUrl])
+
+  // Axes the user has changed from the defaults, for the Compare-spacing
+  // panel's "what changed" summary — recomputed only when compareSpacing is
+  // on, since it's otherwise unused.
+  const overriddenAxes = useMemo(() => {
+    if (!compareSpacing) return []
+    return getOverriddenAxes(axes, defaultAxes)
+  }, [compareSpacing, axes])
 
   // Compare-font mode: fetch Dactyl's outlines for the current axes once per
   // axes change. Used to build the vector overlay and (for text-mode sources)
@@ -1006,7 +1020,7 @@ function App() {
         return (
           <div className="proof-compare">
             <div className="proof-compare-panel">
-              <div className="proof-compare-label">Before &mdash; no kerning</div>
+              <div className="proof-compare-label">Default axes</div>
               <div
                 className="proof-text"
                 style={proofStyle(baselineFontUrl ? "'DactylBaseline', monospace" : 'monospace')}
@@ -1015,7 +1029,23 @@ function App() {
               </div>
             </div>
             <div className="proof-compare-panel">
-              <div className="proof-compare-label">After &mdash; current axes</div>
+              <div className="proof-compare-label">
+                Current settings
+                {overriddenAxes.length > 0 && (
+                  <span className="proof-compare-overrides">
+                    {overriddenAxes.map(([key, val]) => (
+                      <span key={key} className="proof-compare-override">
+                        {key}: {formatAxisValue(defaultAxes[key])} &rarr; {formatAxisValue(val)}
+                      </span>
+                    ))}
+                  </span>
+                )}
+                {overriddenAxes.length === 0 && (
+                  <span className="proof-compare-overrides proof-compare-no-changes">
+                    No settings changes. Make changes to settings on the left.
+                  </span>
+                )}
+              </div>
               <div
                 className="proof-text"
                 style={proofStyle(proofFontUrl ? "'DactylPreview', monospace" : 'monospace')}

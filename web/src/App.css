@@ -548,6 +548,32 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     padding: 8px 20px 0;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+}
+
+.proof-compare-overrides {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.proof-compare-override {
+    white-space: nowrap;
+    /* The compare panel always renders on a white background regardless of
+       app theme (same as .proof-text's hardcoded color: #000), so this needs
+       a dark color rather than var(--text-primary) (near-white, meant for
+       the dark sidebar/toolbar chrome). */
+    color: #333;
+}
+
+.proof-compare-no-changes {
+    font-style: italic;
 }
 
 .proof-book-title {
