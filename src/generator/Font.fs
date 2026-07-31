@@ -2216,7 +2216,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     /// Stroke-proportional padding either side of the spine's own extent, so a
     /// glyph's advance grows with its weight/serifs instead of letting heavy
     /// strokes crowd. Not an axis: it is what keeps the *un-kerned* advance
-    /// widths sane (the opticalKerning=off path, and any consumer that ignores
+    /// widths sane (the opticalKerning=Fixed path, and any consumer that ignores
     /// kerning). With optical kerning on it is absorbed by the pair kern —
     /// `spacing` is the knob that actually moves glyphs apart there.
     member this.sidebearing =
@@ -2240,7 +2240,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     /// measure and always fall back.
     member this.charWidth ch =
         let naive = this.width (Glyph(ch))
-        if not axes.opticalKerning then naive
+        if not axes.useOpticalSpacing then naive
         else
             match GlyphProfile.opticalAdvance (float axes.spacing) (this.glyphProfile ch) with
             | None -> naive
@@ -2254,7 +2254,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     /// which is precisely the class of bug SvgAndOtfKerns_AgreeForEveryPair
     /// exists to catch.
     member this.glyphShift(ch: char) : float =
-        if not axes.opticalKerning then 0.0
+        if not axes.useOpticalSpacing then 0.0
         else (1.0 - axes.monospace) * GlyphProfile.opticalShift (this.glyphProfile ch)
 
     member this.charWidths str =
@@ -2298,9 +2298,9 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             p
 
     /// Optical kern between two glyphs, in glyph coord units. 0 if either
-    /// glyph has no ink or `axes.opticalKerning` is off.
+    /// glyph has no ink or `opticalKerning` is below the Kerned stop.
     member this.opticalPairKern (a: char) (b: char) : int =
-        if not axes.opticalKerning then 0
+        if not axes.usePairKerning then 0
         else
             GlyphProfile.residualKern
                 (float axes.spacing)
@@ -2312,7 +2312,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 (this.glyphProfile b)
 
     /// Kerning for the ordered pair (a, b), from outline-sampled optical
-    /// kerning. Returns 0 when axes.opticalKerning is off.
+    /// kerning. Returns 0 below the Kerned stop of `opticalKerning`.
     member this.pairKern (a: char) (b: char) : float =
         float (this.opticalPairKern a b)
 

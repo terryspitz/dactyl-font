@@ -51,7 +51,7 @@ type Axes =
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
       flatness: float //weight of flatness (abs m) in objective function
       end_flatness: float //quadratic curvature-span weight for open-curve endpoint segments (higher = more circular arc at stroke tips)
-      opticalKerning: bool //sample glyph outlines to space and kern glyphs optically
+      opticalKerning: float //0=fixed spacing, 0.5=optical sidebearings only, 1=sidebearings + pair kerning
       debug: bool } //show debug info in console
 
     static member DefaultAxes =
@@ -96,7 +96,7 @@ type Axes =
           clip_rect = true
           flatness = 0.5
           end_flatness = 10.0
-          opticalKerning = true
+          opticalKerning = 1.0
           debug = false }
 
     static member controls =
@@ -112,7 +112,7 @@ type Axes =
           "slant", FracRange(0.0, 1.0), "backbone", "Fraction to shear glyphs"
           "cursive", FracRange(0.0, 1.0), "backbone", "Cursive a/g forms: 0=Roman (two-storey), 0.5=Auto (cursive when slanted), 1=Cursive (single-storey)"
           "roundedness", Range(0, 100), "backbone", "Roundedness"
-          "opticalKerning", Checkbox, "backbone", "Space and kern glyphs from their sampled outlines, so 'spacing' sets the optical gap rather than a raw advance-width padding"
+          "opticalKerning", FracRange(0.0, 1.0), "backbone", "How much spacing is derived from the sampled outlines: 0=Fixed (plain advance-width padding), 0.5=Sidebearings (per-glyph optical advances), 1=Kerned (adds residual pair kerns on top)"
           "weight", Range(1, 200), "outline", "Stroke width"
           "contrast", FracRange(-0.5, 0.5), "outline", "Make vertical lines thicker"
           "softness", FracRange(0.0, 1.0), "outline", "Radius of rounding applied at angled corners (0=sharp, 1=max)"
@@ -156,6 +156,20 @@ type Axes =
 
     /// Whether this axis set selects the two-storey Roman ("alt") a/g shapes.
     member this.useCursiveAlt = Axes.cursiveUsesAlt this.cursive this.slant
+
+    /// `opticalKerning` is a three-stop axis over the two layers spacing is
+    /// built from, so each can be seen (and costed) on its own:
+    ///   0.0  Fixed        — plain spine extent + spacing + sidebearing padding
+    ///   0.5  Sidebearings — advances measured from each glyph's own silhouette
+    ///   1.0  Kerned       — plus the residual pair kerns the per-glyph pass
+    ///                       structurally can't cover (diagonals, overhangs)
+    /// Bucketed by threshold rather than interpolated: partway between "measure
+    /// the outline" and "don't" isn't a meaningful font.
+    member this.useOpticalSpacing = this.opticalKerning >= 0.25
+
+    /// True only at the top stop — pair kerning sits on top of optical
+    /// sidebearings, never instead of them.
+    member this.usePairKerning = this.opticalKerning >= 0.75
 
     /// True when an artistic axis that varies stroke width (or displaces the spine)
     /// along the stroke is active; these require the arc-length sampled outline path.

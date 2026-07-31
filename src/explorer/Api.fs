@@ -755,7 +755,10 @@ let generateFontGlyphDataPerGlyph
                 // does not trigger O(n²) NelderMead; cached on the font instance.
                 let svg, _, _ = charFont.outlineFont.elementToSvg placed
                 let path = String.concat " " svg
-                if axes.opticalKerning && path <> "" then
+                // Only the residual-kern pass below needs this map — advances and
+                // shifts come from each Font's own lazily-cached profile — so below
+                // the Kerned stop we skip a whole second outline render per glyph.
+                if axes.usePairKerning && path <> "" then
                     // Sample profiles from the pre-italic outline so kerns hold
                     // across italic axis values; uses this glyph's own font so
                     // per-glyph randomised axes still profile correctly.
@@ -779,7 +782,7 @@ let generateFontGlyphDataPerGlyph
     // what the SVG render path applies — the SVG path doesn't filter, and any
     // mismatch shows up as text laid out differently between the two.
     let kerningPairs =
-        if axes.opticalKerning then
+        if axes.usePairKerning then
             let acc = ResizeArray()
             for KeyValue(cL, pL) in profileMap do
                 let fontL = fontFor cL

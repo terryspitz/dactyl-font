@@ -481,7 +481,7 @@ type FontTests() =
     member this.Kerning_OpticalOff_AllPairsKernToZero() =
         // Kerning is driven entirely by optical sampling, so turning the axis
         // off must leave every pair completely unkerned.
-        let font = Font.Font({ Axes.DefaultAxes with opticalKerning = false })
+        let font = Font.Font({ Axes.DefaultAxes with opticalKerning = 0.0 })
         for (a, b) in [ ('A', 'V'); ('T', 'o'); ('f', 'j'); ('K', 'O') ] do
             Assert.That(font.pairKern a b, Is.EqualTo(0.0),
                         sprintf "kern(%c,%c) should be 0 with optical off" a b)
@@ -489,7 +489,7 @@ type FontTests() =
     [<Test>]
     member this.Kerning_UnknownPair_ReturnsZero() =
         // With optical kerning off, any pair without a manual override returns 0.
-        let font = Font.Font({ Axes.DefaultAxes with opticalKerning = false })
+        let font = Font.Font({ Axes.DefaultAxes with opticalKerning = 0.0 })
         Assert.That(font.pairKern 'X' 'Z', Is.EqualTo(0.0))
         Assert.That(font.pairKern 'A' 'B', Is.EqualTo(0.0))
 
@@ -508,7 +508,7 @@ type FontTests() =
     member this.Kerning_NoKernPairs_StringWidthUnchanged() =
         // For a string with no kerning overrides AND optical kerning off,
         // stringWidth equals Σ charWidth.
-        let font = Font.Font({ Axes.DefaultAxes with opticalKerning = false })
+        let font = Font.Font({ Axes.DefaultAxes with opticalKerning = 0.0 })
         let s = "CGJOQSXZ"  // no overrides on left or right for any of these
         let kerns = font.pairKerns s
         Assert.That(List.forall (fun k -> k = 0.0) kerns, Is.True, "no override should apply")
@@ -530,7 +530,7 @@ type FontTests() =
         // of spacing (or sidebearing) added to the advance was subtracted
         // straight back out. Passing `spacing` in as the target is the fix.
         let placed s =
-            let f = Font.Font({ Axes.DefaultAxes with spacing = s; opticalKerning = true })
+            let f = Font.Font({ Axes.DefaultAxes with spacing = s; opticalKerning = 1.0 })
             f.charWidth 'A' + f.pairKern 'A' 'V'
         // 1 unit of spacing must buy 1 unit of separation (±1 for kern rounding).
         Assert.That(placed 40 - placed 0, Is.EqualTo(40.0).Within(1.0))
@@ -542,7 +542,7 @@ type FontTests() =
         // kern *value* is spacing-invariant — changing tracking must not churn
         // every entry of the exported kern/GPOS table.
         let kern s =
-            Font.Font({ Axes.DefaultAxes with spacing = s; opticalKerning = true }).pairKern 'A' 'V'
+            Font.Font({ Axes.DefaultAxes with spacing = s; opticalKerning = 1.0 }).pairKern 'A' 'V'
         Assert.That(kern 100, Is.EqualTo(kern 0).Within(1.0))
         Assert.That(kern 200, Is.EqualTo(kern 0).Within(1.0))
 
@@ -564,7 +564,7 @@ type FontTests() =
     member this.Diagnostic_OpticalKernValues() =
         // Run with: dotnet test --filter "Diagnostic_OpticalKernValues" \
         //                       --logger "console;verbosity=detailed"
-        let axes = { Axes.DefaultAxes with opticalKerning = true; outline = true; filled = true }
+        let axes = { Axes.DefaultAxes with opticalKerning = 1.0; outline = true; filled = true }
         let font = Font.Font(axes)
         let metrics = FontMetrics(axes)
         let thickness = float axes.weight
@@ -619,7 +619,7 @@ type FontTests() =
         // out by the SVG renderer — and you can't tell from looking at
         // either one alone. This test reproduces both sides on the same
         // axes and asserts equality across a representative sample.
-        let axes = { Axes.DefaultAxes with opticalKerning = true; outline = true; filled = true }
+        let axes = { Axes.DefaultAxes with opticalKerning = 1.0; outline = true; filled = true }
         let font = Font.Font(axes)
         let metrics = FontMetrics(axes)
         let thickness = float axes.weight
@@ -672,8 +672,8 @@ type FontTests() =
         // the BAND-WISE leftmost / rightmost x at any given y move uniformly
         // for both glyphs in a pair. The profile-derived kern is invariant.
         // (We sample the pre-italicise outline to keep this exact in code.)
-        let upright = Font.Font({ Axes.DefaultAxes with slant = 0.0; opticalKerning = true })
-        let slanted = Font.Font({ Axes.DefaultAxes with slant = 0.3; opticalKerning = true })
+        let upright = Font.Font({ Axes.DefaultAxes with slant = 0.0; opticalKerning = 1.0 })
+        let slanted = Font.Font({ Axes.DefaultAxes with slant = 0.3; opticalKerning = 1.0 })
         // pairs without manual overrides — exercise the optical path
         for (a, b) in [ ('C', 'O'); ('O', 'X'); ('S', 'Q') ] do
             Assert.That(
@@ -690,7 +690,7 @@ type FontTests() =
         // Run with: dotnet test --filter "Benchmark_OpticalKerning" \
         //                       --logger "console;verbosity=detailed"
         let allChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!\"#$%&'()*+,-./:;<=>?@"
-        let runOnce (opticalOn: bool) =
+        let runOnce (opticalOn: float) =
             let axes = { Axes.DefaultAxes with opticalKerning = opticalOn; outline = true; filled = true }
             let font = Font.Font(axes)
             let metrics = FontMetrics(axes)
@@ -707,14 +707,14 @@ type FontTests() =
                     let svg, _, _ = font.elementToSvg outline
                     let path = String.concat " " svg
                     glyphCount <- glyphCount + 1
-                    if opticalOn && path <> "" then
+                    if opticalOn >= 0.75 && path <> "" then
                         let cmds = GlyphProfile.parseSvgCommands path
                         profiles.[c] <- GlyphProfile.sampleProfile bandY0 bandY1 bandCount cmds
                 with _ -> ()
             let glyphsMs = sw.ElapsedMilliseconds
             sw.Restart()
             let mutable opticalCount = 0
-            if opticalOn then
+            if opticalOn >= 0.75 then
                 for KeyValue(cL, pL) in profiles do
                     let advanceL = font.charWidth cL
                     for KeyValue(cR, pR) in profiles do
@@ -723,8 +723,8 @@ type FontTests() =
             let kernMs = sw.ElapsedMilliseconds
             glyphsMs, kernMs, glyphCount, opticalCount
         // warm-up
-        let _ = runOnce false
-        let _ = runOnce true
+        let _ = runOnce 0.0
+        let _ = runOnce 1.0
         let runs = 3
         let mutable offGlyphs = 0L
         let mutable onGlyphs = 0L
@@ -732,8 +732,8 @@ type FontTests() =
         let mutable opticalCount = 0
         let mutable glyphCount = 0
         for _ in 1 .. runs do
-            let g1, _, n1, _ = runOnce false
-            let g2, k2, n2, oc = runOnce true
+            let g1, _, n1, _ = runOnce 0.0
+            let g2, k2, n2, oc = runOnce 1.0
             offGlyphs <- offGlyphs + g1
             onGlyphs <- onGlyphs + g2
             onKern <- onKern + k2
