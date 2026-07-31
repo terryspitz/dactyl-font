@@ -447,12 +447,27 @@ function App() {
 
   const [downloadingFont, setDownloadingFont] = useState(false)
   const [proofFontUrl, setProofFontUrl] = useState(null)
-  // Proofs tab "Compare spacing" mode: stacks the same proof text rendered
-  // with opticalKerning forced off (baseline) above the current axes, so
-  // kerning's own effect is easy to spot in isolation.
+  // Proofs tab "Compare spacing" mode: stacks the proof text rendered with
+  // the default axes above the same text with the current settings, so any
+  // difference between the two is whatever's been changed on the left.
   const [compareSpacing, setCompareSpacing] = useState(
     () => new URLSearchParams(window.location.search).get('compareSpacing') === '1'
   )
+  // The two compare panels scroll independently but are kept in lockstep
+  // (see syncCompareScroll) so the same line of text stays aligned in both
+  // while scrolling through a long proof. isSyncingScrollRef guards against
+  // the programmatic scrollTop assignment re-triggering this same handler.
+  const defaultTextRef = useRef(null)
+  const currentTextRef = useRef(null)
+  const isSyncingScrollRef = useRef(false)
+  const syncCompareScroll = useCallback((targetRef) => (e) => {
+    if (isSyncingScrollRef.current) return
+    const target = targetRef.current
+    if (!target) return
+    isSyncingScrollRef.current = true
+    target.scrollTop = e.currentTarget.scrollTop
+    requestAnimationFrame(() => { isSyncingScrollRef.current = false })
+  }, [])
   const [baselineGlyphData, setBaselineGlyphData] = useState(null)
   const [classicBook, setClassicBook] = useState(() => {
     const params = new URLSearchParams(window.location.search)
@@ -1022,6 +1037,8 @@ function App() {
             <div className="proof-compare-panel">
               <div className="proof-compare-label">Default axes</div>
               <div
+                ref={defaultTextRef}
+                onScroll={syncCompareScroll(currentTextRef)}
                 className="proof-text"
                 style={proofStyle(baselineFontUrl ? "'DactylBaseline', monospace" : 'monospace')}
               >
@@ -1047,6 +1064,8 @@ function App() {
                 )}
               </div>
               <div
+                ref={currentTextRef}
+                onScroll={syncCompareScroll(defaultTextRef)}
                 className="proof-text"
                 style={proofStyle(proofFontUrl ? "'DactylPreview', monospace" : 'monospace')}
               >
@@ -2072,8 +2091,16 @@ function App() {
               <span className="material-symbols-outlined">remove</span>
             </button>
           </div>
-          <div ref={previewRef} className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`} style={activeTab === 'splineGrid' ? { padding: 0 } : undefined}>
-            <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: (activeTab === 'tweens' || activeTab === 'proofs' || (activeTab === 'generate' && generateMode === 'bubble' && supportsWebGL2)) ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
+          <div
+            ref={previewRef}
+            className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''} ${activeTab === 'proofs' && compareSpacing ? 'compare-mode' : ''}`}
+            style={activeTab === 'splineGrid' ? { padding: 0 } : undefined}
+          >
+            <div style={
+              activeTab === 'splines' ? { display: 'contents' } :
+              activeTab === 'proofs' && compareSpacing ? { display: 'flex', flexDirection: 'column', flex: '1 1 auto', minHeight: 0 } :
+              { transform: (activeTab === 'tweens' || activeTab === 'proofs' || (activeTab === 'generate' && generateMode === 'bubble' && supportsWebGL2)) ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }
+            }>
               {renderContent()}
             </div>
           </div>
