@@ -37,7 +37,7 @@ const t0 = Date.now()
     const rowH = 1300
     const grows = [0, 0.2, 0.4, 0.6, 0.8, 1.0]
     grows.forEach((grow, i) => {
-        const g = growStrokes(strokes, { thickness: axes.thickness, grow, gap: 25, cell: 4 })
+        const g = growStrokes(strokes, { thickness: axes.weight, grow, gap: 25, cell: 4 })
         const path = contoursToPath(g.levels[0].contours)
         const yOff = i * rowH
         inner += `<g transform="translate(150 ${yOff + 900})"><path d="${path}" fill="black" fill-rule="evenodd"/></g>`
@@ -56,7 +56,7 @@ const t0 = Date.now()
     const rowH = 1300
     const gaps = [10, 25, 45, 70]
     gaps.forEach((gap, i) => {
-        const g = growStrokes(strokes, { thickness: axes.thickness, grow: 0.9, gap, cell: 4 })
+        const g = growStrokes(strokes, { thickness: axes.weight, grow: 0.9, gap, cell: 4 })
         const path = contoursToPath(g.levels[0].contours)
         const yOff = i * rowH
         inner += `<g transform="translate(150 ${yOff + 900})"><path d="${path}" fill="black" fill-rule="evenodd"/></g>`
@@ -74,7 +74,7 @@ const t0 = Date.now()
     const rowH = 1300
     const fuses = [0, 0.35, 0.7, 1.0]
     fuses.forEach((fuse, i) => {
-        const g = growStrokes(strokes, { thickness: axes.thickness, grow: 0.9, gap: 30, fuse, cell: 4 })
+        const g = growStrokes(strokes, { thickness: axes.weight, grow: 0.9, gap: 30, fuse, cell: 4 })
         const path = contoursToPath(g.levels[0].contours)
         const yOff = i * rowH
         inner += `<g transform="translate(150 ${yOff + 900})"><path d="${path}" fill="black" fill-rule="evenodd"/></g>`
@@ -92,7 +92,7 @@ const t0 = Date.now()
     const rowH = 1300
     const warps = [0, 0.25, 0.5, 0.85]
     warps.forEach((warp, i) => {
-        const g = growStrokes(strokes, { thickness: axes.thickness, grow: 0.7, gap: 25, warp, warpSeed: 4, cell: 4 })
+        const g = growStrokes(strokes, { thickness: axes.weight, grow: 0.7, gap: 25, warp, warpSeed: 4, cell: 4 })
         const path = contoursToPath(g.levels[0].contours)
         const yOff = i * rowH
         inner += `<g transform="translate(150 ${yOff + 900})"><path d="${path}" fill="black" fill-rule="evenodd"/></g>`
@@ -107,7 +107,7 @@ const t0 = Date.now()
     const text = 'dactyl'
     const { strokes, width } = textToStrokes(text, axes)
     const g = growStrokes(strokes, {
-        thickness: axes.thickness, grow: 0.85, gap: 30, cell: 3,
+        thickness: axes.weight, grow: 0.85, gap: 30, cell: 3,
         isoLevels: [0, -12, -26, -44],
     })
     // Painter's algorithm: outermost band (last iso) first, ink core (iso 0)

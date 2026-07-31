@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { parseSvgPath, unionPath, buildFont, buildStyleName, buildFilename } from './fontExport'
 
 describe('export naming', () => {
-  const overrides = [['thickness', 42], ['italic', 0.3]]
+  const overrides = [['weight', 42], ['slant', 0.3]]
 
   it('names an unmodified font Regular', () => {
     expect(buildStyleName([])).toBe('Regular')
@@ -10,8 +10,8 @@ describe('export naming', () => {
   })
 
   it('lists axis overrides', () => {
-    expect(buildStyleName(overrides)).toBe('thickness42 italic0.3')
-    expect(buildFilename(overrides)).toBe('Dactyl-thickness42-italic0.3.otf')
+    expect(buildStyleName(overrides)).toBe('weight42 slant0.3')
+    expect(buildFilename(overrides)).toBe('Dactyl-weight42-slant0.3.otf')
   })
 
   it('tags a per-glyph random export with its seed', () => {
@@ -20,8 +20,8 @@ describe('export naming', () => {
   })
 
   it('keeps the seed alongside axis overrides', () => {
-    expect(buildStyleName(overrides, 7)).toBe('thickness42 italic0.3 Random7')
-    expect(buildFilename(overrides, 7)).toBe('Dactyl-thickness42-italic0.3-Random7.otf')
+    expect(buildStyleName(overrides, 7)).toBe('weight42 slant0.3 Random7')
+    expect(buildFilename(overrides, 7)).toBe('Dactyl-weight42-slant0.3-Random7.otf')
   })
 
   it('treats seed 0 as a real seed, not "off"', () => {

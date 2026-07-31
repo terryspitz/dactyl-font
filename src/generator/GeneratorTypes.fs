@@ -46,13 +46,13 @@ type FontMetrics(axes: Axes.Axes) =
     member this.D = -axes.descender_depth * float axes.height // descender height
 
     member this.offset = float axes.roundedness // offset from corners
-    member this.dotHeight = max ((this.X + this.T) / 2.0) (this.X + float axes.thickness * 3.0)
+    member this.dotHeight = max ((this.X + this.T) / 2.0) (this.X + float axes.weight * 3.0)
 
     member this.thickness =
         if axes.stroked || axes.scratches then
-            max (float axes.thickness) 30.0
+            max (float axes.weight) 30.0
         else
-            float axes.thickness
+            float axes.weight
 
 type Knot =
     { pt: Point

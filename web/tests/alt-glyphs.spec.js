@@ -1,13 +1,13 @@
 import { test, expect } from '@playwright/test';
 
-// Dedicated visual-regression coverage for the two-storey `alt_a_g`
-// stylistic-alternate shapes.
+// Dedicated visual-regression coverage for the two-storey Roman vs
+// single-storey Cursive `a`/`g` shapes selected by the `cursive` axis.
 //
 // The tweens tab only renders the single character 'a', so the alternate 'g'
 // would otherwise have no committed baseline.  This drives the Visual Diffs
-// tab (alt_a_g off vs on, overlaid) over just the two affected letters "ag",
-// so the snapshot changes only when the two-storey 'a' or 'g' change — never
-// when unrelated glyphs are tweaked.
+// tab (cursive Roman vs Cursive, overlaid) over just the two affected letters
+// "ag", so the snapshot changes only when the two-storey Roman or single-storey
+// Cursive 'a'/'g' change — never when unrelated glyphs are tweaked.
 test.beforeEach(async ({ page }) => {
   // Clear localStorage so each run starts from deterministic defaults.
   await page.addInitScript(() => localStorage.clear());
@@ -17,11 +17,12 @@ test.beforeEach(async ({ page }) => {
   page.on('pageerror', err => console.error('Page error:', err.message));
 });
 
-test('alt_a_g two-storey a and g', async ({ page }) => {
+test('cursive Roman vs single-storey a and g', async ({ page }) => {
   test.setTimeout(60_000);
 
-  // Visual Diffs comparing alt_a_g off (red) vs on (blue), overlaid, via URL.
-  await page.goto('/?view=visualDiffs&diffAxis=alt_a_g&diffA=0&diffB=1');
+  // Visual Diffs comparing cursive Roman/two-storey (0, red) vs Cursive/
+  // single-storey (1, blue), overlaid, via URL.
+  await page.goto('/?view=visualDiffs&diffAxis=cursive&diffA=0&diffB=1');
 
   // Focus the diff on just the two affected letters so unrelated glyph changes
   // never churn this baseline.
@@ -43,5 +44,5 @@ test('alt_a_g two-storey a and g', async ({ page }) => {
   // (network-loaded) icon font and stays a clean picture of just the glyphs.
   await page.addStyleTag({ content: '.zoom-controls { display: none !important; }' });
 
-  await expect(page.locator('.svg-container')).toHaveScreenshot('alt-a-g.png');
+  await expect(page.locator('.svg-container')).toHaveScreenshot('cursive-ag.png');
 });

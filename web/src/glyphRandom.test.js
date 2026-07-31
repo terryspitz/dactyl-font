@@ -10,10 +10,10 @@ import {
 
 // Stand-in for the Fable-generated controlDefinitions.
 const controls = [
-  { name: 'thickness', type_: 'range', min: 1, max: 100, category: 'basic' },
+  { name: 'weight', type_: 'range', min: 1, max: 100, category: 'basic' },
   { name: 'roundedness', type_: 'range', min: 0, max: 300, category: 'basic' },
   { name: 'leading', type_: 'range', min: 0, max: 200, category: 'basic' },
-  { name: 'italic', type_: 'range', min: 0, max: 1, category: 'artistic' },
+  { name: 'slant', type_: 'range', min: 0, max: 1, category: 'artistic' },
   { name: 'serif', type_: 'range', min: 0, max: 70, category: 'artistic' },
   { name: 'stroked', type_: 'checkbox', min: 0, max: 1, category: 'artistic' },
   { name: 'wild', type_: 'range', min: 0, max: 1, category: 'experimental' },
@@ -21,7 +21,7 @@ const controls = [
 ]
 
 const axes = {
-  thickness: 30, roundedness: 100, leading: 50, italic: 0, serif: 0,
+  weight: 30, roundedness: 100, leading: 50, slant: 0, serif: 0,
   stroked: false, wild: 0.5, show_knots: true,
 }
 const defaults = { ...axes, wild: 0, show_knots: false }
@@ -83,7 +83,7 @@ describe('randomizeAxes', () => {
   it('resets untouched axes to the centre, so repeat rolls do not compound', () => {
     // A roll from a drifted starting point lands in the same place as a roll
     // from the centre, because every eligible axis is re-seeded from `centre`.
-    const drifted = { ...axes, thickness: 95, serif: 68, italic: 0.9 }
+    const drifted = { ...axes, weight: 95, serif: 68, slant: 0.9 }
     const a = randomizeAxes(drifted, defaults, controls, mulberry32(11))
     const b = randomizeAxes(defaults, defaults, controls, mulberry32(11))
     for (const c of controls) {
@@ -102,7 +102,7 @@ describe('randomizeAxes', () => {
   it('does at least sometimes change something', () => {
     const changed = Array.from({ length: 20 }, (_, s) =>
       randomizeAxes(axes, defaults, controls, mulberry32(s))
-    ).some(out => out.thickness !== defaults.thickness || out.italic !== defaults.italic)
+    ).some(out => out.weight !== defaults.weight || out.slant !== defaults.slant)
     expect(changed).toBe(true)
   })
 })

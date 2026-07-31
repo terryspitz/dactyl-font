@@ -24,7 +24,7 @@ function cellFor(text) {
 export function generateBranchSvg(text, axes, params = {}, onProgress) {
     const cell = params.cell ?? cellFor(text)
     const maxReach = params.maxReach ?? 140
-    const thickness = axes.thickness
+    const thickness = axes.weight
     const showBackbone = params.backbone ?? true
 
     const strokes = collectStrokes(text, axes, cell, maxReach,
