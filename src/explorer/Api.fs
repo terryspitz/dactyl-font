@@ -182,11 +182,11 @@ let generateTweenSvg (text: string) (axes: Axes) =
     // So we start viewBox there.
     let metrics = FontMetrics(axes)
     // Add extra padding to minY to prevent top cropping, especially for bold text
-    let minY = float axes.thickness + float axes.leading - (margin * 2.0)
+    let minY = float axes.weight + float axes.leading - (margin * 2.0)
     // Increase height to compensate for the lower start point (more height needed)
     let height =
         float axes.height - float metrics.D
-        + float axes.thickness * 2.0
+        + float axes.weight * 2.0
         + (margin * 3.0)
 
     // Use toSvgDocument logic but with our custom bounds
@@ -213,10 +213,10 @@ let generateTweenDiffSvg (text: string) (axesOff: Axes) (axesOn: Axes) =
     let width = (max (List.max lineWidthsOff) (List.max lineWidthsOn)) + margin * 2.0
 
     let metrics = FontMetrics(axesOff)
-    let minY = float axesOff.thickness + float axesOff.leading - (margin * 2.0)
+    let minY = float axesOff.weight + float axesOff.leading - (margin * 2.0)
     let height =
         float axesOff.height - float metrics.D
-        + float axesOff.thickness * 2.0
+        + float axesOff.weight * 2.0
         + (margin * 3.0)
 
     toSvgDocument -margin minY width height (svgOff @ svgOn) |> String.concat "\n"
@@ -297,8 +297,8 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
     let combinedElement =
         if List.isEmpty elements then
             Dot(
-                { y = axes.thickness
-                  x = axes.thickness
+                { y = axes.weight
+                  x = axes.weight
                   y_fit = false
                   x_fit = false }
             )
@@ -309,7 +309,7 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
     let spline = combinedElement
     let spiro = combinedElement
 
-    let offsetX, offsetY = 0.0, fontSpline2.charHeight + float axes.thickness
+    let offsetX, offsetY = 0.0, fontSpline2.charHeight + float axes.weight
     let grey = "#e0e0e0"
     let blue = "blue"
     let green = "green"
@@ -465,6 +465,11 @@ let generateSplineDebugSvgFromDefs (defsText: string) (inputAxes: Axes) (progres
 
     toSvgDocument -50.0 fontSpline2.yBaselineOffset svgWidth fontSpline2.charHeight svgElements
     |> String.concat "\n"
+
+/// Whether the two-storey Roman ("alt") a/g shapes are used for the given
+/// cursive/slant values.  Exposed so the JS glyph-definition preview stays in
+/// sync with the generator's cursive-substitution rule.
+let cursiveUsesAlt (cursive: float) (slant: float) : bool = Axes.cursiveUsesAlt cursive slant
 
 let getGlyphDefs (text: string) (altAG: bool) =
     if System.String.IsNullOrEmpty(text) then
@@ -716,7 +721,7 @@ let generateFontGlyphDataPerGlyph
     // text, font comparisons, etc.), so make sure one is always included even
     // though allChars itself no longer contains a literal space character.
     let glyphChars = allChars.Replace("\n", "") + " "
-    let thickness = float axes.thickness
+    let thickness = float axes.weight
 
     let totalChars = glyphChars.Length
     let mutable charCount = 0
@@ -803,7 +808,7 @@ let generateFontGlyphData (axes: Axes) (progress: (float -> unit) option) =
 let generateAdvanceData (text: string) (axes: Axes) =
     let font = Font axes
     let metrics = FontMetrics(axes)
-    let thickness = float axes.thickness
+    let thickness = float axes.weight
     // Always include a space (see generateFontGlyphData) plus every distinct
     // character actually present in the requested text.
     let chars = (text.Replace("\n", "") + " ") |> Seq.distinct
@@ -875,7 +880,7 @@ let generateVisualDiffsSvg
 
     // Size cells to fit whichever variant is larger
     let width = max axesA.width axesB.width
-    let thickness = max axesA.thickness axesB.thickness
+    let thickness = max axesA.weight axesB.weight
     let marginX = max 200 (thickness * 2)
     let marginY = max 200 (thickness * 2)
 

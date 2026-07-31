@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, allChars, alphabetChars } from './lib/fable/Api' // Adjust path if needed
+import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, cursiveUsesAlt, allChars, alphabetChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
 import GrowCanvas from './GrowCanvas'
@@ -88,7 +88,7 @@ function App() {
   })
   const [glyphsDefsText, setGlyphsDefsText] = useState(() => {
     const initialText = tabTexts['glyphs'] || 'a'
-    return getGlyphDefs(initialText, defaultAxes.alt_a_g)
+    return getGlyphDefs(initialText, cursiveUsesAlt(defaultAxes.cursive, defaultAxes.slant))
   })
   const [axes, setAxes] = useState({ ...defaultAxes })
   // "Randomise every glyph": null = off, otherwise the seed that every
@@ -333,20 +333,21 @@ function App() {
     setTabTexts(prev => ({ ...prev, [activeTab]: newVal }))
     if (activeTab === 'glyphs') {
       localStorage.setItem('glyphText', newVal)
-      setGlyphsDefsText(getGlyphDefs(newVal || 'a', axes.alt_a_g))
+      setGlyphsDefsText(getGlyphDefs(newVal || 'a', cursiveUsesAlt(axes.cursive, axes.slant)))
     }
   }
 
   // The Glyphs tab's def textarea holds resolved definition strings (picked from
   // altGlyphMap vs glyphMap), not a live axes lookup, so — unlike every other axis,
-  // which the renderer applies to the existing defs on the fly — toggling alt_a_g
-  // needs to re-derive the text to pick up the alternate 'a'/'g' shapes.
+  // which the renderer applies to the existing defs on the fly — changing the
+  // cursive/slant axes needs to re-derive the text to pick up the alternate
+  // 'a'/'g' shapes.
   useEffect(() => {
     if (activeTab === 'glyphs') {
-      setGlyphsDefsText(getGlyphDefs(tabTexts.glyphs || 'a', axes.alt_a_g))
+      setGlyphsDefsText(getGlyphDefs(tabTexts.glyphs || 'a', cursiveUsesAlt(axes.cursive, axes.slant)))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [axes.alt_a_g])
+  }, [axes.cursive, axes.slant])
 
   // Group controls by category
   const controlsByCategory = useMemo(() => {
@@ -1128,7 +1129,7 @@ function App() {
         return (
           <div className="tweens-grid">
             {(() => {
-              const EXCLUDED_TWEEN_AXES = ['tracking', 'leading', 'sidebearingScale']
+              const EXCLUDED_TWEEN_AXES = ['spacing', 'leading', 'sidebearingScale']
               return controlDefinitions
                 .filter(c => !EXCLUDED_TWEEN_AXES.includes(c.name) && c.category !== 'debug')
                 .filter(c => !tweenFilter || c.name === tweenFilter)
@@ -1361,7 +1362,7 @@ function App() {
   return (
     <div className="container">
       <div className="sidebar">
-        <div className="sidebar-title" dangerouslySetInnerHTML={{ __html: generateTweenSvg("Dactyl", { ...defaultAxes, thickness: 35 }) }} />
+        <div className="sidebar-title" dangerouslySetInnerHTML={{ __html: generateTweenSvg("Dactyl", { ...defaultAxes, weight: 35 }) }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flex: '0 0 auto' }}>
           <h2 style={{ margin: 0 }}>Controls</h2>
           <div className="toolbar" style={{ display: 'flex', gap: '5px' }}>

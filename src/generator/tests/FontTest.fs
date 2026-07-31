@@ -332,36 +332,61 @@ type FontTests() =
     //     Assert.That(svgS.Length, Is.LessThan(1000), "Spiro should produce a compact SVG")
 
     [<Test>]
-    member this.AltAG_Axis_ChangesAAndG_ButNotOthers() =
-        // The alt_a_g axis swaps 'a' and 'g' to two-storey alternate shapes.
-        // It must change the output of 'a' and 'g' and leave every other glyph untouched.
-        let mkFont alt =
+    member this.Cursive_Axis_ChangesAAndG_ButNotOthers() =
+        // The cursive axis swaps 'a' and 'g' between single-storey (Cursive, the
+        // default) and two-storey Roman alternate shapes.  It must change the
+        // output of 'a' and 'g' and leave every other glyph untouched.
+        let mkFont cursive =
             Font.Font(
                 { Axes.DefaultAxes with
                     dactyl_spline = true
                     outline = true
-                    alt_a_g = alt }
+                    cursive = cursive }
             )
 
-        let fontDefault = mkFont false
-        let fontAlt = mkFont true
+        let fontCursive = mkFont 1.0 // single-storey (default)
+        let fontRoman = mkFont 0.0 // two-storey Roman alternates
 
         let svg (font: Font.Font) ch =
             font.charToSvg ch 0.0 0.0 "black" |> String.concat " "
 
         // 'a' and 'g' should render cleanly and differ between the two settings.
         for ch in [ 'a'; 'g' ] do
-            let sDefault = svg fontDefault ch
-            let sAlt = svg fontAlt ch
-            Assert.That(sAlt, Does.Contain("M "), sprintf "alt '%c' should render a moveto" ch)
-            Assert.That(sAlt, Does.Not.Contain("NaN"), sprintf "alt '%c' should not contain NaN" ch)
-            Assert.That(sAlt, Does.Not.Contain("stroke:#e00000"), sprintf "alt '%c' outline should not fail" ch)
-            Assert.That(sAlt, Is.Not.EqualTo(sDefault), sprintf "alt_a_g should change '%c'" ch)
+            let sCursive = svg fontCursive ch
+            let sRoman = svg fontRoman ch
+            Assert.That(sRoman, Does.Contain("M "), sprintf "Roman '%c' should render a moveto" ch)
+            Assert.That(sRoman, Does.Not.Contain("NaN"), sprintf "Roman '%c' should not contain NaN" ch)
+            Assert.That(sRoman, Does.Not.Contain("stroke:#e00000"), sprintf "Roman '%c' outline should not fail" ch)
+            Assert.That(sRoman, Is.Not.EqualTo(sCursive), sprintf "cursive should change '%c'" ch)
 
         // Every other glyph must be identical with the axis on or off.
         for ch in "bcdefhijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" do
-            Assert.That(svg fontAlt ch, Is.EqualTo(svg fontDefault ch),
-                sprintf "alt_a_g should not change '%c'" ch)
+            Assert.That(svg fontRoman ch, Is.EqualTo(svg fontCursive ch),
+                sprintf "cursive should not change '%c'" ch)
+
+    [<Test>]
+    member this.Cursive_Auto_FollowsSlant() =
+        // Cursive=0.5 (Auto): Roman (two-storey) when upright, cursive
+        // (single-storey) when slanted.  Compare 'a' against the explicit
+        // Roman (0.0) and Cursive (1.0) settings at the same slant.
+        let mkFont cursive slant =
+            Font.Font(
+                { Axes.DefaultAxes with
+                    dactyl_spline = true
+                    outline = true
+                    cursive = cursive
+                    slant = slant }
+            )
+
+        let svg (font: Font.Font) ch =
+            font.charToSvg ch 0.0 0.0 "black" |> String.concat " "
+
+        // Upright: Auto must match Roman (two-storey), not Cursive.
+        Assert.That(svg (mkFont 0.5 0.0) 'a', Is.EqualTo(svg (mkFont 0.0 0.0) 'a'),
+            "Auto upright should use Roman two-storey 'a'")
+        // Slanted: Auto must match Cursive (single-storey), not Roman.
+        Assert.That(svg (mkFont 0.5 0.15) 'a', Is.EqualTo(svg (mkFont 1.0 0.15) 'a'),
+            "Auto slanted should use Cursive single-storey 'a'")
 
     [<Test>]
     member this.FilledAxis_ControlsSvgFillStyle() =
@@ -390,14 +415,14 @@ type FontTests() =
     [<Test>]
     member this.SoftCorners_V_Glyph_ProducesRoundedCorners() =
         // The 'V' glyph (bl-tc-br) has sharp corners at tc and at the miter points.
-        // With soft_corners > 0, corners should be replaced with arcs (CurveToLine→G2→LineToCurve).
+        // With softness > 0, corners should be replaced with arcs (CurveToLine→G2→LineToCurve).
         // End caps should remain intact (not distorted by rounding).
         let fontSharp =
             Font.Font(
                 { Axes.DefaultAxes with
                     dactyl_spline = true
                     outline = true
-                    soft_corners = 0.0
+                    softness = 0.0
                     constant_offset = false }
             )
 
@@ -406,7 +431,7 @@ type FontTests() =
                 { Axes.DefaultAxes with
                     dactyl_spline = true
                     outline = true
-                    soft_corners = 0.5
+                    softness = 0.5
                     constant_offset = false }
             )
 
@@ -431,7 +456,7 @@ type FontTests() =
 
     [<Test>]
     member this.SoftCorners_Zero_MatchesDefault() =
-        // With soft_corners = 0, output should be identical to default (no rounding).
+        // With softness = 0, output should be identical to default (no rounding).
         let fontDefault =
             Font.Font(
                 { Axes.DefaultAxes with
@@ -444,13 +469,13 @@ type FontTests() =
                 { Axes.DefaultAxes with
                     dactyl_spline = true
                     outline = true
-                    soft_corners = 0.0 }
+                    softness = 0.0 }
             )
 
         for ch in [ 'A'; 'V'; 'M'; 'o' ] do
             let svgDefault = fontDefault.charToSvg ch 0.0 0.0 "black" |> String.concat " "
             let svgZero = fontZero.charToSvg ch 0.0 0.0 "black" |> String.concat " "
-            Assert.That(svgZero, Is.EqualTo(svgDefault), sprintf "soft_corners=0 should match default for '%c'" ch)
+            Assert.That(svgZero, Is.EqualTo(svgDefault), sprintf "softness=0 should match default for '%c'" ch)
 
     [<Test>]
     member this.Kerning_OpticalOff_AllPairsKernToZero() =
@@ -507,7 +532,7 @@ type FontTests() =
         let fontZero  = mkFont 0.0
         let fontDbl   = mkFont 2.0
         let axes = Axes.DefaultAxes
-        let thick = float axes.thickness
+        let thick = float axes.weight
         let sidebearingAtOne = (1.0 + axes.contrast) * thick * 2.0 + float axes.serif
         let delta = fontBase.charWidth 'A' - fontZero.charWidth 'A'
         Assert.That(delta, Is.EqualTo(sidebearingAtOne).Within(1e-6))
@@ -519,8 +544,8 @@ type FontTests() =
         // Kerns are independent of italic shear: profiles are sampled in the
         // pre-italic design frame, and any manual override is a static value.
         // pairKern must return identical values regardless of italic.
-        let upright = Font.Font({ Axes.DefaultAxes with italic = 0.0 })
-        let slanted = Font.Font({ Axes.DefaultAxes with italic = 0.3 })
+        let upright = Font.Font({ Axes.DefaultAxes with slant = 0.0 })
+        let slanted = Font.Font({ Axes.DefaultAxes with slant = 0.3 })
         for (a, b) in [ ('A', 'V'); ('T', 'o'); ('L', 'T'); ('f', 'i') ] do
             Assert.That(
                 upright.pairKern a b,
@@ -535,7 +560,7 @@ type FontTests() =
         let axes = { Axes.DefaultAxes with opticalKerning = true; outline = true; filled = true }
         let font = Font.Font(axes)
         let metrics = FontMetrics(axes)
-        let thickness = float axes.thickness
+        let thickness = float axes.weight
         let bandY0 = metrics.D - thickness
         let bandY1 = metrics.T + thickness
         let bandCount = 32
@@ -590,7 +615,7 @@ type FontTests() =
         let axes = { Axes.DefaultAxes with opticalKerning = true; outline = true; filled = true }
         let font = Font.Font(axes)
         let metrics = FontMetrics(axes)
-        let thickness = float axes.thickness
+        let thickness = float axes.weight
         let bandY0 = metrics.D - thickness
         let bandY1 = metrics.T + thickness
         let bandCount = 32
@@ -630,8 +655,8 @@ type FontTests() =
         // the BAND-WISE leftmost / rightmost x at any given y move uniformly
         // for both glyphs in a pair. The profile-derived kern is invariant.
         // (We sample the pre-italicise outline to keep this exact in code.)
-        let upright = Font.Font({ Axes.DefaultAxes with italic = 0.0; opticalKerning = true })
-        let slanted = Font.Font({ Axes.DefaultAxes with italic = 0.3; opticalKerning = true })
+        let upright = Font.Font({ Axes.DefaultAxes with slant = 0.0; opticalKerning = true })
+        let slanted = Font.Font({ Axes.DefaultAxes with slant = 0.3; opticalKerning = true })
         // pairs without manual overrides — exercise the optical path
         for (a, b) in [ ('C', 'O'); ('O', 'X'); ('S', 'Q') ] do
             Assert.That(
@@ -652,7 +677,7 @@ type FontTests() =
             let axes = { Axes.DefaultAxes with opticalKerning = opticalOn; outline = true; filled = true }
             let font = Font.Font(axes)
             let metrics = FontMetrics(axes)
-            let thickness = float axes.thickness
+            let thickness = float axes.weight
             let bandY0 = metrics.D - thickness
             let bandY1 = metrics.T + thickness
             let bandCount = 32
@@ -715,13 +740,13 @@ type FontTests() =
 
     [<Test>]
     member this.SoftCorners_AllGlyphs_RenderWithoutException() =
-        // Smoke test: every glyph should render without crashing with soft_corners enabled.
+        // Smoke test: every glyph should render without crashing with softness enabled.
         let font =
             Font.Font(
                 { Axes.DefaultAxes with
                     dactyl_spline = true
                     outline = true
-                    soft_corners = 0.8 }
+                    softness = 0.8 }
             )
 
         for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" do
@@ -757,7 +782,7 @@ type FontTests() =
             { Axes.DefaultAxes with
                 dactyl_spline = true
                 outline = true
-                thickness = 30
+                weight = 30
                 constant_offset = false }
 
         let font = Font.Font(axes)
@@ -810,7 +835,7 @@ type FontTests() =
             )
 
         let backbone = font.charToElem 'a'
-        let t = float Axes.DefaultAxes.thickness  // 30
+        let t = float Axes.DefaultAxes.weight  // 30
         let r = float Axes.DefaultAxes.width       // 300 → R
         let roundedness = float Axes.DefaultAxes.roundedness  // 60
         let borX = r + t          // 330
@@ -824,15 +849,15 @@ type FontTests() =
 
     [<Test>]
     member this.SoftCorners_A_Glyph_JointCornersNotRounded() =
-        // With joints=true and soft_corners > 0, corners at joint positions must be
+        // With joints=true and softness > 0, corners at joint positions must be
         // preserved (not rounded), so the SVG should not gain extra curve commands at
-        // those joints compared to soft_corners=0.
+        // those joints compared to softness=0.
         let mkFont sc jt =
             Font.Font(
                 { Axes.DefaultAxes with
                     dactyl_spline = true
                     outline = true
-                    soft_corners = sc
+                    softness = sc
                     joints = jt
                     constant_offset = false }
             )
@@ -863,7 +888,7 @@ type FontTests() =
         Assert.That(
             cWithJoints,
             Is.GreaterThanOrEqualTo(cNoRounding),
-            sprintf "soft_corners should still add some rounding even with joints (got %d C, baseline %d)" cWithJoints cNoRounding
+            sprintf "softness should still add some rounding even with joints (got %d C, baseline %d)" cWithJoints cNoRounding
         )
 
     [<Test>]
@@ -1059,7 +1084,7 @@ type FontTests() =
         let ys = pts |> List.map snd
         let maxY = List.max ys
         let minY = List.min ys
-        let translate = float axes.thickness
+        let translate = float axes.weight
         let capT = float axes.height + translate
         Assert.That(
             maxY,
@@ -1188,7 +1213,7 @@ type ArtisticAxesTests() =
 
     // contrast=0 keeps offsets exactly perpendicular so widths are easy to assert
     let baseAxes = { Axes.DefaultAxes with contrast = 0.0 }
-    let fthickness = float Axes.DefaultAxes.thickness
+    let fthickness = float Axes.DefaultAxes.weight
 
     [<Test>]
     member _.NibAxis_WidthFollowsStrokeDirection() =

@@ -409,12 +409,19 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         | Some f -> f
         | None -> this
 
-    // Profile sampling for optical kerning runs against an italic=0 font so the
+    // Profile sampling for optical kerning runs against a slant=0 font so the
     // shear (now applied post-solve inside getOutline) doesn't perturb the
     // sampled band-wise extents. Profiles thus live in the design frame and
-    // hold across italic axis values.
+    // hold across slant axis values.
     member val private italicFreeFontCachedOpt : Font option =
-        (if axes.italic <> 0.0 then Some(Font({ axes with italic = 0.0 })) else None)
+        (if axes.slant <> 0.0 then
+            // cursiveUsesAlt's "Auto" zone (cursive in [0.25, 0.75]) resolves by
+            // slant, so zeroing slant alone would silently flip which a/g shape
+            // gets profiled here. Pin cursive to the endpoint that reproduces
+            // this axis set's actual resolution instead.
+            let pinnedCursive = if axes.useCursiveAlt then 0.0 else 1.0
+            Some(Font({ axes with slant = 0.0; cursive = pinnedCursive }))
+         else None)
         with get
 
     member this.italicFreeFont =
@@ -425,7 +432,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     member this.reduce(e: Element) =
         match e with
         | Glyph(ch) ->
-            if axes.alt_a_g && Map.containsKey ch GlyphStringDefs.altGlyphMap then
+            if axes.useCursiveAlt && Map.containsKey ch GlyphStringDefs.altGlyphMap then
                 memoize (stringDefsToElemFromMap GlyphStringDefs.altGlyphMap) _metrics ch axes.debug
             elif Map.containsKey ch GlyphStringDefs.glyphMap then
                 memoize stringDefsToElem _metrics ch axes.debug
@@ -865,13 +872,13 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             th_out = k.th_in |> Option.map (fun t -> norm (t + PI)) }
 
     /// Replace sharp Corner knots with small arcs to produce rounded corners.
-    /// The radius is proportional to soft_corners * thickness, clamped to 40% of each
+    /// The radius is proportional to softness * thickness, clamped to 40% of each
     /// adjacent segment so short segments (end caps) are never over-consumed.
     /// Corners labelled "joint" (where two strokes meet) are left untouched.
     /// The arc point types are adapted to the neighbour context: LineToCurve/CurveToLine
     /// when the adjacent segment is a straight line, G2 when it is a smooth curve.
     member this.roundCorners (pts: Knot list) (isClosed: bool) : Knot list =
-        let radius = axes.soft_corners * thickness
+        let radius = axes.softness * thickness
 
         if radius < 1.0 || pts.Length < 3 then
             pts
@@ -934,7 +941,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
     /// Apply roundCorners to an Element (Curve or EList of Curves).
     member this.applySoftCorners elem =
-        if axes.soft_corners <= 0.0 then
+        if axes.softness <= 0.0 then
             elem
         else
             let rec apply e =
@@ -1041,7 +1048,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
     member this.getStroked =
         applyToSegments (this.spiroToLines 4)
-        >> Font({ Axes.DefaultAxes with thickness = 2 }).getSpiroSansOutlines
+        >> Font({ Axes.DefaultAxes with weight = 2 }).getSpiroSansOutlines
 
     member this.getScratches e =
         let spiroToScratchOutlines spiro =
@@ -1095,15 +1102,15 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
     member this.italicisePt(p: Point) =
         { p with
-            x = p.x + this.axes.italic * p.y }
+            x = p.x + this.axes.slant * p.y }
 
     member this.italiciseTan th =
-        let italic = this.axes.italic
+        let slant = this.axes.slant
 
-        if italic = 0.0 then
+        if slant = 0.0 then
             th
         else
-            let dx = cos th + italic * sin th
+            let dx = cos th + slant * sin th
             let dy = sin th
             atan2 dy dx
 
@@ -1190,7 +1197,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
     member this.italicise =
         applyIf
-            (this.axes.italic <> 0.0 && not this.usePostSolveItalic)
+            (this.axes.slant <> 0.0 && not this.usePostSolveItalic)
             ((applyIf (not (this.axes.spline2 || this.axes.dactyl_spline)) this.subdivide)
              >> (movePoints this.italicisePt (Some this.italiciseTan)))
 
@@ -1198,20 +1205,20 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     /// bezier points (rather than the sparse pre-solve knots) is an exact affine transform, so it
     /// avoids the non-affine curve distortion that the knot pre-shear works around via subdivide.
     /// The perpendicular stroke offset is then taken in slanted space, giving even stroke weight.
-    /// Mutates and returns the array.  No-op when italic = 0.
+    /// Mutates and returns the array.  No-op when slant = 0.
     member this.shearBezPts(bezPts: BezierPoint array) =
-        let italic = this.axes.italic
+        let slant = this.axes.slant
 
-        if italic <> 0.0 then
-            // Scale of a unit direction vector at angle th under the shear [[1, italic],[0,1]].
-            let shearScale th = hypot (cos th + italic * sin th) (sin th)
+        if slant <> 0.0 then
+            // Scale of a unit direction vector at angle th under the shear [[1, slant],[0,1]].
+            let shearScale th = hypot (cos th + slant * sin th) (sin th)
 
             for bp in bezPts do
                 // Scale control-point distances using the original tangents so the reconstructed
                 // cubics (ld/rd + th) stay an exact shear of the upright cubics.
                 bp.ld <- bp.ld * shearScale bp.th_in
                 bp.rd <- bp.rd * shearScale bp.th_out
-                bp.x <- bp.x + italic * bp.y
+                bp.x <- bp.x + slant * bp.y
                 bp.th_in <- this.italiciseTan bp.th_in
                 bp.th_out <- this.italiciseTan bp.th_out
 
@@ -1224,7 +1231,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         // Post-solve italic shears the solved spine, so joint detection (which reads knot
         // positions from the element) must compare against a shear of the same element.
         let eForJoints =
-            applyIf (this.axes.italic <> 0.0) (movePoints this.italicisePt None) e
+            applyIf (this.axes.slant <> 0.0) (movePoints this.italicisePt None) e
 
         let splineTypeToSpiroType ty =
             match ty with
@@ -1297,7 +1304,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     /// from the DactylSpline-solved spine. Walks each cubic bezier at 8 t-steps,
     /// offsets every sample by ±thickness perpendicular to its local tangent, and
     /// emits the result as Corner knots (straight-line segments between samples).
-    /// Reuses the same cap/joint/serif/flare/soft_corners logic as getDactylSansOutlines.
+    /// Reuses the same cap/joint/serif/flare/softness logic as getDactylSansOutlines.
     member this.getDactylConstantOffsetOutlines e =
         let fthickness = float thickness
         let nib = axes.nib
@@ -1319,7 +1326,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         // Post-solve italic shears the solved spine, so joint detection (which reads knot
         // positions from the element) must compare against a shear of the same element.
         let eForJoints =
-            applyIf (this.axes.italic <> 0.0) (movePoints this.italicisePt None) e
+            applyIf (this.axes.slant <> 0.0) (movePoints this.italicisePt None) e
 
         // Build Segment for use with existing cap functions.
         // Only X, Y, tangentStart, and tangentEnd are read by startCap/endCap.
@@ -2195,7 +2202,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             ((1.0 + this.axes.contrast) * thickness * 2.0 + float this.axes.serif)
             * this.axes.sidebearingScale
         (e |> this.reduce |> this.monospace |> this.elemWidth)
-        + float this.axes.tracking
+        + float this.axes.spacing
         + sidebearing
 
     member this.charWidth ch = this.width (Glyph(ch))

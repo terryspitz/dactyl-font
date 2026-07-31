@@ -90,7 +90,7 @@ export function textToStrokes(text, axes, spacing = 8, onProgress) {
                 glyph: gi,
             })
         }
-        x += advance.get(ch.charCodeAt(0)) ?? axes.width + axes.tracking
+        x += advance.get(ch.charCodeAt(0)) ?? axes.width + axes.spacing
     }
     return { strokes, width: x, fontData }
 }

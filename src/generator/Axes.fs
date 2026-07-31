@@ -15,16 +15,16 @@ type Axes =
       height: int //capital height
       x_height: float //height of lower case as a fraction of capitals
       descender_depth: float //depth of descenders below the baseline, as a fraction of capital height
-      thickness: int //stroke width
+      weight: int //stroke width
       contrast: float //make vertical lines thicker
       roundedness: int //roundedness
-      soft_corners: float //radius of rounding applied at angled corners (0=sharp, 1=max)
+      softness: float //radius of rounding applied at angled corners (0=sharp, 1=max)
       // overshoot : int          //curves are larger by this amount to compensate for looking smaller
-      tracking: int //gap between glyphs
+      spacing: int //gap between glyphs
       leading: int //gap between lines
       monospace: float //fraction to interpolate widths to monospaces
-      italic: float //fraction to sheer glyphs
-      alt_a_g: bool //use two-storey alternate shapes for 'a' and 'g'
+      slant: float //fraction to shear glyphs
+      cursive: float //cursive (single-storey) a/g forms: 0=Roman two-storey, 0.5=Auto (cursive when slanted), 1=Cursive single-storey
       serif: int //serif size
       end_bulb: float //fraction of thickness to apply curves to endcaps
       flare: float //end caps expand by this amount
@@ -51,7 +51,7 @@ type Axes =
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
       flatness: float //weight of flatness (abs m) in objective function
       end_flatness: float //quadratic curvature-span weight for open-curve endpoint segments (higher = more circular arc at stroke tips)
-      sidebearingScale: float //multiplier on the sidebearing padding added to every glyph's width, derived from the font-wide thickness/contrast/serif axes
+      sidebearingScale: float //multiplier on the sidebearing padding added to every glyph's width, derived from the font-wide weight/contrast/serif axes
       opticalKerning: bool //sample glyph outlines and add optical kern pairs
       kerningTarget: int //target minimum gap (glyph coord units) for optical kerning
       debug: bool } //show debug info in console
@@ -63,15 +63,15 @@ type Axes =
           height = 600
           x_height = 0.6
           descender_depth = 0.5
-          thickness = 30
+          weight = 30
           contrast = 0.05
           roundedness = 60
-          soft_corners = 0.0
-          tracking = 40
+          softness = 0.0
+          spacing = 40
           leading = 50
           monospace = 0.0
-          italic = 0.0
-          alt_a_g = false
+          slant = 0.0
+          cursive = 1.0
           serif = 0
           end_bulb = 0.0
           flare = 0.0
@@ -110,18 +110,18 @@ type Axes =
           "height", Range(100, 1000), "backbone", "Capital height"
           "x_height", FracRange(0.2, 1.1), "backbone", "Height of lower case as a fraction of capitals"
           "descender_depth", FracRange(0.2, 1.0), "backbone", "Depth of descenders below the baseline, as a fraction of capital height"
-          "tracking", Range(0, 200), "backbone", "Gap between glyphs"
+          "spacing", Range(0, 200), "backbone", "Gap between glyphs"
           "leading", Range(-100, 200), "backbone", "Gap between lines"
           "monospace", FracRange(0.0, 1.0), "backbone", "Fraction to interpolate widths to monospace"
-          "italic", FracRange(0.0, 1.0), "backbone", "Fraction to shear glyphs"
-          "alt_a_g", Checkbox, "backbone", "Use two-storey alternate shapes for 'a' and 'g'"
+          "slant", FracRange(0.0, 1.0), "backbone", "Fraction to shear glyphs"
+          "cursive", FracRange(0.0, 1.0), "backbone", "Cursive a/g forms: 0=Roman (two-storey), 0.5=Auto (cursive when slanted), 1=Cursive (single-storey)"
           "roundedness", Range(0, 100), "backbone", "Roundedness"
-          "sidebearingScale", FracRange(0.0, 2.0), "backbone", "Multiplier on the sidebearing padding added to every glyph's width, derived from the thickness/contrast/serif axes"
+          "sidebearingScale", FracRange(0.0, 2.0), "backbone", "Multiplier on the sidebearing padding added to every glyph's width, derived from the weight/contrast/serif axes"
           "opticalKerning", Checkbox, "backbone", "Sample glyph outlines and add optical kern pairs"
           "kerningTarget", Range(0, 100), "backbone", "Target minimum gap (glyph coord units) for optical kerning"
-          "thickness", Range(1, 200), "outline", "Stroke width"
+          "weight", Range(1, 200), "outline", "Stroke width"
           "contrast", FracRange(-0.5, 0.5), "outline", "Make vertical lines thicker"
-          "soft_corners", FracRange(0.0, 1.0), "outline", "Radius of rounding applied at angled corners (0=sharp, 1=max)"
+          "softness", FracRange(0.0, 1.0), "outline", "Radius of rounding applied at angled corners (0=sharp, 1=max)"
           "axis_align_caps", Checkbox, "outline", "Round angle of caps to horizontal/vertical"
           "outline", Checkbox, "outline", "Use thickness to expand stroke width"
           "filled", Checkbox, "outline", "(SVG only) filled or empty outlines"
@@ -149,6 +149,19 @@ type Axes =
           "flatness", FracRange(0.0, 10.0), "experimental", "Weight of flatness (abs m) in objective function"
           "end_flatness", FracRange(0.0, 30.0), "experimental", "Quadratic curvature-span weight for open-curve endpoint segments (higher = more circular arc at stroke tips)"
           "debug", Checkbox, "debug", "Show debug info in console" ]
+
+    /// Whether the two-storey Roman ("alt") a/g shapes should be used, given the
+    /// `cursive` axis and current `slant`.  Cursive: 0=Roman (two-storey alt
+    /// shapes), 1=Cursive (single-storey default shapes), 0.5=Auto (Roman when
+    /// upright, cursive when slanted).  Single source of truth for both the
+    /// generator and the glyph-definition preview.
+    static member cursiveUsesAlt (cursive: float) (slant: float) : bool =
+        if cursive < 0.25 then true // Roman: two-storey alt shapes
+        elif cursive > 0.75 then false // Cursive: single-storey default shapes
+        else slant = 0.0 // Auto: Roman when upright, cursive when slanted
+
+    /// Whether this axis set selects the two-storey Roman ("alt") a/g shapes.
+    member this.useCursiveAlt = Axes.cursiveUsesAlt this.cursive this.slant
 
     /// True when an artistic axis that varies stroke width (or displaces the spine)
     /// along the stroke is active; these require the arc-length sampled outline path.
