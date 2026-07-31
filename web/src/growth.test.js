@@ -125,9 +125,35 @@ describe('growStrokes', () => {
                 maxErr = Math.max(maxErr, Math.abs(d1 - bruteD1(px, py)))
             }
         }
-        // Sampling the spine at `cell` spacing bounds the point-vs-segment
-        // discrepancy by ~cell/2; JFA seed errors are rarer and smaller.
-        expect(maxErr).toBeLessThan(cell * 0.75)
+        // refineToSegments (SDF direction #4) corrects the winning sample's
+        // distance to its exact adjacent-segment distance, so this is no
+        // longer bounded by ~cell/2 (the old point-sample discrepancy) — it's
+        // limited only to rare dead-reckoning seed-selection errors.
+        expect(maxErr).toBeLessThan(0.01)
+    })
+
+    it('segment-exact distances remove scalloping at coarse sample spacing', () => {
+        // A long horizontal spine: the analytic distance to it, for any x
+        // within its span, is exactly |y|.  Before refineToSegments, d1 was
+        // the distance to the nearest *sample* point, so it scalloped by
+        // ~cell/2 between samples (a union-of-discs field).  Check the raw
+        // field directly (no marching squares / RDP simplify in the way) at a
+        // deliberately coarse cell, staying clear of the end caps.
+        const cell = 30
+        const field = buildGrowthField([{ pts: [[0, 0], [600, 0]], closed: false }], { thickness: 30, cell })
+        let maxErr = 0
+        for (let iy = 0; iy < field.ny; iy++) {
+            for (let ix = 0; ix < field.nx; ix++) {
+                const px = field.x0 + ix * cell, py = field.y0 + iy * cell
+                if (px < 40 || px > 560) continue
+                const d1 = field.rg[(iy * field.nx + ix) * 3]
+                if (d1 >= DOPP_CAP) continue
+                maxErr = Math.max(maxErr, Math.abs(d1 - Math.abs(py)))
+            }
+        }
+        // Without the refinement this would be ~cell/2 (15); segment-exact
+        // distances make it (up to float precision) exactly zero.
+        expect(maxErr).toBeLessThan(0.01)
     })
 
     it('warp=0 leaves the field unchanged; warp>0 wobbles the outline', () => {
