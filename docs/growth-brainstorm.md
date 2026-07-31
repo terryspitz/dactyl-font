@@ -164,6 +164,16 @@ unlocks the standard SDF toolbox:
 4. **Exact segment SDFs.**  Distance to the resampled polyline's *segments*
    (capsule SDF) instead of to point samples decouples field accuracy from
    sample spacing.
+   *(Shipped: `refineToSegments` in `growth.js` corrects each cell's
+   winning-sample distance to the exact distance to that sample's two
+   adjacent segments — O(1) extra per cell, no change to the O(cells)
+   dead-reckoning propagation.  d1/dOpp go from a union-of-discs field, which
+   scallops between samples at coarse `cell`, to an exact capsule field:
+   verified against a straight spine's analytic distance at `cell=30`, error
+   drops from the old ~cell/2 to ~0, and the brute-force-vs-field test's
+   tolerance tightened from `cell·0.75` to `0.01`.  This decouples edge
+   quality from sample density, so `cell` can go coarser for speed without
+   visible scalloping — the enabling step for the rest of this list.)*
 5. **MSDF export.**  Dactyl generates the field natively, so exporting
    multi-channel SDF atlases (msdfgen-style) for game/GPU text rendering is
    unusually direct.
@@ -175,11 +185,11 @@ unlocks the standard SDF toolbox:
    axis) of an *imported* font's SDF to reverse-engineer backbones —
    Dactyl-izing arbitrary fonts.
 
-Status: items 1–2 are implemented (JFA in `web/src/growth.js`, shader
-preview in `web/src/GrowCanvas.jsx`); item 3 is partly implemented (the
-cross-glyph `fuse` slider — field channel in `growth.js`, `uFuse` uniform in
-`GrowCanvas.jsx`); item 6's domain-warp `warp` slider is implemented; the rest
-of 4–6 are open.
+Status: items 1, 2 and 4 are implemented (JFA + segment-exact distances in
+`web/src/growth.js`, shader preview in `web/src/GrowCanvas.jsx`); item 3 is
+partly implemented (the cross-glyph `fuse` slider — field channel in
+`growth.js`, `uFuse` uniform in `GrowCanvas.jsx`); item 6's domain-warp `warp`
+slider is implemented; item 5 (MSDF export) and the rest of item 6 are open.
 
 ## Idea 5 prototype: space colonisation (added after this slice shipped)
 

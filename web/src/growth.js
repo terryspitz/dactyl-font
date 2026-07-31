@@ -8,8 +8,10 @@
 // same stroke a few samples along — that keeps joints (n, e) from pinching
 // while counters (o, a, e) still push back and stay open.
 //
-// The rule per field cell x, with d1 = distance to the nearest spine sample q1
-// and dOpp = distance to the nearest sample *opposing* q1:
+// The rule per field cell x, with d1 = distance to the nearest point on the
+// spine polyline (an exact "capsule" distance — SDF direction #4 — not a
+// distance to the nearest *sample*: see refineToSegments) and dOpp = distance
+// to the nearest such point *opposing* it:
 //
 //   rAllowed(x) = max(rMin, min(rMax, dOpp(x) - gap))
 //   ink iff d1 <= rAllowed          (field f = rAllowed - d1, ink iff f >= 0)
@@ -35,6 +37,17 @@
 // consumers derive f from it: growStrokes contours f with marching squares
 // for vector output, and GrowCanvas.jsx thresholds it in a fragment shader
 // where grow/gap/fuse/layers are just uniforms.
+//
+// d1/dOpp are exact distances to the spine's line *segments*, not to its
+// point samples: the sweep below still propagates the nearest *sample* per
+// cell (cheap, O(cells)), but refineToSegments then corrects that sample's
+// distance to the exact distance to its two adjacent segments.  Distance to a
+// segment is always <= distance to either of its endpoints, so this can only
+// tighten the field.  Without it, d1 is a union of discs centred on the
+// samples — smooth only where samples are dense — so the outline scallops at
+// coarse `cell`.  With it, the outline is a clean capsule (round-rect) offset
+// of the polyline at any sample spacing, decoupling edge quality from `cell`
+// and hence from performance (SDF direction #4).
 
 // dOpp is capped here: values beyond every reachable rMax + gap are
 // equivalent (the growth rule clamps to rMax first), and a finite cap keeps
@@ -383,6 +396,45 @@ function distanceSweep(xs, ys, samePart, nx, ny, x0, y0, cell, onProgress) {
     return { i1, i2, d1sq, d2sq }
 }
 
+/// Squared distance from point (px, py) to the segment (ax, ay)-(bx, by).
+function segDist2(px, py, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay
+    const len2 = dx * dx + dy * dy
+    if (len2 < 1e-12) { const ex = px - ax, ey = py - ay; return ex * ex + ey * ey }
+    let t = ((px - ax) * dx + (py - ay) * dy) / len2
+    if (t < 0) t = 0; else if (t > 1) t = 1
+    const ex = px - (ax + t * dx), ey = py - (ay + t * dy)
+    return ex * ex + ey * ey
+}
+
+/// Refine the sweep's per-cell winning-sample distances (dsq, keyed by the
+/// winning sample index in iWin) to exact distances to that sample's two
+/// adjacent spine segments (SDF direction #4).  The sweep is cheap because it
+/// only ever propagates *sample* winners between cells; since samples sit
+/// ~cell apart, the true nearest point on the whole polyline is (except in
+/// rare sweep-selection-error cases already inherent to the dead-reckoning
+/// approximation) on one of the winning sample's adjacent segments, so this
+/// O(1)-per-cell local correction turns the point-sample field into a
+/// segment ("capsule") field without redoing the O(cells) propagation.
+function refineToSegments(xs, ys, nextIdx, prevIdx, iWin, dsq, nx, ny, x0, y0, cell) {
+    for (let iy = 0; iy < ny; iy++) {
+        const cy = y0 + iy * cell
+        const row = iy * nx
+        for (let ix = 0; ix < nx; ix++) {
+            const k = row + ix
+            const i = iWin[k]
+            if (i < 0) continue
+            const cx = x0 + ix * cell
+            let best = dsq[k]
+            const ni = nextIdx[i]
+            if (ni >= 0) best = Math.min(best, segDist2(cx, cy, xs[i], ys[i], xs[ni], ys[ni]))
+            const pi = prevIdx[i]
+            if (pi >= 0) best = Math.min(best, segDist2(cx, cy, xs[pi], ys[pi], xs[i], ys[i]))
+            dsq[k] = best
+        }
+    }
+}
+
 /// In-place 3×3 binomial blur of one channel of an interleaved field with
 /// `stride` channels per cell (repeated `passes` times).  The dOpp and cross
 /// channels have small discontinuities where the nearest sample flips between
@@ -507,6 +559,20 @@ export function buildGrowthField(strokes, opts = {}) {
     const strokeClosed = Uint8Array.from(closedFlags.map(c => c ? 1 : 0))
     const grid = new SampleGrid(xs, ys, Math.max(16, cell * 6))
 
+    // Per-sample neighbour indices within its own stroke, for refineToSegments
+    // (SDF direction #4): nextIdx/prevIdx are -1 at an open stroke's ends, or
+    // wrap for closed strokes (mirroring buildOpposition's own wrap rule).
+    const nextIdx = new Int32Array(xs.length).fill(-1)
+    const prevIdx = new Int32Array(xs.length).fill(-1)
+    for (let si = 0; si < strokeRanges.length; si++) {
+        const [start, end] = strokeRanges[si]
+        const wraps = strokeClosed[si] && end - start > 2
+        for (let i = start; i < end; i++) {
+            nextIdx[i] = i < end - 1 ? i + 1 : (wraps ? start : -1)
+            prevIdx[i] = i > start ? i - 1 : (wraps ? end - 1 : -1)
+        }
+    }
+
     // Geodesic same-part relation: strokes touching within ~a sample spacing
     // are joined; everything beyond counterK along the network opposes.
     // (Opposition is a modest, hard-to-instrument share; the sweep dominates.)
@@ -533,6 +599,10 @@ export function buildGrowthField(strokes, opts = {}) {
     // The sweep is the bulk of the field build: map it to the 0.2..1.0 range.
     const sweepProgress = onProgress ? (f => onProgress(0.2 + 0.8 * f)) : undefined
     const { i1, i2, d1sq, d2sq } = distanceSweep(xs, ys, samePart, nx, ny, x0, y0, cell, sweepProgress)
+    // Correct the winning samples' point distances to exact segment distances
+    // (SDF direction #4): turns the union-of-discs field into a capsule SDF.
+    refineToSegments(xs, ys, nextIdx, prevIdx, i1, d1sq, nx, ny, x0, y0, cell)
+    refineToSegments(xs, ys, nextIdx, prevIdx, i2, d2sq, nx, ny, x0, y0, cell)
     const rg = new Float32Array(nx * ny * 3)
     for (let k = 0; k < nx * ny; k++) {
         const a = i1[k], b = i2[k]
