@@ -27,6 +27,14 @@ let getControlDetails (name: string, control: Controls, category: string, descri
            step = 0.05
            category = category
            description = description |}
+    | SteppedFracRange(min, max, step) ->
+        {| name = name
+           type_ = "range"
+           min = min
+           max = max
+           step = step
+           category = category
+           description = description |}
     | Checkbox ->
         {| name = name
            type_ = "checkbox"
