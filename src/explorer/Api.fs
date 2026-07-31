@@ -141,7 +141,7 @@ let generateSvgPerGlyph
                             yield!
                                 font.charToSvg
                                     str.[c]
-                                    offsetXs.[c]
+                                    (offsetXs.[c] + font.glyphShift str.[c])
                                     (baselineY i + font.metrics.thickness)
                                     "black" ]
 
@@ -745,9 +745,15 @@ let generateFontGlyphDataPerGlyph
 
             try
                 let outline = charFont.CharToOutline c
+                // Bake the glyph's optical shift into the exported outline: in an
+                // OTF the left sidebearing *is* the outline's x position, so this
+                // is how the shift the SVG renderer applies at draw time survives
+                // into the font file. Both must agree — see Font.glyphShift.
+                let shift = charFont.glyphShift c
+                let placed = if shift = 0.0 then outline else translateBy shift 0.0 outline
                 // outlineFont has smooth=false so rendering the sampled Corner outline knots
                 // does not trigger O(n²) NelderMead; cached on the font instance.
-                let svg, _, _ = charFont.outlineFont.elementToSvg outline
+                let svg, _, _ = charFont.outlineFont.elementToSvg placed
                 let path = String.concat " " svg
                 if axes.opticalKerning && path <> "" then
                     // Sample profiles from the pre-italic outline so kerns hold
@@ -768,17 +774,22 @@ let generateFontGlyphDataPerGlyph
                    pathData = "" |})
         |> Array.ofSeq
 
-    // Optical kerns for every glyph pair. Emits ALL non-zero values so the
-    // OTF kern table matches what the SVG render path applies — the SVG path
-    // doesn't filter, and any mismatch shows up as text laid out differently
-    // between the two.
+    // Residual kerns, for the pairs per-glyph optical spacing can't get right
+    // on its own. Emits ALL non-zero values so the OTF kern/GPOS tables match
+    // what the SVG render path applies — the SVG path doesn't filter, and any
+    // mismatch shows up as text laid out differently between the two.
     let kerningPairs =
         if axes.opticalKerning then
             let acc = ResizeArray()
             for KeyValue(cL, pL) in profileMap do
-                let advanceL = (fontFor cL).charWidth cL
+                let fontL = fontFor cL
+                let advanceL = fontL.charWidth cL
+                let shiftL = fontL.glyphShift cL
                 for KeyValue(cR, pR) in profileMap do
-                    let k = GlyphProfile.pairKern (float axes.spacing) advanceL pL pR
+                    let shiftR = (fontFor cR).glyphShift cR
+                    let k =
+                        GlyphProfile.residualKern
+                            (float axes.spacing) advanceL shiftL shiftR kernThreshold pL pR
                     if k <> 0 then
                         acc.Add({| left = int cL; right = int cR; value = k |})
             acc.ToArray()

@@ -80,6 +80,15 @@ let dotToClosedCurve x y r =
 /// Fixed constant now; `spacing` is the single spacing knob.
 let sidebearingScale = 1.2
 
+/// Residuals smaller than this (glyph units, against a 600-unit cap height)
+/// are dropped rather than emitted as a kern pair — under 2% of cap height,
+/// so a fraction of a point at any reading size, but still a table entry in
+/// every exported font. Raising it prunes far more aggressively (20 drops the
+/// table to ~34% of pairs vs ~61% here) at the cost of accepting visible
+/// error, which is the wrong trade for a font whose whole point is the
+/// spacing.
+let kernThreshold = 10.0
+
 //class
 type Font(axes: Axes, ?showCombOpt: bool) =
     //basic manipulation using class variables
@@ -2219,7 +2228,34 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         + float this.axes.spacing
         + this.sidebearing
 
-    member this.charWidth ch = this.width (Glyph(ch))
+    /// Advance width. With optical kerning on this is derived from the glyph's
+    /// own sampled silhouette, so the advance *alone* spaces text correctly and
+    /// kerning is left to handle only what per-glyph spacing structurally
+    /// cannot (see GlyphProfile.opticalAdvance). Otherwise it is the plain
+    /// spine-extent + spacing + sidebearing.
+    ///
+    /// Blended back toward the naive width by `monospace`, which by definition
+    /// wants every advance identical — the exact opposite of spacing each glyph
+    /// to its own shape. Glyphs with no ink (space) have no silhouette to
+    /// measure and always fall back.
+    member this.charWidth ch =
+        let naive = this.width (Glyph(ch))
+        if not axes.opticalKerning then naive
+        else
+            match GlyphProfile.opticalAdvance (float axes.spacing) (this.glyphProfile ch) with
+            | None -> naive
+            | Some optical -> (1.0 - axes.monospace) * optical + axes.monospace * naive
+
+    /// Horizontal offset to draw this glyph at, so its left sidebearing is
+    /// optical rather than wherever its spine happened to start.
+    ///
+    /// Every renderer must apply this identically — the SVG layout below and
+    /// the OTF outline export in Api.fs — or the two disagree about spacing,
+    /// which is precisely the class of bug SvgAndOtfKerns_AgreeForEveryPair
+    /// exists to catch.
+    member this.glyphShift(ch: char) : float =
+        if not axes.opticalKerning then 0.0
+        else (1.0 - axes.monospace) * GlyphProfile.opticalShift (this.glyphProfile ch)
 
     member this.charWidths str =
         Seq.map this.charWidth str |> List.ofSeq
@@ -2266,9 +2302,14 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     member this.opticalPairKern (a: char) (b: char) : int =
         if not axes.opticalKerning then 0
         else
-            let pa = this.glyphProfile a
-            let pb = this.glyphProfile b
-            GlyphProfile.pairKern (float axes.spacing) (this.charWidth a) pa pb
+            GlyphProfile.residualKern
+                (float axes.spacing)
+                (this.charWidth a)
+                (this.glyphShift a)
+                (this.glyphShift b)
+                kernThreshold
+                (this.glyphProfile a)
+                (this.glyphProfile b)
 
     /// Kerning for the ordered pair (a, b), from outline-sampled optical
     /// kerning. Returns 0 when axes.opticalKerning is off.
@@ -2319,7 +2360,12 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                                 | Some p -> p (float charCount / float totalChars)
                                 | None -> ()
 
-                                yield! this.charToSvg str.[c] (offsetXs.[c]) lineOffset colour ]
+                                yield!
+                                    this.charToSvg
+                                        str.[c]
+                                        (offsetXs.[c] + this.glyphShift str.[c])
+                                        lineOffset
+                                        colour ]
 
                       (svg, List.sum advances) ]
 

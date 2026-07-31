@@ -134,6 +134,87 @@ let sampleProfile (bandY0: float) (bandY1: float) (bandCount: int) (cmds: Cmd li
       RightEdges = rights
       HasInk = hasInk }
 
+// ---------------------------------------------------------------------------
+// Per-glyph optical spacing.
+//
+// Kerning is meant to be a sparse *correction*; the bulk of the work belongs in
+// each glyph's own sidebearings, which live in the advance width and therefore
+// survive into consumers that never apply kerning at all. Measuring both sides
+// of a glyph once (O(n)) rather than every pair (O(n²)) is also what keeps the
+// exported kern/GPOS table small.
+//
+// Model (as in area-based auto-spacers such as HTLetterspacer): the whitespace
+// a reader perceives beside a glyph is the physical gap *plus* whatever the
+// glyph's own silhouette gives away by receding from its extreme edge. Hold
+// that sum constant and both `H` (flat, recedes nothing) and `A` (recedes a
+// lot up top) end up looking equally spaced.
+// ---------------------------------------------------------------------------
+
+/// Extra room a *broad* contact needs over the bare target — see the long
+/// comment on pairKern below. Defined up here because per-glyph spacing has to
+/// aim at the same effective gap the pairwise model does, or every pair is left
+/// with a constant residual and nothing is ever sparse.
+let private maxSlackForBroadContact = 60.0
+let private nearMinTolerance = 20.0
+
+/// Depth past which a concavity stops counting. A deep notch — C's aperture,
+/// the underside of T's arms — reads as enclosed counter-space rather than as
+/// sidebearing, and must not buy unlimited tightening.
+let private maxRecessionDepth = 120.0
+
+/// How much of a side's own recession is charged against its sidebearing.
+///
+/// 0.5 is an empirical optimum, not a guess: swept over 0.0–1.5 against the
+/// full charset, it minimises both the residual kern count and mean |kern|,
+/// and both neighbours (0.35, 0.75) are worse on every measure. Turning it up
+/// so per-glyph spacing does *more* of the work makes agreement worse, not
+/// better — the pairwise model's broad-contact rule and a per-side recession
+/// measure genuinely disagree about diagonals (A's right side recedes, yet
+/// A/V reads as a broad contact needing more room, not less), and no single
+/// weight reconciles them. That irreducible disagreement is precisely the
+/// part that has to stay in the kern table.
+let private recessionWeight = 0.5
+
+let private inkBands (p: GlyphProfile) =
+    [| for i in 0 .. p.BandCount - 1 do
+           if p.LeftEdges.[i] < posInf && p.RightEdges.[i] > negInf then yield i |]
+
+/// (leftmost ink x, rightmost ink x, mean left recession, mean right recession).
+/// Recessions are depth-limited means over bands carrying ink, measured back
+/// from that side's own extreme — 0 for a flat side, large for a receding one.
+let sideMetrics (p: GlyphProfile) : (float * float * float * float) option =
+    if not p.HasInk then None
+    else
+        let bands = inkBands p
+        if bands.Length = 0 then None
+        else
+            let inkLeft = bands |> Array.map (fun i -> p.LeftEdges.[i]) |> Array.min
+            let inkRight = bands |> Array.map (fun i -> p.RightEdges.[i]) |> Array.max
+            let lRec = bands |> Array.averageBy (fun i -> min maxRecessionDepth (p.LeftEdges.[i] - inkLeft))
+            let rRec = bands |> Array.averageBy (fun i -> min maxRecessionDepth (inkRight - p.RightEdges.[i]))
+            Some(inkLeft, inkRight, lRec, rRec)
+
+/// How far to move a glyph off its spine origin so its left sidebearing is
+/// optical rather than accidental: normalise the leftmost ink to x=0, then
+/// inset by the whitespace the left silhouette already provides.
+let opticalShift (p: GlyphProfile) : float =
+    match sideMetrics p with
+    | None -> 0.0
+    | Some(inkLeft, _, lRec, _) -> -inkLeft - recessionWeight * lRec
+
+/// Advance width for a glyph spaced optically on both sides, so that a pair of
+/// them placed by advance alone leaves this much *perceived* white:
+///   gap = (target + maxSlackForBroadContact) - w*rRec(left) - w*lRec(right)
+///
+/// The slack is included so a flat-sided pair (H/H — no recession on either
+/// facing side) lands exactly where the pairwise model wants it and needs no
+/// kern at all. Receding sides then give it back, which is the optical idea.
+let opticalAdvance (target: float) (p: GlyphProfile) : float option =
+    match sideMetrics p with
+    | None -> None
+    | Some(inkLeft, inkRight, lRec, rRec) ->
+        Some((inkRight - inkLeft) + (target + maxSlackForBroadContact) - recessionWeight * (lRec + rRec))
+
 /// Optical kern between two glyphs.
 /// Caller passes the advance of the left glyph; we shift the right glyph by
 /// `kern` so the closest band-wise gap equals an *effective* target that
@@ -164,11 +245,15 @@ let sampleProfile (bandY0: float) (bandY1: float) (bandCount: int) (cmds: Cmd li
 /// avoid reading as a collision; an isolated tangent point (fj/rn/fl,
 /// only a band or two is that close) is fine at the bare `target` — adding
 /// slack there would undo kerning that was already correct.
-let private nearMinTolerance = 20.0
-let private maxSlackForBroadContact = 60.0
+/// (nearMinTolerance / maxSlackForBroadContact are defined above, since
+/// per-glyph optical spacing has to aim at the same effective target.)
 
-let pairKern (target: float) (advanceA: float) (a: GlyphProfile) (b: GlyphProfile) : int =
-    if not a.HasInk || not b.HasInk || a.BandCount <> b.BandCount then 0
+/// Where B's origin wants to sit relative to A's, before either glyph's
+/// optical shift — the placement that puts the closest band-wise gap at the
+/// effective target. Independent of A's advance width by construction, which
+/// is exactly why the advance has to be subtracted back off by the caller.
+let private desiredOffset (target: float) (a: GlyphProfile) (b: GlyphProfile) : float option =
+    if not a.HasInk || not b.HasInk || a.BandCount <> b.BandCount then None
     else
         let gaps =
             [| for i in 0 .. a.BandCount - 1 do
@@ -176,18 +261,39 @@ let pairKern (target: float) (advanceA: float) (a: GlyphProfile) (b: GlyphProfil
                    let lb = b.LeftEdges.[i]
                    if ra > negInf && lb < posInf then
                        yield lb - ra |]
-        if gaps.Length = 0 then 0
+        if gaps.Length = 0 then None
         else
             let deltaMin = Array.min gaps
             let nearMinCount = gaps |> Array.filter (fun g -> g <= deltaMin + nearMinTolerance) |> Array.length
             let fractionNearMin = float nearMinCount / float gaps.Length
             let effectiveTarget = target + maxSlackForBroadContact * fractionNearMin
-            let raw = effectiveTarget - advanceA - deltaMin
-            // Clip so a degenerate profile can't push glyphs through each other.
-            // Widened from (-200, +80): the old ceiling was routinely binding on
-            // flat-sided pairs (H/H wanted more than +80) because the kern was
-            // also having to cancel `spacing` out of the advance. Now that
-            // `spacing` is the target instead, the kern only has to cover real
-            // shape variation, and these bounds sit clear of it.
-            let clipped = max -250.0 (min 150.0 raw)
-            int (System.Math.Round(clipped))
+            Some(effectiveTarget - deltaMin)
+
+/// Clip so a degenerate profile can't push glyphs through each other.
+/// Widened from (-200, +80): the old ceiling was routinely binding on
+/// flat-sided pairs (H/H wanted more than +80) because the kern was also
+/// having to cancel `spacing` out of the advance. Now that `spacing` is the
+/// target instead, the kern only covers real shape variation.
+let private clipKern (raw: float) = int (System.Math.Round(max -250.0 (min 150.0 raw)))
+
+let pairKern (target: float) (advanceA: float) (a: GlyphProfile) (b: GlyphProfile) : int =
+    match desiredOffset target a b with
+    | None -> 0
+    | Some desired -> clipKern (desired - advanceA)
+
+/// Pair kern remaining once per-glyph optical spacing has done its part.
+/// Both glyphs are drawn at their own `opticalShift`, so the pair's ideal
+/// origin separation is `desired + shiftA - shiftB`, of which the advance
+/// width already delivers `advanceA`. Only the difference needs a kern.
+///
+/// Residuals under `threshold` are dropped to zero. That pruning is the point:
+/// per-glyph spacing is supposed to leave most pairs needing nothing, and a
+/// kern of a couple of units is below what anyone can see but still costs a
+/// table entry in every exported font.
+let residualKern (target: float) (advanceA: float) (shiftA: float) (shiftB: float)
+                 (threshold: float) (a: GlyphProfile) (b: GlyphProfile) : int =
+    match desiredOffset target a b with
+    | None -> 0
+    | Some desired ->
+        let raw = desired + shiftA - shiftB - advanceA
+        if abs raw < threshold then 0 else clipKern raw

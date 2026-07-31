@@ -639,10 +639,20 @@ type FontTests() =
                     let cmds = GlyphProfile.parseSvgCommands path
                     profiles.[c] <- GlyphProfile.sampleProfile bandY0 bandY1 bandCount cmds
             with _ -> ()
-        // Compute "OTF kern" exactly as Api would: outline-sampled optical kern.
+        // Compute "OTF kern" exactly as Api would: the residual left over once
+        // each glyph's own optical sidebearings (advance + shift) have been
+        // applied. Both sides must agree on advance, shift AND threshold — get
+        // any one of the three wrong and the CSS and SVG renders drift apart.
         let otfKern (a: char) (b: char) : int =
             if profiles.ContainsKey(a) && profiles.ContainsKey(b) then
-                GlyphProfile.pairKern (float axes.spacing) (font.charWidth a) profiles.[a] profiles.[b]
+                GlyphProfile.residualKern
+                    (float axes.spacing)
+                    (font.charWidth a)
+                    (font.glyphShift a)
+                    (font.glyphShift b)
+                    Font.kernThreshold
+                    profiles.[a]
+                    profiles.[b]
             else 0
         // Compare across all ordered pairs of test chars.
         let mismatches = ResizeArray()
