@@ -114,7 +114,7 @@ type Axes =
           "slant", FracRange(0.0, 1.0), "backbone", "Fraction to shear glyphs"
           "cursive", SteppedFracRange(0.0, 1.0, 0.5), "backbone", "Cursive a/g forms: 0=Roman (two-storey), 0.5=Auto (cursive when slanted), 1=Cursive (single-storey)"
           "roundedness", Range(0, 100), "backbone", "Roundedness"
-          "opticalKerning", FracRange(0.0, 1.0), "backbone", "How much spacing is derived from the sampled outlines: 0=Fixed (plain advance-width padding), 0.5=Sidebearings (per-glyph optical advances), 1=Kerned (adds residual pair kerns on top)"
+          "opticalKerning", SteppedFracRange(0.0, 1.0, 0.5), "backbone", "How much spacing is derived from the sampled outlines: 0=Fixed (plain advance-width padding), 0.5=Sidebearings (per-glyph optical advances), 1=Kerned (adds residual pair kerns on top)"
           "weight", Range(1, 200), "outline", "Stroke width"
           "contrast", FracRange(-0.5, 0.5), "outline", "Make vertical lines thicker"
           "softness", FracRange(0.0, 1.0), "outline", "Radius of rounding applied at angled corners (0=sharp, 1=max)"
