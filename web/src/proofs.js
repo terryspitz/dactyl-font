@@ -26,11 +26,38 @@ const wrap = (s, width) => {
 
 const WRAP_WIDTH = 80
 
+// "Spacing Strings" technique: https://www.a-plus-type.com/writing/spacing-strings
+// A fixed set of control strings (n/o for lowercase, H/O for uppercase), followed
+// by two templated strings per glyph that sandwich it between straight (n/H) and
+// round (o/O) neighbours, doubled up for interior straight-to-straight and
+// round-to-round comparisons.
+const SPACING_CONTROL_STRINGS = [
+  'nnnnnnnn',
+  'nnnnononoooo',
+  'HHHOHOHOOO',
+  'HHnnHOHOnnOO',
+  'HHooHOHOooOO',
+  'nnHHnonoHHoo',
+  'nnOOnonoOOoo',
+]
+
+const spacingStringsForGlyph = (c) => [
+  `nn${c}nonouu${c}nono${c}oo`,
+  `HH${c}HOHO${c}OO`,
+]
+
+const spacingStringsText = [
+  ...SPACING_CONTROL_STRINGS,
+  '',
+  ...Array.from(alphabetChars.replace(/\n/g, '')).flatMap(spacingStringsForGlyph),
+].join('\n')
+
 export const proofTexts = {
   uppercase: wrap(stripComments(uppercase), WRAP_WIDTH),
   lowercase: wrap(stripComments(lowercase), WRAP_WIDTH),
   alphabet: alphabetChars,
   allGlyphs: allChars,
+  spacingStrings: spacingStringsText,
 }
 
 export const proofLabels = {
@@ -38,8 +65,9 @@ export const proofLabels = {
   lowercase: 'Lowercase',
   alphabet: 'Alphabet',
   allGlyphs: 'All glyphs',
+  spacingStrings: 'Spacing Strings',
 }
 
-export const proofCases = ['lowercase', 'uppercase', 'alphabet', 'allGlyphs']
+export const proofCases = ['lowercase', 'uppercase', 'alphabet', 'allGlyphs', 'spacingStrings']
 
 export { classicBooks } from './proofs/books'
