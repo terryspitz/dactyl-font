@@ -2182,7 +2182,9 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
            try
                // Spine is solved with smooth (this), outline knots rendered without smooth (outlineFont).
-               let outline = this.getOutline backbone
+               // Via CharToOutline so this shares the cached solve with charWidth /
+               // glyphShift, which need the same outline to measure sidebearings.
+               let outline = this.CharToOutline ch
 
                if axes.debug then
                    printfn "outline: %A" outline
@@ -2395,11 +2397,42 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
         toSvgDocument -margin -margin w h svg
 
-    member this.CharToOutline ch = this.charToElem ch |> this.getOutline
+    /// Solved outlines, cached per character on this Font instance.
+    ///
+    /// Safe to cache because `getOutline` is a pure function of (axes, char):
+    /// a Font's axes are fixed at construction, and nothing in the generator
+    /// uses an RNG — `roughness`/`wobble` are deterministic sums of sines over
+    /// arc length, and the Nelder-Mead solve has no random restarts. So the
+    /// same char always solves to the same outline on the same instance.
+    ///
+    /// Worth doing because asking for a glyph's *advance width* now solves its
+    /// outline (optical sidebearings sample the silhouette), and the renderer
+    /// then solved the very same outline again to draw it — two full spline
+    /// solves per glyph where there was one. That duplication cost the Font tab
+    /// roughly 2x once optical spacing was switched on.
+    member val private outlineCache: System.Collections.Generic.Dictionary<char, Element> =
+        System.Collections.Generic.Dictionary<char, Element>() with get
+
+    member this.CharToOutline ch =
+        match this.outlineCache.TryGetValue ch with
+        | true, outline -> outline
+        | _ ->
+            let outline = this.charToElem ch |> this.getOutline
+            this.outlineCache.[ch] <- outline
+            outline
 
     /// Outline in the pre-italicise frame (no shear). Used for profile
     /// sampling in optical kerning.
-    member this.CharToOutlinePreItalic ch = this.charToElemPreItalic ch |> this.getOutline
+    member val private outlinePreItalicCache: System.Collections.Generic.Dictionary<char, Element> =
+        System.Collections.Generic.Dictionary<char, Element>() with get
+
+    member this.CharToOutlinePreItalic ch =
+        match this.outlinePreItalicCache.TryGetValue ch with
+        | true, outline -> outline
+        | _ ->
+            let outline = this.charToElemPreItalic ch |> this.getOutline
+            this.outlinePreItalicCache.[ch] <- outline
+            outline
 
     /// Returns the solved backbone (x, y) positions for every Curve in the glyph.
     /// Uses the DactylSpline solver, so call this with dactyl_spline = true.
