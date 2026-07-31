@@ -4,6 +4,8 @@ module Axes
 type Controls =
     | Range of from: int * upto: int
     | FracRange of from: float * upto: float
+    /// Like FracRange but snaps to multiples of `step` (e.g. 0.5) instead of the default 0.05.
+    | SteppedFracRange of from: float * upto: float * step: float
     | Checkbox
 
 // Variable which define the font characteristics (named after Variable Font terminology)
@@ -108,7 +110,7 @@ type Axes =
           "leading", Range(-100, 200), "backbone", "Gap between lines"
           "monospace", FracRange(0.0, 1.0), "backbone", "Fraction to interpolate widths to monospace"
           "slant", FracRange(0.0, 1.0), "backbone", "Fraction to shear glyphs"
-          "cursive", FracRange(0.0, 1.0), "backbone", "Cursive a/g forms: 0=Roman (two-storey), 0.5=Auto (cursive when slanted), 1=Cursive (single-storey)"
+          "cursive", SteppedFracRange(0.0, 1.0, 0.5), "backbone", "Cursive a/g forms: 0=Roman (two-storey), 0.5=Auto (cursive when slanted), 1=Cursive (single-storey)"
           "roundedness", Range(0, 100), "backbone", "Roundedness"
           "weight", Range(1, 200), "outline", "Stroke width"
           "contrast", FracRange(-0.5, 0.5), "outline", "Make vertical lines thicker"
