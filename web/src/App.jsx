@@ -1522,7 +1522,7 @@ function App() {
                       checked={compareSpacing}
                       onChange={e => setCompareSpacingWithUrl(e.target.checked)}
                     />
-                    Compare spacing
+                    Compare
                   </label>
                 </div>
               </div>
