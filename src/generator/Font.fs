@@ -848,7 +848,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             th_out = k.th_in |> Option.map (fun t -> norm (t + PI)) }
 
     /// Replace sharp Corner knots with small arcs to produce rounded corners.
-    /// The radius is proportional to soft_corners * thickness, clamped to 40% of each
+    /// The radius is proportional to softness * thickness, clamped to 40% of each
     /// adjacent segment so short segments (end caps) are never over-consumed.
     /// Corners labelled "joint" (where two strokes meet) are left untouched.
     /// The arc point types are adapted to the neighbour context: LineToCurve/CurveToLine
@@ -1280,7 +1280,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     /// from the DactylSpline-solved spine. Walks each cubic bezier at 8 t-steps,
     /// offsets every sample by ±thickness perpendicular to its local tangent, and
     /// emits the result as Corner knots (straight-line segments between samples).
-    /// Reuses the same cap/joint/serif/flare/soft_corners logic as getDactylSansOutlines.
+    /// Reuses the same cap/joint/serif/flare/softness logic as getDactylSansOutlines.
     member this.getDactylConstantOffsetOutlines e =
         let fthickness = float thickness
         let nib = axes.nib
