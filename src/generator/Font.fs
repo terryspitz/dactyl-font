@@ -73,6 +73,13 @@ let dotToClosedCurve x y r =
 
 
 
+/// Sidebearing padding as a multiple of the (contrast-adjusted) stroke
+/// thickness plus serif size — see Font.sidebearing. Was an axis
+/// (`sidebearingScale`), but with optical kerning on it is exactly cancelled
+/// by the pair kern, and with optical kerning off it duplicates `spacing`.
+/// Fixed constant now; `spacing` is the single spacing knob.
+let sidebearingScale = 1.2
+
 //class
 type Font(axes: Axes, ?showCombOpt: bool) =
     //basic manipulation using class variables
@@ -2197,13 +2204,20 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                   else
                       [])
 
+    /// Stroke-proportional padding either side of the spine's own extent, so a
+    /// glyph's advance grows with its weight/serifs instead of letting heavy
+    /// strokes crowd. Not an axis: it is what keeps the *un-kerned* advance
+    /// widths sane (the opticalKerning=off path, and any consumer that ignores
+    /// kerning). With optical kerning on it is absorbed by the pair kern —
+    /// `spacing` is the knob that actually moves glyphs apart there.
+    member this.sidebearing =
+        ((1.0 + this.axes.contrast) * thickness * 2.0 + float this.axes.serif)
+        * sidebearingScale
+
     member this.width e =
-        let sidebearing =
-            ((1.0 + this.axes.contrast) * thickness * 2.0 + float this.axes.serif)
-            * this.axes.sidebearingScale
         (e |> this.reduce |> this.monospace |> this.elemWidth)
         + float this.axes.spacing
-        + sidebearing
+        + this.sidebearing
 
     member this.charWidth ch = this.width (Glyph(ch))
 
@@ -2254,7 +2268,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         else
             let pa = this.glyphProfile a
             let pb = this.glyphProfile b
-            GlyphProfile.pairKern (float axes.kerningTarget) (this.charWidth a) pa pb
+            GlyphProfile.pairKern (float axes.spacing) (this.charWidth a) pa pb
 
     /// Kerning for the ordered pair (a, b), from outline-sampled optical
     /// kerning. Returns 0 when axes.opticalKerning is off.

@@ -51,9 +51,7 @@ type Axes =
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
       flatness: float //weight of flatness (abs m) in objective function
       end_flatness: float //quadratic curvature-span weight for open-curve endpoint segments (higher = more circular arc at stroke tips)
-      sidebearingScale: float //multiplier on the sidebearing padding added to every glyph's width, derived from the font-wide weight/contrast/serif axes
-      opticalKerning: bool //sample glyph outlines and add optical kern pairs
-      kerningTarget: int //target minimum gap (glyph coord units) for optical kerning
+      opticalKerning: bool //sample glyph outlines to space and kern glyphs optically
       debug: bool } //show debug info in console
 
     static member DefaultAxes =
@@ -98,9 +96,7 @@ type Axes =
           clip_rect = true
           flatness = 0.5
           end_flatness = 10.0
-          sidebearingScale = 1.2
           opticalKerning = true
-          kerningTarget = 50
           debug = false }
 
     static member controls =
@@ -116,9 +112,7 @@ type Axes =
           "slant", FracRange(0.0, 1.0), "backbone", "Fraction to shear glyphs"
           "cursive", FracRange(0.0, 1.0), "backbone", "Cursive a/g forms: 0=Roman (two-storey), 0.5=Auto (cursive when slanted), 1=Cursive (single-storey)"
           "roundedness", Range(0, 100), "backbone", "Roundedness"
-          "sidebearingScale", FracRange(0.0, 2.0), "backbone", "Multiplier on the sidebearing padding added to every glyph's width, derived from the weight/contrast/serif axes"
-          "opticalKerning", Checkbox, "backbone", "Sample glyph outlines and add optical kern pairs"
-          "kerningTarget", Range(0, 100), "backbone", "Target minimum gap (glyph coord units) for optical kerning"
+          "opticalKerning", Checkbox, "backbone", "Space and kern glyphs from their sampled outlines, so 'spacing' sets the optical gap rather than a raw advance-width padding"
           "weight", Range(1, 200), "outline", "Stroke width"
           "contrast", FracRange(-0.5, 0.5), "outline", "Make vertical lines thicker"
           "softness", FracRange(0.0, 1.0), "outline", "Radius of rounding applied at angled corners (0=sharp, 1=max)"

@@ -523,21 +523,28 @@ type FontTests() =
         Assert.That(font.pairKerns "AV" |> List.length, Is.EqualTo(1))
 
     [<Test>]
-    member this.SidebearingScale_ScalesPerCharWidth() =
-        // sidebearingScale=1 is the baseline; scaling to 2 must add exactly
-        // the per-char sidebearing term once more. sidebearingScale=0 strips it.
-        let mkFont sc =
-            Font.Font({ Axes.DefaultAxes with sidebearingScale = sc })
-        let fontBase  = mkFont 1.0
-        let fontZero  = mkFont 0.0
-        let fontDbl   = mkFont 2.0
-        let axes = Axes.DefaultAxes
-        let thick = float axes.weight
-        let sidebearingAtOne = (1.0 + axes.contrast) * thick * 2.0 + float axes.serif
-        let delta = fontBase.charWidth 'A' - fontZero.charWidth 'A'
-        Assert.That(delta, Is.EqualTo(sidebearingAtOne).Within(1e-6))
-        let delta2 = fontDbl.charWidth 'A' - fontBase.charWidth 'A'
-        Assert.That(delta2, Is.EqualTo(sidebearingAtOne).Within(1e-6))
+    member this.Spacing_MovesGlyphsApart_WithOpticalKerningOn() =
+        // Regression: `spacing` used to have NO effect with optical kerning on.
+        // pairKern returns `target - advanceA - deltaMin`, so the placed
+        // position `advanceA + kern` cancels advanceA identically — every unit
+        // of spacing (or sidebearing) added to the advance was subtracted
+        // straight back out. Passing `spacing` in as the target is the fix.
+        let placed s =
+            let f = Font.Font({ Axes.DefaultAxes with spacing = s; opticalKerning = true })
+            f.charWidth 'A' + f.pairKern 'A' 'V'
+        // 1 unit of spacing must buy 1 unit of separation (±1 for kern rounding).
+        Assert.That(placed 40 - placed 0, Is.EqualTo(40.0).Within(1.0))
+        Assert.That(placed 100 - placed 40, Is.EqualTo(60.0).Within(1.0))
+
+    [<Test>]
+    member this.Spacing_DoesNotChangeKernValues() =
+        // The `+spacing` in the target cancels the one inside advanceA, so the
+        // kern *value* is spacing-invariant — changing tracking must not churn
+        // every entry of the exported kern/GPOS table.
+        let kern s =
+            Font.Font({ Axes.DefaultAxes with spacing = s; opticalKerning = true }).pairKern 'A' 'V'
+        Assert.That(kern 100, Is.EqualTo(kern 0).Within(1.0))
+        Assert.That(kern 200, Is.EqualTo(kern 0).Within(1.0))
 
     [<Test>]
     member this.Kerning_ItalicInvariant_OverridesSurviveShear()  =
@@ -578,7 +585,7 @@ type FontTests() =
             with _ -> ()
         let opticalRaw (a: char) (b: char) : int =
             if profiles.ContainsKey(a) && profiles.ContainsKey(b) then
-                GlyphProfile.pairKern (float axes.kerningTarget) (font.charWidth a) profiles.[a] profiles.[b]
+                GlyphProfile.pairKern (float axes.spacing) (font.charWidth a) profiles.[a] profiles.[b]
             else 0
         // Notable pairs: diagonals, overhangs, round-to-round and slab sequences.
         let pairs = [
@@ -595,7 +602,7 @@ type FontTests() =
             'l', 'o'; 'o', 'l'; 'n', 'n'; 'o', 'o'
         ]
         printfn ""
-        printfn "============ OPTICAL KERN (target=%d) ============" axes.kerningTarget
+        printfn "============ OPTICAL KERN (target=%d) ============" axes.spacing
         printfn "  pair  kern"
         for (a, b) in pairs do
             printfn "  %c%c    %5d" a b (opticalRaw a b)
@@ -635,7 +642,7 @@ type FontTests() =
         // Compute "OTF kern" exactly as Api would: outline-sampled optical kern.
         let otfKern (a: char) (b: char) : int =
             if profiles.ContainsKey(a) && profiles.ContainsKey(b) then
-                GlyphProfile.pairKern (float axes.kerningTarget) (font.charWidth a) profiles.[a] profiles.[b]
+                GlyphProfile.pairKern (float axes.spacing) (font.charWidth a) profiles.[a] profiles.[b]
             else 0
         // Compare across all ordered pairs of test chars.
         let mismatches = ResizeArray()
@@ -701,7 +708,7 @@ type FontTests() =
                 for KeyValue(cL, pL) in profiles do
                     let advanceL = font.charWidth cL
                     for KeyValue(cR, pR) in profiles do
-                        let k = GlyphProfile.pairKern (float axes.kerningTarget) advanceL pL pR
+                        let k = GlyphProfile.pairKern (float axes.spacing) advanceL pL pR
                         if abs k >= 3 then opticalCount <- opticalCount + 1
             let kernMs = sw.ElapsedMilliseconds
             glyphsMs, kernMs, glyphCount, opticalCount

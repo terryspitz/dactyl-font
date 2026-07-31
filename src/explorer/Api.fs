@@ -778,7 +778,7 @@ let generateFontGlyphDataPerGlyph
             for KeyValue(cL, pL) in profileMap do
                 let advanceL = (fontFor cL).charWidth cL
                 for KeyValue(cR, pR) in profileMap do
-                    let k = GlyphProfile.pairKern (float axes.kerningTarget) advanceL pL pR
+                    let k = GlyphProfile.pairKern (float axes.spacing) advanceL pL pR
                     if k <> 0 then
                         acc.Add({| left = int cL; right = int cR; value = k |})
             acc.ToArray()

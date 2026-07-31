@@ -139,6 +139,14 @@ let sampleProfile (bandY0: float) (bandY1: float) (bandCount: int) (cmds: Cmd li
 /// `kern` so the closest band-wise gap equals an *effective* target that
 /// scales with how much of the profile is actually in close contact.
 ///
+/// `target` is the `spacing` axis. That matters: because the returned kern is
+/// `target - advanceA - deltaMin`, the placed position `advanceA + kern`
+/// is independent of `advanceA` — every term the caller folded into the
+/// advance width (spacing, sidebearing) is algebraically cancelled. Feeding
+/// `spacing` back in as the target is what makes it control the gap again,
+/// and it drops out of the kern *value* (the `+spacing` here cancels the one
+/// inside `advanceA`), so changing tracking doesn't churn the kern table.
+///
 /// Geometry: with B's origin at x = advanceA + kern and bands b in [0, n):
 ///   gap(b) = (advanceA + kern + B.LeftEdges[b]) - A.RightEdges[b]
 ///
@@ -175,6 +183,11 @@ let pairKern (target: float) (advanceA: float) (a: GlyphProfile) (b: GlyphProfil
             let fractionNearMin = float nearMinCount / float gaps.Length
             let effectiveTarget = target + maxSlackForBroadContact * fractionNearMin
             let raw = effectiveTarget - advanceA - deltaMin
-            // clip to a sane range so a degenerate profile can't push glyphs through each other
-            let clipped = max -200.0 (min 80.0 raw)
+            // Clip so a degenerate profile can't push glyphs through each other.
+            // Widened from (-200, +80): the old ceiling was routinely binding on
+            // flat-sided pairs (H/H wanted more than +80) because the kern was
+            // also having to cancel `spacing` out of the advance. Now that
+            // `spacing` is the target instead, the kern only has to cover real
+            // shape variation, and these bounds sit clear of it.
+            let clipped = max -250.0 (min 150.0 raw)
             int (System.Math.Round(clipped))
