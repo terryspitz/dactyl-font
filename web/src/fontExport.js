@@ -641,7 +641,7 @@ export function buildGposTableBytes(pairs) {
  * values go up), which matches the opentype.js coordinate convention directly.
  * All geometry is scaled from the generator's variable em to EXPORT_UPM.
  */
-export function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular') {
+export function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular', onProgress) {
   const { glyphs: glyphsData, ascender, descender, unitsPerEm, kerningPairs } = glyphData
 
   // Map generator units → the fixed 1000-unit export em.
@@ -652,7 +652,11 @@ export function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular
     .filter(g => g.unicode >= 32 && (g.pathData || g.unicode === 32))
     .sort((a, b) => a.unicode - b.unicode)
     .filter((g, i, arr) => i === 0 || g.unicode !== arr[i - 1].unicode)
-    .map(g => {
+    .map((g, i, arr) => {
+      // unionPath (paper.js boolean geometry) dominates this function, so report
+      // per glyph — it is a third of the Proofs tab's total work and used to sit
+      // behind a progress bar that had already reached 100%.
+      if (onProgress) onProgress((i + 1) / arr.length)
       const path = new opentype.Path()
       for (const cmd of unionPath(g.pathData)) {
         switch (cmd.type) {
@@ -741,8 +745,8 @@ export function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular
  * Build a font from the glyph data and return it as an OTF data URL suitable
  * for a CSS @font-face src declaration.
  */
-export function buildFontDataUrl(glyphData, familyName = 'DactylPreview') {
-  const font = buildFont(glyphData, familyName)
+export function buildFontDataUrl(glyphData, familyName = 'DactylPreview', onProgress) {
+  const font = buildFont(glyphData, familyName, 'Regular', onProgress)
   const buffer = injectKerningTables(font.toArrayBuffer(), font.kerningPairs)
   const bytes = new Uint8Array(buffer)
   let binary = ''

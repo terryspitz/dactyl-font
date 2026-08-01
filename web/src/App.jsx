@@ -801,9 +801,19 @@ function App() {
       if (id === renderIdRef.current && loadingRef.current) setShowProgress(true)
     }, 300)
 
+    setProgressValue(0)
+
     worker.onmessage = (e) => {
-      const { id: msgId, result, error } = e.data
+      const { id: msgId, result, error, type, value } = e.data
       if (msgId !== renderIdRef.current) return
+      // Must come before the result handling: a progress message carries no
+      // `result`, so falling through would blank proofFontUrl and drop the font
+      // back to the monospace fallback mid-render.
+      if (type === 'progress') {
+        setProgressValue(value)
+        if (value > 0) setShowProgress(true)
+        return
+      }
       clearTimeout(timer)
       if (error) { setError(error) }
       else { setProofFontUrl(result); setError(null) }

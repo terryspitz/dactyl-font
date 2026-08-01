@@ -734,6 +734,15 @@ let generateFontGlyphDataPerGlyph
     let totalChars = glyphChars.Length
     let mutable charCount = 0
 
+    // Progress is split across this function's two phases so the bar keeps
+    // moving through the residual-kern pass instead of parking at 100% for it.
+    // Measured over the full charset: outlines ~1600ms, kern pass ~390ms.
+    let glyphPhaseShare = if axes.usePairKerning then 0.8 else 1.0
+    let report (fraction: float) =
+        match progress with
+        | Some p -> p fraction
+        | None -> ()
+
     // Per-glyph: render outline, capture svg path, optionally sample edge profile.
     let bandY0 = metrics.D - thickness
     let bandY1 = metrics.T + thickness
@@ -744,10 +753,7 @@ let generateFontGlyphDataPerGlyph
         glyphChars
         |> Seq.map (fun c ->
             charCount <- charCount + 1
-
-            match progress with
-            | Some p -> p (float charCount / float totalChars)
-            | None -> ()
+            report (glyphPhaseShare * float charCount / float totalChars)
 
             let charFont = fontFor c
 
@@ -792,7 +798,11 @@ let generateFontGlyphDataPerGlyph
     let kerningPairs =
         if axes.usePairKerning then
             let acc = ResizeArray()
+            let mutable leftDone = 0
             for KeyValue(cL, pL) in profileMap do
+                leftDone <- leftDone + 1
+                report (glyphPhaseShare
+                        + (1.0 - glyphPhaseShare) * float leftDone / float (max 1 profileMap.Count))
                 let fontL = fontFor cL
                 let advanceL = fontL.charWidth cL
                 let shiftL = fontL.glyphShift cL
