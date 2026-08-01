@@ -2232,9 +2232,20 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         * sidebearingScale
 
     member this.width e =
-        (e |> this.reduce |> this.monospace |> this.elemWidth)
+        let reduced = e |> this.reduce |> this.monospace
+        // The sidebearing term pads *ink* — it keeps a stroke off its
+        // neighbour. A blank glyph has no stroke to keep clear, so adding it
+        // there just made word spaces track `spacing` on top of their own
+        // width. Applies at every opticalKerning stop, so a space is the same
+        // width whichever one you pick (a blank has no silhouette to space
+        // optically, so it always takes this path).
+        let isBlank =
+            match reduced with
+            | Space -> true
+            | _ -> false
+        this.elemWidth reduced
         + float this.axes.spacing
-        + this.sidebearing
+        + (if isBlank then 0.0 else this.sidebearing)
 
     /// Advance width. With optical kerning on this is derived from the glyph's
     /// own sampled silhouette, so the advance *alone* spaces text correctly and
