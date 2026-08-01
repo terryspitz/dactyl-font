@@ -73,6 +73,28 @@ let dotToClosedCurve x y r =
 
 
 
+/// Sidebearing padding as a multiple of the (contrast-adjusted) stroke
+/// thickness plus serif size — see Font.sidebearing. Was an axis
+/// (`sidebearingScale`), but with optical kerning on it is exactly cancelled
+/// by the pair kern, and with optical kerning off it duplicates `spacing`.
+/// Fixed constant now; `spacing` is the single spacing knob.
+///
+/// 1.0 exactly, because that is the stroke's own overhang either side of the
+/// spine: it makes the fixed-spacing advance equal ink width + `spacing`, so a
+/// flat-sided pair sits exactly `spacing` apart — the same thing `spacing`
+/// means on the optical path. Any other value and the axis would quietly mean
+/// something different at opticalKerning=0 than at 0.5.
+let sidebearingScale = 1.0
+
+/// Residuals smaller than this (glyph units, against a 600-unit cap height)
+/// are dropped rather than emitted as a kern pair — under 2% of cap height,
+/// so a fraction of a point at any reading size, but still a table entry in
+/// every exported font. Raising it prunes far more aggressively (20 drops the
+/// table to ~34% of pairs vs ~61% here) at the cost of accepting visible
+/// error, which is the wrong trade for a font whose whole point is the
+/// spacing.
+let kernThreshold = 10.0
+
 //class
 type Font(axes: Axes, ?showCombOpt: bool) =
     //basic manipulation using class variables
@@ -409,6 +431,26 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         | Some f -> f
         | None -> this
 
+    // Profile sampling for optical kerning runs against a slant=0 font so the
+    // shear (now applied post-solve inside getOutline) doesn't perturb the
+    // sampled band-wise extents. Profiles thus live in the design frame and
+    // hold across slant axis values.
+    member val private italicFreeFontCachedOpt : Font option =
+        (if axes.slant <> 0.0 then
+            // cursiveUsesAlt's "Auto" zone (cursive in [0.25, 0.75]) resolves by
+            // slant, so zeroing slant alone would silently flip which a/g shape
+            // gets profiled here. Pin cursive to the endpoint that reproduces
+            // this axis set's actual resolution instead.
+            let pinnedCursive = if axes.useCursiveAlt then 0.0 else 1.0
+            Some(Font({ axes with slant = 0.0; cursive = pinnedCursive }))
+         else None)
+        with get
+
+    member this.italicFreeFont =
+        match this.italicFreeFontCachedOpt with
+        | Some f -> f
+        | None -> this
+
     member this.reduce(e: Element) =
         match e with
         | Glyph(ch) ->
@@ -437,7 +479,11 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         | Dot(p) -> p.x
         | EList(elems) -> List.fold max 0.0 (List.map this.elemWidth elems)
         | Space ->
-            let space = axes.height / 4 //according to https://en.wikipedia.org/wiki/Whitespace_character#Variable-width_general-purpose_space
+            // Space ink width. Was height/4 (~150 units at default height=600);
+            // narrowed to height/6 so the space advance comes out closer to
+            // the visual gap between kerned glyph pairs (otherwise space
+            // looks too wide once optical kerning tightens letters).
+            let space = axes.height / 6
 
             (1.0 - axes.monospace) * float space + axes.monospace * _metrics.monospaceWidth
         | _ -> invalidArg "e" (sprintf "Unreduced element %A" e)
@@ -2117,6 +2163,16 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         |> this.translateByThickness
         |> this.italicise
 
+    /// Pre-italicise variant — used for optical kerning so the italic shear
+    /// doesn't perturb sampled edge profiles (the shear cancels for a pair
+    /// of glyphs both shifted by italic*y, so we work in the design frame).
+    member this.charToElemPreItalic ch =
+        Glyph(ch)
+        |> this.reduce
+        |> applyIf axes.constraints this.constrainTangents
+        |> this.monospace
+        |> this.translateByThickness
+
     member this.charToSvg ch offsetX offsetY colour =
         if axes.debug then
             printfn "%c" ch
@@ -2132,7 +2188,9 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
            try
                // Spine is solved with smooth (this), outline knots rendered without smooth (outlineFont).
-               let outline = this.getOutline backbone
+               // Via CharToOutline so this shares the cached solve with charWidth /
+               // glyphShift, which need the same outline to measure sidebearings.
+               let outline = this.CharToOutline ch
 
                if axes.debug then
                    printfn "outline: %A" outline
@@ -2163,17 +2221,128 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                   else
                       [])
 
-    member this.width e =
-        (e |> this.reduce |> this.monospace |> this.elemWidth)
-        + float this.axes.spacing
-        + ((1.0 + this.axes.contrast) * thickness * 2.0 + float this.axes.serif)
+    /// Stroke-proportional padding either side of the spine's own extent, so a
+    /// glyph's advance grows with its weight/serifs instead of letting heavy
+    /// strokes crowd. Not an axis: it is what keeps the *un-kerned* advance
+    /// widths sane (the opticalKerning=Fixed path, and any consumer that ignores
+    /// kerning). With optical kerning on it is absorbed by the pair kern —
+    /// `spacing` is the knob that actually moves glyphs apart there.
+    member this.sidebearing =
+        ((1.0 + this.axes.contrast) * thickness * 2.0 + float this.axes.serif)
+        * sidebearingScale
 
-    member this.charWidth ch = this.width (Glyph(ch))
+    member this.width e =
+        let reduced = e |> this.reduce |> this.monospace
+        // The sidebearing term pads *ink* — it keeps a stroke off its
+        // neighbour. A blank glyph has no stroke to keep clear, so adding it
+        // there just made word spaces track `spacing` on top of their own
+        // width. Applies at every opticalKerning stop, so a space is the same
+        // width whichever one you pick (a blank has no silhouette to space
+        // optically, so it always takes this path).
+        let isBlank =
+            match reduced with
+            | Space -> true
+            | _ -> false
+        this.elemWidth reduced
+        + float this.axes.spacing
+        + (if isBlank then 0.0 else this.sidebearing)
+
+    /// Advance width. With optical kerning on this is derived from the glyph's
+    /// own sampled silhouette, so the advance *alone* spaces text correctly and
+    /// kerning is left to handle only what per-glyph spacing structurally
+    /// cannot (see GlyphProfile.opticalAdvance). Otherwise it is the plain
+    /// spine-extent + spacing + sidebearing.
+    ///
+    /// Blended back toward the naive width by `monospace`, which by definition
+    /// wants every advance identical — the exact opposite of spacing each glyph
+    /// to its own shape. Glyphs with no ink (space) have no silhouette to
+    /// measure and always fall back.
+    member this.charWidth ch =
+        let naive = this.width (Glyph(ch))
+        if not axes.useOpticalSpacing then naive
+        else
+            match GlyphProfile.opticalAdvance (float axes.spacing) (this.glyphProfile ch) with
+            | None -> naive
+            | Some optical -> (1.0 - axes.monospace) * optical + axes.monospace * naive
+
+    /// Horizontal offset to draw this glyph at, so its left sidebearing is
+    /// optical rather than wherever its spine happened to start.
+    ///
+    /// Every renderer must apply this identically — the SVG layout below and
+    /// the OTF outline export in Api.fs — or the two disagree about spacing,
+    /// which is precisely the class of bug SvgAndOtfKerns_AgreeForEveryPair
+    /// exists to catch.
+    member this.glyphShift(ch: char) : float =
+        if not axes.useOpticalSpacing then 0.0
+        else (1.0 - axes.monospace) * GlyphProfile.opticalShift (this.glyphProfile ch)
 
     member this.charWidths str =
         Seq.map this.charWidth str |> List.ofSeq
 
-    member this.stringWidth str = List.sum (this.charWidths str)
+    // Per-instance profile cache for optical kerning. Profiles are sampled
+    // from the outline (post-getOutline, pre-italicise) so an italic axis
+    // change doesn't invalidate them — italic shear is X-of-Y and doesn't
+    // affect band-wise horizontal extents.
+    member val private profileCache : System.Collections.Generic.Dictionary<char, GlyphProfile.GlyphProfile> =
+        System.Collections.Generic.Dictionary<char, GlyphProfile.GlyphProfile>() with get
+
+    member private this.computeProfile (ch: char) : GlyphProfile.GlyphProfile =
+        let bandY0 = _metrics.D - thickness
+        let bandY1 = _metrics.T + thickness
+        let bandCount = 32
+        try
+            // Sample on an italic=0 font so the shear (now applied inside
+            // getOutline via shearBezPts post-solve) doesn't perturb the
+            // band-wise extents — italic invariance lives in the design frame.
+            let ifFont = this.italicFreeFont
+            let outline = ifFont.CharToOutline ch
+            let svg, _, _ = ifFont.outlineFont.elementToSvg outline
+            let path = String.concat " " svg
+            let cmds = GlyphProfile.parseSvgCommands path
+            GlyphProfile.sampleProfile bandY0 bandY1 bandCount cmds
+        with _ ->
+            { GlyphProfile.BandY0 = bandY0
+              BandHeight = (bandY1 - bandY0) / float bandCount
+              BandCount = bandCount
+              LeftEdges = Array.create bandCount System.Double.PositiveInfinity
+              RightEdges = Array.create bandCount System.Double.NegativeInfinity
+              HasInk = false }
+
+    member this.glyphProfile (ch: char) : GlyphProfile.GlyphProfile =
+        match this.profileCache.TryGetValue(ch) with
+        | true, p -> p
+        | _ ->
+            let p = this.computeProfile ch
+            this.profileCache.[ch] <- p
+            p
+
+    /// Optical kern between two glyphs, in glyph coord units. 0 if either
+    /// glyph has no ink or `opticalKerning` is below the Kerned stop.
+    member this.opticalPairKern (a: char) (b: char) : int =
+        if not axes.usePairKerning then 0
+        else
+            GlyphProfile.residualKern
+                (float axes.spacing)
+                (this.charWidth a)
+                (this.glyphShift a)
+                (this.glyphShift b)
+                kernThreshold
+                (this.glyphProfile a)
+                (this.glyphProfile b)
+
+    /// Kerning for the ordered pair (a, b), from outline-sampled optical
+    /// kerning. Returns 0 below the Kerned stop of `opticalKerning`.
+    member this.pairKern (a: char) (b: char) : float =
+        float (this.opticalPairKern a b)
+
+    /// Pair-kern adjustments for an N-character string, one per adjacent pair.
+    /// Length is `max 0 (str.Length - 1)`.
+    member this.pairKerns (str: string) : float list =
+        if str.Length < 2 then []
+        else [ for i in 0 .. str.Length - 2 -> this.pairKern str.[i] str.[i + 1] ]
+
+    member this.stringWidth str =
+        List.sum (this.charWidths str) + List.sum (this.pairKerns str)
 
     member this.stringToSvgLineInternal
         (lines: string list)
@@ -2190,7 +2359,14 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 [ for i in 0 .. lines.Length - 1 do
                       let str = lines.[i]
                       let widths = this.charWidths str
-                      let offsetXs = List.scan (+) offsetX widths
+                      // `advances[i] = widths[i] + kern(char_i, char_{i+1})` so
+                      // the kern for a pair shifts the *second* glyph. The
+                      // last char has no following pair, hence the trailing 0.
+                      let kerns =
+                          if str.Length < 2 then List.replicate str.Length 0.0
+                          else this.pairKerns str @ [ 0.0 ]
+                      let advances = List.map2 (+) widths kerns
+                      let offsetXs = List.scan (+) offsetX advances
 
                       let lineOffset =
                           offsetY + this.charHeight * float (i + 1) - this.yBaselineOffset + thickness
@@ -2203,9 +2379,14 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                                 | Some p -> p (float charCount / float totalChars)
                                 | None -> ()
 
-                                yield! this.charToSvg str.[c] (offsetXs.[c]) lineOffset colour ]
+                                yield!
+                                    this.charToSvg
+                                        str.[c]
+                                        (offsetXs.[c] + this.glyphShift str.[c])
+                                        lineOffset
+                                        colour ]
 
-                      (svg, List.sum widths) ]
+                      (svg, List.sum advances) ]
 
         (List.collect id svg, lineWidths)
 
@@ -2233,7 +2414,42 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
         toSvgDocument -margin -margin w h svg
 
-    member this.CharToOutline ch = this.charToElem ch |> this.getOutline
+    /// Solved outlines, cached per character on this Font instance.
+    ///
+    /// Safe to cache because `getOutline` is a pure function of (axes, char):
+    /// a Font's axes are fixed at construction, and nothing in the generator
+    /// uses an RNG — `roughness`/`wobble` are deterministic sums of sines over
+    /// arc length, and the Nelder-Mead solve has no random restarts. So the
+    /// same char always solves to the same outline on the same instance.
+    ///
+    /// Worth doing because asking for a glyph's *advance width* now solves its
+    /// outline (optical sidebearings sample the silhouette), and the renderer
+    /// then solved the very same outline again to draw it — two full spline
+    /// solves per glyph where there was one. That duplication cost the Font tab
+    /// roughly 2x once optical spacing was switched on.
+    member val private outlineCache: System.Collections.Generic.Dictionary<char, Element> =
+        System.Collections.Generic.Dictionary<char, Element>() with get
+
+    member this.CharToOutline ch =
+        match this.outlineCache.TryGetValue ch with
+        | true, outline -> outline
+        | _ ->
+            let outline = this.charToElem ch |> this.getOutline
+            this.outlineCache.[ch] <- outline
+            outline
+
+    /// Outline in the pre-italicise frame (no shear). Used for profile
+    /// sampling in optical kerning.
+    member val private outlinePreItalicCache: System.Collections.Generic.Dictionary<char, Element> =
+        System.Collections.Generic.Dictionary<char, Element>() with get
+
+    member this.CharToOutlinePreItalic ch =
+        match this.outlinePreItalicCache.TryGetValue ch with
+        | true, outline -> outline
+        | _ ->
+            let outline = this.charToElemPreItalic ch |> this.getOutline
+            this.outlinePreItalicCache.[ch] <- outline
+            outline
 
     /// Returns the solved backbone (x, y) positions for every Curve in the glyph.
     /// Uses the DactylSpline solver, so call this with dactyl_spline = true.
