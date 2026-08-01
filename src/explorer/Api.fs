@@ -743,10 +743,7 @@ let generateFontGlyphDataPerGlyph
         | Some p -> p fraction
         | None -> ()
 
-    // Per-glyph: render outline, capture svg path, optionally sample edge profile.
-    let bandY0 = metrics.D - thickness
-    let bandY1 = metrics.T + thickness
-    let bandCount = 32
+    // Per-glyph: render outline, capture svg path, collect edge profile.
     let profileMap = System.Collections.Generic.Dictionary<char, GlyphProfile.GlyphProfile>()
 
     let glyphs =
@@ -769,19 +766,17 @@ let generateFontGlyphDataPerGlyph
                 // does not trigger O(n²) NelderMead; cached on the font instance.
                 let svg, _, _ = charFont.outlineFont.elementToSvg placed
                 let path = String.concat " " svg
-                // Only the residual-kern pass below needs this map — advances and
-                // shifts come from each Font's own lazily-cached profile — so below
-                // the Kerned stop we skip a whole second outline render per glyph.
+                // Only the residual-kern pass below needs this map, so below the
+                // Kerned stop we don't build it at all.
+                //
+                // Take the profile straight off the Font rather than sampling a
+                // second time: charWidth/glyphShift just above already forced
+                // Font.glyphProfile for this char, and that cache holds the
+                // result of the identical recipe (same band range, same count,
+                // same pre-italic outline). Re-deriving it here meant a whole
+                // extra outline render, SVG serialise and re-parse per glyph.
                 if axes.usePairKerning && path <> "" then
-                    // Sample profiles from the pre-italic outline so kerns hold
-                    // across italic axis values; uses this glyph's own font so
-                    // per-glyph randomised axes still profile correctly.
-                    let ifFont = charFont.italicFreeFont
-                    let ifOutline = ifFont.CharToOutline c
-                    let svgPI, _, _ = ifFont.outlineFont.elementToSvg ifOutline
-                    let pathPI = String.concat " " svgPI
-                    let cmds = GlyphProfile.parseSvgCommands pathPI
-                    profileMap.[c] <- GlyphProfile.sampleProfile bandY0 bandY1 bandCount cmds
+                    profileMap.[c] <- charFont.glyphProfile c
                 {| unicode = int c
                    advanceWidth = charFont.charWidth c
                    pathData = path |}
