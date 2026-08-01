@@ -36,6 +36,12 @@ function cellFor(text, style) {
 ///   grow, gap, fuse, growScale — shape the mask domain (growStrokes rule).
 ///   backbone — fill the classic (grow=0) letterform silhouette behind the
 ///     pattern as a background (default true); backboneColor sets its colour.
+///   edgeOutline — a thick keyline band hugging the letterform's outer edge
+///     (default true), the same technique as Bubble mode's dark outer layer:
+///     two contours of the same field at iso 0 and iso -edgeOutlineWidth,
+///     filled together with evenodd so only the band between them inks.
+///     edgeOutlineWidth (font units, default 24), edgeOutlineColor (default
+///     '#000000').
 ///   color — rd's pattern fill colour.
 ///   RD: preset, steps, seedFrac, seed, threshold (default: derived from the
 ///     field's own mean — see texture.js's defaultRdThreshold).
@@ -52,6 +58,9 @@ export function generateTextureSvg(text, axes, params = {}, onProgress) {
     const cell = params.cell ?? cellFor(text, style)
     const showBackbone = params.backbone ?? true
     const backboneColor = params.backboneColor ?? '#e8e8e8'
+    const showEdgeOutline = params.edgeOutline ?? true
+    const edgeOutlineWidth = params.edgeOutlineWidth ?? 24
+    const edgeOutlineColor = params.edgeOutlineColor ?? '#000000'
 
     const EXTRACT_SHARE = 0.4
     const strokes = collectStrokes(text, axes, cell, growScale,
@@ -71,6 +80,19 @@ export function generateTextureSvg(text, axes, params = {}, onProgress) {
     const backboneSvg = backboneContours.length
         ? `<path d="${contoursToPath(backboneContours)}" fill="${backboneColor}" fill-rule="evenodd"/>`
         : ''
+
+    // Outer keyline band: iso 0 is the classic edge, iso -edgeOutlineWidth is
+    // the same field offset outward by edgeOutlineWidth (mirroring Bubble
+    // mode's layerIsoLevels) — filling both contours together with evenodd
+    // inks only the ring between them, and correctly punches out any inner
+    // counters (e.g. the hole in 'o') the same way growStrokes/backbone do.
+    const edgeOutlineSvg = (() => {
+        if (!showEdgeOutline) return ''
+        const inner = contourScalarField(f, nx, ny, x0, y0, cell, 0)
+        const outer = contourScalarField(f, nx, ny, x0, y0, cell, -edgeOutlineWidth)
+        const combined = [...outer, ...inner]
+        return combined.length ? `<path d="${contoursToPath(combined)}" fill="${edgeOutlineColor}" fill-rule="evenodd"/>` : ''
+    })()
 
     let patternSvg = ''
     const patternProgress = onProgress ? (frac => onProgress(0.6 + 0.4 * frac)) : undefined
@@ -109,6 +131,6 @@ export function generateTextureSvg(text, axes, params = {}, onProgress) {
     const w = (nx - 1) * cell, h = (ny - 1) * cell
     if (w <= 0 || h <= 0) return ''
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x0.toFixed(1)} ${(-(y0 + h)).toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" width="${(w / 2).toFixed(0)}" height="${(h / 2).toFixed(0)}">` +
-        backboneSvg + patternSvg +
+        backboneSvg + edgeOutlineSvg + patternSvg +
         `</svg>`
 }

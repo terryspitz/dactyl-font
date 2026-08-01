@@ -17,7 +17,7 @@ describe('generateTextureSvg', () => {
     })
 
     it('rd style produces a filled pattern over the classic backbone', () => {
-        const svg = generateTextureSvg('o', axes, { style: 'rd', steps: 500, backbone: true })
+        const svg = generateTextureSvg('o', axes, { style: 'rd', steps: 500, backbone: true, edgeOutline: false })
         expect(svg.startsWith('<svg')).toBe(true)
         expect(svg).toContain('viewBox=')
         // Two filled paths: the backbone silhouette, then the pattern on top.
@@ -26,8 +26,17 @@ describe('generateTextureSvg', () => {
     }, 30000)
 
     it('rd style omits the backbone when disabled', () => {
-        const svg = generateTextureSvg('o', axes, { style: 'rd', steps: 500, backbone: false })
+        const svg = generateTextureSvg('o', axes, { style: 'rd', steps: 500, backbone: false, edgeOutline: false })
         expect((svg.match(/<path/g) || []).length).toBe(1)
+    }, 30000)
+
+    it('renders an edge-outline keyline band by default, and can be disabled', () => {
+        const withOutline = generateTextureSvg('o', axes, { style: 'rd', steps: 500, backbone: false })
+        const withoutOutline = generateTextureSvg('o', axes, { style: 'rd', steps: 500, backbone: false, edgeOutline: false })
+        // The outline adds one extra evenodd-filled path (two contours of the
+        // same field combined) ahead of the pattern.
+        expect((withOutline.match(/<path/g) || []).length).toBe((withoutOutline.match(/<path/g) || []).length + 1)
+        expect(withOutline).toContain('#000000')
     }, 30000)
 
     it('maze style emits a single stroked wall path', () => {

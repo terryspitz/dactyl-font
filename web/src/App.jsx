@@ -37,15 +37,18 @@ const defaultTextureParams = () => ({
   style: 'rd', // 'rd' (reaction-diffusion) | 'maze' | 'circuit'
   grow: 0.6, gap: 25, fuse: 0, growScale: 120,
   backbone: true, backboneColor: '#e8e8e8',
+  // Thick keyline band hugging the letterform's outer edge — same technique
+  // as Bubble mode's dark outer layer (two field contours, evenodd-filled).
+  edgeOutline: true, edgeOutlineWidth: 24, edgeOutlineColor: '#000000',
   seed: 1,
   // Reaction-diffusion
   preset: 'coral', steps: 3000, color: '#ff6f4a',
   // Maze / circuit share a coarser grid ("grain" in the UI) than the RD
   // field default; textureSvg.js calls this `cell`.
   cell: 18,
-  // Maze / circuit share an outline width; maze has its own outline colour
-  // (kept separate from RD's `color` so switching styles doesn't carry over
-  // an unrelated fill colour as the wall colour).
+  // Maze / circuit share a stroke width; maze has its own wall colour (kept
+  // separate from RD's `color` so switching styles doesn't carry over an
+  // unrelated fill colour as the wall colour).
   strokeWidth: 3, wallColor: '#222222',
   // Circuit
   density: 0.12, traceColor: DEFAULT_CIRCUIT_TRACE_COLOR, padColor: DEFAULT_CIRCUIT_PAD_COLOR,
@@ -2011,7 +2014,7 @@ function App() {
                       <span style={{ minWidth: '2em' }}>{textureParams.cell}</span>
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Wall stroke width">
-                      outline width
+                      maze width
                       <input
                         type="range" min="1" max="10" step="0.5"
                         value={textureParams.strokeWidth}
@@ -2020,7 +2023,7 @@ function App() {
                       <span style={{ minWidth: '2em' }}>{textureParams.strokeWidth}</span>
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      outline colour
+                      maze colour
                       <input
                         type="color"
                         value={textureParams.wallColor}
@@ -2048,7 +2051,7 @@ function App() {
                       <span style={{ minWidth: '2.5em' }}>{textureParams.density.toFixed(2)}</span>
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Trace stroke width">
-                      outline width
+                      trace width
                       <input
                         type="range" min="1" max="12" step="0.5"
                         value={textureParams.strokeWidth}
@@ -2092,6 +2095,33 @@ function App() {
                       />
                     </label>
                   )}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="A thick keyline band hugging the letterform's outer edge">
+                    outline
+                    <input
+                      type="checkbox"
+                      checked={textureParams.edgeOutline}
+                      onChange={e => setTextureParams(p => ({ ...p, edgeOutline: e.target.checked }))}
+                    />
+                  </label>
+                  {textureParams.edgeOutline && (<>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      outline width
+                      <input
+                        type="range" min="5" max="60" step="1"
+                        value={textureParams.edgeOutlineWidth}
+                        onChange={e => setTextureParams(p => ({ ...p, edgeOutlineWidth: parseFloat(e.target.value) }))}
+                      />
+                      <span style={{ minWidth: '2em' }}>{textureParams.edgeOutlineWidth}</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      outline colour
+                      <input
+                        type="color"
+                        value={textureParams.edgeOutlineColor}
+                        onChange={e => setTextureParams(p => ({ ...p, edgeOutlineColor: e.target.value }))}
+                      />
+                    </label>
+                  </>)}
                   <div className="controls-break" />
                   <span style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '4px' }}>
                     <button
