@@ -67,7 +67,7 @@ type Axes =
           contrast = 0.05
           roundedness = 60
           softness = 0.0
-          spacing = 40
+          spacing = 100
           leading = 50
           monospace = 0.0
           slant = 0.0
@@ -108,7 +108,7 @@ type Axes =
           "height", Range(100, 1000), "backbone", "Capital height"
           "x_height", FracRange(0.2, 1.1), "backbone", "Height of lower case as a fraction of capitals"
           "descender_depth", FracRange(0.2, 1.0), "backbone", "Depth of descenders below the baseline, as a fraction of capital height"
-          "spacing", Range(0, 200), "backbone", "Gap between glyphs"
+          "spacing", Range(0, 200), "backbone", "Gap between glyphs, in glyph units: the space left between two flat-sided neighbours (H|H). Shapes that recede from their edge close some of it back up."
           "leading", Range(-100, 200), "backbone", "Gap between lines"
           "monospace", FracRange(0.0, 1.0), "backbone", "Fraction to interpolate widths to monospace"
           "slant", FracRange(0.0, 1.0), "backbone", "Fraction to shear glyphs"

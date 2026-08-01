@@ -204,16 +204,17 @@ let opticalShift (p: GlyphProfile) : float =
 
 /// Advance width for a glyph spaced optically on both sides, so that a pair of
 /// them placed by advance alone leaves this much *perceived* white:
-///   gap = (target + maxSlackForBroadContact) - w*rRec(left) - w*lRec(right)
+///   gap = target - w*rRec(left) - w*lRec(right)
 ///
-/// The slack is included so a flat-sided pair (H/H — no recession on either
-/// facing side) lands exactly where the pairwise model wants it and needs no
-/// kern at all. Receding sides then give it back, which is the optical idea.
+/// `target` is the flat-sided reference: two glyphs that recede nothing (H/H)
+/// sit exactly `target` apart, and that is also what the pairwise model wants
+/// for them, so they need no kern at all. Receding sides then give some back,
+/// which is the optical idea.
 let opticalAdvance (target: float) (p: GlyphProfile) : float option =
     match sideMetrics p with
     | None -> None
     | Some(inkLeft, inkRight, lRec, rRec) ->
-        Some((inkRight - inkLeft) + (target + maxSlackForBroadContact) - recessionWeight * (lRec + rRec))
+        Some((inkRight - inkLeft) + target - recessionWeight * (lRec + rRec))
 
 /// Optical kern between two glyphs.
 /// Caller passes the advance of the left glyph; we shift the right glyph by
@@ -266,7 +267,12 @@ let private desiredOffset (target: float) (a: GlyphProfile) (b: GlyphProfile) : 
             let deltaMin = Array.min gaps
             let nearMinCount = gaps |> Array.filter (fun g -> g <= deltaMin + nearMinTolerance) |> Array.length
             let fractionNearMin = float nearMinCount / float gaps.Length
-            let effectiveTarget = target + maxSlackForBroadContact * fractionNearMin
+            // Anchored at the FLAT end: a broad parallel contact gets the bare
+            // `target`, and room is taken *away* as contact narrows to a point.
+            // Anchoring at the point end instead made `spacing` mean the gap for
+            // a tangent pair, so a flat pair sat at spacing+slack — i.e. the axis
+            // meant something different here than on the fixed-spacing path.
+            let effectiveTarget = target - maxSlackForBroadContact * (1.0 - fractionNearMin)
             Some(effectiveTarget - deltaMin)
 
 /// Clip so a degenerate profile can't push glyphs through each other.

@@ -78,7 +78,13 @@ let dotToClosedCurve x y r =
 /// (`sidebearingScale`), but with optical kerning on it is exactly cancelled
 /// by the pair kern, and with optical kerning off it duplicates `spacing`.
 /// Fixed constant now; `spacing` is the single spacing knob.
-let sidebearingScale = 1.2
+///
+/// 1.0 exactly, because that is the stroke's own overhang either side of the
+/// spine: it makes the fixed-spacing advance equal ink width + `spacing`, so a
+/// flat-sided pair sits exactly `spacing` apart — the same thing `spacing`
+/// means on the optical path. Any other value and the axis would quietly mean
+/// something different at opticalKerning=0 than at 0.5.
+let sidebearingScale = 1.0
 
 /// Residuals smaller than this (glyph units, against a 600-unit cap height)
 /// are dropped rather than emitted as a kern pair — under 2% of cap height,
