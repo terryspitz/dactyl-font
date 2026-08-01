@@ -67,6 +67,11 @@ flavours:
 * **Filled texture**: keep the classic outline but fill its interior (or its
   *counters*) with the pattern — zebra letters, coral letters.
 
+**Shipped** as the "Filled texture" flavour, in `web/src/texture.js`
+(`reactionDiffusion`) — the "Reaction-Diffusion" style of a new **Texture**
+mode on the Generate tab, alongside two more grid-restricted styles beyond
+the original brainstorm (see "Texture mode" below).
+
 ## Idea 4 — Differential growth on the outline (vector-native)
 
 Take the existing dense outline polyline and iterate: each vertex is
@@ -181,7 +186,10 @@ unlocks the standard SDF toolbox:
    *(shipped: a `warp` slider displaces the field lookup by value noise —
    `domainWarp` in `growth.js`, matching GLSL noise + `uWarp*` uniforms in
    `GrowCanvas.jsx`, seeded for determinism)*; run reaction–diffusion inside
-   the SDF band so patterns hug the letterform; extract the ridge (medial
+   the SDF band so patterns hug the letterform *(shipped as Texture mode's
+   `buildTextureMask` — the mask is literally `f >= 0` on the same field, so
+   the reaction-diffusion domain is exactly the letterform, not a separate
+   band around it — see "Texture mode" below)*; extract the ridge (medial
    axis) of an *imported* font's SDF to reverse-engineer backbones —
    Dactyl-izing arbitrary fonts.
 
@@ -189,7 +197,8 @@ Status: items 1, 2 and 4 are implemented (JFA + segment-exact distances in
 `web/src/growth.js`, shader preview in `web/src/GrowCanvas.jsx`); item 3 is
 partly implemented (the cross-glyph `fuse` slider — field channel in
 `growth.js`, `uFuse` uniform in `GrowCanvas.jsx`); item 6's domain-warp `warp`
-slider is implemented; item 5 (MSDF export) and the rest of item 6 are open.
+slider and reaction-diffusion sub-item are implemented; item 5 (MSDF export)
+and the medial-axis sub-item of 6 are open.
 
 ## Idea 5 prototype: space colonisation (added after this slice shipped)
 
@@ -213,3 +222,58 @@ implemented; the tapered stroke is a rendering approximation rather than a
 true vector outline (no OTF export path yet, unlike the Idea 1 growth
 field); multi-glyph fusion between branches of neighbouring letters is not
 attempted.
+
+## Texture mode: reaction-diffusion + maze + circuit (added after this slice shipped)
+
+A third mode on the Generate tab (alongside Bubble and Grow), `web/src/
+texture.js` + `web/src/textureSvg.js`: three patterns confined to the
+interior of a grown letterform. `buildTextureMask` reuses `buildGrowthField`
++ `fieldToF` from `growth.js` (the exact same rule `growStrokes` uses) to
+rasterise "inside the grown letterform" onto a grid — the pattern's domain is
+always what the Bubble mode would draw for the same `grow`/`gap`/`fuse`, no
+new spine/distance code needed. Every disconnected mask piece (separate
+letters that haven't fused, the two strokes of an `i`) is handled
+independently by each style, so counters and gaps stay correct.
+
+* **Reaction-Diffusion** (Idea 3 / SDF direction #6): classic Gray-Scott,
+  confined to the mask (`V`/`U` held at their rest state outside it every
+  step — a hard wall, so the pattern presses right up to the letterform edge
+  rather than tapering). Three presets (`coral`/`cells`/`stitches`), chosen
+  and tuned by actually rendering each rather than copied from a textbook
+  cheat sheet — Gray-Scott is highly sensitive to both the feed/kill
+  parameters *and* the seeding: small-amplitude noise decays to nothing
+  everywhere in this bounded-mask setup (not just off-preset regions), so all
+  three presets seed with sparse fully-saturated single-cell points instead.
+  The result is contoured to vector paths with a threshold derived from the
+  field's own mean (`defaultRdThreshold`) rather than a fixed constant — 0.5
+  only ever traced a sliver near the boundary in testing, nowhere near the
+  interior pattern, since Gray-Scott's peak is always near 1 regardless of
+  preset but its *mean* varies a lot.
+* **Maze**: a perfect maze (recursive backtracker / randomised DFS) carved
+  through the mask's cell grid, rendered as the *uncarved* walls — the
+  corridors are the letterform's own shape. Verified as a genuine spanning
+  forest (zero cycles, `corridors = cells − components`) by reconstructing
+  the corridor graph from the wall output in `texture.test.js`.
+  `connectedComponents` runs the backtracker separately per disconnected mask
+  piece, since a single spanning tree can't cross between them (a naive
+  single-component version would leave every piece but the first fully
+  walled).
+* **Circuit**: PCB-trace look — orthogonal random-walk traces with a bias to
+  keep going straight (Manhattan-routed, not a pure random walk), confined to
+  the mask and claiming their cells so traces don't cross; pads mark every
+  trace's ends and corners.
+
+All three render through the same `backbone` toggle (the classic outline as
+a light reference silhouette, reusing the mask-build's own field so no extra
+work) and the same copy/download save controls as Bubble and Grow.
+Diagnosing the reaction-diffusion seeding behaviour (why some presets held a
+"coral" veins pattern from a handful of sparse seeds while others decayed to
+nothing from the same seeding, and needed the threshold to be field-relative
+rather than fixed) was most of the implementation effort here — the maze and
+circuit algorithms themselves were correct on the first real render.
+
+Open follow-ups: `life` (cellular automata, Idea 2) and true reaction-
+diffusion-driven differential growth (Idea 4) are not implemented as
+Texture-mode styles; no OTF export path (vector-only, same gap as Grow
+mode); MSDF export (SDF direction #5) would give reaction-diffusion a sharper
+GPU-native alternative to marching-squares contours.

@@ -6,6 +6,7 @@ import GrowCanvas from './GrowCanvas'
 import { downloadBlob, svgBlob, svgToPngBlob, growFilenameBase, filenameBase } from './growthExport'
 import { LAYER_COLORS } from './growth'
 import { DEFAULT_BRANCH_COLOR } from './branching'
+import { RD_PRESET_NAMES, DEFAULT_CIRCUIT_TRACE_COLOR, DEFAULT_CIRCUIT_PAD_COLOR } from './texture'
 import { downloadFont, buildFontDataUrl } from './fontExport'
 import { buildCompareOverlaySvg } from './fontCompare'
 import FontCompareControls from './FontCompareControls'
@@ -32,11 +33,30 @@ const defaultBranchParams = () => ({
   backbone: true, color: DEFAULT_BRANCH_COLOR, backboneColor: '#000000',
   maxReach: 140, baseRadius: 10, minRadius: 1.2, maxDepthForTaper: 14,
 })
+const defaultTextureParams = () => ({
+  style: 'rd', // 'rd' (reaction-diffusion) | 'maze' | 'circuit'
+  grow: 0.6, gap: 25, fuse: 0, growScale: 120,
+  backbone: true, backboneColor: '#e8e8e8',
+  seed: 1,
+  // Reaction-diffusion
+  preset: 'coral', steps: 3000, color: '#ff6f4a',
+  // Maze / circuit share a coarser grid ("grain" in the UI) than the RD
+  // field default; textureSvg.js calls this `cell`.
+  cell: 18,
+  // Circuit
+  density: 0.12, traceColor: DEFAULT_CIRCUIT_TRACE_COLOR, padColor: DEFAULT_CIRCUIT_PAD_COLOR,
+})
 
 // Field grid spacing used for the "fast preview" toggle — coarser than the
 // normal 3–6 cellFor(text) range, so slider drags stay responsive on slow
 // modes (Grow especially) instead of recomputing at full resolution.
 const PREVIEW_CELL = 10
+
+// Texture mode's `cell` ("grain" in the UI) only applies to the maze/circuit
+// styles — reaction-diffusion wants its own finer, text-length-scaled
+// default (textureSvg.js's cellFor), so strip it out for that style rather
+// than let the shared params object's grain value override it.
+const textureWorkerParams = (p) => (p.style === 'rd' ? { ...p, cell: undefined } : p)
 
 // Build the two axes variants (and key labels) for the Visual Diffs tab
 function getDiffAxes(axes, diffConfig) {
@@ -155,15 +175,17 @@ function App() {
   const [tweenFilter, setTweenFilter] = useState(
     () => new URLSearchParams(window.location.search).get('tween') || ''
   )
-  // Generate tab: which generative mode is active. Two UI-facing values:
+  // Generate tab: which generative mode is active. Three UI-facing values:
   // 'bubble' (constant-gap SDF inflation, implemented in growth.js/growParams
-  // — code keeps the "grow" name since that's the algorithm's name) and
-  // 'grow' (space-colonisation twigs, implemented in branching.js/branchParams
-  // — code keeps the "branch" name). URL-addressable so a chosen mode is
+  // — code keeps the "grow" name since that's the algorithm's name), 'grow'
+  // (space-colonisation twigs, implemented in branching.js/branchParams —
+  // code keeps the "branch" name), and 'texture' (reaction-diffusion / maze /
+  // circuit patterns confined to the letterform, implemented in
+  // texture.js/textureParams). URL-addressable so a chosen mode is
   // shareable/deep-linkable, same as compareMode.
   const [generateMode, setGenerateMode] = useState(() => {
     const m = new URLSearchParams(window.location.search).get('mode')
-    return m === 'grow' ? 'grow' : 'bubble'
+    return (m === 'grow' || m === 'texture') ? m : 'bubble'
   })
   // Bubble mode ('grow' internally): constant-gap growth parameters (see growth.js)
   const [growParams, setGrowParams] = useState(defaultGrowParams)
@@ -171,6 +193,8 @@ function App() {
   // (see branching.js). Dense/tight enough that twig coverage alone reads
   // legibly with the backbone off, not just with it on.
   const [branchParams, setBranchParams] = useState(defaultBranchParams)
+  // Texture mode: reaction-diffusion / maze / circuit patterns (see texture.js).
+  const [textureParams, setTextureParams] = useState(defaultTextureParams)
   // Fast preview: render just the first character at PREVIEW_CELL resolution
   // instead of the full text, for responsive slider dragging on slow modes.
   const [fastPreview, setFastPreview] = useState(false)
@@ -187,6 +211,11 @@ function App() {
   const [branchCopied, setBranchCopied] = useState(false)
   const [branchMenuOpen, setBranchMenuOpen] = useState(false)
   const branchMenuRef = useRef(null)
+  // Texture mode export state — mirrors the Bubble/Grow ones above.
+  const [savingTexture, setSavingTexture] = useState(false)
+  const [textureCopied, setTextureCopied] = useState(false)
+  const [textureMenuOpen, setTextureMenuOpen] = useState(false)
+  const textureMenuRef = useRef(null)
   // Font tab image export (same PNG/SVG copy + download as Grow, on the canvas)
   const [savingFontImage, setSavingFontImage] = useState(false)
   const [fontCopied, setFontCopied] = useState(false)
@@ -265,7 +294,7 @@ function App() {
   const setGenerateModeWithUrl = (m) => {
     setGenerateMode(m)
     const url = new URL(window.location)
-    if (m === 'grow') url.searchParams.set('mode', 'grow')
+    if (m === 'grow' || m === 'texture') url.searchParams.set('mode', m)
     else url.searchParams.delete('mode')
     window.history.replaceState({}, '', url)
   }
@@ -671,6 +700,15 @@ function App() {
       if (generateMode === 'grow') {
         typeReq = 'branch'
         args = [previewText, axes, fastPreview ? { ...branchParams, cell: PREVIEW_CELL } : branchParams]
+      } else if (generateMode === 'texture') {
+        typeReq = 'texture'
+        // Only the rd style benefits from PREVIEW_CELL: maze/circuit already
+        // run their own (coarser, already-fast) grid, and forcing a finer
+        // PREVIEW_CELL on them would make fast-preview slower, not faster.
+        const tp = fastPreview && textureParams.style === 'rd'
+          ? { ...textureParams, cell: PREVIEW_CELL }
+          : textureParams
+        args = [previewText, axes, textureWorkerParams(tp)]
       } else {
         typeReq = 'growth'
         args = [previewText, axes, fastPreview ? { ...growParams, cell: PREVIEW_CELL } : growParams]
@@ -697,7 +735,7 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, generateMode, growParams, branchParams, fastPreview, perGlyphTextAxes])
+  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, generateMode, growParams, branchParams, textureParams, fastPreview, perGlyphTextAxes])
 
   // Close the Bubble download-format menu on outside click / Escape.
   useEffect(() => {
@@ -728,6 +766,21 @@ function App() {
       document.removeEventListener('keydown', onKey)
     }
   }, [branchMenuOpen])
+
+  // Close the Texture download-format menu on outside click / Escape.
+  useEffect(() => {
+    if (!textureMenuOpen) return
+    const onDown = (e) => {
+      if (textureMenuRef.current && !textureMenuRef.current.contains(e.target)) setTextureMenuOpen(false)
+    }
+    const onKey = (e) => { if (e.key === 'Escape') setTextureMenuOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [textureMenuOpen])
 
   // Same for the Font tab's download-format menu.
   useEffect(() => {
@@ -1065,6 +1118,10 @@ function App() {
     if (!text) { resolve(''); return }
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
     worker.onmessage = (e) => {
+      // Ignore intermediate { type: 'progress' } ticks — resolving on the
+      // first one (instead of the final result) would silently save an
+      // empty/undefined SVG for slower (longer-text) renders.
+      if (e.data.type === 'progress') return
       worker.terminate()
       if (e.data.error) reject(new Error(e.data.error))
       else resolve(e.data.result)
@@ -1125,6 +1182,8 @@ function App() {
     if (!text) { resolve(''); return }
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
     worker.onmessage = (e) => {
+      // Ignore intermediate { type: 'progress' } ticks — see requestGrowthSvg.
+      if (e.data.type === 'progress') return
       worker.terminate()
       if (e.data.error) reject(new Error(e.data.error))
       else resolve(e.data.result)
@@ -1175,6 +1234,68 @@ function App() {
     }
   }
 
+  // Render the current Texture mode view to a vector SVG string via a
+  // one-off worker, for both SVG and PNG downloads — mirrors requestBranchSvg.
+  const requestTextureSvg = () => new Promise((resolve, reject) => {
+    if (!text) { resolve(''); return }
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    worker.onmessage = (e) => {
+      // Texture mode's reaction-diffusion simulation reports many intermediate
+      // { type: 'progress' } ticks before the final result — ignore those and
+      // wait for the message that actually carries a result/error, or this
+      // resolves (with undefined) on the very first progress tick instead of
+      // the finished SVG.
+      if (e.data.type === 'progress') return
+      worker.terminate()
+      if (e.data.error) reject(new Error(e.data.error))
+      else resolve(e.data.result)
+    }
+    worker.onerror = (err) => { worker.terminate(); reject(err) }
+    worker.postMessage({ id: 0, type: 'texture', args: [text, axes, textureWorkerParams(textureParams)] })
+  })
+
+  const handleDownloadTexture = async (format) => {
+    setTextureMenuOpen(false)
+    setSavingTexture(true)
+    setError(null)
+    try {
+      const svg = await requestTextureSvg()
+      if (!svg) return
+      const base = filenameBase('texture', text)
+      if (format === 'svg') {
+        downloadBlob(svgBlob(svg), `${base}.svg`)
+      } else {
+        const png = await svgToPngBlob(svg, { scale: 3, background: null })
+        downloadBlob(png, `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Texture ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingTexture(false)
+    }
+  }
+
+  const handleCopyTexture = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    setSavingTexture(true)
+    setError(null)
+    try {
+      const svg = await requestTextureSvg()
+      if (!svg) throw new Error('nothing to copy')
+      const png = await svgToPngBlob(svg, { scale: 3, background: null })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setTextureCopied(true)
+      setTimeout(() => setTextureCopied(false), 1500)
+    } catch (e) {
+      setError(`Texture copy failed: ${e.message}`)
+    } finally {
+      setSavingTexture(false)
+    }
+  }
+
   const handleControlChange = (name, value) => {
     setAxes(prev => ({ ...prev, [name]: value }))
   }
@@ -1188,6 +1309,7 @@ function App() {
   // the mode selection (and the other mode's settings) untouched.
   const handleResetGenerateParams = () => {
     if (generateMode === 'bubble') setGrowParams(defaultGrowParams())
+    else if (generateMode === 'texture') setTextureParams(defaultTextureParams())
     else setBranchParams(defaultBranchParams())
   }
 
@@ -1436,6 +1558,12 @@ function App() {
                     onClick={() => setGenerateModeWithUrl('grow')}
                   >
                     Grow
+                  </button>
+                  <button
+                    className={`proof-chip ${generateMode === 'texture' ? 'selected' : ''}`}
+                    onClick={() => setGenerateModeWithUrl('texture')}
+                  >
+                    Texture
                   </button>
                 </div>
                 <button
@@ -1771,6 +1899,226 @@ function App() {
                             PNG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>transparent</span>
                           </button>
                           <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadBranch('svg')}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>polyline</span>
+                            SVG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>vector</span>
+                          </button>
+                        </div>
+                      )}
+                    </span>
+                  </span>
+                </>)}
+                {generateMode === 'texture' && (<>
+                  <div className="proof-chips" style={{ marginLeft: 0 }}>
+                    <button
+                      className={`proof-chip ${textureParams.style === 'rd' ? 'selected' : ''}`}
+                      onClick={() => setTextureParams(p => ({ ...p, style: 'rd' }))}
+                    >
+                      Reaction-Diffusion
+                    </button>
+                    <button
+                      className={`proof-chip ${textureParams.style === 'maze' ? 'selected' : ''}`}
+                      onClick={() => setTextureParams(p => ({ ...p, style: 'maze' }))}
+                    >
+                      Maze
+                    </button>
+                    <button
+                      className={`proof-chip ${textureParams.style === 'circuit' ? 'selected' : ''}`}
+                      onClick={() => setTextureParams(p => ({ ...p, style: 'circuit' }))}
+                    >
+                      Circuit
+                    </button>
+                  </div>
+                  <div className="controls-break" />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="How far the domain bulges beyond the classic outline">
+                    grow
+                    <input
+                      type="range" min="0" max="1" step="0.05"
+                      value={textureParams.grow}
+                      onChange={e => setTextureParams(p => ({ ...p, grow: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2.5em' }}>{textureParams.grow.toFixed(2)}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    gap
+                    <input
+                      type="range" min="5" max="100" step="5"
+                      value={textureParams.gap}
+                      onChange={e => setTextureParams(p => ({ ...p, gap: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2em' }}>{textureParams.gap}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Melt neighbouring letters' domains together">
+                    fuse
+                    <input
+                      type="range" min="0" max="1" step="0.05"
+                      value={textureParams.fuse}
+                      onChange={e => setTextureParams(p => ({ ...p, fuse: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2.5em' }}>{textureParams.fuse.toFixed(2)}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    seed
+                    <input
+                      type="range" min="1" max="50" step="1"
+                      value={textureParams.seed}
+                      onChange={e => setTextureParams(p => ({ ...p, seed: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2em' }}>{textureParams.seed}</span>
+                  </label>
+                  <div className="controls-break" />
+                  {textureParams.style === 'rd' && (<>
+                    <div className="proof-chips" style={{ marginLeft: 0 }}>
+                      {RD_PRESET_NAMES.map(name => (
+                        <button
+                          key={name}
+                          className={`proof-chip ${textureParams.preset === name ? 'selected' : ''}`}
+                          onClick={() => setTextureParams(p => ({ ...p, preset: name }))}
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="More steps develop the pattern further (slower)">
+                      steps
+                      <input
+                        type="range" min="1000" max="6000" step="250"
+                        value={textureParams.steps}
+                        onChange={e => setTextureParams(p => ({ ...p, steps: parseFloat(e.target.value) }))}
+                      />
+                      <span style={{ minWidth: '3em' }}>{textureParams.steps}</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      colour
+                      <input
+                        type="color"
+                        value={textureParams.color}
+                        onChange={e => setTextureParams(p => ({ ...p, color: e.target.value }))}
+                      />
+                    </label>
+                  </>)}
+                  {textureParams.style === 'maze' && (<>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Corridor width — coarser reads as a chunkier maze">
+                      grain
+                      <input
+                        type="range" min="8" max="32" step="2"
+                        value={textureParams.cell}
+                        onChange={e => setTextureParams(p => ({ ...p, cell: parseFloat(e.target.value) }))}
+                      />
+                      <span style={{ minWidth: '2em' }}>{textureParams.cell}</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      colour
+                      <input
+                        type="color"
+                        value={textureParams.color}
+                        onChange={e => setTextureParams(p => ({ ...p, color: e.target.value }))}
+                      />
+                    </label>
+                  </>)}
+                  {textureParams.style === 'circuit' && (<>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Trace width — coarser reads as chunkier PCB traces">
+                      grain
+                      <input
+                        type="range" min="8" max="32" step="2"
+                        value={textureParams.cell}
+                        onChange={e => setTextureParams(p => ({ ...p, cell: parseFloat(e.target.value) }))}
+                      />
+                      <span style={{ minWidth: '2em' }}>{textureParams.cell}</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Fraction of the available grid tried as trace starting points">
+                      density
+                      <input
+                        type="range" min="0.05" max="0.3" step="0.01"
+                        value={textureParams.density}
+                        onChange={e => setTextureParams(p => ({ ...p, density: parseFloat(e.target.value) }))}
+                      />
+                      <span style={{ minWidth: '2.5em' }}>{textureParams.density.toFixed(2)}</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      trace
+                      <input
+                        type="color"
+                        value={textureParams.traceColor}
+                        onChange={e => setTextureParams(p => ({ ...p, traceColor: e.target.value }))}
+                      />
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      pad
+                      <input
+                        type="color"
+                        value={textureParams.padColor}
+                        onChange={e => setTextureParams(p => ({ ...p, padColor: e.target.value }))}
+                      />
+                    </label>
+                  </>)}
+                  <div className="controls-break" />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    backbone
+                    <input
+                      type="checkbox"
+                      checked={textureParams.backbone}
+                      onChange={e => setTextureParams(p => ({ ...p, backbone: e.target.checked }))}
+                    />
+                  </label>
+                  {textureParams.backbone && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      backbone colour
+                      <input
+                        type="color"
+                        value={textureParams.backboneColor}
+                        onChange={e => setTextureParams(p => ({ ...p, backboneColor: e.target.value }))}
+                      />
+                    </label>
+                  )}
+                  <div className="controls-break" />
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '4px' }}>
+                    <button
+                      className="icon-button"
+                      onClick={handleCopyTexture}
+                      disabled={savingTexture || !text}
+                      title="Copy PNG to clipboard"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                        {textureCopied ? 'check' : 'content_copy'}
+                      </span>
+                    </button>
+                    {/* Download defaults to PNG; the caret opens a PNG/SVG menu. */}
+                    <span ref={textureMenuRef} className="grow-download-split" style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
+                      <button
+                        className="icon-button"
+                        onClick={() => handleDownloadTexture('png')}
+                        disabled={savingTexture || !text}
+                        title="Download PNG (transparent, high-res)"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                          {savingTexture ? 'hourglass_empty' : 'download'}
+                        </span>
+                      </button>
+                      <button
+                        className="icon-button"
+                        onClick={() => setTextureMenuOpen(o => !o)}
+                        disabled={savingTexture || !text}
+                        title="Choose download format"
+                        aria-haspopup="menu"
+                        aria-expanded={textureMenuOpen}
+                        style={{ width: '24px', minWidth: '24px', padding: '6px 0' }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_drop_down</span>
+                      </button>
+                      {textureMenuOpen && (
+                        <div
+                          role="menu"
+                          style={{
+                            position: 'absolute', top: '100%', right: 0, marginTop: '4px', zIndex: 20,
+                            background: 'var(--panel-bg)', border: '1px solid var(--border-color)',
+                            borderRadius: 'var(--radius-md)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden', minWidth: '160px',
+                          }}
+                        >
+                          <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadTexture('png')}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>image</span>
+                            PNG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>transparent</span>
+                          </button>
+                          <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadTexture('svg')}>
                             <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>polyline</span>
                             SVG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>vector</span>
                           </button>
