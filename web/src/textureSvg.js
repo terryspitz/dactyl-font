@@ -34,13 +34,12 @@ function cellFor(text, style) {
 /// params:
 ///   style — 'rd' | 'maze' | 'circuit' (default 'rd').
 ///   grow, gap, fuse, growScale — shape the mask domain (growStrokes rule).
-///   backbone — show the classic (grow=0) outline underneath as context
-///     (default true).
-///   backboneColor, color — outline fill / pattern colour (style-dependent
-///     defaults; maze uses `color` for its wall stroke, rd for its fill).
+///   backbone — fill the classic (grow=0) letterform silhouette behind the
+///     pattern as a background (default true); backboneColor sets its colour.
+///   color — rd's pattern fill colour.
 ///   RD: preset, steps, seedFrac, seed, threshold (default: derived from the
 ///     field's own mean — see texture.js's defaultRdThreshold).
-///   maze: seed, strokeWidth.
+///   maze: seed, strokeWidth, wallColor.
 ///   circuit: seed, density, maxLength, straightBias, traceColor, padColor,
 ///     strokeWidth, padSize.
 export function generateTextureSvg(text, axes, params = {}, onProgress) {
@@ -77,7 +76,7 @@ export function generateTextureSvg(text, axes, params = {}, onProgress) {
     const patternProgress = onProgress ? (frac => onProgress(0.6 + 0.4 * frac)) : undefined
     if (style === 'maze') {
         const { walls } = maze(mask, nx, ny, x0, y0, cell, { seed: params.seed })
-        const color = params.color ?? '#222222'
+        const color = params.wallColor ?? '#222222'
         const strokeWidth = params.strokeWidth ?? Math.max(1.5, cell * 0.16)
         patternSvg = walls.length
             ? `<path d="${wallsToSvgPath(walls)}" stroke="${color}" stroke-width="${strokeWidth}" fill="none" stroke-linecap="square"/>`

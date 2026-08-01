@@ -43,6 +43,10 @@ const defaultTextureParams = () => ({
   // Maze / circuit share a coarser grid ("grain" in the UI) than the RD
   // field default; textureSvg.js calls this `cell`.
   cell: 18,
+  // Maze / circuit share an outline width; maze has its own outline colour
+  // (kept separate from RD's `color` so switching styles doesn't carry over
+  // an unrelated fill colour as the wall colour).
+  strokeWidth: 3, wallColor: '#222222',
   // Circuit
   density: 0.12, traceColor: DEFAULT_CIRCUIT_TRACE_COLOR, padColor: DEFAULT_CIRCUIT_PAD_COLOR,
 })
@@ -2006,12 +2010,21 @@ function App() {
                       />
                       <span style={{ minWidth: '2em' }}>{textureParams.cell}</span>
                     </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Wall stroke width">
+                      outline width
+                      <input
+                        type="range" min="1" max="10" step="0.5"
+                        value={textureParams.strokeWidth}
+                        onChange={e => setTextureParams(p => ({ ...p, strokeWidth: parseFloat(e.target.value) }))}
+                      />
+                      <span style={{ minWidth: '2em' }}>{textureParams.strokeWidth}</span>
+                    </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      colour
+                      outline colour
                       <input
                         type="color"
-                        value={textureParams.color}
-                        onChange={e => setTextureParams(p => ({ ...p, color: e.target.value }))}
+                        value={textureParams.wallColor}
+                        onChange={e => setTextureParams(p => ({ ...p, wallColor: e.target.value }))}
                       />
                     </label>
                   </>)}
@@ -2034,6 +2047,15 @@ function App() {
                       />
                       <span style={{ minWidth: '2.5em' }}>{textureParams.density.toFixed(2)}</span>
                     </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Trace stroke width">
+                      outline width
+                      <input
+                        type="range" min="1" max="12" step="0.5"
+                        value={textureParams.strokeWidth}
+                        onChange={e => setTextureParams(p => ({ ...p, strokeWidth: parseFloat(e.target.value) }))}
+                      />
+                      <span style={{ minWidth: '2em' }}>{textureParams.strokeWidth}</span>
+                    </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       trace
                       <input
@@ -2052,8 +2074,8 @@ function App() {
                     </label>
                   </>)}
                   <div className="controls-break" />
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    backbone
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Fill the letterform silhouette behind the pattern">
+                    background
                     <input
                       type="checkbox"
                       checked={textureParams.backbone}
@@ -2062,7 +2084,7 @@ function App() {
                   </label>
                   {textureParams.backbone && (
                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      backbone colour
+                      background colour
                       <input
                         type="color"
                         value={textureParams.backboneColor}
