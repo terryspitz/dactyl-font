@@ -8,6 +8,9 @@ import { LAYER_COLORS } from './growth'
 import { DEFAULT_BRANCH_COLOR } from './branching'
 import { RD_PRESET_NAMES, DEFAULT_CIRCUIT_TRACE_COLOR, DEFAULT_CIRCUIT_PAD_COLOR } from './texture'
 import { downloadFont, buildFontDataUrl } from './fontExport'
+import ImageExportButtons, { useDownloadMenu } from './ImageExportButtons'
+import { buildSplineGridSvg } from './splineGridSvg'
+import { buildTweensSvg } from './tweensSvg'
 import { buildCompareOverlaySvg } from './fontCompare'
 import FontCompareControls from './FontCompareControls'
 import FontCompareTextOverlay from './FontCompareTextOverlay'
@@ -179,6 +182,13 @@ function App() {
   const [legendPos, setLegendPos] = useState({ x: 0, y: 0 })
   const isDraggingRef = useRef(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
+  // Drag handle between the input-area (text box + controls panel) and the
+  // canvas below it. null means "use the default ~1/3-height cap" (CSS
+  // flex-basis); once dragged, an explicit pixel height takes over.
+  const [inputAreaHeight, setInputAreaHeight] = useState(null)
+  const inputAreaRef = useRef(null)
+  const resizingInputAreaRef = useRef(false)
+  const resizeStartRef = useRef({ y: 0, height: 0 })
   const [tweenFilter, setTweenFilter] = useState(
     () => new URLSearchParams(window.location.search).get('tween') || ''
   )
@@ -211,23 +221,61 @@ function App() {
   const [growField, setGrowField] = useState(null)
   const [savingGrow, setSavingGrow] = useState(false)
   const [growCopied, setGrowCopied] = useState(false)
-  const [growMenuOpen, setGrowMenuOpen] = useState(false)
-  const growMenuRef = useRef(null)
+  const [growMenuOpen, setGrowMenuOpen, growMenuRef] = useDownloadMenu()
   // Grow mode (branch-mode) export state — mirrors the Bubble mode ones above.
   const [savingBranch, setSavingBranch] = useState(false)
   const [branchCopied, setBranchCopied] = useState(false)
-  const [branchMenuOpen, setBranchMenuOpen] = useState(false)
-  const branchMenuRef = useRef(null)
+  const [branchMenuOpen, setBranchMenuOpen, branchMenuRef] = useDownloadMenu()
   // Texture mode export state — mirrors the Bubble/Grow ones above.
   const [savingTexture, setSavingTexture] = useState(false)
   const [textureCopied, setTextureCopied] = useState(false)
-  const [textureMenuOpen, setTextureMenuOpen] = useState(false)
-  const textureMenuRef = useRef(null)
+  const [textureMenuOpen, setTextureMenuOpen, textureMenuRef] = useDownloadMenu()
   // Font tab image export (same PNG/SVG copy + download as Grow, on the canvas)
   const [savingFontImage, setSavingFontImage] = useState(false)
   const [fontCopied, setFontCopied] = useState(false)
-  const [fontMenuOpen, setFontMenuOpen] = useState(false)
-  const fontMenuRef = useRef(null)
+  const [fontMenuOpen, setFontMenuOpen, fontMenuRef] = useDownloadMenu()
+  // Glyphs tab image export — reuses workerResult directly (it's already the
+  // exact SVG on screen, no autoscale/GPU-canvas mismatch to work around).
+  const [savingGlyphsImage, setSavingGlyphsImage] = useState(false)
+  const [glyphsCopied, setGlyphsCopied] = useState(false)
+  const [glyphsMenuOpen, setGlyphsMenuOpen, glyphsMenuRef] = useDownloadMenu()
+  // Splines tab image export — SplineEditor holds interactive state (dragged
+  // control points) no fresh worker call could reconstruct, so this serialises
+  // the live svg.se-canvas DOM node instead of re-fetching.
+  const [savingSplinesImage, setSavingSplinesImage] = useState(false)
+  const [splinesCopied, setSplinesCopied] = useState(false)
+  const [splinesMenuOpen, setSplinesMenuOpen, splinesMenuRef] = useDownloadMenu()
+  // Spline Grid tab image export — a big HTML table of tiny inline-styled
+  // SVG cells, not one clean vector document, so this rasterises the live DOM
+  // (see domCapture.js) rather than trying to reconstruct it as pure SVG.
+  const [savingSplineGridImage, setSavingSplineGridImage] = useState(false)
+  const [splineGridCopied, setSplineGridCopied] = useState(false)
+  const [splineGridMenuOpen, setSplineGridMenuOpen, splineGridMenuRef] = useDownloadMenu()
+  // Tweens tab image export — workerResult already holds the row data
+  // (buildTweensSvg composites it into one SVG; no fresh worker call needed).
+  const [savingTweensImage, setSavingTweensImage] = useState(false)
+  const [tweensCopied, setTweensCopied] = useState(false)
+  const [tweensMenuOpen, setTweensMenuOpen, tweensMenuRef] = useDownloadMenu()
+  // Proofs tab image export — the on-screen preview renders proof text with
+  // CSS/@font-face (fast for long paragraphs), but export reuses the Font
+  // tab's true vector renderer (requestFontSvg) on the proof text instead,
+  // so the saved file is real vector glyph outlines, not a font-in-browser
+  // rasterisation trick.
+  const [savingProofsImage, setSavingProofsImage] = useState(false)
+  const [proofsCopied, setProofsCopied] = useState(false)
+  const [proofsMenuOpen, setProofsMenuOpen, proofsMenuRef] = useDownloadMenu()
+  // Visual Diffs tab image export — axis-diff mode's workerResult and
+  // compare-font 'outline' mode's compareSvg are already plain SVG strings
+  // (no fresh fetch needed); compare-font 'text' mode overlays two live
+  // browser-rendered fonts with CSS and has no vector SVG representation at
+  // all, so it's excluded (see requestVisualDiffsSvg) rather than attempting
+  // a DOM-capture export — the foreignObject-taints-the-canvas issue
+  // documented in splineGridSvg.js would apply, and a cross-origin webfont
+  // (an uploaded/Google font, unlike Dactyl's own data-URI font) could also
+  // taint it for real, not just as a Chromium technicality.
+  const [savingVisualDiffsImage, setSavingVisualDiffsImage] = useState(false)
+  const [visualDiffsCopied, setVisualDiffsCopied] = useState(false)
+  const [visualDiffsMenuOpen, setVisualDiffsMenuOpen, visualDiffsMenuRef] = useDownloadMenu()
   const supportsWebGL2 = useMemo(() => {
     try { return !!document.createElement('canvas').getContext('webgl2') } catch { return false }
   }, [])
@@ -466,6 +514,44 @@ function App() {
     }
   }, [activeTab, legendPos.x, legendPos.y])
 
+  const handleInputAreaResizeStart = (clientY) => {
+    resizingInputAreaRef.current = true
+    resizeStartRef.current = { y: clientY, height: inputAreaRef.current?.getBoundingClientRect().height ?? 0 }
+  }
+  const handleInputAreaResizeMouseDown = (e) => {
+    if (e.button !== 0) return
+    handleInputAreaResizeStart(e.clientY)
+    e.preventDefault()
+  }
+  const handleInputAreaResizeTouchStart = (e) => {
+    handleInputAreaResizeStart(e.touches[0].clientY)
+  }
+
+  useEffect(() => {
+    const MIN_HEIGHT = 60
+    const applyDelta = (clientY) => {
+      if (!resizingInputAreaRef.current) return
+      const delta = clientY - resizeStartRef.current.y
+      setInputAreaHeight(Math.max(MIN_HEIGHT, resizeStartRef.current.height + delta))
+    }
+    const onMouseMove = (e) => applyDelta(e.clientY)
+    const onTouchMove = (e) => {
+      applyDelta(e.touches[0].clientY)
+      if (e.cancelable) e.preventDefault()
+    }
+    const onEnd = () => { resizingInputAreaRef.current = false }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onEnd)
+    document.addEventListener('touchmove', onTouchMove, { passive: false })
+    document.addEventListener('touchend', onEnd)
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onEnd)
+      document.removeEventListener('touchmove', onTouchMove)
+      document.removeEventListener('touchend', onEnd)
+    }
+  }, [])
+
   // Worker state is now handled within the effect directly
 
   const [downloadingFont, setDownloadingFont] = useState(false)
@@ -527,6 +613,68 @@ function App() {
       : { id: 0, type: 'font', args: [text, axes, true] })
   })
 
+  // Same idea as requestFontSvg, but for the Proofs tab's (potentially much
+  // longer) text, with its own per-glyph axes if randomise-every-glyph is on.
+  const requestProofsSvg = () => new Promise((resolve, reject) => {
+    const proofsText = tabTexts.proofs
+    if (!proofsText) { resolve(''); return }
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    worker.onmessage = (e) => {
+      if (e.data.type === 'progress') return
+      worker.terminate()
+      if (e.data.error) reject(new Error(e.data.error))
+      else resolve(e.data.result)
+    }
+    worker.onerror = (err) => { worker.terminate(); reject(err) }
+    if (glyphSeed !== null) {
+      const pga = buildGlyphAxes(proofsText, glyphSeed, axes, controlDefinitions)
+      worker.postMessage({ id: 0, type: 'fontPerGlyph', args: [proofsText, axes, pga.chars, pga.axesList, true] })
+    } else {
+      worker.postMessage({ id: 0, type: 'font', args: [proofsText, axes, true] })
+    }
+  })
+
+  const handleDownloadProofsImage = async (format) => {
+    setProofsMenuOpen(false)
+    setSavingProofsImage(true)
+    setError(null)
+    try {
+      const svg = await requestProofsSvg()
+      if (!svg) return
+      const base = filenameBase('dactyl-proofs', proofCase)
+      if (format === 'svg') {
+        downloadBlob(svgBlob(svg), `${base}.svg`)
+      } else {
+        downloadBlob(await svgToPngBlob(svg, { scale: 3, background: '#ffffff' }), `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Proofs ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingProofsImage(false)
+    }
+  }
+
+  const handleCopyProofsImage = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    setSavingProofsImage(true)
+    setError(null)
+    try {
+      const svg = await requestProofsSvg()
+      if (!svg) throw new Error('nothing to copy')
+      const png = await svgToPngBlob(svg, { scale: 3, background: '#ffffff' })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setProofsCopied(true)
+      setTimeout(() => setProofsCopied(false), 1500)
+    } catch (e) {
+      setError(`Proofs copy failed: ${e.message}`)
+    } finally {
+      setSavingProofsImage(false)
+    }
+  }
+
   const fontImageBase = () =>
     filenameBase('dactyl', text, glyphSeed === null ? '' : `random${glyphSeed}`)
 
@@ -569,6 +717,201 @@ function App() {
       setError(`Font copy failed: ${e.message}`)
     } finally {
       setSavingFontImage(false)
+    }
+  }
+
+  // Glyphs tab export: workerResult already holds the exact on-screen SVG
+  // (glyphsFromDefs has no autoscale/GPU-canvas path to route around, unlike
+  // Font/Bubble), so no fresh worker re-fetch is needed here.
+  const handleDownloadGlyphsImage = async (format) => {
+    setGlyphsMenuOpen(false)
+    if (typeof workerResult !== 'string' || !workerResult) return
+    setSavingGlyphsImage(true)
+    setError(null)
+    try {
+      const base = filenameBase('glyphs', text)
+      if (format === 'svg') {
+        downloadBlob(svgBlob(workerResult), `${base}.svg`)
+      } else {
+        downloadBlob(await svgToPngBlob(workerResult, { scale: 3, background: null }), `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Glyphs ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingGlyphsImage(false)
+    }
+  }
+
+  const handleCopyGlyphsImage = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    if (typeof workerResult !== 'string' || !workerResult) return
+    setSavingGlyphsImage(true)
+    setError(null)
+    try {
+      const png = await svgToPngBlob(workerResult, { scale: 3, background: null })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setGlyphsCopied(true)
+      setTimeout(() => setGlyphsCopied(false), 1500)
+    } catch (e) {
+      setError(`Glyphs copy failed: ${e.message}`)
+    } finally {
+      setSavingGlyphsImage(false)
+    }
+  }
+
+  // Serialise the live curve-editor <svg> (control points, tangent handles,
+  // solved outline — whatever's currently on screen, including any dragged
+  // point positions) rather than re-fetching, since only the DOM reflects the
+  // editor's interactive state.
+  const requestSplinesSvg = () => {
+    const svgEl = previewRef.current?.querySelector('svg.se-canvas')
+    return svgEl ? new XMLSerializer().serializeToString(svgEl) : ''
+  }
+
+  const handleDownloadSplinesImage = async (format) => {
+    setSplinesMenuOpen(false)
+    const svg = requestSplinesSvg()
+    if (!svg) return
+    setSavingSplinesImage(true)
+    setError(null)
+    try {
+      const base = filenameBase('splines', text)
+      if (format === 'svg') {
+        downloadBlob(svgBlob(svg), `${base}.svg`)
+      } else {
+        downloadBlob(await svgToPngBlob(svg, { scale: 3, background: null }), `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Splines ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingSplinesImage(false)
+    }
+  }
+
+  const handleCopySplinesImage = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    const svg = requestSplinesSvg()
+    if (!svg) { setError('nothing to copy'); return }
+    setSavingSplinesImage(true)
+    setError(null)
+    try {
+      const png = await svgToPngBlob(svg, { scale: 3, background: null })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setSplinesCopied(true)
+      setTimeout(() => setSplinesCopied(false), 1500)
+    } catch (e) {
+      setError(`Splines copy failed: ${e.message}`)
+    } finally {
+      setSavingSplinesImage(false)
+    }
+  }
+
+  // Fresh one-off worker call (same 'solveSplineGrid' message SplineGrid.jsx
+  // itself uses) rebuilt as a standalone vector SVG (splineGridSvg.js) rather
+  // than screenshotting the on-screen HTML table — an SVG containing a
+  // <foreignObject> unconditionally taints the canvas in Chromium (confirmed
+  // by hand: even foreignObject content with no embedded images at all still
+  // taints it), so DOM-capture isn't viable here; nested plain <svg> has no
+  // such restriction.
+  const requestSplineGridSvg = () => new Promise((resolve, reject) => {
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    worker.onmessage = (e) => {
+      worker.terminate()
+      if (e.data.error) reject(new Error(e.data.error))
+      else resolve(buildSplineGridSvg(e.data.result))
+    }
+    worker.onerror = (err) => { worker.terminate(); reject(err) }
+    worker.postMessage({ id: 1, type: 'solveSplineGrid', args: [] })
+  })
+
+  const handleDownloadSplineGridImage = async (format) => {
+    setSplineGridMenuOpen(false)
+    setSavingSplineGridImage(true)
+    setError(null)
+    try {
+      const svg = await requestSplineGridSvg()
+      const base = 'dactyl-spline-grid'
+      if (format === 'svg') {
+        downloadBlob(svgBlob(svg), `${base}.svg`)
+      } else {
+        downloadBlob(await svgToPngBlob(svg, { scale: 2, background: '#ffffff' }), `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Spline Grid ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingSplineGridImage(false)
+    }
+  }
+
+  const handleCopySplineGridImage = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    setSavingSplineGridImage(true)
+    setError(null)
+    try {
+      const svg = await requestSplineGridSvg()
+      const png = await svgToPngBlob(svg, { scale: 2, background: '#ffffff' })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setSplineGridCopied(true)
+      setTimeout(() => setSplineGridCopied(false), 1500)
+    } catch (e) {
+      setError(`Spline Grid copy failed: ${e.message}`)
+    } finally {
+      setSavingSplineGridImage(false)
+    }
+  }
+
+  const requestTweensSvg = () => {
+    if (typeof workerResult !== 'object' || !workerResult) return ''
+    return buildTweensSvg(workerResult, controlDefinitions, tweenFilter)
+  }
+
+  const handleDownloadTweensImage = async (format) => {
+    setTweensMenuOpen(false)
+    const svg = requestTweensSvg()
+    if (!svg) return
+    setSavingTweensImage(true)
+    setError(null)
+    try {
+      const base = 'dactyl-tweens'
+      if (format === 'svg') {
+        downloadBlob(svgBlob(svg), `${base}.svg`)
+      } else {
+        downloadBlob(await svgToPngBlob(svg, { scale: 2, background: '#ffffff' }), `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Tweens ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingTweensImage(false)
+    }
+  }
+
+  const handleCopyTweensImage = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    const svg = requestTweensSvg()
+    if (!svg) { setError('nothing to copy'); return }
+    setSavingTweensImage(true)
+    setError(null)
+    try {
+      const png = await svgToPngBlob(svg, { scale: 2, background: '#ffffff' })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setTweensCopied(true)
+      setTimeout(() => setTweensCopied(false), 1500)
+    } catch (e) {
+      setError(`Tweens copy failed: ${e.message}`)
+    } finally {
+      setSavingTweensImage(false)
     }
   }
 
@@ -744,66 +1087,6 @@ function App() {
     }
   }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, generateMode, growParams, branchParams, textureParams, fastPreview, perGlyphTextAxes])
 
-  // Close the Bubble download-format menu on outside click / Escape.
-  useEffect(() => {
-    if (!growMenuOpen) return
-    const onDown = (e) => {
-      if (growMenuRef.current && !growMenuRef.current.contains(e.target)) setGrowMenuOpen(false)
-    }
-    const onKey = (e) => { if (e.key === 'Escape') setGrowMenuOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [growMenuOpen])
-
-  // Close the Grow download-format menu on outside click / Escape.
-  useEffect(() => {
-    if (!branchMenuOpen) return
-    const onDown = (e) => {
-      if (branchMenuRef.current && !branchMenuRef.current.contains(e.target)) setBranchMenuOpen(false)
-    }
-    const onKey = (e) => { if (e.key === 'Escape') setBranchMenuOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [branchMenuOpen])
-
-  // Close the Texture download-format menu on outside click / Escape.
-  useEffect(() => {
-    if (!textureMenuOpen) return
-    const onDown = (e) => {
-      if (textureMenuRef.current && !textureMenuRef.current.contains(e.target)) setTextureMenuOpen(false)
-    }
-    const onKey = (e) => { if (e.key === 'Escape') setTextureMenuOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [textureMenuOpen])
-
-  // Same for the Font tab's download-format menu.
-  useEffect(() => {
-    if (!fontMenuOpen) return
-    const onDown = (e) => {
-      if (fontMenuRef.current && !fontMenuRef.current.contains(e.target)) setFontMenuOpen(false)
-    }
-    const onKey = (e) => { if (e.key === 'Escape') setFontMenuOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [fontMenuOpen])
-
   // Dedicated effect for proofs tab: generates full font and builds a data URL.
   // Deps are [axes, activeTab] only — switching proof text doesn't re-trigger.
   // Old font stays visible until the new one arrives (proofFontUrl is not cleared).
@@ -953,6 +1236,57 @@ function App() {
       return null
     }
   }, [compareMode, compareFont, dactylGlyphData, compareSize, text])
+
+  // '' when there's nothing exportable yet (still generating / no font
+  // picked), null specifically for the text-overlay mode that can't export.
+  const requestVisualDiffsSvg = () => {
+    if (compareMode === 'font') {
+      if (compareFont?.kind === 'text') return null
+      return compareSvg || ''
+    }
+    return typeof workerResult === 'string' ? workerResult : ''
+  }
+
+  const handleDownloadVisualDiffsImage = async (format) => {
+    setVisualDiffsMenuOpen(false)
+    const svg = requestVisualDiffsSvg()
+    if (!svg) return
+    setSavingVisualDiffsImage(true)
+    setError(null)
+    try {
+      const base = 'dactyl-visual-diff'
+      if (format === 'svg') {
+        downloadBlob(svgBlob(svg), `${base}.svg`)
+      } else {
+        downloadBlob(await svgToPngBlob(svg, { scale: 3, background: '#ffffff' }), `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Visual Diffs ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingVisualDiffsImage(false)
+    }
+  }
+
+  const handleCopyVisualDiffsImage = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    const svg = requestVisualDiffsSvg()
+    if (!svg) { setError('nothing to copy'); return }
+    setSavingVisualDiffsImage(true)
+    setError(null)
+    try {
+      const png = await svgToPngBlob(svg, { scale: 3, background: '#ffffff' })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setVisualDiffsCopied(true)
+      setTimeout(() => setVisualDiffsCopied(false), 1500)
+    } catch (e) {
+      setError(`Visual Diffs copy failed: ${e.message}`)
+    } finally {
+      setSavingVisualDiffsImage(false)
+    }
+  }
 
   // DactylCompare @font-face for text-mode comparison (Dactyl side rendered via CSS).
   const dactylCompareUrl = useMemo(() => {
@@ -1477,7 +1811,17 @@ function App() {
           )}
         </div>
 
-        <div className={`input-area ${['glyphs', 'generate', 'visualDiffs'].includes(activeTab) ? 'with-side-panel' : ''}`} style={activeTab === 'splines' || activeTab === 'splineGrid' ? { display: 'none' } : undefined}>
+        <div
+          ref={inputAreaRef}
+          className={`input-area ${['glyphs', 'generate', 'visualDiffs'].includes(activeTab) ? 'with-side-panel' : ''}`}
+          style={
+            activeTab === 'splines' || activeTab === 'splineGrid'
+              ? { display: 'none' }
+              : inputAreaHeight != null
+                ? { height: `${inputAreaHeight}px`, flex: '0 0 auto' }
+                : undefined
+          }
+        >
           <div className="input-wrapper">
             <textarea
               value={text}
@@ -1681,62 +2025,6 @@ function App() {
                       />
                     </label>
                   ))}
-                  <div className="controls-break" />
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '4px' }}>
-                    <button
-                      className="icon-button"
-                      onClick={handleCopyGrow}
-                      disabled={savingGrow || !text}
-                      title="Copy PNG to clipboard"
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                        {growCopied ? 'check' : 'content_copy'}
-                      </span>
-                    </button>
-                    {/* Download defaults to PNG; the caret opens a PNG/SVG menu. */}
-                    <span ref={growMenuRef} className="grow-download-split" style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
-                      <button
-                        className="icon-button"
-                        onClick={() => handleDownloadGrow('png')}
-                        disabled={savingGrow || !text}
-                        title="Download PNG (transparent, high-res)"
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                          {savingGrow ? 'hourglass_empty' : 'download'}
-                        </span>
-                      </button>
-                      <button
-                        className="icon-button"
-                        onClick={() => setGrowMenuOpen(o => !o)}
-                        disabled={savingGrow || !text}
-                        title="Choose download format"
-                        aria-haspopup="menu"
-                        aria-expanded={growMenuOpen}
-                        style={{ width: '24px', minWidth: '24px', padding: '6px 0' }}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_drop_down</span>
-                      </button>
-                      {growMenuOpen && (
-                        <div
-                          role="menu"
-                          style={{
-                            position: 'absolute', top: '100%', right: 0, marginTop: '4px', zIndex: 20,
-                            background: 'var(--panel-bg)', border: '1px solid var(--border-color)',
-                            borderRadius: 'var(--radius-md)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden', minWidth: '160px',
-                          }}
-                        >
-                          <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadGrow('png')}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>image</span>
-                            PNG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>transparent</span>
-                          </button>
-                          <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadGrow('svg')}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>polyline</span>
-                            SVG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>vector</span>
-                          </button>
-                        </div>
-                      )}
-                    </span>
-                  </span>
                 </>)}
                 {generateMode === 'grow' && (<>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1857,62 +2145,6 @@ function App() {
                       />
                     </label>
                   )}
-                  <div className="controls-break" />
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '4px' }}>
-                    <button
-                      className="icon-button"
-                      onClick={handleCopyBranch}
-                      disabled={savingBranch || !text}
-                      title="Copy PNG to clipboard"
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                        {branchCopied ? 'check' : 'content_copy'}
-                      </span>
-                    </button>
-                    {/* Download defaults to PNG; the caret opens a PNG/SVG menu. */}
-                    <span ref={branchMenuRef} className="grow-download-split" style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
-                      <button
-                        className="icon-button"
-                        onClick={() => handleDownloadBranch('png')}
-                        disabled={savingBranch || !text}
-                        title="Download PNG (transparent, high-res)"
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                          {savingBranch ? 'hourglass_empty' : 'download'}
-                        </span>
-                      </button>
-                      <button
-                        className="icon-button"
-                        onClick={() => setBranchMenuOpen(o => !o)}
-                        disabled={savingBranch || !text}
-                        title="Choose download format"
-                        aria-haspopup="menu"
-                        aria-expanded={branchMenuOpen}
-                        style={{ width: '24px', minWidth: '24px', padding: '6px 0' }}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_drop_down</span>
-                      </button>
-                      {branchMenuOpen && (
-                        <div
-                          role="menu"
-                          style={{
-                            position: 'absolute', top: '100%', right: 0, marginTop: '4px', zIndex: 20,
-                            background: 'var(--panel-bg)', border: '1px solid var(--border-color)',
-                            borderRadius: 'var(--radius-md)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden', minWidth: '160px',
-                          }}
-                        >
-                          <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadBranch('png')}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>image</span>
-                            PNG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>transparent</span>
-                          </button>
-                          <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadBranch('svg')}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>polyline</span>
-                            SVG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>vector</span>
-                          </button>
-                        </div>
-                      )}
-                    </span>
-                  </span>
                 </>)}
                 {generateMode === 'texture' && (<>
                   <div className="proof-chips" style={{ marginLeft: 0 }}>
@@ -2122,62 +2354,6 @@ function App() {
                       />
                     </label>
                   </>)}
-                  <div className="controls-break" />
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '4px' }}>
-                    <button
-                      className="icon-button"
-                      onClick={handleCopyTexture}
-                      disabled={savingTexture || !text}
-                      title="Copy PNG to clipboard"
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                        {textureCopied ? 'check' : 'content_copy'}
-                      </span>
-                    </button>
-                    {/* Download defaults to PNG; the caret opens a PNG/SVG menu. */}
-                    <span ref={textureMenuRef} className="grow-download-split" style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
-                      <button
-                        className="icon-button"
-                        onClick={() => handleDownloadTexture('png')}
-                        disabled={savingTexture || !text}
-                        title="Download PNG (transparent, high-res)"
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                          {savingTexture ? 'hourglass_empty' : 'download'}
-                        </span>
-                      </button>
-                      <button
-                        className="icon-button"
-                        onClick={() => setTextureMenuOpen(o => !o)}
-                        disabled={savingTexture || !text}
-                        title="Choose download format"
-                        aria-haspopup="menu"
-                        aria-expanded={textureMenuOpen}
-                        style={{ width: '24px', minWidth: '24px', padding: '6px 0' }}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_drop_down</span>
-                      </button>
-                      {textureMenuOpen && (
-                        <div
-                          role="menu"
-                          style={{
-                            position: 'absolute', top: '100%', right: 0, marginTop: '4px', zIndex: 20,
-                            background: 'var(--panel-bg)', border: '1px solid var(--border-color)',
-                            borderRadius: 'var(--radius-md)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden', minWidth: '160px',
-                          }}
-                        >
-                          <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadTexture('png')}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>image</span>
-                            PNG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>transparent</span>
-                          </button>
-                          <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadTexture('svg')}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>polyline</span>
-                            SVG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>vector</span>
-                          </button>
-                        </div>
-                      )}
-                    </span>
-                  </span>
                 </>)}
               </div>
             </div>
@@ -2264,6 +2440,14 @@ function App() {
             )
           })()}
         </div>
+        {activeTab !== 'splines' && activeTab !== 'splineGrid' && (
+          <div
+            className="input-area-resize-handle"
+            onMouseDown={handleInputAreaResizeMouseDown}
+            onTouchStart={handleInputAreaResizeTouchStart}
+            title="Drag to resize"
+          />
+        )}
         <div className="preview">
           {showProgress && (
             <div className="progress-bar-container">
@@ -2278,65 +2462,132 @@ function App() {
             </div>
           )}
           <div className="zoom-controls">
-            {/* Image export for the typed string, alongside the zoom buttons.
-                Font tab only for now — the other tabs render debug overlays,
-                grids or their own canvases that don't export meaningfully. */}
+            {/* Image export for the current tab's content, alongside the zoom
+                buttons — every tab gets a copy/download pair here (see each
+                tab's own ImageExportButtons block below for its data source). */}
             {activeTab === 'font' && (
-              <>
-                <button
-                  onClick={handleCopyFontImage}
-                  disabled={savingFontImage || !text}
-                  title="Copy PNG to clipboard"
-                >
-                  <span className="material-symbols-outlined">
-                    {fontCopied ? 'check' : 'content_copy'}
-                  </span>
-                </button>
-                {/* Download defaults to PNG; the caret opens a PNG/SVG menu. */}
-                <span ref={fontMenuRef} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
-                  <button
-                    onClick={() => handleDownloadFontImage('png')}
-                    disabled={savingFontImage || !text}
-                    title="Download PNG (transparent, high-res)"
-                  >
-                    <span className="material-symbols-outlined">
-                      {savingFontImage ? 'hourglass_empty' : 'download'}
-                    </span>
-                  </button>
-                  {/* overflow:hidden keeps the caret glyph inside its button, so it
-                      can't sit on top of the download button and swallow its clicks */}
-                  <button
-                    onClick={() => setFontMenuOpen(o => !o)}
-                    disabled={savingFontImage || !text}
-                    title="Choose download format"
-                    aria-haspopup="menu"
-                    aria-expanded={fontMenuOpen}
-                    style={{ width: '20px', minWidth: '20px', padding: '6px 0', overflow: 'hidden' }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_drop_down</span>
-                  </button>
-                  {fontMenuOpen && (
-                    <div
-                      role="menu"
-                      style={{
-                        position: 'absolute', top: '100%', right: 0, marginTop: '8px', zIndex: 20,
-                        background: 'var(--panel-bg)', border: '1px solid var(--border-color)',
-                        borderRadius: 'var(--radius-md)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden', minWidth: '160px',
-                      }}
-                    >
-                      <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadFontImage('png')}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>image</span>
-                        PNG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>transparent</span>
-                      </button>
-                      <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadFontImage('svg')}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>polyline</span>
-                        SVG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>vector</span>
-                      </button>
-                    </div>
-                  )}
-                </span>
-                <span style={{ width: '1px', background: 'rgba(255,255,255,0.2)', margin: '2px 2px' }} />
-              </>
+              <ImageExportButtons
+                onCopy={handleCopyFontImage}
+                onDownload={handleDownloadFontImage}
+                copied={fontCopied}
+                saving={savingFontImage}
+                disabled={!text}
+                menuOpen={fontMenuOpen}
+                setMenuOpen={setFontMenuOpen}
+                menuRef={fontMenuRef}
+              />
+            )}
+            {activeTab === 'glyphs' && (
+              <ImageExportButtons
+                onCopy={handleCopyGlyphsImage}
+                onDownload={handleDownloadGlyphsImage}
+                copied={glyphsCopied}
+                saving={savingGlyphsImage}
+                disabled={typeof workerResult !== 'string' || !workerResult}
+                menuOpen={glyphsMenuOpen}
+                setMenuOpen={setGlyphsMenuOpen}
+                menuRef={glyphsMenuRef}
+              />
+            )}
+            {activeTab === 'splines' && (
+              <ImageExportButtons
+                onCopy={handleCopySplinesImage}
+                onDownload={handleDownloadSplinesImage}
+                copied={splinesCopied}
+                saving={savingSplinesImage}
+                disabled={false}
+                menuOpen={splinesMenuOpen}
+                setMenuOpen={setSplinesMenuOpen}
+                menuRef={splinesMenuRef}
+              />
+            )}
+            {activeTab === 'splineGrid' && (
+              <ImageExportButtons
+                onCopy={handleCopySplineGridImage}
+                onDownload={handleDownloadSplineGridImage}
+                copied={splineGridCopied}
+                saving={savingSplineGridImage}
+                disabled={false}
+                menuOpen={splineGridMenuOpen}
+                setMenuOpen={setSplineGridMenuOpen}
+                menuRef={splineGridMenuRef}
+              />
+            )}
+            {activeTab === 'tweens' && (
+              <ImageExportButtons
+                onCopy={handleCopyTweensImage}
+                onDownload={handleDownloadTweensImage}
+                copied={tweensCopied}
+                saving={savingTweensImage}
+                disabled={typeof workerResult !== 'object' || !workerResult}
+                menuOpen={tweensMenuOpen}
+                setMenuOpen={setTweensMenuOpen}
+                menuRef={tweensMenuRef}
+              />
+            )}
+            {activeTab === 'proofs' && (
+              <ImageExportButtons
+                onCopy={handleCopyProofsImage}
+                onDownload={handleDownloadProofsImage}
+                copied={proofsCopied}
+                saving={savingProofsImage}
+                disabled={!tabTexts.proofs}
+                menuOpen={proofsMenuOpen}
+                setMenuOpen={setProofsMenuOpen}
+                menuRef={proofsMenuRef}
+              />
+            )}
+            {activeTab === 'visualDiffs' && compareMode === 'font' && compareFont?.kind === 'text' ? (
+              <button disabled title="Can't export a live browser-font comparison — only axis-diff and outline-font comparisons can be saved">
+                <span className="material-symbols-outlined">download</span>
+              </button>
+            ) : activeTab === 'visualDiffs' && (
+              <ImageExportButtons
+                onCopy={handleCopyVisualDiffsImage}
+                onDownload={handleDownloadVisualDiffsImage}
+                copied={visualDiffsCopied}
+                saving={savingVisualDiffsImage}
+                disabled={!requestVisualDiffsSvg()}
+                menuOpen={visualDiffsMenuOpen}
+                setMenuOpen={setVisualDiffsMenuOpen}
+                menuRef={visualDiffsMenuRef}
+              />
+            )}
+            {activeTab === 'generate' && generateMode === 'bubble' && (
+              <ImageExportButtons
+                onCopy={handleCopyGrow}
+                onDownload={handleDownloadGrow}
+                copied={growCopied}
+                saving={savingGrow}
+                disabled={!text}
+                menuOpen={growMenuOpen}
+                setMenuOpen={setGrowMenuOpen}
+                menuRef={growMenuRef}
+              />
+            )}
+            {activeTab === 'generate' && generateMode === 'grow' && (
+              <ImageExportButtons
+                onCopy={handleCopyBranch}
+                onDownload={handleDownloadBranch}
+                copied={branchCopied}
+                saving={savingBranch}
+                disabled={!text}
+                menuOpen={branchMenuOpen}
+                setMenuOpen={setBranchMenuOpen}
+                menuRef={branchMenuRef}
+              />
+            )}
+            {activeTab === 'generate' && generateMode === 'texture' && (
+              <ImageExportButtons
+                onCopy={handleCopyTexture}
+                onDownload={handleDownloadTexture}
+                copied={textureCopied}
+                saving={savingTexture}
+                disabled={!text}
+                menuOpen={textureMenuOpen}
+                setMenuOpen={setTextureMenuOpen}
+                menuRef={textureMenuRef}
+              />
             )}
             <button onClick={() => setZoom(z => Math.min(z + 0.1, 5.0))} title="Zoom In">
               <span className="material-symbols-outlined">add</span>

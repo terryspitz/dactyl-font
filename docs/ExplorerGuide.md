@@ -18,6 +18,12 @@ The [Dactyl Live Explorer](https://terryspitz.github.io/dactyl-font) lets you de
 
 The **sidebar** on the left holds all font axis controls.  The **top bar** holds the tab row and per-tab actions.  The **preview area** fills the rest of the page.
 
+Between the top text/controls boxes and the preview canvas is a drag handle
+(a thin bar, cursor turns into a resize cursor) — drag it to trade height
+between them.  It defaults to roughly a third of the page; on tabs with a lot
+of controls (e.g. Generate's Texture mode), the controls box scrolls
+internally rather than growing past that.
+
 ---
 
 ## Sidebar
@@ -139,13 +145,24 @@ Three experimental generative modes, all growing letterforms out of the
 **Grow** / **Texture**) at the left of the top bar.  All the usual axes still
 apply, since every mode starts from the same solved spines.
 
-Every mode shares the same **save controls** (top bar, right): a **copy**
-icon copies the result as a transparent PNG to the clipboard, and a
-**download** icon saves a PNG by default — its caret dropdown offers PNG
-(transparent, high-res) or SVG (vector).  A **fast preview** checkbox renders
-just the first character at a coarser resolution while dragging sliders, and
-a **reset** icon restores the active mode's own settings (leaving the mode
-choice and the other modes' settings untouched).
+Every mode shares the same **save controls**, in the canvas zoom toolbar
+(top-right of the preview, alongside the zoom buttons): a **copy** icon
+copies the result as a PNG to the clipboard, and a **download** icon saves a
+PNG by default — its caret dropdown offers PNG (transparent, high-res) or SVG
+(vector). A **fast preview** checkbox renders just the first character at a
+coarser resolution while dragging sliders, and a **reset** icon restores the
+active mode's own settings (leaving the mode choice and the other modes'
+settings untouched).
+
+Every tab gets the same copy/download pair in that zoom toolbar, not just
+Generate — Font, Glyphs, Splines, Spline Grid, Tweens, Proofs and Visual Diffs
+all export too. Most reconstruct a true vector SVG (Splines serialises the
+live editor canvas; Spline Grid and Tweens composite their own small SVGs
+into one document; Proofs re-renders its text through the same vector glyph
+path Font uses, so long proof texts can take a while to save). Visual Diffs
+can save its axis-diff and outline-font-compare views, but not a live
+browser-font text comparison (no vector form to save at all in that case, so
+the button's disabled there).
 
 #### Bubble mode
 Inspired by Namco's *Techno Drive* (1998) logotype.  Instead of offsetting
