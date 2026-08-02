@@ -2,6 +2,7 @@ import { generateSvg, generateSvgPerGlyph, generateSplineDebugSvgFromDefs, gener
 import { buildFontDataUrl } from './fontExport'
 import { generateGrowthSvg, generateGrowthField } from './growthSvg'
 import { generateBranchSvg } from './branchSvg'
+import { generateTextureSvg } from './textureSvg'
 import { DControlPoint } from './lib/fable/generator/DactylSpline'
 
 self.onmessage = (e) => {
@@ -104,6 +105,13 @@ self.onmessage = (e) => {
             case 'branch': {
                 const [brText, brAxes, brParams] = args
                 result = generateBranchSvg(brText, brAxes, brParams, (p) => {
+                    self.postMessage({ id, type: 'progress', value: p });
+                })
+                break
+            }
+            case 'texture': {
+                const [txText, txAxes, txParams] = args
+                result = generateTextureSvg(txText, txAxes, txParams, (p) => {
                     self.postMessage({ id, type: 'progress', value: p });
                 })
                 break

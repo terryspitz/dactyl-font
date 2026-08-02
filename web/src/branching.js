@@ -15,7 +15,8 @@
 import { SampleGrid } from './growth.js'
 
 /// Deterministic PRNG (mulberry32) so a `seed` param keeps visual tests stable.
-function mulberry32(seed) {
+/// Exported for reuse by texture.js (reaction-diffusion seeding, maze/circuit RNG).
+export function mulberry32(seed) {
     let a = seed >>> 0
     return () => {
         a = (a + 0x6D2B79F5) | 0

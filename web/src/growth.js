@@ -624,7 +624,8 @@ export function buildGrowthField(strokes, opts = {}) {
 /// Marching squares at iso value `iso` over field f (ny rows × nx cols, grid
 /// spacing h, origin x0/y0).  Returns closed contours as arrays of [x,y].
 /// Assumes the field border is below every iso used (padded), so all contours close.
-function marchingSquares(f, nx, ny, x0, y0, h, iso) {
+/// Exported for reuse by texture.js (contouring the reaction-diffusion V field).
+export function marchingSquares(f, nx, ny, x0, y0, h, iso) {
     // Key each contour segment by its start/end cell-edge so successive
     // segments chain into polylines.  Edge id: (edge orientation, ix, iy).
     const segStarts = new Map() // edgeKey -> next edgeKey
@@ -714,8 +715,9 @@ function marchingSquares(f, nx, ny, x0, y0, h, iso) {
     return contours
 }
 
-/// Ramer–Douglas–Peucker simplification of a closed contour.
-function simplify(pts, eps) {
+/// Ramer–Douglas–Peucker simplification of a closed contour.  Exported for
+/// reuse by texture.js.
+export function simplify(pts, eps) {
     if (pts.length < 8) return pts
     const keep = new Uint8Array(pts.length)
     keep[0] = 1
@@ -746,6 +748,36 @@ function simplify(pts, eps) {
     const out = []
     for (let i = 0; i < pts.length; i++) if (keep[i]) out.push(pts[i])
     return out
+}
+
+/// Apply the constant-gap growth rule to a built field, producing the scalar
+/// field f (ink iff f >= 0).  Factored out of growStrokes so texture.js can
+/// reuse the exact same rule to derive a letterform mask (f >= 0) as the
+/// domain for reaction-diffusion / maze / circuit patterns.
+///
+/// field: the object returned by buildGrowthField.
+/// params: thickness, grow, growScale, gap, fuse (same meanings as growStrokes).
+export function fieldToF(field, params = {}) {
+    const { rg, nx, ny } = field
+    const thickness = params.thickness ?? 30
+    const grow = params.grow ?? 0.5
+    const growScale = params.growScale ?? 120
+    const gap = params.gap ?? thickness * 0.8
+    const fuse = params.fuse ?? 0
+    const rMin = thickness / 2
+    const rMax = rMin + grow * growScale
+    // At full fuse, cross-glyph cells drop the gap and overlap by fuseMerge so
+    // the two fronts guarantee a merged blob rather than merely kissing.
+    const fuseMerge = rMin
+
+    const f = new Float32Array(nx * ny)
+    for (let k = 0; k < nx * ny; k++) {
+        const cross = rg[k * 3 + 2]
+        const g = gap - cross * fuse * (gap + fuseMerge)
+        const rAllowed = Math.max(rMin, Math.min(rMax, rg[k * 3 + 1] - g))
+        f[k] = rAllowed - rg[k * 3]
+    }
+    return f
 }
 
 /// Grow strokes into a field and contour it (the vector path: SVG, and later
@@ -797,20 +829,10 @@ export function growStrokes(strokes, params = {}) {
     })
     if (!field) return { levels: isoLevels.map(iso => ({ iso, contours: [] })), bbox: null, stats: {} }
 
-    const { rg, nx, ny, x0, y0 } = field
+    const { nx, ny, x0, y0 } = field
     const rMin = thickness / 2
     const rMax = rMin + grow * growScale
-    // At full fuse, cross-glyph cells drop the gap and overlap by fuseMerge so
-    // the two fronts guarantee a merged blob rather than merely kissing.
-    const fuseMerge = rMin
-
-    let f = new Float32Array(nx * ny)
-    for (let k = 0; k < nx * ny; k++) {
-        const cross = rg[k * 3 + 2]
-        const g = gap - cross * fuse * (gap + fuseMerge)
-        const rAllowed = Math.max(rMin, Math.min(rMax, rg[k * 3 + 1] - g))
-        f[k] = rAllowed - rg[k * 3]
-    }
+    let f = fieldToF(field, { thickness, grow, growScale, gap, fuse })
     f = blurField(f, nx, ny, smoothPasses)
 
     // Domain-warp the grown field for an organic wobble.  Warping f (not the
