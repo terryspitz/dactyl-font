@@ -23,7 +23,7 @@ Before diving into the detailed syntax rules, here is what Dactyl Glyphs look li
 A point in a Dactyl Glyph definition string is mapped to specific horizontal (X) and vertical (Y) typographic guides.
 
 Each point typically takes the format:
-`[Y-Coordinates][Offset?][X-Coordinates][Offset?][Tangent?][Joint?]`
+`[Y-Coordinates][Offset?][X-Coordinates][Offset?][Tangent?][Corner?][Joint?]`
 
 ### Y-Coordinates (Vertical)
 Vertical coordinates are defined first. You can use single letters or combine them to average their heights (e.g., `tb` is halfway between top and bottom).
@@ -98,6 +98,29 @@ spike when the outline is stroked.
 You can optionally append a direction to explicitly force the curve's heading as it passes through the point:
 - `N` (North), `S` (South), `E` (East), `W` (West)
 *Example:* `blS` places a point at the bottom-left and mandates that curves entering or exiting this point must travel vertically downward (South).
+
+### Explicit Corners (`k`)
+
+A straight line running into a curve (`-` then `~`) is *smoothed* by default: the
+curve is forced to leave along the line's heading (see rule 1 below). That is
+what you want for a stem flowing into a shoulder, but not where a stroke changes
+direction sharply — the stem of `5` running into its bowl, which springs back up
+and to the right at an acute angle.
+
+Append a trailing **`k`** (kink) to make the point a **corner**: tangent
+continuity is broken there, and — unlike an explicit `N`/`S`/`E`/`W` tangent —
+*both* tangents are left free, so the solver picks the curve's own natural
+direction out of (or into) the kink. The curve therefore keeps exactly the shape
+it would have had as a separate stroke, but is now part of one continuous
+outline instead of two overlapping strokes whose end caps left a notch at the
+join.
+- *Example:* `5 = "tr-tl-hlk~ttb(c)~(bbt)r~b(c)~bol"` — the bar, stem and bowl
+  are a single stroke; `hlk` is the acute join where the stem meets the bowl.
+
+`k` works at any junction (line→curve, curve→line and curve→curve, where it
+gives a cusp) and composes with the other modifiers: `hlEk` is a corner whose
+curve side additionally has an explicit East tangent, and `hlkj` is a corner
+that is also an interior joint.
 
 ### Explicit Joints (`j`)
 Many letters are drawn as several separate strokes that **meet in the middle**

@@ -19,10 +19,24 @@ let direction_re = "[NSEW]"
 // open-stroke endpoint landing here is a joint against another stroke, so its
 // cap (serif/flare/bulb) is suppressed. See Font.isJointRaw and DactylGlyphs.md.
 let joint_re = "j"
+// Explicit corner (kink) marker: a trailing `k` forces the point to be a Corner,
+// breaking tangent continuity there while leaving both tangents free for the
+// solver. This is what lets a straight stem run directly into a curve that
+// leaves at an angle of its own choosing (e.g. the acute join in '5'), which a
+// plain `-`~`~` junction would otherwise smooth over. See Font.fs and
+// DactylGlyphs.md.
+let corner_re = "k"
 let line_re = "[-~]"
 let separator_re = " "
 let optional_re x = x + "?"
-let point_re = y_re + optional_re offset_re + x_re + optional_re offset_re + optional_re direction_re + optional_re joint_re
+let point_re =
+    y_re
+    + optional_re offset_re
+    + x_re
+    + optional_re offset_re
+    + optional_re direction_re
+    + optional_re corner_re
+    + optional_re joint_re
 let curve_re = "(" + point_re + line_re + ")*" + point_re + optional_re line_re
 let glyph_re = "^ ?$|^(" + curve_re + separator_re + ")*" + curve_re + "$"
 
@@ -81,7 +95,9 @@ let glyphMap =
           '2', "tol~t(c)~(th)r~hbc-bl-br"
           '3', "tol~t(c)~(th)r~hc-hllr hllr-hc~(bh)r~b(c)~bol"
           '4', "br3l-tr3l-bhl-bhr"
-          '5', "tr-tl-hl hl~ttb(c)~(bbt)r~b(c)~bol"
+          // One continuous stroke: the stem runs into the bowl at an acute kink (`k`),
+          // rather than two overlapping strokes whose caps left a notch at the join.
+          '5', "tr-tl-hlk~ttb(c)~(bbt)r~b(c)~bol"
           '6', "tor~t(c)~(h)l~bbtl~b(c)~bbtr~ttbc~bbtlNj"
           '7', "tl-tr-bcl"
           //  two loops:
@@ -284,6 +300,12 @@ let parse_point (glyph: FontMetrics) def_raw =
         else
             None
 
+    // optional explicit-corner (kink) marker
+    let match_corner = Regex.Match(def, "^" + corner_re)
+    let isCorner = match_corner.Success
+    if match_corner.Success then
+        def <- def.[match_corner.Length ..]
+
     // optional explicit-joint marker
     let match_joint = Regex.Match(def, "^" + joint_re)
     let isJoint = match_joint.Success
@@ -291,22 +313,24 @@ let parse_point (glyph: FontMetrics) def_raw =
         def <- def.[match_joint.Length ..]
 
     let label = start_def.Substring(0, start_def.Length - def.Length)
-    { y = y_coord; x = x_coord; y_fit = y_fit; x_fit = x_fit }, tangent, isJoint, label, def
+    { y = y_coord; x = x_coord; y_fit = y_fit; x_fit = x_fit }, tangent, isCorner, isJoint, label, def
 
 let parse_curve (glyph: FontMetrics) raw_def debug =
     let mutable pts = []
     let mutable explicit_tangents = []
+    let mutable corners = []
     let mutable joints = []
     let mutable labels = []
     let mutable seps_out = []
     let mutable def: string = raw_def
 
     while def.Length > 0 do
-        let pt, tangent, isJoint, label, new_def = parse_point glyph def
+        let pt, tangent, isCorner, isJoint, label, new_def = parse_point glyph def
         def <- new_def
 
         pts <- pts @ [ pt ]
         explicit_tangents <- explicit_tangents @ [ tangent ]
+        corners <- corners @ [ isCorner ]
         joints <- joints @ [ isJoint ]
         labels <- labels @ [ label ]
         // line_re
@@ -335,6 +359,9 @@ let parse_curve (glyph: FontMetrics) raw_def debug =
                 let pt = pts.[i]
                 match explicit_tangents.[i] with
                 | Some _ as t -> t
+                // An explicit corner keeps both tangents free so the solver picks the
+                // curve's own natural direction out of (or into) the kink.
+                | None when corners.[i] -> None
                 | None when pt.y_fit || pt.x_fit ->
                     let isInterior = isClosed || (i > 0 && i < n - 1)
                     if isInterior then
@@ -385,6 +412,10 @@ let parse_curve (glyph: FontMetrics) raw_def debug =
 
                   if ty = CurveToLine && tIn.IsSome then ty <- Corner
                   if ty = LineToCurve && tOut.IsSome then ty <- Corner
+                  // `k` forces a kink: tangent continuity is broken here even though the
+                  // separators would otherwise imply a smooth line→curve (or curve→curve)
+                  // transition.
+                  if corners.[i] then ty <- Corner
 
                   { pt = pts.[i]; ty = ty; th_in = tIn; th_out = tOut; isJoint = joints.[i]; label = Some labels.[i] } ]
             |> mergeConsecutive
