@@ -134,7 +134,13 @@ let glyphMap =
           'L', "tl-bl-br"
           'l', "tl-xbl~bcW"
           'M', "bl-tl-blw-tw-bw"
-          'm', "xl-bl xolj~x(llw)~xxblw-blw x2blwj~x(lw4)~xxbw-bw"
+          // The two arches are one stroke, joined by a kink (`k`) over the middle leg,
+          // which then hangs from that kink as a joint. Previously the second arch
+          // sprang from a point part-way down the first leg, so its end cap sat in the
+          // crotch — the thinnest part of the junction — and stepped the outline there.
+          // Of the three strokes meeting here, the leg is the one whose cap hides best:
+          // it starts below the crotch with arch ink either side of it.
+          'm', "xl-bl xolj~x(llw)~xxblwk~x(rw)~xxbw-bw xxblwj-blw"
           'N', "bl-tl-br-tr"
           'n', "xl-bl xol~x(c)~xbr-br"
           'O', "(h)l~t(c)~(h)r~b(c)~"

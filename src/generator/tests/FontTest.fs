@@ -1165,7 +1165,7 @@ type CornerOutlineTests() =
               { Axes.DefaultAxes with serif = 30 }
               { Axes.DefaultAxes with constant_offset = false } ] do
             let font = Font.Font(axes)
-            for ch in [ '3'; '5' ] do
+            for ch in [ '3'; '5'; 'm' ] do
                 let svg = font.charToSvg ch 0.0 0.0 "black" |> String.concat " "
                 Assert.That(svg, Does.Contain("M "), sprintf "'%c' should render" ch)
                 Assert.That(svg, Does.Not.Contain("stroke:#e00000"),
@@ -1187,3 +1187,46 @@ type CornerOutlineTests() =
 
         Assert.That(curveCount '3', Is.EqualTo(1), "'3' should be a single stroke")
         Assert.That(curveCount '5', Is.EqualTo(1), "'5' should be a single stroke")
+
+    [<Test>]
+    member _.M_ArchesAreOneStrokeJoinedAtTheMiddleLeg() =
+        // 'm' is stem + (arch, kink, arch, right leg) + middle leg: the two arches
+        // belong to one stroke that kinks over the middle leg, rather than the second
+        // arch springing off the first leg with an end cap in the crotch.
+        let font = Font.Font(Axes.DefaultAxes)
+
+        let curves =
+            let rec collect e =
+                match e with
+                | Curve(knots, _) -> [ knots ]
+                | EList(es) -> List.collect collect es
+                | _ -> []
+            collect (font.charToElem 'm')
+
+        Assert.That(curves.Length, Is.EqualTo(3), "'m' should be three strokes")
+
+        let labelsOf (knots: Knot list) = knots |> List.choose (fun k -> k.label)
+
+        let archStroke =
+            curves
+            |> List.filter (fun ks ->
+                let ls = labelsOf ks
+                List.contains "x(llw)" ls && List.contains "x(rw)" ls)
+
+        Assert.That(archStroke.Length, Is.EqualTo(1), "both arch apexes should be on one stroke")
+
+        let kink = archStroke.Head |> List.find (fun k -> k.label = Some "xxblwk")
+        Assert.That(kink.ty, Is.EqualTo(GeneratorTypes.Corner), "the arches meet at a corner")
+        Assert.That(kink.th_in, Is.EqualTo(None), "kink tangents are left to the solver")
+        Assert.That(kink.th_out, Is.EqualTo(None), "kink tangents are left to the solver")
+
+        // The middle leg hangs off that same point as an explicit joint, so its top
+        // gets no cap (serif / flare / bulb) in the middle of the letter.
+        let legTop =
+            curves
+            |> List.collect id
+            |> List.filter (fun k -> k.label = Some "xxblwj")
+
+        Assert.That(legTop.Length, Is.EqualTo(1), "middle leg should start at the kink")
+        Assert.That(legTop.Head.isJoint, Is.True, "middle leg top is a joint")
+        Assert.That(legTop.Head.pt.GetXY, Is.EqualTo(kink.pt.GetXY), "leg top sits on the kink")

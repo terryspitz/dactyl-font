@@ -124,6 +124,15 @@ that is also an interior joint.
 - *Example:* `3 = "tol~t(c)~(th)r~hllrk~(bh)r~b(c)~bol"` — the upper bowl runs
   straight into the lower one through a cusp at the waist, where the stroke
   doubles back on itself.
+- *Example:* `m = "xl-bl xolj~x(llw)~xxblwk~x(rw)~xxbw-bw xxblwj-blw"` — both
+  arches are one stroke, kinked over the middle leg, and the leg hangs off that
+  kink as a joint.
+
+Where three strokes meet, prefer to kink the two that flow into each other and
+let the third branch off as a joint — and pick the third so its cap lands where
+the other two are thickest. In `m` the two arches kink and the leg branches, so
+the leg's cap is buried under arch ink on both sides rather than sitting out in
+the thin crotch between the arches.
 
 ### Explicit Joints (`j`)
 Many letters are drawn as several separate strokes that **meet in the middle**
