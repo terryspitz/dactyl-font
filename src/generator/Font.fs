@@ -2274,7 +2274,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     /// exists to catch.
     member this.glyphShift(ch: char) : float =
         if not axes.useOpticalSpacing then 0.0
-        else (1.0 - axes.monospace) * GlyphProfile.opticalShift (this.glyphProfile ch)
+        else (1.0 - axes.monospace) * GlyphProfile.opticalShift (float axes.spacing) (this.glyphProfile ch)
 
     member this.charWidths str =
         Seq.map this.charWidth str |> List.ofSeq

@@ -175,6 +175,23 @@ let private maxRecessionDepth = 120.0
 /// part that has to stay in the kern table.
 let private recessionWeight = 0.5
 
+/// Ceiling on what one side may give away, as a fraction of the target gap.
+///
+/// Without it the model has no floor: each side's recession is subtracted
+/// independently, so two heavily-receding sides can between them subtract more
+/// than the whole gap and the ink collides. Measured at spacing=100 before this
+/// cap, T gave away 57.1 either side and I 48.6, closing T|T to -14.3, I|T to
+/// -5.7 and L|I to exactly 0. Capping at a third-ish keeps the worst case
+/// (two maximally-receding sides) at 1 - 2*0.35 = 30% of the target still
+/// clear, and scales with `spacing` rather than being an absolute floor that
+/// would go negative at tight settings.
+let private maxGiveFraction = 0.35
+
+/// What one side actually gives up: its weighted recession, but never more
+/// than `maxGiveFraction` of the gap it is giving it up from.
+let private sideGive (target: float) (recession: float) =
+    min (recessionWeight * recession) (maxGiveFraction * target)
+
 let private inkBands (p: GlyphProfile) =
     [| for i in 0 .. p.BandCount - 1 do
            if p.LeftEdges.[i] < posInf && p.RightEdges.[i] > negInf then yield i |]
@@ -197,10 +214,10 @@ let sideMetrics (p: GlyphProfile) : (float * float * float * float) option =
 /// How far to move a glyph off its spine origin so its left sidebearing is
 /// optical rather than accidental: normalise the leftmost ink to x=0, then
 /// inset by the whitespace the left silhouette already provides.
-let opticalShift (p: GlyphProfile) : float =
+let opticalShift (target: float) (p: GlyphProfile) : float =
     match sideMetrics p with
     | None -> 0.0
-    | Some(inkLeft, _, lRec, _) -> -inkLeft - recessionWeight * lRec
+    | Some(inkLeft, _, lRec, _) -> -inkLeft - sideGive target lRec
 
 /// Advance width for a glyph spaced optically on both sides, so that a pair of
 /// them placed by advance alone leaves this much *perceived* white:
@@ -214,7 +231,7 @@ let opticalAdvance (target: float) (p: GlyphProfile) : float option =
     match sideMetrics p with
     | None -> None
     | Some(inkLeft, inkRight, lRec, rRec) ->
-        Some((inkRight - inkLeft) + target - recessionWeight * (lRec + rRec))
+        Some((inkRight - inkLeft) + target - sideGive target lRec - sideGive target rRec)
 
 /// Optical kern between two glyphs.
 /// Caller passes the advance of the left glyph; we shift the right glyph by

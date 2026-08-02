@@ -541,10 +541,37 @@ type FontTests() =
         // The `+spacing` in the target cancels the one inside advanceA, so the
         // kern *value* is spacing-invariant — changing tracking must not churn
         // every entry of the exported kern/GPOS table.
+        //
+        // Holds only above the range where the give-away cap binds: that cap is
+        // a fraction of the target (see GlyphProfile.maxGiveFraction, which
+        // stops two receding sides closing the gap to nothing), so at tight
+        // settings it does move the advance and the kern follows. 'n' gives away
+        // at most 12.1, so the cap is slack for it from spacing ~35 up.
         let kern s =
-            Font.Font({ Axes.DefaultAxes with spacing = s; opticalKerning = 1.0 }).pairKern 'A' 'V'
-        Assert.That(kern 100, Is.EqualTo(kern 0).Within(1.0))
-        Assert.That(kern 200, Is.EqualTo(kern 0).Within(1.0))
+            Font.Font({ Axes.DefaultAxes with spacing = s; opticalKerning = 1.0 }).pairKern 'n' 'n'
+        Assert.That(kern 200, Is.EqualTo(kern 100).Within(1.0))
+        Assert.That(kern 150, Is.EqualTo(kern 100).Within(1.0))
+
+    [<Test>]
+    member this.OpticalSidebearings_NeverCollide() =
+        // Regression: each side's recession was subtracted independently with no
+        // floor, so two heavily-receding sides could between them subtract more
+        // than the whole gap. At spacing=100 that closed T|T to -14.3, I|T to
+        // -5.7 and L|I to exactly 0 — ink touching or overlapping — and at the
+        // Sidebearings stop there is no pair kern to rescue it.
+        let font = Font.Font({ Axes.DefaultAxes with opticalKerning = 0.5; outline = true; filled = true })
+        let inkGap (a: char) (b: char) =
+            let pa, pb = font.glyphProfile a, font.glyphProfile b
+            let ra = pa.RightEdges |> Array.filter (fun v -> v > System.Double.NegativeInfinity) |> Array.max
+            let lb = pb.LeftEdges |> Array.filter (fun v -> v < System.Double.PositiveInfinity) |> Array.min
+            (font.charWidth a + font.pairKern a b + font.glyphShift b + lb) - (font.glyphShift a + ra)
+        let chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        let offenders =
+            [ for a in chars do
+                for b in chars do
+                    let g = inkGap a b
+                    if g < 10.0 then yield sprintf "%c%c=%.1f" a b g ]
+        Assert.That(offenders, Is.Empty, sprintf "pairs whose ink nearly or actually collides: %A" offenders)
 
     [<Test>]
     member this.Kerning_ItalicInvariant_OverridesSurviveShear()  =
