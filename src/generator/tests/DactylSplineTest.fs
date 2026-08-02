@@ -671,7 +671,10 @@ type IntegrationTests() =
         let axes =
             { Axes.Axes.DefaultAxes with
                 width = 1000
-                height = 1000 }
+                height = 1000
+                // exact nominal coordinates: no optical overshoot/balance nudges
+                overshoot = 0
+                balance = 0 }
 
         let glyphDefs = FontMetrics(axes)
 
@@ -717,7 +720,10 @@ type IntegrationTests() =
         let axes =
             { Axes.Axes.DefaultAxes with
                 width = 1000
-                height = 1000 }
+                height = 1000
+                // exact nominal coordinates: no optical overshoot/balance nudges
+                overshoot = 0
+                balance = 0 }
 
         let glyphDefs = FontMetrics(axes)
 
@@ -761,7 +767,10 @@ type IntegrationTests() =
         let axes =
             { Axes.Axes.DefaultAxes with
                 width = 1000
-                height = 1000 }
+                height = 1000
+                // exact nominal coordinates: no optical overshoot/balance nudges
+                overshoot = 0
+                balance = 0 }
 
         let glyphDefs = FontMetrics(axes)
 

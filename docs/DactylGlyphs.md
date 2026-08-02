@@ -161,7 +161,56 @@ Dactyl Glyphs interpret topologies smartly depending on the combination of line/
 
 ---
 
-## 4. The Glyphs Tab
+## 4. Optical Corrections (`overshoot` and `balance`)
+
+Two axes quietly adjust the coordinates you write, because geometry and
+perception disagree about what "the same height" and "the middle" look like
+(see Hoefler & Co.'s [Typographic
+Illusions](https://www.typography.com/blog/typographic-illusions)).  Both are
+applied by the parser, so every glyph definition inherits them for free — you
+write the ideal geometry and the axes handle the illusion.  Set either to `0`
+to draw exactly what you wrote.
+
+### `overshoot` — round and pointed extremes grow past the guides
+A circle drawn to the same height as a square reads as smaller, and a shape
+that converges to a point reads smaller still.  So a knot that is an **extreme
+of the outline sitting on a guide** (`t`, `x`, `b` or `d`) is pushed a little
+past that guide:
+
+- **Round extremes** — a knot with a fitted X coordinate (`t(c)`, the flat top
+  of a bowl) or with a curve on at least one side — move out by `overshoot`.
+  This is what makes `O`, `S`, `C`, `o`, `e` and `6` taller than `T` and `H`.
+- **Pointed extremes** — a corner between two straight lines whose neighbours
+  lie on *opposite* sides horizontally, i.e. a genuine wedge — move out by
+  1.5 × `overshoot`: the apex of `A`, `V` and `v`, and the middle vertex of
+  `M` and `W`.
+
+Everything else stays exactly on the guide: flat tops and feet (`T`, `E`, `L`),
+open-path endpoints (the terminals of `C` and `c`), and corners that don't
+converge to a point (the top of `M`'s left stem, `N`'s stem/diagonal
+junction).
+
+### `balance` — mid heights sit above the geometric middle
+We read a letter whose crossbar is arithmetically centred as bottom-heavy, so
+heights that fall *between* the guides are raised by up to `balance` units:
+
+- A height written as a **single guide letter** (`t`, `x`, `b`, `d`) is a
+  reference line and never moves — the x-height stays flat across `x`, `z`
+  and the crossbar of `f`.
+- Any **mixed or half height** takes the raise: `h` (the crossbar of `H`, `E`,
+  `F` and the waist of `B` and `S`), `xb` (the bar of `e`), `bh` (the crossbar
+  of `A`), and so on.
+- **Fitted heights** — `(h)l`, `(xb)r` — are the *side* extremes of round
+  letters and stay where they are, so `O` and `o` stay symmetric.
+
+The raise follows a sine curve that is zero at the baseline and at cap height
+and peaks at the half height, so `h` gets the full `balance` and `bh` (a
+quarter up) about 70% of it.  Below the baseline it has faded to nothing, so
+descender geometry is untouched.
+
+---
+
+## 5. The Glyphs Tab
 
 The generator UI features a **Glyphs** tab, an invaluable tool for creating and debugging your Dactyl Glyphs definitions in real time.
 
