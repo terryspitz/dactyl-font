@@ -121,6 +121,9 @@ join.
 gives a cusp) and composes with the other modifiers: `hlEk` is a corner whose
 curve side additionally has an explicit East tangent, and `hlkj` is a corner
 that is also an interior joint.
+- *Example:* `3 = "tol~t(c)~(th)r~hllrk~(bh)r~b(c)~bol"` — the upper bowl runs
+  straight into the lower one through a cusp at the waist, where the stroke
+  doubles back on itself.
 
 ### Explicit Joints (`j`)
 Many letters are drawn as several separate strokes that **meet in the middle**

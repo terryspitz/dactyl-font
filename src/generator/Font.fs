@@ -753,8 +753,13 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
             let isSharperThanRight = abs bend >= 2.0 // Approx 115 degrees. 90 deg is 1.57.
             let isOuterBend = (not reverse && bend < -PI / 8.0) || (reverse && bend > PI / 8.0)
+            // Near-reversal (cusp): both sides have to wrap around the tip, and which one
+            // counts as "outer" is meaningless — norm() maps a 180 degree bend to +PI or
+            // -PI arbitrarily. The miter below would then place a point at dist/cos(alpha)
+            // (unbounded as alpha approaches +-90 degrees) and spike far out of the glyph.
+            let isReversal = abs bend > 3.0 // Approx 172 degrees.
 
-            if isOuterBend && isSharperThanRight then
+            if isSharperThanRight && (isOuterBend || isReversal) then
                 // REVERT: Use two points at the same location (the miter point) for sharp corners
                 [ { pt = segmentAddPolar seg (this.maybeAlign th1 - angle / 2.0) (dist * sqrt 2.0)
                     ty = newType
@@ -1555,8 +1560,15 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                         let th2 = norm (bp.th_out + dTh + perpAngle)
                         let bend = norm (th2 - th1)
                         let isSharperThanRight = abs bend >= 2.0
+                        // At a near-reversal (a cusp, e.g. the waist of '3') both sides wrap
+                        // around the tip and "outer" is meaningless: norm() maps a 180 degree
+                        // bend to +PI or -PI arbitrarily, and the inner miter distance
+                        // w/cos(alpha) is unbounded there, so the fall-through would spike
+                        // right out of the glyph. Bevel both sides around the tip instead.
+                        let isReversal = abs bend > 3.0
                         let isOuter =
-                            (not reverse && bend < -PI / 8.0)
+                            isReversal
+                            || (not reverse && bend < -PI / 8.0)
                             || (reverse && bend > PI / 8.0)
                         if abs (wIn - wOut) > 1e-6 then
                             // Nib (or other direction-varying width): the two sides of the

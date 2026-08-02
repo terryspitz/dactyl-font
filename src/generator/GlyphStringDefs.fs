@@ -93,7 +93,10 @@ let glyphMap =
           '0', "(h)l~t(c)~(h)r~b(c)~ tr-bl"
           '1', "tol-tl3r-bl3r"
           '2', "tol~t(c)~(th)r~hbc-bl-br"
-          '3', "tol~t(c)~(th)r~hc-hllr hllr-hc~(bh)r~b(c)~bol"
+          // One continuous stroke through the waist: the upper bowl runs into the lower
+          // one at a kink (`k`), instead of two strokes each ending in a horizontal
+          // spur drawn twice on top of itself.
+          '3', "tol~t(c)~(th)r~hllrk~(bh)r~b(c)~bol"
           '4', "br3l-tr3l-bhl-bhr"
           // One continuous stroke: the stem runs into the bowl at an acute kink (`k`),
           // rather than two overlapping strokes whose caps left a notch at the join.

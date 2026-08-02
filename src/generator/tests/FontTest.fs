@@ -1113,3 +1113,77 @@ type ArtisticAxesTests() =
                 let svg = font.charToSvg ch 0.0 0.0 "black" |> String.concat " "
                 Assert.That(svg, Does.Contain("M "),
                     sprintf "%s outline for '%c' should render" name ch)
+
+[<TestFixture>]
+type CornerOutlineTests() =
+    let metrics = FontMetrics(Axes.DefaultAxes)
+    let fthickness = float Axes.DefaultAxes.weight
+
+    /// Widest excursion of the outline beyond the spine's own bounding box. A corner
+    /// miter should stay within a stroke width or two; a degenerate one spikes far out.
+    let outlineOvershoot (font: Font.Font) (def: string) =
+        let elem = GlyphStringDefs.rawDefToElem metrics def false
+        let sl, sr, sb, st = bounds elem
+        let ol, orr, ob, ot = bounds (font.getOutline elem)
+        List.max [ sl - ol; orr - sr; sb - ob; ot - st ]
+
+    [<Test>]
+    member _.CuspOutline_DoesNotSpike_OnNearReversal() =
+        // A `k` cusp where the curve doubles back on itself is a ~180 degree bend.
+        // norm() maps that to +PI or -PI arbitrarily, so the corner can be classified
+        // as an inner bend, whose miter distance w/cos(bend/2) is unbounded there — it
+        // used to shoot a spike right out of the glyph (seen on a '3' waisted at the
+        // centre). Both sides must wrap the tip instead.
+        for constantOffset in [ true; false ] do
+            let font =
+                Font.Font(
+                    { Axes.DefaultAxes with
+                        dactyl_spline = true
+                        outline = true
+                        constant_offset = constantOffset }
+                )
+
+            // Two arcs meeting head-on at the middle: in heading West, out heading East.
+            let overshoot = outlineOvershoot font "tol~t(c)~(th)r~hck~(bh)r~b(c)~bol"
+
+            Assert.That(
+                overshoot,
+                Is.LessThan(1.55 * fthickness),
+                sprintf
+                    "cusp outline should stay near the spine (constant_offset=%b), overshot by %.1f"
+                    constantOffset
+                    overshoot
+            )
+
+    [<Test>]
+    member _.CuspGlyphs_RenderWithoutFallback() =
+        // '3' and '5' are now single strokes joined at a `k` kink; a solver or outline
+        // failure would fall back to the red error dot.
+        for axes in
+            [ Axes.DefaultAxes
+              { Axes.DefaultAxes with weight = 60 }
+              { Axes.DefaultAxes with serif = 30 }
+              { Axes.DefaultAxes with constant_offset = false } ] do
+            let font = Font.Font(axes)
+            for ch in [ '3'; '5' ] do
+                let svg = font.charToSvg ch 0.0 0.0 "black" |> String.concat " "
+                Assert.That(svg, Does.Contain("M "), sprintf "'%c' should render" ch)
+                Assert.That(svg, Does.Not.Contain("stroke:#e00000"),
+                    sprintf "'%c' should not fall back to the error dot" ch)
+
+    [<Test>]
+    member _.CuspGlyphs_AreSingleStrokes() =
+        // The point of the `k` marker: '3' and '5' are one curve each, not two
+        // overlapping strokes whose end caps meet in the middle.
+        let font = Font.Font(Axes.DefaultAxes)
+
+        let curveCount ch =
+            let rec count e =
+                match e with
+                | Curve _ -> 1
+                | EList(es) -> List.sumBy count es
+                | _ -> 0
+            count (font.charToElem ch)
+
+        Assert.That(curveCount '3', Is.EqualTo(1), "'3' should be a single stroke")
+        Assert.That(curveCount '5', Is.EqualTo(1), "'5' should be a single stroke")
