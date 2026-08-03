@@ -114,6 +114,9 @@ solver picks each side's own natural direction out of (or into) the kink. The
 curve therefore keeps exactly the shape it would have had as a separate stroke,
 but is now part of one continuous outline instead of two overlapping strokes
 whose end caps left a notch at the join.
+- *Example:* `5 = "tr-tl-hlK~ttb(c)~(bbt)r~b(c)~bol"` — the bar, stem and bowl
+  are a single stroke; `hlK` is the acute join where the stem meets the bowl, and
+  the bowl springs back out of it at whatever angle the solver likes.
 - *Example:* `m = "xl-bl xolj~x(llw)~xxblwK~x(rw)~xxbw-bw xxblwj-blw"` — both
   arches are one stroke, kinked over the middle leg, and the leg hangs off that
   kink as a joint.
@@ -121,6 +124,14 @@ whose end caps left a notch at the join.
 `K` works at any junction (line→curve, curve→line and curve→curve, where it gives
 a cusp) and composes with the other modifiers: `hlKj` is a corner that is also an
 interior joint.
+
+A kink can be as sharp as the design wants — the outline builder does not need it
+softened. On the inner side of a sharp corner there is no single point belonging
+to both offset edges, so it ends the incoming edge where that edge really ends,
+starts the outgoing edge where it really starts, and lets the two bodies overlap;
+the nonzero fill rule unions them. Both edges therefore stay true to their own
+stroke however acute the kink is. (A bisector miter instead lands off both edges,
+which used to taper `5`'s stem visibly into its bowl join.)
 
 #### Tangents at a kink
 
@@ -136,12 +147,6 @@ it arrives travelling west and leaves travelling east, giving a level waist. A
 tangent on a point *without* `K` still applies verbatim to both sides.
 - *Example:* `3 = "tol~t(c)~(th)r~hllrEK~(bh)r~b(c)~bol"` — the upper bowl runs
   straight into the lower one through a level cusp at the waist.
-- *Example:* `5 = "tr-tl-hlEK~h4t(c)~(bbt)r~b(c)~bol"` — the bar, stem and bowl
-  are a single stroke, and the bowl leaves the join heading east. Left free, the
-  bowl sprang back up at ~70° and the join became a near-reversal, whose inner
-  miter ran a long way up the inside of the stem and visibly tapered it. Keeping
-  a kink honest about its angle is not just cosmetic: the sharper the kink, the
-  further the inner miter travels.
 
 Where three strokes meet, prefer to kink the two that flow into each other and
 let the third branch off as a joint — and pick the third so its cap lands where

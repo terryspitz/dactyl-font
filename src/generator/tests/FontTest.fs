@@ -1172,6 +1172,48 @@ type CornerOutlineTests() =
                     sprintf "'%c' should not fall back to the error dot" ch)
 
     [<Test>]
+    member _.AcuteJoin_DoesNotTaperTheIncomingStroke() =
+        // '5' runs its stem into its bowl at an acute kink. The stem's east edge must
+        // stay dead straight all the way down to the join: a bisector miter there lands
+        // off both offset edges (further off the sharper the corner, and further still
+        // once clamped), which sloped this edge inwards and visibly tapered the stem.
+        let axes = Axes.DefaultAxes
+        let font = Font.Font(axes)
+        let metrics = FontMetrics(axes)
+        let t = metrics.thickness
+        // charToElem translates the glyph by (thickness, thickness).
+        let spineX = metrics.L + t
+        let joinY = metrics.H + t
+        let edgeX = spineX + t * (1.0 + axes.contrast)
+
+        let outline =
+            match font.CharToOutline '5' with
+            | Curve(knots, _) -> knots |> List.map (fun k -> k.pt.x, k.pt.y)
+            | e -> failwithf "expected a single Curve outline for '5', got %A" e
+
+        // Where does the outline cross a given height, on the stem's east side?
+        let crossingsAt (y: float) =
+            [ for i in 0 .. outline.Length - 1 do
+                let x1, y1 = outline.[i]
+                let x2, y2 = outline.[(i + 1) % outline.Length]
+                if (y1 - y) * (y2 - y) <= 0.0 && abs (y2 - y1) > 1e-9 then
+                    let x = x1 + (x2 - x1) * (y - y1) / (y2 - y1)
+                    if x > spineX then yield x ]
+
+        for above in [ 2.0; 4.0; 6.0 ] do
+            let y = joinY + above * t
+            let xs = crossingsAt y
+            Assert.That(xs, Is.Not.Empty, sprintf "outline should have an east-side edge at y=%.0f" y)
+            let nearest = xs |> List.minBy (fun x -> abs (x - edgeX))
+            Assert.That(
+                abs (nearest - edgeX),
+                Is.LessThan 2.0,
+                sprintf
+                    "stem's east edge should sit at x=%.1f at y=%.0f (%.0f above the join), got %.1f — the stem is tapering into the join"
+                    edgeX y (above * t) nearest
+            )
+
+    [<Test>]
     member _.CuspGlyphs_AreSingleStrokes() =
         // The point of the `K` marker: '3' and '5' are one curve each, not two
         // overlapping strokes whose end caps meet in the middle.

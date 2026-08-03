@@ -1583,65 +1583,67 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                             isReversal
                             || (not reverse && bend < -PI / 8.0)
                             || (reverse && bend > PI / 8.0)
-                        if abs (wIn - wOut) > 1e-6 then
-                            // Nib (or other direction-varying width): the two sides of the
-                            // corner have different half-widths, so a single-width miter
-                            // doesn't meet the wider side's body edge.
-                            if isSharperThanRight then
-                                // Sharp (acute) corner: a single miter would spike far out
-                                // (outer) or make the body samples double back (inner). Bevel
-                                // with two points, each on its own side at its own width.
-                                if isOuter then
-                                    // Outer: extend slightly along the diagonal for a crisp point.
-                                    let pa = addPolarContrast bx by (this.maybeAlign th1 - perpAngle / 2.0) (wIn * sqrt 2.0)
-                                    let pb = addPolarContrast bx by (this.maybeAlign th2 + perpAngle / 2.0) (wOut * sqrt 2.0)
-                                    knots.Add(plainKnot pa)
-                                    knots.Add(plainKnot pb)
-                                else
-                                    // Inner: single bisector miter clamped to the chord
-                                    // lengths. The concave vertex sits above the spine corner;
-                                    // a raw edge intersection would overshoot the body samples.
-                                    let alpha = bend / 2.0
-                                    let wm = min wIn wOut
-                                    let offset = min (min (wm / cos alpha) prevLen) nextLen
-                                    knots.Add(plainKnot (addPolarContrast bx by (th1 + alpha) offset))
-                            else
-                                // Gentle corner (≤ ~right angle): exact intersection of the two
-                                // offset edge lines — incoming offset by wIn, outgoing by wOut —
-                                // so each side meets its own body edge with no notch. Clamped to
-                                // the chord lengths to avoid overshoot on short segments.
-                                let p1 = addPolarContrast bx by th1 wIn
-                                let p2 = addPolarContrast bx by th2 wOut
-                                let d1x, d1y = cos (bp.th_in + dTh), sin (bp.th_in + dTh)
-                                let d2x, d2y = cos (bp.th_out + dTh), sin (bp.th_out + dTh)
-                                let det = -d1x * d2y + d2x * d1y
-                                if abs det < 1e-9 then
-                                    knots.Add(plainKnot (addPolarContrast bx by th1 ((wIn + wOut) / 2.0)))
-                                else
-                                    let s = (-(p2.x - p1.x) * d2y + d2x * (p2.y - p1.y)) / det
-                                    let mx = p1.x + s * d1x
-                                    let my = p1.y + s * d1y
-                                    let mdist = hypot (mx - bx) (my - by)
-                                    let maxd = min (min prevLen nextLen) (4.0 * fthickness)
-                                    if mdist > maxd && mdist > 1e-9 then
-                                        let k = maxd / mdist
-                                        knots.Add(plainKnot { x = bx + (mx - bx) * k; y = by + (my - by) * k; x_fit = false; y_fit = false })
-                                    else
-                                        knots.Add(plainKnot { x = mx; y = my; x_fit = false; y_fit = false })
-                        else
-                        let w = wIn
                         if isOuter && isSharperThanRight then
-                            // Two miter points (mirrors offsetSegment Corner outer-bend case).
-                            let pa = addPolarContrast bx by (this.maybeAlign th1 - perpAngle / 2.0) (w * sqrt 2.0)
-                            let pb = addPolarContrast bx by (this.maybeAlign th2 + perpAngle / 2.0) (w * sqrt 2.0)
+                            // Outer side of a sharp corner: a true miter would spike far out,
+                            // so chamfer it. Both points still sit exactly on their own edge
+                            // line (a distance w*sqrt2 at 45 degrees to the perpendicular has
+                            // component w along it), so neither edge is bent by the bevel.
+                            let pa = addPolarContrast bx by (this.maybeAlign th1 - perpAngle / 2.0) (wIn * sqrt 2.0)
+                            let pb = addPolarContrast bx by (this.maybeAlign th2 + perpAngle / 2.0) (wOut * sqrt 2.0)
                             knots.Add(plainKnot pa)
                             knots.Add(plainKnot pb)
                         else
-                            // Single sharp miter, clamped to chord lengths to avoid overshoot.
-                            let alpha = bend / 2.0
-                            let offset = min (min (w / cos alpha) prevLen) nextLen
-                            let p = addPolarContrast bx by (th1 + alpha) offset
-                            knots.Add(plainKnot p)
+                            let p1 = addPolarContrast bx by th1 wIn
+                            let p2 = addPolarContrast bx by th2 wOut
+
+                            if isSharperThanRight then
+                                // Inner side of a sharp corner. There is no single point that
+                                // belongs to both edges here: a bisector miter at
+                                // w/cos(bend/2) lands off both of them (and off them badly
+                                // once clamped), which is what tapered 5's stem into its acute
+                                // bowl join, and the intersection of the two tangent *lines*
+                                // overshoots wherever the outgoing edge curves away — on 5 it
+                                // lands 100 units above anything the bowl ever reaches.
+                                //
+                                // So don't invent a join point: end the incoming edge where it
+                                // really ends, start the outgoing edge where it really starts,
+                                // and let the two bodies overlap. The nonzero fill rule unions
+                                // them, which is exactly the ink a stroke of this width lays
+                                // down, and both edges stay true to their own stroke.
+                                knots.Add(plainKnot p1)
+                                knots.Add(plainKnot p2)
+                            else
+                                // Gentle corner: the two offset edges do meet, and the exact
+                                // intersection of their lines keeps each edge parallel to its
+                                // own stroke right up to the vertex (a bisector miter drifts
+                                // off both once contrast makes the offset non-uniform). Clamp
+                                // each edge *along itself* to the arc length available on its
+                                // side, so a short segment can't be overshot.
+                                let d1x, d1y = cos (bp.th_in + dTh), sin (bp.th_in + dTh)
+                                let d2x, d2y = cos (bp.th_out + dTh), sin (bp.th_out + dTh)
+                                let det = -d1x * d2y + d2x * d1y
+
+                                if abs det < 1e-9 then
+                                    // Edges parallel: no intersection to find.
+                                    knots.Add(plainKnot (addPolarContrast bx by th1 ((wIn + wOut) / 2.0)))
+                                else
+                                    let dx, dy = p2.x - p1.x, p2.y - p1.y
+                                    let s = (-dx * d2y + d2x * dy) / det
+                                    let u = (d1x * dy - d1y * dx) / det
+
+                                    let limIn, limOut =
+                                        if isClosed then totalLen, totalLen
+                                        else
+                                            let at = cumLenAtBez.[min i segCount]
+                                            max at 1e-6, max (totalLen - at) 1e-6
+
+                                    let sc = max -limIn (min limIn s)
+                                    let uc = max -limOut (min limOut u)
+                                    let q1 = { x = p1.x + sc * d1x; y = p1.y + sc * d1y; x_fit = false; y_fit = false }
+                                    let q2 = { x = p2.x + uc * d2x; y = p2.y + uc * d2y; x_fit = false; y_fit = false }
+                                    knots.Add(plainKnot q1)
+                                    if hypot (q2.x - q1.x) (q2.y - q1.y) > 1e-6 then
+                                        knots.Add(plainKnot q2)
 
                 /// Emit the knots for bez point i, then arm the corner gate at the miter
                 /// point so the next segment's samples can be measured against it.
@@ -1656,21 +1658,19 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                         let thOut = bp.th_out + dTh
                         cornerGate <- Some(knots.[knots.Count - 1].pt, cos thOut, sin thOut)
 
+                // The gate stays armed across segments: at a sharp corner the miter can
+                // reach past the next knot, and every sample behind it doubles back.
                 let emitMidSamples (segIdx: int) =
-                    let gate = cornerGate
-                    cornerGate <- None
-                    let mutable past = gate.IsNone
-
                     for (x, y, th, sLen) in spineSamples.[segIdx] do
                         if inBody sLen then
                             let p = perpPoint x y th sLen
 
-                            if not past then
-                                match gate with
-                                | Some(g, dx, dy) -> past <- (p.x - g.x) * dx + (p.y - g.y) * dy >= 0.0
-                                | None -> past <- true
-
-                            if past then knots.Add(plainKnot p)
+                            match cornerGate with
+                            | Some(g, dx, dy) ->
+                                if (p.x - g.x) * dx + (p.y - g.y) * dy >= 0.0 then
+                                    cornerGate <- None
+                                    knots.Add(plainKnot p)
+                            | None -> knots.Add(plainKnot p)
 
                 if isClosed then
                     for i in 0 .. n - 1 do

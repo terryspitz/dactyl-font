@@ -99,12 +99,9 @@ let glyphMap =
           // horizontal — in from the east, out to the east — so the waist is level.
           '3', "tol~t(c)~(th)r~hllrEK~(bh)r~b(c)~bol"
           '4', "br3l-tr3l-bhl-bhr"
-          // One continuous stroke: the stem runs into the bowl at a kink (`K`), rather
-          // than two overlapping strokes whose caps left a notch at the join. The bowl
-          // leaves East and its shoulder sits just above the join: left to itself the
-          // bowl sprang back up at ~70 degrees, so the inner miter of that near-reversal
-          // ran a long way up the inside of the stem and tapered it.
-          '5', "tr-tl-hlEK~h4t(c)~(bbt)r~b(c)~bol"
+          // One continuous stroke: the stem runs into the bowl at an acute kink (`K`),
+          // rather than two overlapping strokes whose caps left a notch at the join.
+          '5', "tr-tl-hlK~ttb(c)~(bbt)r~b(c)~bol"
           '6', "tor~t(c)~(h)l~bbtl~b(c)~bbtr~ttbc~bbtlNj"
           '7', "tl-tr-bcl"
           //  two loops:
