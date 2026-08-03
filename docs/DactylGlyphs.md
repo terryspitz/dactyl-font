@@ -99,34 +99,49 @@ You can optionally append a direction to explicitly force the curve's heading as
 - `N` (North), `S` (South), `E` (East), `W` (West)
 *Example:* `blS` places a point at the bottom-left and mandates that curves entering or exiting this point must travel vertically downward (South).
 
-### Explicit Corners (`k`)
+### Explicit Corners (`K`)
 
 A straight line running into a curve (`-` then `~`) is *smoothed* by default: the
-curve is forced to leave along the line's heading (see rule 1 below). That is
-what you want for a stem flowing into a shoulder, but not where a stroke changes
-direction sharply — the stem of `5` running into its bowl, which springs back up
-and to the right at an acute angle.
+curve is forced to leave along the line's heading (see rule 1 below), and two
+curves either side of a point (`~` `~`) are joined smoothly. That is what you
+want for a stem flowing into a shoulder, but not where a stroke changes direction
+sharply — the stem of `5` turning into its bowl, or the waist of `3` where the
+upper bowl doubles back into the lower one.
 
-Append a trailing **`k`** (kink) to make the point a **corner**: tangent
-continuity is broken there, and — unlike an explicit `N`/`S`/`E`/`W` tangent —
-*both* tangents are left free, so the solver picks the curve's own natural
-direction out of (or into) the kink. The curve therefore keeps exactly the shape
-it would have had as a separate stroke, but is now part of one continuous
-outline instead of two overlapping strokes whose end caps left a notch at the
-join.
-- *Example:* `5 = "tr-tl-hlk~ttb(c)~(bbt)r~b(c)~bol"` — the bar, stem and bowl
-  are a single stroke; `hlk` is the acute join where the stem meets the bowl.
-
-`k` works at any junction (line→curve, curve→line and curve→curve, where it
-gives a cusp) and composes with the other modifiers: `hlEk` is a corner whose
-curve side additionally has an explicit East tangent, and `hlkj` is a corner
-that is also an interior joint.
-- *Example:* `3 = "tol~t(c)~(th)r~hllrk~(bh)r~b(c)~bol"` — the upper bowl runs
-  straight into the lower one through a cusp at the waist, where the stroke
-  doubles back on itself.
-- *Example:* `m = "xl-bl xolj~x(llw)~xxblwk~x(rw)~xxbw-bw xxblwj-blw"` — both
+Append a trailing **`K`** (kink) to make the point a **corner**: tangent
+continuity is broken there, and by default *both* tangents are left free, so the
+solver picks each side's own natural direction out of (or into) the kink. The
+curve therefore keeps exactly the shape it would have had as a separate stroke,
+but is now part of one continuous outline instead of two overlapping strokes
+whose end caps left a notch at the join.
+- *Example:* `m = "xl-bl xolj~x(llw)~xxblwK~x(rw)~xxbw-bw xxblwj-blw"` — both
   arches are one stroke, kinked over the middle leg, and the leg hangs off that
   kink as a joint.
+
+`K` works at any junction (line→curve, curve→line and curve→curve, where it gives
+a cusp) and composes with the other modifiers: `hlKj` is a corner that is also an
+interior joint.
+
+#### Tangents at a kink
+
+Adding a direction to a kink pins it, but the letter names the tangent's **axis**
+rather than one heading: each side is oriented along its own direction of travel
+— into the point from the previous knot, out of it toward the next. So `E` at a
+kink means "horizontal in and out".
+
+That distinction matters wherever a stroke doubles back. Writing the same East
+heading on both sides of `3`'s waist would ask the upper bowl to *arrive*
+travelling east while coming from the east, and it would loop; oriented per side
+it arrives travelling west and leaves travelling east, giving a level waist. A
+tangent on a point *without* `K` still applies verbatim to both sides.
+- *Example:* `3 = "tol~t(c)~(th)r~hllrEK~(bh)r~b(c)~bol"` — the upper bowl runs
+  straight into the lower one through a level cusp at the waist.
+- *Example:* `5 = "tr-tl-hlEK~h4t(c)~(bbt)r~b(c)~bol"` — the bar, stem and bowl
+  are a single stroke, and the bowl leaves the join heading east. Left free, the
+  bowl sprang back up at ~70° and the join became a near-reversal, whose inner
+  miter ran a long way up the inside of the stem and visibly tapered it. Keeping
+  a kink honest about its angle is not just cosmetic: the sharper the kink, the
+  further the inner miter travels.
 
 Where three strokes meet, prefer to kink the two that flow into each other and
 let the third branch off as a joint — and pick the third so its cap lands where

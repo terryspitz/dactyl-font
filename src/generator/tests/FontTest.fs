@@ -1129,7 +1129,7 @@ type CornerOutlineTests() =
 
     [<Test>]
     member _.CuspOutline_DoesNotSpike_OnNearReversal() =
-        // A `k` cusp where the curve doubles back on itself is a ~180 degree bend.
+        // A `K` cusp where the curve doubles back on itself is a ~180 degree bend.
         // norm() maps that to +PI or -PI arbitrarily, so the corner can be classified
         // as an inner bend, whose miter distance w/cos(bend/2) is unbounded there — it
         // used to shoot a spike right out of the glyph (seen on a '3' waisted at the
@@ -1144,7 +1144,7 @@ type CornerOutlineTests() =
                 )
 
             // Two arcs meeting head-on at the middle: in heading West, out heading East.
-            let overshoot = outlineOvershoot font "tol~t(c)~(th)r~hck~(bh)r~b(c)~bol"
+            let overshoot = outlineOvershoot font "tol~t(c)~(th)r~hcK~(bh)r~b(c)~bol"
 
             Assert.That(
                 overshoot,
@@ -1157,7 +1157,7 @@ type CornerOutlineTests() =
 
     [<Test>]
     member _.CuspGlyphs_RenderWithoutFallback() =
-        // '3' and '5' are now single strokes joined at a `k` kink; a solver or outline
+        // '3' and '5' are now single strokes joined at a `K` kink; a solver or outline
         // failure would fall back to the red error dot.
         for axes in
             [ Axes.DefaultAxes
@@ -1173,7 +1173,7 @@ type CornerOutlineTests() =
 
     [<Test>]
     member _.CuspGlyphs_AreSingleStrokes() =
-        // The point of the `k` marker: '3' and '5' are one curve each, not two
+        // The point of the `K` marker: '3' and '5' are one curve each, not two
         // overlapping strokes whose end caps meet in the middle.
         let font = Font.Font(Axes.DefaultAxes)
 
@@ -1215,7 +1215,7 @@ type CornerOutlineTests() =
 
         Assert.That(archStroke.Length, Is.EqualTo(1), "both arch apexes should be on one stroke")
 
-        let kink = archStroke.Head |> List.find (fun k -> k.label = Some "xxblwk")
+        let kink = archStroke.Head |> List.find (fun k -> k.label = Some "xxblwK")
         Assert.That(kink.ty, Is.EqualTo(GeneratorTypes.Corner), "the arches meet at a corner")
         Assert.That(kink.th_in, Is.EqualTo(None), "kink tangents are left to the solver")
         Assert.That(kink.th_out, Is.EqualTo(None), "kink tangents are left to the solver")

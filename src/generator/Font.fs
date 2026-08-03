@@ -1528,9 +1528,22 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 let perpAngle = sign * PI / 2.
                 let knots = System.Collections.Generic.List<Knot>()
 
-                let emitPerpRaw x y th sLen =
+                /// Where the offset edge sits for a spine sample: perpendicular to the
+                /// tangent, at the (possibly tapered / roughened) half width.
+                let perpPoint x y th sLen =
                     let w = widthAt sLen th |> roughen sign sLen
-                    knots.Add(plainKnot (addPolarContrast x y (th + perpAngle) w))
+                    addPolarContrast x y (th + perpAngle) w
+
+                // A corner emits its miter/bevel point, which can sit further along the
+                // outgoing edge than the first body samples of the next segment do — the
+                // polyline then doubles back on itself and nicks the outline (clearly
+                // visible at heavy weights on 5's stem/bowl join). Samples behind the
+                // miter are skipped: this gate holds the miter point and the outgoing
+                // direction to measure them against, and is armed by emitAtBezPt.
+                let mutable cornerGate: (Point * float * float) option = None
+
+                let emitPerpRaw x y th sLen =
+                    knots.Add(plainKnot (perpPoint x y th sLen))
 
                 // Samples outside the trimmed span belong to the receded joint end.
                 let emitPerp x y th sLen =
@@ -1542,7 +1555,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     let (x, y, th) = spineAt s
                     emitPerpRaw x y th s
 
-                let emitAtBezPt (i: int) =
+                let emitAtBezPtRaw (i: int) =
                     let bp = bezPts.[i]
                     let (bx, by, dTh, sLen) = dispBez.[i]
                     if not (inBody sLen) then () else
@@ -1630,9 +1643,34 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                             let p = addPolarContrast bx by (th1 + alpha) offset
                             knots.Add(plainKnot p)
 
+                /// Emit the knots for bez point i, then arm the corner gate at the miter
+                /// point so the next segment's samples can be measured against it.
+                let emitAtBezPt (i: int) =
+                    let before = knots.Count
+                    cornerGate <- None
+                    emitAtBezPtRaw i
+                    let bp = bezPts.[i]
+                    let isCorner = abs (norm (bp.th_out - bp.th_in)) > 1e-3
+                    if isCorner && knots.Count > before then
+                        let (_, _, dTh, _) = dispBez.[i]
+                        let thOut = bp.th_out + dTh
+                        cornerGate <- Some(knots.[knots.Count - 1].pt, cos thOut, sin thOut)
+
                 let emitMidSamples (segIdx: int) =
+                    let gate = cornerGate
+                    cornerGate <- None
+                    let mutable past = gate.IsNone
+
                     for (x, y, th, sLen) in spineSamples.[segIdx] do
-                        emitPerp x y th sLen
+                        if inBody sLen then
+                            let p = perpPoint x y th sLen
+
+                            if not past then
+                                match gate with
+                                | Some(g, dx, dy) -> past <- (p.x - g.x) * dx + (p.y - g.y) * dy >= 0.0
+                                | None -> past <- true
+
+                            if past then knots.Add(plainKnot p)
 
                 if isClosed then
                     for i in 0 .. n - 1 do

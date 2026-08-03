@@ -19,13 +19,13 @@ let direction_re = "[NSEW]"
 // open-stroke endpoint landing here is a joint against another stroke, so its
 // cap (serif/flare/bulb) is suppressed. See Font.isJointRaw and DactylGlyphs.md.
 let joint_re = "j"
-// Explicit corner (kink) marker: a trailing `k` forces the point to be a Corner,
+// Explicit corner (kink) marker: a trailing `K` forces the point to be a Corner,
 // breaking tangent continuity there while leaving both tangents free for the
 // solver. This is what lets a straight stem run directly into a curve that
 // leaves at an angle of its own choosing (e.g. the acute join in '5'), which a
 // plain `-`~`~` junction would otherwise smooth over. See Font.fs and
 // DactylGlyphs.md.
-let corner_re = "k"
+let corner_re = "K"
 let line_re = "[-~]"
 let separator_re = " "
 let optional_re x = x + "?"
@@ -94,13 +94,17 @@ let glyphMap =
           '1', "tol-tl3r-bl3r"
           '2', "tol~t(c)~(th)r~hbc-bl-br"
           // One continuous stroke through the waist: the upper bowl runs into the lower
-          // one at a kink (`k`), instead of two strokes each ending in a horizontal
-          // spur drawn twice on top of itself.
-          '3', "tol~t(c)~(th)r~hllrk~(bh)r~b(c)~bol"
+          // one at a kink (`K`), instead of two strokes each ending in a horizontal
+          // spur drawn twice on top of itself. `E` at the kink makes both tangents
+          // horizontal — in from the east, out to the east — so the waist is level.
+          '3', "tol~t(c)~(th)r~hllrEK~(bh)r~b(c)~bol"
           '4', "br3l-tr3l-bhl-bhr"
-          // One continuous stroke: the stem runs into the bowl at an acute kink (`k`),
-          // rather than two overlapping strokes whose caps left a notch at the join.
-          '5', "tr-tl-hlk~ttb(c)~(bbt)r~b(c)~bol"
+          // One continuous stroke: the stem runs into the bowl at a kink (`K`), rather
+          // than two overlapping strokes whose caps left a notch at the join. The bowl
+          // leaves East and its shoulder sits just above the join: left to itself the
+          // bowl sprang back up at ~70 degrees, so the inner miter of that near-reversal
+          // ran a long way up the inside of the stem and tapered it.
+          '5', "tr-tl-hlEK~h4t(c)~(bbt)r~b(c)~bol"
           '6', "tor~t(c)~(h)l~bbtl~b(c)~bbtr~ttbc~bbtlNj"
           '7', "tl-tr-bcl"
           //  two loops:
@@ -134,13 +138,13 @@ let glyphMap =
           'L', "tl-bl-br"
           'l', "tl-xbl~bcW"
           'M', "bl-tl-blw-tw-bw"
-          // The two arches are one stroke, joined by a kink (`k`) over the middle leg,
+          // The two arches are one stroke, joined by a kink (`K`) over the middle leg,
           // which then hangs from that kink as a joint. Previously the second arch
           // sprang from a point part-way down the first leg, so its end cap sat in the
           // crotch — the thinnest part of the junction — and stepped the outline there.
           // Of the three strokes meeting here, the leg is the one whose cap hides best:
           // it starts below the crotch with arch ink either side of it.
-          'm', "xl-bl xolj~x(llw)~xxblwk~x(rw)~xxbw-bw xxblwj-blw"
+          'm', "xl-bl xolj~x(llw)~xxblwK~x(rw)~xxbw-bw xxblwj-blw"
           'N', "bl-tl-br-tr"
           'n', "xl-bl xol~x(c)~xbr-br"
           'O', "(h)l~t(c)~(h)r~b(c)~"
@@ -396,17 +400,38 @@ let parse_curve (glyph: FontMetrics) raw_def debug =
                   let has_curve_in = (in_sep = "~")
                   let has_curve_out = (out_sep = "~")
 
+                  // At a kink the two sides are independent, so an explicit direction
+                  // there names the tangent's *axis* and each side is oriented along its
+                  // own direction of travel: into the point from the previous knot, out of
+                  // it toward the next. `hllrEK` in '3' therefore means "horizontal in and
+                  // out", giving a level waist where the stroke doubles back — writing the
+                  // same East angle on both sides would instead ask the upper bowl to
+                  // arrive travelling east while coming from the east, and it would loop.
+                  let orientAtKink t (dx: float) (dy: float) =
+                      let horizontal = abs (cos t) >= abs (sin t)
+                      if horizontal then
+                          if abs dx < 1e-9 then t elif dx > 0.0 then 0.0 else PI
+                      else if abs dy < 1e-9 then t
+                      elif dy > 0.0 then PI * 0.5
+                      else PI * -0.5
+
                   let tIn, tOut =
                       match explicit_tangents.[i] with
                       | Some t ->
                           if not has_curve_in && not has_curve_out then
                               invalidArg "tangent" "Explicit tangents cannot be applied to points with only straight lines."
-                          elif has_curve_in && has_curve_out then
-                              Some t, Some t
-                          elif has_curve_in then
-                              Some t, None
                           else
-                              None, Some t
+                              let tInAt, tOutAt =
+                                  if corners.[i] then
+                                      let prev = pts.[if i = 0 then n - 1 else i - 1]
+                                      let next = pts.[if i = n - 1 then 0 else i + 1]
+                                      orientAtKink t (pts.[i].x - prev.x) (pts.[i].y - prev.y),
+                                      orientAtKink t (next.x - pts.[i].x) (next.y - pts.[i].y)
+                                  else
+                                      t, t
+
+                              (if has_curve_in then Some tInAt else None),
+                              (if has_curve_out then Some tOutAt else None)
                       | None -> None, None
                       
                   let mutable ty = 
@@ -421,7 +446,7 @@ let parse_curve (glyph: FontMetrics) raw_def debug =
 
                   if ty = CurveToLine && tIn.IsSome then ty <- Corner
                   if ty = LineToCurve && tOut.IsSome then ty <- Corner
-                  // `k` forces a kink: tangent continuity is broken here even though the
+                  // `K` forces a kink: tangent continuity is broken here even though the
                   // separators would otherwise imply a smooth line→curve (or curve→curve)
                   // transition.
                   if corners.[i] then ty <- Corner

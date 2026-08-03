@@ -153,48 +153,77 @@ type ParserTests() =
 
     [<Test>]
     member this.TestCornerMarker() =
-        // A trailing `k` marks an explicit corner (kink); the coordinate is unchanged
-        // and the `k` is consumed. It composes with the joint marker (`kj`).
+        // A trailing `K` marks an explicit corner (kink); the coordinate is unchanged
+        // and the `K` is consumed. It composes with the joint marker (`Kj`).
         let plain, _, plainCorner, _, _, _ = parse_point metrics "hc"
-        let kinked, _, isCorner, _, label, rest = parse_point metrics "hck"
+        let kinked, _, isCorner, _, label, rest = parse_point metrics "hcK"
         Assert.That(plainCorner, Is.False, "plain point is not a corner")
-        Assert.That(isCorner, Is.True, "`k` suffix should mark a corner")
+        Assert.That(isCorner, Is.True, "`K` suffix should mark a corner")
         Assert.That(kinked.x, Is.EqualTo(plain.x), "x unchanged by corner marker")
         Assert.That(kinked.y, Is.EqualTo(plain.y), "y unchanged by corner marker")
-        Assert.That(label, Is.EqualTo("hck"))
-        Assert.That(rest, Is.EqualTo(""), "`k` should be consumed")
+        Assert.That(label, Is.EqualTo("hcK"))
+        Assert.That(rest, Is.EqualTo(""), "`K` should be consumed")
 
-        let _, _, bothCorner, bothJoint, _, _ = parse_point metrics "hckj"
-        Assert.That(bothCorner, Is.True, "`k` before `j` is still a corner")
-        Assert.That(bothJoint, Is.True, "`j` after `k` is still a joint")
+        let _, _, bothCorner, bothJoint, _, _ = parse_point metrics "hcKj"
+        Assert.That(bothCorner, Is.True, "`K` before `j` is still a corner")
+        Assert.That(bothJoint, Is.True, "`j` after `K` is still a joint")
 
     [<Test>]
     member this.TestCornerMarkerBreaksLineToCurve() =
-        // Without `k` a line running into a curve is a smooth LineToCurve join, so the
-        // curve leaves along the line's heading. With `k` it becomes a Corner with both
+        // Without `K` a line running into a curve is a smooth LineToCurve join, so the
+        // curve leaves along the line's heading. With `K` it becomes a Corner with both
         // tangents free, letting the curve leave at its own angle (the '5' stem/bowl join).
         match parse_curve metrics "tl-hl~tc" false with
         | Curve(knots, _) ->
             Assert.That(knots.[1].ty, Is.EqualTo(SpiroPointType.Right), "plain join is LineToCurve")
         | _ -> Assert.Fail("Expected Curve")
 
-        match parse_curve metrics "tl-hlk~tc" false with
+        match parse_curve metrics "tl-hlK~tc" false with
         | Curve(knots, _) ->
-            Assert.That(knots.[1].ty, Is.EqualTo(SpiroPointType.Corner), "`k` join is a Corner")
+            Assert.That(knots.[1].ty, Is.EqualTo(SpiroPointType.Corner), "`K` join is a Corner")
             Assert.That(knots.[1].th_in, Is.EqualTo(None), "no incoming tangent constraint")
             Assert.That(knots.[1].th_out, Is.EqualTo(None), "no outgoing tangent constraint")
-            Assert.That(knots.[1].label, Is.EqualTo(Some "hlk"))
+            Assert.That(knots.[1].label, Is.EqualTo(Some "hlK"))
         | _ -> Assert.Fail("Expected Curve")
 
     [<Test>]
     member this.TestCornerMarkerKeepsExplicitTangent() =
-        // `k` and an explicit direction can be combined: the direction still applies to
+        // `K` and an explicit direction can be combined: the direction still applies to
         // the curve side, and the point is a Corner either way.
-        match parse_curve metrics "tl-hlEk~tc" false with
+        match parse_curve metrics "tl-hlEK~tc" false with
         | Curve(knots, _) ->
             Assert.That(knots.[1].ty, Is.EqualTo(SpiroPointType.Corner))
             Assert.That(knots.[1].th_out, Is.EqualTo(Some 0.0), "East tangent kept on th_out")
             Assert.That(knots.[1].th_in, Is.EqualTo(None))
+        | _ -> Assert.Fail("Expected Curve")
+
+    [<Test>]
+    member this.TestCornerMarkerTangentIsOrientedPerSide() =
+        // At a kink the direction names the tangent's axis: each side is oriented along
+        // its own direction of travel. This is '3's waist — the stroke arrives from the
+        // east and leaves back to the east, so `E` means th_in = West, th_out = East.
+        // Both sides taking East verbatim would ask the incoming curve to travel east
+        // while coming from the east, and it would loop back on itself.
+        match parse_curve metrics "tr~hlEK~br" false with
+        | Curve(knots, _) ->
+            let waist = knots.[1]
+            Assert.That(waist.ty, Is.EqualTo(SpiroPointType.Corner))
+            Assert.That(waist.th_in, Is.EqualTo(Some PI), "arrives travelling west")
+            Assert.That(waist.th_out, Is.EqualTo(Some 0.0), "leaves travelling east")
+        | _ -> Assert.Fail("Expected Curve")
+
+        // Vertical axis, same rule: N/S is oriented by the neighbours' y.
+        match parse_curve metrics "tr~hlNK~tr" false with
+        | Curve(knots, _) ->
+            Assert.That(knots.[1].th_in, Is.EqualTo(Some(PI * -0.5)), "arrives travelling south")
+            Assert.That(knots.[1].th_out, Is.EqualTo(Some(PI * 0.5)), "leaves travelling north")
+        | _ -> Assert.Fail("Expected Curve")
+
+        // Without `K` an explicit tangent still applies verbatim to both sides.
+        match parse_curve metrics "tr~hlE~br" false with
+        | Curve(knots, _) ->
+            Assert.That(knots.[1].th_in, Is.EqualTo(Some 0.0))
+            Assert.That(knots.[1].th_out, Is.EqualTo(Some 0.0))
         | _ -> Assert.Fail("Expected Curve")
 
 [<EntryPoint>]

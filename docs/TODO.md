@@ -9,7 +9,6 @@
 - flare with tangents wrong way round
 - move outline point inward only
 - improve serifs
-- join lines properly: A still to do (m, 3 and 5 now join with the `k` kink marker)
 - fix italic 8
 - render animation
 - try merging with https://magenta.tensorflow.org/svg-vae
@@ -33,11 +32,12 @@
 - submit curated fonts to dafont and FontSpace for reach
 
 **DONE: Implemented Features**
-- `k` (kink) marker in the glyph language: a corner with both tangents left free, so a
-  stroke can change direction sharply without being split into two capped strokes.
-  Used to join '5' at its acute stem/bowl join, draw '3' as one section through a cusp
-  at the waist, and join m's two arches over the middle leg — which also fixed the
-  tight bend in '5' and the spike at near-180-degree outline corners.
+- `K` (kink) marker in the glyph language: a corner whose tangents are left free, or
+  pinned to an axis and oriented per side, so a stroke can change direction sharply
+  without being split into two capped strokes. Used to join '5' at its stem/bowl join,
+  draw '3' as one section through a level cusp at the waist, and join m's two arches
+  over the middle leg — which also fixed the tight bend in '5', the spike at
+  near-180-degree outline corners, and body samples doubling back behind a corner miter.
 - add documentation links
 - add punctuation chars
 - add typographic punctuation: smart quotes ‘’ “”, en/em dashes – —, ellipsis …, bullet •
