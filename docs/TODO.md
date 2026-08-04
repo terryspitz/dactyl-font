@@ -14,10 +14,6 @@
 - render animation
 - try merging with https://magenta.tensorflow.org/svg-vae
 - calculate kerning
-- from https://www.typography.com/blog/typographic-illusions:
--  overshoot
--  balance (mid height > 1/2)
-- debug 'sharp bend' duplicate points in 'e'
 -
 **Publishing to freeware font sites** (see FONTLICENSE.md)
 - licensing: fonts under SIL OFL 1.1 with Reserved Font Name "Dactyl" (done); proofs stay CC BY-NC-SA
@@ -33,16 +29,14 @@
 - submit curated fonts to dafont and FontSpace for reach
 
 **DONE: Implemented Features**
-- `K` (kink) marker in the glyph language: a corner whose tangents are left free, or
-  pinned to an axis and oriented per side, so a stroke can change direction sharply
-  without being split into two capped strokes. Used to join '5' at its acute stem/bowl
-  join, draw '3' as one section through a level cusp at the waist, and join m's two
-  arches over the middle leg.
+- `K` (kink) marker in the glyph language: a corner whose tangents are left free, 
+  for '5', '3' and 'm'.
 - Correct outlines through sharp corners: the inner side of an acute corner now ends
   each offset edge on its own stroke and lets the nonzero fill union them, instead of
   a bisector miter that landed off both edges and tapered '5's stem into its bowl.
   Also fixed the spike at near-180-degree corners and body samples doubling back
   behind a corner miter.
+- optical corrections from https://www.typography.com/blog/typographic-illusions: `overshoot` (round and pointed extremes project past the flat guides) and `balance` (crossbars and waists sit above the geometric half height)
 - add documentation links
 - add punctuation chars
 - add typographic punctuation: smart quotes ‘’ “”, en/em dashes – —, ellipsis …, bullet •
