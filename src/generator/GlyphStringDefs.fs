@@ -119,7 +119,7 @@ let glyphMap =
           'D', "tl-bl-blo~(h)r~tlo-"
           'd', "tr-br xor~x(c)~(xb)l~b(c)~bor"
           'E', "tr-tl-bl-br hl-hr"
-          'e', "xbl-xbrN~x(c)~xblS~b(c)~bor5c"
+          'e', "xblj-xbrN~x(c)~xblS~b(c)~bor5c"
           'F', "bl-tl-tr hl-hrc"
           'f', "bllc-xtllc~tcrW xl-xc"
           'G', "tor~t(c)~(h)l~b(c)~bhr-hr-hc"
