@@ -18,7 +18,7 @@ Dactyl is parameterised with a large number of inputs grouped into categories:
 
 | Category | Axes |
 |----------|------|
-| **Backbone** | width, height, x-height, tracking, leading, monospace, italic, roundedness |
+| **Backbone** | width, height, x-height, tracking, leading, monospace, italic, roundedness, overshoot, balance |
 | **Outline** | thickness, contrast, soft corners, axis-align caps, filled, smooth |
 | **Artistic** | end-bulbs, flare, serif, stroked, scratches, broad-nib pen (nib angle), taper, wobble, roughness, mobius ribbons |
 | **Experimental** | dactyl spline, spline2, constraints, constant offset, flatness, end flatness |

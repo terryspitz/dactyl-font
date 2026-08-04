@@ -48,6 +48,28 @@ type FontMetrics(axes: Axes.Axes) =
     member this.offset = float axes.roundedness // offset from corners
     member this.dotHeight = max ((this.X + this.T) / 2.0) (this.X + float axes.weight * 3.0)
 
+    /// Optical correction "overshoot": how far a round or pointed extreme should
+    /// project past a flat guide (top, x-height, baseline, descender) so that it
+    /// doesn't read as shorter than a flat-topped letter beside it.
+    member this.overshoot = float axes.overshoot
+
+    /// Overshoot for extremes that converge to a point (the apex of A/V/W/M)
+    /// rather than a curve.  Points look smaller still than circles, so they
+    /// customarily get a little more of it.
+    member this.pointedOvershoot = this.overshoot * 1.5
+
+    /// Optical correction "balance": how far to raise a height that lies
+    /// *between* the guides — a crossbar or a bowl waist — above where the
+    /// arithmetic puts it, so the letter doesn't look bottom-heavy.  Heights
+    /// on a guide itself never move; the raise fades smoothly to nothing at the
+    /// baseline and at cap height, and peaks at the half height, so a bar drawn
+    /// at `h` moves by the full amount and one at `bh` by about 70% of it.
+    member this.balanceRaise(y: float) =
+        if axes.balance = 0 || y <= this.B || y >= this.T then
+            0.0
+        else
+            float axes.balance * sin (System.Math.PI * (y - this.B) / (this.T - this.B))
+
     member this.thickness =
         if axes.stroked || axes.scratches then
             max (float axes.weight) 30.0

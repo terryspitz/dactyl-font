@@ -205,6 +205,26 @@ let parse_point (glyph: FontMetrics) def_raw =
     let mutable y_coord = List.average y_coords
     def <- def.[match_y.Length ..]
 
+    // Optical balance ("mid height > 1/2"): a height that sits *between* the
+    // guides — a crossbar (`h` in H/E/F, `xb` in e) or a bowl waist (`h` in B/S)
+    // — is nudged up, because we read a letter drawn with an arithmetically
+    // centred bar as bottom-heavy.  Heights written as a single guide letter
+    // (`t`, `x`, `b`, `d`) are the reference lines themselves and never move, and
+    // neither do fitted heights (`(h)l`), which are the *side* extremes of round
+    // letters like O and o and want to stay symmetric.
+    let yLetters = ys |> Seq.filter System.Char.IsLetter |> Seq.distinct |> List.ofSeq
+
+    let isGuideHeight =
+        match yLetters with
+        | [ c ] -> c <> 'h' // `h` is itself a mid height, so it takes the raise
+        | _ -> false
+
+    let balanceRaise =
+        if y_fit || isGuideHeight then
+            0.0
+        else
+            glyph.balanceRaise y_coord
+
     // offset
     let matchOffset = Regex.Match(def, "^" + offset_re)
 
@@ -219,6 +239,10 @@ let parse_point (glyph: FontMetrics) def_raw =
                 y_coord + offsetAmount
             else
                 y_coord - offsetAmount
+
+    // Applied after the inward/outward offset so that the offset still keys off
+    // the guide the point was written against.
+    y_coord <- y_coord + balanceRaise
 
     // x_coord
     let match_x = Regex.Match(def, "^" + x_re)
@@ -292,6 +316,67 @@ let parse_point (glyph: FontMetrics) def_raw =
 
     let label = start_def.Substring(0, start_def.Length - def.Length)
     { y = y_coord; x = x_coord; y_fit = y_fit; x_fit = x_fit }, tangent, isJoint, label, def
+
+/// Optical overshoot: a round or pointed extreme drawn exactly on a guide reads
+/// as *shorter* than a flat letter that stops on the same line, so type
+/// designers push it slightly past.  Applied here, after the knots are built, so
+/// that both the shape (curve vs. point) and the neighbouring knots are known:
+///
+///   * a **round** extreme — a knot whose x coordinate is fitted (`t(c)`, the
+///     flat top of a bowl) or which has a curve on at least one side — sitting
+///     on the top, x-height, baseline or descender guide with both neighbours
+///     strictly on one side of it, moves out by `overshoot` (O, S, C, o, e, 6…).
+///   * a **pointed** extreme — a corner between two straight lines whose
+///     neighbours lie on *opposite* sides horizontally, i.e. a genuine wedge —
+///     moves out by `pointedOvershoot` (the apex of A, V, W, and the middle
+///     vertex of M/W).
+///
+/// A corner where the strokes don't converge into a point (the top of M's left
+/// stem, N's stem/diagonal junction) is left alone, as is any flat run, so
+/// letters that legitimately stop on the guide keep stopping on it.
+let private applyOvershoot (glyph: FontMetrics) isClosed (knots: list<Knot>) =
+    let n = knots.Length
+
+    if glyph.overshoot = 0.0 || n < 3 then
+        knots
+    else
+        let arr = List.toArray knots
+        let near a b = abs (a - b) < 0.001
+
+        let onGuide y =
+            near y glyph.T || near y glyph.X || near y glyph.B || near y glyph.D
+
+        [ for i in 0 .. n - 1 do
+              let k = arr.[i]
+              let isInterior = isClosed || (i > 0 && i < n - 1)
+
+              if not isInterior || not (onGuide k.pt.y) then
+                  yield k
+              else
+                  let prev = arr.[(i + n - 1) % n].pt
+                  let next = arr.[(i + 1) % n].pt
+
+                  let dir =
+                      if prev.y < k.pt.y && next.y < k.pt.y then 1.0
+                      elif prev.y > k.pt.y && next.y > k.pt.y then -1.0
+                      else 0.0
+
+                  let isCurved =
+                      k.pt.x_fit || k.ty = G2 || k.ty = LineToCurve || k.ty = CurveToLine
+
+                  let isPointed =
+                      not isCurved && (prev.x - k.pt.x) * (next.x - k.pt.x) < 0.0
+
+                  let amount =
+                      if dir = 0.0 then 0.0
+                      elif isCurved then glyph.overshoot
+                      elif isPointed then glyph.pointedOvershoot
+                      else 0.0
+
+                  if amount = 0.0 then
+                      yield k
+                  else
+                      yield { k with pt = { k.pt with y = k.pt.y + dir * amount } } ]
 
 let parse_curve (glyph: FontMetrics) raw_def debug =
     let mutable pts = []
@@ -398,6 +483,7 @@ let parse_curve (glyph: FontMetrics) raw_def debug =
                         th_out = Option.orElse k2.th_out k1.th_out
                         isJoint = k1.isJoint || k2.isJoint
                         label = Option.orElse k1.label k2.label })
+            |> applyOvershoot glyph isClosed
 
         validateKnotSequence knots isClosed
         Curve(knots, isClosed)

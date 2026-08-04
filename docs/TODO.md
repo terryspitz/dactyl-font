@@ -15,10 +15,6 @@
 - render animation
 - try merging with https://magenta.tensorflow.org/svg-vae
 - calculate kerning
-- from https://www.typography.com/blog/typographic-illusions:
--  overshoot
--  balance (mid height > 1/2)
-- debug 'sharp bend' duplicate points in 'e'
 -
 **Publishing to freeware font sites** (see FONTLICENSE.md)
 - licensing: fonts under SIL OFL 1.1 with Reserved Font Name "Dactyl" (done); proofs stay CC BY-NC-SA
@@ -34,6 +30,7 @@
 - submit curated fonts to dafont and FontSpace for reach
 
 **DONE: Implemented Features**
+- optical corrections from https://www.typography.com/blog/typographic-illusions: `overshoot` (round and pointed extremes project past the flat guides) and `balance` (crossbars and waists sit above the geometric half height)
 - add documentation links
 - add punctuation chars
 - add typographic punctuation: smart quotes ‘’ “”, en/em dashes – —, ellipsis …, bullet •

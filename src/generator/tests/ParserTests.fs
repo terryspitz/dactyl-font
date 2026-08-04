@@ -9,11 +9,16 @@ open Font
 
 [<TestFixture>]
 type ParserTests() =
+    // Optical corrections off, so that the tests below can assert the exact
+    // arithmetic of the coordinate language; they get their own tests further
+    // down.
     let axes =
         { Axes.Axes.DefaultAxes with
             width = 1000
             height = 1000
             x_height = 0.5
+            overshoot = 0
+            balance = 0
             debug = true }
 
     let metrics = FontMetrics(axes)
@@ -150,6 +155,106 @@ type ParserTests() =
             Is.True,
             "explicit joint honoured with the geometric heuristic disabled"
         )
+
+/// Optical corrections from https://www.typography.com/blog/typographic-illusions:
+/// overshoot (round/pointed extremes project past the flat guides) and balance
+/// (the optical middle sits above the geometric half).
+[<TestFixture>]
+type OpticalTests() =
+    let axes =
+        { Axes.Axes.DefaultAxes with
+            width = 1000
+            height = 1000
+            x_height = 0.5
+            overshoot = 10
+            balance = 20 }
+
+    let metrics = FontMetrics(axes)
+
+    let y def =
+        let pt, _, _, _, _ = parse_point metrics def
+        pt.y
+
+    let knotsOf def =
+        match parse_curve metrics def false with
+        | Curve(knots, _) -> List.toArray knots
+        | _ -> failwith "expected a Curve"
+
+    [<Test>]
+    member this.TestGuideHeightsDoNotMove() =
+        // The reference lines themselves are never nudged, whatever the balance.
+        Assert.That(y "tl", Is.EqualTo(metrics.T))
+        Assert.That(y "xl", Is.EqualTo(metrics.X))
+        Assert.That(y "bl", Is.EqualTo(metrics.B))
+        Assert.That(y "dl", Is.EqualTo(metrics.D))
+        // ...nor is a repeated single guide (`tt` is still the top).
+        Assert.That(y "t2l", Is.EqualTo(metrics.T))
+
+    [<Test>]
+    member this.TestBalanceRaisesMidHeights() =
+        // `h` is the half height and takes the full raise (H = T/2 here).
+        Assert.That(y "hl", Is.EqualTo(metrics.H + 20.0).Within(1e-9), "crossbar of H/E/F")
+        // A height between two guides is raised by a sine-tapered amount:
+        // bh sits a quarter up, so sin(pi/4) ~ 0.707 of the full raise.
+        Assert.That(y "bhl", Is.EqualTo(metrics.H / 2.0 + 20.0 * sqrt 0.5).Within(1e-6), "crossbar of A")
+        // Lowercase bars (e.g. the bar of `e`) are raised too.
+        Assert.That(y "xbl", Is.GreaterThan(metrics.X / 2.0))
+
+    [<Test>]
+    member this.TestBalanceSkipsFittedAndDescenderHeights() =
+        // A fitted height is the *side* extreme of a round letter (O, o) and
+        // stays symmetric.
+        Assert.That(y "(h)l", Is.EqualTo(metrics.H))
+        Assert.That(y "(xb)l", Is.EqualTo(metrics.X / 2.0))
+        // Below the baseline the raise has faded out entirely.
+        Assert.That(y "bdl", Is.EqualTo(metrics.D / 2.0))
+
+    [<Test>]
+    member this.TestRoundOvershoot() =
+        // The `o` bowl: flat top and bottom of the curve push past x-height and
+        // the baseline, while the side extremes stay put.
+        let knots = knotsOf "(xb)l~x(c)~(xb)r~b(c)~"
+        Assert.That(knots.[1].pt.y, Is.EqualTo(metrics.X + 10.0).Within(1e-9), "top of the bowl overshoots")
+        Assert.That(knots.[3].pt.y, Is.EqualTo(metrics.B - 10.0).Within(1e-9), "bottom of the bowl overshoots")
+        Assert.That(knots.[0].pt.y, Is.EqualTo(metrics.X / 2.0), "side extreme unchanged")
+        Assert.That(knots.[2].pt.y, Is.EqualTo(metrics.X / 2.0), "side extreme unchanged")
+
+    [<Test>]
+    member this.TestPointedOvershoot() =
+        // The apex of `A` is a wedge, so it gets the larger pointed overshoot;
+        // the feet are open-curve endpoints and stay on the baseline.
+        let knots = knotsOf "bl-tc-br"
+        Assert.That(knots.[1].pt.y, Is.EqualTo(metrics.T + 15.0).Within(1e-9), "apex overshoots by 1.5x")
+        Assert.That(knots.[0].pt.y, Is.EqualTo(metrics.B))
+        Assert.That(knots.[2].pt.y, Is.EqualTo(metrics.B))
+
+    [<Test>]
+    member this.TestFlatLettersDoNotOvershoot() =
+        // `E`: every corner has a neighbour at the same height, so nothing moves.
+        let knots = knotsOf "tr-tl-bl-br"
+        Assert.That(knots.[1].pt.y, Is.EqualTo(metrics.T), "top left corner stays on the cap line")
+        Assert.That(knots.[2].pt.y, Is.EqualTo(metrics.B), "bottom left corner stays on the baseline")
+
+    [<Test>]
+    member this.TestOnlyConvergingCornersOvershoot() =
+        // `M`: the stem tops are corners between a vertical and a diagonal — not
+        // points — and stay on the cap line; the middle vertex is a wedge and
+        // dips below the baseline.
+        let knots = knotsOf "bl-tl-blw-tw-bw"
+        Assert.That(knots.[1].pt.y, Is.EqualTo(metrics.T), "stem top is not a point")
+        Assert.That(knots.[3].pt.y, Is.EqualTo(metrics.T), "stem top is not a point")
+        Assert.That(knots.[2].pt.y, Is.EqualTo(metrics.B - 15.0).Within(1e-9), "middle vertex is a point")
+
+    [<Test>]
+    member this.TestOpticalAxesOff() =
+        // Both corrections are plain axes and can be switched off.
+        let plain = FontMetrics({ axes with overshoot = 0; balance = 0 })
+        let pt, _, _, _, _ = parse_point plain "hl"
+        Assert.That(pt.y, Is.EqualTo(plain.H))
+
+        match parse_curve plain "bl-tc-br" false with
+        | Curve(knots, _) -> Assert.That(knots.[1].pt.y, Is.EqualTo(plain.T))
+        | _ -> Assert.Fail("Expected Curve")
 
 [<EntryPoint>]
 let main argv =

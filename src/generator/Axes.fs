@@ -21,7 +21,8 @@ type Axes =
       contrast: float //make vertical lines thicker
       roundedness: int //roundedness
       softness: float //radius of rounding applied at angled corners (0=sharp, 1=max)
-      // overshoot : int          //curves are larger by this amount to compensate for looking smaller
+      overshoot: int //curves and points extend past the flat guides by this amount, to compensate for looking smaller
+      balance: int //raise the optical middle (crossbars, waists) this far above the geometric half height
       spacing: int //gap between glyphs
       leading: int //gap between lines
       monospace: float //fraction to interpolate widths to monospaces
@@ -66,6 +67,8 @@ type Axes =
           contrast = 0.05
           roundedness = 60
           softness = 0.0
+          overshoot = 10
+          balance = 15
           spacing = 40
           leading = 50
           monospace = 0.0
@@ -112,6 +115,8 @@ type Axes =
           "slant", FracRange(0.0, 1.0), "backbone", "Fraction to shear glyphs"
           "cursive", SteppedFracRange(0.0, 1.0, 0.5), "backbone", "Cursive a/g forms: 0=Roman (two-storey), 0.5=Auto (cursive when slanted), 1=Cursive (single-storey)"
           "roundedness", Range(0, 100), "backbone", "Roundedness"
+          "overshoot", Range(0, 50), "backbone", "Optical correction: round and pointed extremes (O, S, o, A, V, W) extend this far past the flat cap/x/baseline guides, so they don't look shorter than flat letters (T, H)"
+          "balance", Range(0, 60), "backbone", "Optical correction: raise the mid height (crossbars and waists of H, E, B, S, e) this far above the geometric half, so letters don't look bottom-heavy"
           "weight", Range(1, 200), "outline", "Stroke width"
           "contrast", FracRange(-0.5, 0.5), "outline", "Make vertical lines thicker"
           "softness", FracRange(0.0, 1.0), "outline", "Radius of rounding applied at angled corners (0=sharp, 1=max)"
