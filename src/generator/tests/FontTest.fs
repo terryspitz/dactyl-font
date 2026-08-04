@@ -1113,3 +1113,162 @@ type ArtisticAxesTests() =
                 let svg = font.charToSvg ch 0.0 0.0 "black" |> String.concat " "
                 Assert.That(svg, Does.Contain("M "),
                     sprintf "%s outline for '%c' should render" name ch)
+
+[<TestFixture>]
+type CornerOutlineTests() =
+    let metrics = FontMetrics(Axes.DefaultAxes)
+    let fthickness = float Axes.DefaultAxes.weight
+
+    /// Widest excursion of the outline beyond the spine's own bounding box. A corner
+    /// miter should stay within a stroke width or two; a degenerate one spikes far out.
+    let outlineOvershoot (font: Font.Font) (def: string) =
+        let elem = GlyphStringDefs.rawDefToElem metrics def false
+        let sl, sr, sb, st = bounds elem
+        let ol, orr, ob, ot = bounds (font.getOutline elem)
+        List.max [ sl - ol; orr - sr; sb - ob; ot - st ]
+
+    [<Test>]
+    member _.CuspOutline_DoesNotSpike_OnNearReversal() =
+        // A `K` cusp where the curve doubles back on itself is a ~180 degree bend.
+        // norm() maps that to +PI or -PI arbitrarily, so the corner can be classified
+        // as an inner bend, whose miter distance w/cos(bend/2) is unbounded there — it
+        // used to shoot a spike right out of the glyph (seen on a '3' waisted at the
+        // centre). Both sides must wrap the tip instead.
+        for constantOffset in [ true; false ] do
+            let font =
+                Font.Font(
+                    { Axes.DefaultAxes with
+                        dactyl_spline = true
+                        outline = true
+                        constant_offset = constantOffset }
+                )
+
+            // Two arcs meeting head-on at the middle: in heading West, out heading East.
+            let overshoot = outlineOvershoot font "tol~t(c)~(th)r~hcK~(bh)r~b(c)~bol"
+
+            Assert.That(
+                overshoot,
+                Is.LessThan(1.55 * fthickness),
+                sprintf
+                    "cusp outline should stay near the spine (constant_offset=%b), overshot by %.1f"
+                    constantOffset
+                    overshoot
+            )
+
+    [<Test>]
+    member _.CuspGlyphs_RenderWithoutFallback() =
+        // '3' and '5' are now single strokes joined at a `K` kink; a solver or outline
+        // failure would fall back to the red error dot.
+        for axes in
+            [ Axes.DefaultAxes
+              { Axes.DefaultAxes with weight = 60 }
+              { Axes.DefaultAxes with serif = 30 }
+              { Axes.DefaultAxes with constant_offset = false } ] do
+            let font = Font.Font(axes)
+            for ch in [ '3'; '5'; 'm' ] do
+                let svg = font.charToSvg ch 0.0 0.0 "black" |> String.concat " "
+                Assert.That(svg, Does.Contain("M "), sprintf "'%c' should render" ch)
+                Assert.That(svg, Does.Not.Contain("stroke:#e00000"),
+                    sprintf "'%c' should not fall back to the error dot" ch)
+
+    [<Test>]
+    member _.AcuteJoin_DoesNotTaperTheIncomingStroke() =
+        // '5' runs its stem into its bowl at an acute kink. The stem's east edge must
+        // stay dead straight all the way down to the join: a bisector miter there lands
+        // off both offset edges (further off the sharper the corner, and further still
+        // once clamped), which sloped this edge inwards and visibly tapered the stem.
+        let axes = Axes.DefaultAxes
+        let font = Font.Font(axes)
+        let metrics = FontMetrics(axes)
+        let t = metrics.thickness
+        // charToElem translates the glyph by (thickness, thickness).
+        let spineX = metrics.L + t
+        let joinY = metrics.H + t
+        let edgeX = spineX + t * (1.0 + axes.contrast)
+
+        let outline =
+            match font.CharToOutline '5' with
+            | Curve(knots, _) -> knots |> List.map (fun k -> k.pt.x, k.pt.y)
+            | e -> failwithf "expected a single Curve outline for '5', got %A" e
+
+        // Where does the outline cross a given height, on the stem's east side?
+        let crossingsAt (y: float) =
+            [ for i in 0 .. outline.Length - 1 do
+                let x1, y1 = outline.[i]
+                let x2, y2 = outline.[(i + 1) % outline.Length]
+                if (y1 - y) * (y2 - y) <= 0.0 && abs (y2 - y1) > 1e-9 then
+                    let x = x1 + (x2 - x1) * (y - y1) / (y2 - y1)
+                    if x > spineX then yield x ]
+
+        for above in [ 2.0; 4.0; 6.0 ] do
+            let y = joinY + above * t
+            let xs = crossingsAt y
+            Assert.That(xs, Is.Not.Empty, sprintf "outline should have an east-side edge at y=%.0f" y)
+            let nearest = xs |> List.minBy (fun x -> abs (x - edgeX))
+            Assert.That(
+                abs (nearest - edgeX),
+                Is.LessThan 2.0,
+                sprintf
+                    "stem's east edge should sit at x=%.1f at y=%.0f (%.0f above the join), got %.1f — the stem is tapering into the join"
+                    edgeX y (above * t) nearest
+            )
+
+    [<Test>]
+    member _.CuspGlyphs_AreSingleStrokes() =
+        // The point of the `K` marker: '3' and '5' are one curve each, not two
+        // overlapping strokes whose end caps meet in the middle.
+        let font = Font.Font(Axes.DefaultAxes)
+
+        let curveCount ch =
+            let rec count e =
+                match e with
+                | Curve _ -> 1
+                | EList(es) -> List.sumBy count es
+                | _ -> 0
+            count (font.charToElem ch)
+
+        Assert.That(curveCount '3', Is.EqualTo(1), "'3' should be a single stroke")
+        Assert.That(curveCount '5', Is.EqualTo(1), "'5' should be a single stroke")
+
+    [<Test>]
+    member _.M_ArchesAreOneStrokeJoinedAtTheMiddleLeg() =
+        // 'm' is stem + (arch, kink, arch, right leg) + middle leg: the two arches
+        // belong to one stroke that kinks over the middle leg, rather than the second
+        // arch springing off the first leg with an end cap in the crotch.
+        let font = Font.Font(Axes.DefaultAxes)
+
+        let curves =
+            let rec collect e =
+                match e with
+                | Curve(knots, _) -> [ knots ]
+                | EList(es) -> List.collect collect es
+                | _ -> []
+            collect (font.charToElem 'm')
+
+        Assert.That(curves.Length, Is.EqualTo(3), "'m' should be three strokes")
+
+        let labelsOf (knots: Knot list) = knots |> List.choose (fun k -> k.label)
+
+        let archStroke =
+            curves
+            |> List.filter (fun ks ->
+                let ls = labelsOf ks
+                List.contains "x(llw)" ls && List.contains "x(rw)" ls)
+
+        Assert.That(archStroke.Length, Is.EqualTo(1), "both arch apexes should be on one stroke")
+
+        let kink = archStroke.Head |> List.find (fun k -> k.label = Some "xxblwK")
+        Assert.That(kink.ty, Is.EqualTo(GeneratorTypes.Corner), "the arches meet at a corner")
+        Assert.That(kink.th_in, Is.EqualTo(None), "kink tangents are left to the solver")
+        Assert.That(kink.th_out, Is.EqualTo(None), "kink tangents are left to the solver")
+
+        // The middle leg hangs off that same point as an explicit joint, so its top
+        // gets no cap (serif / flare / bulb) in the middle of the letter.
+        let legTop =
+            curves
+            |> List.collect id
+            |> List.filter (fun k -> k.label = Some "xxblwj")
+
+        Assert.That(legTop.Length, Is.EqualTo(1), "middle leg should start at the kink")
+        Assert.That(legTop.Head.isJoint, Is.True, "middle leg top is a joint")
+        Assert.That(legTop.Head.pt.GetXY, Is.EqualTo(kink.pt.GetXY), "leg top sits on the kink")

@@ -9,7 +9,6 @@
 - flare with tangents wrong way round
 - move outline point inward only
 - improve serifs
-- join lines properly, including in m and A
 - fix italic 8
 - correct tight bend in '5'
 - render animation
@@ -30,6 +29,13 @@
 - submit curated fonts to dafont and FontSpace for reach
 
 **DONE: Implemented Features**
+- `K` (kink) marker in the glyph language: a corner whose tangents are left free, 
+  for '5', '3' and 'm'.
+- Correct outlines through sharp corners: the inner side of an acute corner now ends
+  each offset edge on its own stroke and lets the nonzero fill union them, instead of
+  a bisector miter that landed off both edges and tapered '5's stem into its bowl.
+  Also fixed the spike at near-180-degree corners and body samples doubling back
+  behind a corner miter.
 - optical corrections from https://www.typography.com/blog/typographic-illusions: `overshoot` (round and pointed extremes project past the flat guides) and `balance` (crossbars and waists sit above the geometric half height)
 - add documentation links
 - add punctuation chars
