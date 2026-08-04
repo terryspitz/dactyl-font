@@ -247,7 +247,7 @@ type OpticalTests() =
     let metrics = FontMetrics(axes)
 
     let y def =
-        let pt, _, _, _, _ = parse_point metrics def
+        let pt, _, _, _, _, _ = parse_point metrics def
         pt.y
 
     let knotsOf def =
@@ -324,7 +324,7 @@ type OpticalTests() =
     member this.TestOpticalAxesOff() =
         // Both corrections are plain axes and can be switched off.
         let plain = FontMetrics({ axes with overshoot = 0; balance = 0 })
-        let pt, _, _, _, _ = parse_point plain "hl"
+        let pt, _, _, _, _, _ = parse_point plain "hl"
         Assert.That(pt.y, Is.EqualTo(plain.H))
 
         match parse_curve plain "bl-tc-br" false with
