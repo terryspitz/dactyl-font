@@ -92,9 +92,13 @@ let private fontLookup (chars: string) (axesList: Axes array) (tweak: Axes -> Ax
         | Some f -> f
         | None -> fallback
 
-/// Render text with a different set of axes per character — the "randomise every
-/// glyph" mode.  `chars` and `axesList` are parallel arrays; every occurrence of
-/// `chars.[i]` is drawn with `axesList.[i]`, anything else uses `baseAxes`.
+/// Render text with a different set of axes per character occurrence — the
+/// "randomise every glyph" mode.  `axesList.[i]` is drawn at the i'th
+/// character position of `text` once newlines are stripped (matching how the
+/// text below is split into lines and concatenated back together), so unlike
+/// generateFontGlyphDataPerGlyph's per-code-point lookup, repeated characters
+/// can each get their own axes.  Positions past the end of `axesList` (or an
+/// empty array) fall back to `baseAxes`.
 ///
 /// Line spacing and the baseline of each line come from `baseAxes` so that glyphs
 /// with different heights/thicknesses still sit on a common baseline; advance
@@ -102,13 +106,13 @@ let private fontLookup (chars: string) (axesList: Axes array) (tweak: Axes -> Ax
 let generateSvgPerGlyph
     (text: string)
     (baseAxes: Axes)
-    (chars: string)
     (axesList: Axes array)
     (autoscale: bool)
     (progress: (float -> unit) option)
     =
     let baseFont = Font baseAxes
-    let fontFor = fontLookup chars axesList id baseFont
+    let fonts = axesList |> Array.map Font
+    let fontAt i = if i >= 0 && i < fonts.Length then fonts.[i] else baseFont
 
     let lines =
         if System.String.IsNullOrEmpty(text) then
@@ -118,6 +122,7 @@ let generateSvgPerGlyph
 
     let totalChars = lines |> List.sumBy (fun s -> s.Length)
     let mutable charCount = 0
+    let mutable pos = 0
 
     // SVG y of the baseline (glyph y=0) for line i, matching the placement
     // Font.stringToSvgLineInternal would give it under baseAxes.
@@ -128,16 +133,20 @@ let generateSvgPerGlyph
         List.unzip
             [ for i in 0 .. lines.Length - 1 do
                   let str = lines.[i]
-                  let fonts = [ for ch in str -> fontFor ch ]
+                  let fontsForLine =
+                      [ for _ in str do
+                            let f = fontAt pos
+                            pos <- pos + 1
+                            yield f ]
 
                   let widths =
-                      List.map2 (fun (f: Font) (ch: char) -> f.charWidth ch) fonts (List.ofSeq str)
+                      List.map2 (fun (f: Font) (ch: char) -> f.charWidth ch) fontsForLine (List.ofSeq str)
 
                   let offsetXs = List.scan (+) 0.0 widths
 
                   let lineSvg =
                       [ for c in 0 .. str.Length - 1 do
-                            let font = fonts.[c]
+                            let font = fontsForLine.[c]
                             charCount <- charCount + 1
 
                             match progress with

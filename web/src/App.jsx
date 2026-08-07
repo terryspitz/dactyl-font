@@ -15,7 +15,7 @@ import { buildCompareOverlaySvg } from './fontCompare'
 import FontCompareControls from './FontCompareControls'
 import FontCompareTextOverlay from './FontCompareTextOverlay'
 import { proofTexts, proofLabels, proofCases, classicBooks } from './proofs'
-import { randomizeAxes, buildGlyphAxes, newGlyphSeed } from './glyphRandom'
+import { randomizeAxes, buildGlyphAxes, buildPerGlyphTextAxes, newGlyphSeed } from './glyphRandom'
 import './App.css'
 
 // Special Visual Diffs option: compare the old spiro/spline2 engine vs the new dactyl spline
@@ -563,15 +563,19 @@ function App() {
     return (!isNaN(idx) && idx >= 0 && idx < classicBooks.length) ? classicBooks[idx] : null
   })
 
-  // Per-glyph random axes, as the parallel (chars, axesList) arrays the F# API
-  // takes.  Two variants so the whole-font one (export / proofs / comparisons)
-  // doesn't churn every time the typed text changes.
+  // Per-glyph random axes for the two rendering paths (see glyphRandom.js):
+  //  - perGlyphFontAxes: per-character (chars, axesList), for anything backed
+  //    by a real font (export / embedded proof preview / comparisons), where
+  //    a code point can only have one glyph shape.
+  //  - perGlyphTextAxes: per-occurrence axesList for direct SVG rendering
+  //    (Font tab preview, Font/Proofs SVG export), so repeated characters
+  //    like "555555" can each render differently.
   const perGlyphFontAxes = useMemo(
     () => glyphSeed === null ? null : buildGlyphAxes(allChars.replace(/\n/g, '') + ' ', glyphSeed, axes, controlDefinitions),
     [glyphSeed, axes]
   )
   const perGlyphTextAxes = useMemo(
-    () => glyphSeed === null ? null : buildGlyphAxes(text || '', glyphSeed, axes, controlDefinitions),
+    () => glyphSeed === null ? null : buildPerGlyphTextAxes(text || '', glyphSeed, axes, controlDefinitions),
     [glyphSeed, axes, text]
   )
   const perGlyphFontArgs = perGlyphFontAxes ? [perGlyphFontAxes.chars, perGlyphFontAxes.axesList] : []
@@ -609,7 +613,7 @@ function App() {
     }
     worker.onerror = (err) => { worker.terminate(); reject(err) }
     worker.postMessage(perGlyphTextAxes
-      ? { id: 0, type: 'fontPerGlyph', args: [text, axes, perGlyphTextAxes.chars, perGlyphTextAxes.axesList, true] }
+      ? { id: 0, type: 'fontPerGlyph', args: [text, axes, perGlyphTextAxes, true] }
       : { id: 0, type: 'font', args: [text, axes, true] })
   })
 
@@ -627,8 +631,8 @@ function App() {
     }
     worker.onerror = (err) => { worker.terminate(); reject(err) }
     if (glyphSeed !== null) {
-      const pga = buildGlyphAxes(proofsText, glyphSeed, axes, controlDefinitions)
-      worker.postMessage({ id: 0, type: 'fontPerGlyph', args: [proofsText, axes, pga.chars, pga.axesList, true] })
+      const axesList = buildPerGlyphTextAxes(proofsText, glyphSeed, axes, controlDefinitions)
+      worker.postMessage({ id: 0, type: 'fontPerGlyph', args: [proofsText, axes, axesList, true] })
     } else {
       worker.postMessage({ id: 0, type: 'font', args: [proofsText, axes, true] })
     }
@@ -1001,7 +1005,7 @@ function App() {
       }
       if (perGlyphTextAxes) {
         typeReq = 'fontPerGlyph'
-        args = [text, axes, perGlyphTextAxes.chars, perGlyphTextAxes.axesList, false]
+        args = [text, axes, perGlyphTextAxes, false]
       } else {
         typeReq = 'font'
         args = [text, axes, false]
