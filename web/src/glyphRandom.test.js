@@ -5,6 +5,7 @@ import {
   randomizeAxes,
   glyphAxes,
   buildGlyphAxes,
+  buildPerGlyphTextAxes,
   PER_GLYPH_SKIPPED_AXES,
 } from './glyphRandom'
 
@@ -59,6 +60,15 @@ describe('glyphSeedFor', () => {
     const a = glyphSeedFor(1, 97)
     const b = glyphSeedFor(2, 97)
     expect(a).not.toBe(b)
+  })
+
+  it('defaults occurrence to 0, matching the plain (seed, codePoint) form', () => {
+    expect(glyphSeedFor(1, 97, 0)).toBe(glyphSeedFor(1, 97))
+  })
+
+  it('separates occurrences of the same character', () => {
+    const seeds = new Set(Array.from({ length: 10 }, (_, n) => glyphSeedFor(1, 97, n)))
+    expect(seeds.size).toBe(10)
   })
 })
 
@@ -152,5 +162,35 @@ describe('buildGlyphAxes', () => {
     const b = buildGlyphAxes('cba', 7, axes, controls)
     const byChar = o => Object.fromEntries(o.chars.split('').map((c, i) => [c, o.axesList[i]]))
     expect(byChar(a)).toEqual(byChar(b))
+  })
+})
+
+describe('buildPerGlyphTextAxes', () => {
+  it('keeps repeated characters as separate, potentially different entries', () => {
+    const axesList = buildPerGlyphTextAxes('555555', 7, axes, controls)
+    expect(axesList).toHaveLength(6)
+    // not asking for all-distinct (rolls can coincide), just real variety
+    expect(new Set(axesList.map(a => JSON.stringify(a))).size).toBeGreaterThan(1)
+  })
+
+  it('gives each occurrence the same axes as glyphAxes with that occurrence index', () => {
+    const axesList = buildPerGlyphTextAxes('555555', 7, axes, controls)
+    axesList.forEach((a, i) => {
+      expect(a).toEqual(glyphAxes('5', 7, axes, controls, i))
+    })
+  })
+
+  it('drops newlines but keeps position alignment otherwise', () => {
+    const axesList = buildPerGlyphTextAxes('ab\ncd', 7, axes, controls)
+    expect(axesList).toHaveLength(4)
+    expect(axesList[0]).toEqual(glyphAxes('a', 7, axes, controls, 0))
+    expect(axesList[1]).toEqual(glyphAxes('b', 7, axes, controls, 0))
+    expect(axesList[2]).toEqual(glyphAxes('c', 7, axes, controls, 0))
+    expect(axesList[3]).toEqual(glyphAxes('d', 7, axes, controls, 0))
+  })
+
+  it('is stable for the same seed and text', () => {
+    expect(buildPerGlyphTextAxes('555555', 7, axes, controls))
+      .toEqual(buildPerGlyphTextAxes('555555', 7, axes, controls))
   })
 })
