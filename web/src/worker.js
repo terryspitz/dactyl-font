@@ -17,10 +17,11 @@ self.onmessage = (e) => {
                     self.postMessage({ id, type: 'progress', value: p });
                 })
                 break
-            // Same as 'font' but every character gets its own axes (see glyphRandom.js)
+            // Same as 'font' but every character occurrence gets its own axes
+            // (see glyphRandom.js's buildPerGlyphTextAxes)
             case 'fontPerGlyph': {
-                const [fText, fBaseAxes, fChars, fAxesList, fAutoscale] = args
-                result = generateSvgPerGlyph(fText, fBaseAxes, fChars, fAxesList, fAutoscale, (p) => {
+                const [fText, fBaseAxes, fAxesList, fAutoscale] = args
+                result = generateSvgPerGlyph(fText, fBaseAxes, fAxesList, fAutoscale, (p) => {
                     self.postMessage({ id, type: 'progress', value: p });
                 })
                 break
