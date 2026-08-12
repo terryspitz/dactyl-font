@@ -6,14 +6,15 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
   exit 0
 fi
 
-# Install .NET 8 SDK if not present
+# Install .NET SDKs if not present. Both 8.0 (project TargetFrameworks) and
+# 10.0 (required by the Fable 5.x dotnet tool) are needed side by side.
 if ! command -v dotnet &>/dev/null; then
-  echo "Installing .NET 8 SDK..."
+  echo "Installing .NET SDKs..."
   # -o Acquire::AllowReleaseInfoChange::Label=true tolerates third-party PPAs
   # (e.g. ondrej/php) that change their Release file's Label field, which apt
   # otherwise treats as a hard error and aborts `apt-get update`.
   apt-get update -q -o Acquire::AllowReleaseInfoChange::Label=true || true
-  apt-get install -y dotnet-sdk-8.0
+  apt-get install -y dotnet-sdk-8.0 dotnet-sdk-10.0
 fi
 
 # Initialize git submodules (fmin is a submodule under web/src/lib/fmin)
