@@ -78,12 +78,17 @@ type FontTests() =
         Assert.That(svgStr, Does.Contain("M "), "SVG should contain a moveto")
 
         // A correct V outline has a closed path. Count 'C' and 'L' commands.
+        // The sharp inner corner at BC is 8 commands, not 7: offsetSegment now ends
+        // the incoming edge at its own true endpoint and starts the outgoing edge at
+        // its own true endpoint (see the comment on offsetSegment's Corner case) rather
+        // than a single bisector-miter point, so there's one more line segment
+        // (the short connector between those two true endpoints) than before.
         let commands = svgStr.Split(' ') |> Array.filter (fun s -> s = "L" || s = "C")
 
         Assert.That(
             commands,
-            Has.Length.EqualTo(7),
-            sprintf "Expected at 7 path commands for v outline, got %d in: %s" commands.Length svgStr
+            Has.Length.EqualTo(8),
+            sprintf "Expected 8 path commands for v outline, got %d in: %s" commands.Length svgStr
         )
 
     [<Test>]
@@ -1163,7 +1168,8 @@ type CornerOutlineTests() =
             [ Axes.DefaultAxes
               { Axes.DefaultAxes with weight = 60 }
               { Axes.DefaultAxes with serif = 30 }
-              { Axes.DefaultAxes with constant_offset = false } ] do
+              { Axes.DefaultAxes with constant_offset = false }
+              { Axes.DefaultAxes with dactyl_spline = false } ] do
             let font = Font.Font(axes)
             for ch in [ '3'; '5'; 'm' ] do
                 let svg = font.charToSvg ch 0.0 0.0 "black" |> String.concat " "
@@ -1177,41 +1183,48 @@ type CornerOutlineTests() =
         // stay dead straight all the way down to the join: a bisector miter there lands
         // off both offset edges (further off the sharper the corner, and further still
         // once clamped), which sloped this edge inwards and visibly tapered the stem.
-        let axes = Axes.DefaultAxes
-        let font = Font.Font(axes)
-        let metrics = FontMetrics(axes)
-        let t = metrics.thickness
-        // charToElem translates the glyph by (thickness, thickness).
-        let spineX = metrics.L + t
-        let joinY = metrics.H + t
-        let edgeX = spineX + t * (1.0 + axes.contrast)
+        //
+        // Checked on both outline-building paths — the sampled/constant-offset path
+        // (default; emitAtBezPt's Corner case) and the segment-based path
+        // (constant_offset=false; offsetSegment's Corner case) — since they have their
+        // own, independent implementations of the same corner geometry and the taper
+        // bug was fixed in each separately.
+        for constantOffset in [ true; false ] do
+            let axes = { Axes.DefaultAxes with constant_offset = constantOffset }
+            let font = Font.Font(axes)
+            let metrics = FontMetrics(axes)
+            let t = metrics.thickness
+            // charToElem translates the glyph by (thickness, thickness).
+            let spineX = metrics.L + t
+            let joinY = metrics.H + t
+            let edgeX = spineX + t * (1.0 + axes.contrast)
 
-        let outline =
-            match font.CharToOutline '5' with
-            | Curve(knots, _) -> knots |> List.map (fun k -> k.pt.x, k.pt.y)
-            | e -> failwithf "expected a single Curve outline for '5', got %A" e
+            let outline =
+                match font.CharToOutline '5' with
+                | Curve(knots, _) -> knots |> List.map (fun k -> k.pt.x, k.pt.y)
+                | e -> failwithf "expected a single Curve outline for '5' (constant_offset=%b), got %A" constantOffset e
 
-        // Where does the outline cross a given height, on the stem's east side?
-        let crossingsAt (y: float) =
-            [ for i in 0 .. outline.Length - 1 do
-                let x1, y1 = outline.[i]
-                let x2, y2 = outline.[(i + 1) % outline.Length]
-                if (y1 - y) * (y2 - y) <= 0.0 && abs (y2 - y1) > 1e-9 then
-                    let x = x1 + (x2 - x1) * (y - y1) / (y2 - y1)
-                    if x > spineX then yield x ]
+            // Where does the outline cross a given height, on the stem's east side?
+            let crossingsAt (y: float) =
+                [ for i in 0 .. outline.Length - 1 do
+                    let x1, y1 = outline.[i]
+                    let x2, y2 = outline.[(i + 1) % outline.Length]
+                    if (y1 - y) * (y2 - y) <= 0.0 && abs (y2 - y1) > 1e-9 then
+                        let x = x1 + (x2 - x1) * (y - y1) / (y2 - y1)
+                        if x > spineX then yield x ]
 
-        for above in [ 2.0; 4.0; 6.0 ] do
-            let y = joinY + above * t
-            let xs = crossingsAt y
-            Assert.That(xs, Is.Not.Empty, sprintf "outline should have an east-side edge at y=%.0f" y)
-            let nearest = xs |> List.minBy (fun x -> abs (x - edgeX))
-            Assert.That(
-                abs (nearest - edgeX),
-                Is.LessThan 2.0,
-                sprintf
-                    "stem's east edge should sit at x=%.1f at y=%.0f (%.0f above the join), got %.1f — the stem is tapering into the join"
-                    edgeX y (above * t) nearest
-            )
+            for above in [ 2.0; 4.0; 6.0 ] do
+                let y = joinY + above * t
+                let xs = crossingsAt y
+                Assert.That(xs, Is.Not.Empty, sprintf "outline should have an east-side edge at y=%.0f (constant_offset=%b)" y constantOffset)
+                let nearest = xs |> List.minBy (fun x -> abs (x - edgeX))
+                Assert.That(
+                    abs (nearest - edgeX),
+                    Is.LessThan 2.0,
+                    sprintf
+                        "stem's east edge should sit at x=%.1f at y=%.0f (%.0f above the join, constant_offset=%b), got %.1f — the stem is tapering into the join"
+                        edgeX y (above * t) constantOffset nearest
+                )
 
     [<Test>]
     member _.CuspGlyphs_AreSingleStrokes() =

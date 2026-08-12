@@ -760,7 +760,10 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             let isReversal = abs bend > 3.0 // Approx 172 degrees.
 
             if isSharperThanRight && (isOuterBend || isReversal) then
-                // REVERT: Use two points at the same location (the miter point) for sharp corners
+                // Outer bend (or full reversal): a true miter would spike far out, so
+                // chamfer it. Both points still sit exactly on their own edge line (a
+                // distance dist*sqrt2 at 45 degrees to the perpendicular has component
+                // dist along it), so neither edge is bent by the bevel.
                 [ { pt = segmentAddPolar seg (this.maybeAlign th1 - angle / 2.0) (dist * sqrt 2.0)
                     ty = newType
                     th_in = Some lastSeg.tangentEnd
@@ -773,8 +776,29 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     th_out = Some seg.tangentStart
                     isJoint = false
                     label = None } ]
+            elif isSharperThanRight then
+                // Inner side of a sharp corner. There is no single point that belongs to
+                // both offset edges here: a bisector miter at dist/cos(alpha) lands off
+                // both of them (and off them badly once clamped to a chord length) —
+                // this is what tapered '5's stem into its acute bowl join when
+                // constant_offset is off (the sampled outline path's emitAtBezPt has the
+                // same fix; see the comment there). So don't invent a join point: end
+                // the incoming edge where it really ends, start the outgoing edge where
+                // it really starts, and let the two bodies overlap.
+                [ { pt = segmentAddPolar seg th1 dist
+                    ty = newType
+                    th_in = Some lastSeg.tangentEnd
+                    th_out = None
+                    isJoint = false
+                    label = None }
+                  { pt = segmentAddPolar seg th2 dist
+                    ty = newType
+                    th_in = None
+                    th_out = Some seg.tangentStart
+                    isJoint = false
+                    label = None } ]
             else
-                // 90 degree corners (and shallower/inner) are sharp miters (single knot)
+                // 90 degree corners (and shallower) are sharp miters (single knot)
                 let offset = min (min (dist / cos alpha) seg.seg_ch) lastSeg.seg_ch
                 let sharpPt = addPolarContrast seg.X seg.Y (th1 + alpha) offset
 

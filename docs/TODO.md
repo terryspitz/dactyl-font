@@ -10,7 +10,6 @@
 - move outline point inward only
 - improve serifs
 - fix italic 8
-- correct tight bend in '5'
 - render animation
 - try merging with https://magenta.tensorflow.org/svg-vae
 - calculate kerning
@@ -31,11 +30,12 @@
 **DONE: Implemented Features**
 - `K` (kink) marker in the glyph language: a corner whose tangents are left free, 
   for '5', '3' and 'm'.
-- Correct outlines through sharp corners: the inner side of an acute corner now ends
-  each offset edge on its own stroke and lets the nonzero fill union them, instead of
-  a bisector miter that landed off both edges and tapered '5's stem into its bowl.
-  Also fixed the spike at near-180-degree corners and body samples doubling back
-  behind a corner miter.
+- Correct outlines through sharp corners, on both outline-building paths (the sampled
+  default path and the segment-based path used when `constant_offset` is off or with
+  Spiro/Spline2): the inner side of an acute corner now ends each offset edge on its
+  own stroke and lets the nonzero fill union them, instead of a bisector miter that
+  landed off both edges and tapered '5's stem into its bowl. Also fixed the spike at
+  near-180-degree corners and body samples doubling back behind a corner miter.
 - optical corrections from https://www.typography.com/blog/typographic-illusions: `overshoot` (round and pointed extremes project past the flat guides) and `balance` (crossbars and waists sit above the geometric half height)
 - add documentation links
 - add punctuation chars
