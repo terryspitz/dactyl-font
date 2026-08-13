@@ -20,9 +20,16 @@
 // is reset).
 
 // Only touch a fraction of axes, and bias sampled values toward the centre
-// (nudge, don't reroll) so extreme/rare effects don't stack up.
-export const RANDOMIZE_PROBABILITY = 0.35
-export const RANDOMIZE_SPREAD = 0.3
+// (nudge, don't reroll) so extreme/rare effects don't stack up. Shared by the
+// sidebar "Randomize" button and per-glyph mode. Kept centre-biased
+// (triangular, see randomizeAxes below) rather than sampling uniformly: with
+// ~15 eligible axes, a high enough touch probability already means most
+// glyphs get several axes changed at once, and letting *all* of those land
+// near the extremes of their range simultaneously (rather than mostly-near-
+// centre with occasional bigger swings) reliably produces broken/illegible
+// glyphs — self-intersecting outlines the spline solver can't make sense of.
+export const RANDOMIZE_PROBABILITY = 0.55
+export const RANDOMIZE_SPREAD = 0.45
 
 // Categories never randomised: experimental axes are half-finished and debug
 // axes are view options, not design choices.
