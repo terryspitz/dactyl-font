@@ -3,7 +3,7 @@
   <!--This is a temporary file used by Fable to restore dependencies.
 If you see this file in your project, you can delete it safely-->
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>spline_research</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
