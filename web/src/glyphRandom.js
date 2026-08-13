@@ -20,22 +20,16 @@
 // is reset).
 
 // Only touch a fraction of axes, and bias sampled values toward the centre
-// (nudge, don't reroll) so extreme/rare effects don't stack up. Used by the
-// sidebar "Randomize" button, which is picking one overall family look.
-export const RANDOMIZE_PROBABILITY = 0.35
-export const RANDOMIZE_SPREAD = 0.3
-
-// Per-glyph mode wants each character to read as plainly, individually
-// different, not a gentle nudge to the family look — so it touches axes more
-// often and with a wider spread than the sidebar button. It keeps the same
-// centre-biased (triangular) distribution rather than sampling uniformly:
-// with ~15 eligible axes, a high enough touch probability already means most
+// (nudge, don't reroll) so extreme/rare effects don't stack up. Shared by the
+// sidebar "Randomize" button and per-glyph mode. Kept centre-biased
+// (triangular, see randomizeAxes below) rather than sampling uniformly: with
+// ~15 eligible axes, a high enough touch probability already means most
 // glyphs get several axes changed at once, and letting *all* of those land
 // near the extremes of their range simultaneously (rather than mostly-near-
 // centre with occasional bigger swings) reliably produces broken/illegible
 // glyphs — self-intersecting outlines the spline solver can't make sense of.
-export const PER_GLYPH_RANDOMIZE_PROBABILITY = 0.55
-export const PER_GLYPH_RANDOMIZE_SPREAD = 0.45
+export const RANDOMIZE_PROBABILITY = 0.55
+export const RANDOMIZE_SPREAD = 0.45
 
 // Categories never randomised: experimental axes are half-finished and debug
 // axes are view options, not design choices.
@@ -78,24 +72,14 @@ export function glyphSeedFor(seed, codePoint, occurrence = 0) {
 ///            per-glyph mode passes the current axes (so the sliders still
 ///            drive the overall look).
 /// `rand`     () => [0, 1) source, e.g. Math.random or mulberry32(seed).
-/// `options.probability` chance [0, 1) each axis is touched at all (default
-///            RANDOMIZE_PROBABILITY).
-/// `options.spread`      offset amplitude as a fraction of the axis's full
-///            range, for touched continuous axes — sampled with a triangular
-///            distribution centred on `centre` either way, so most touched
-///            draws are a moderate nudge and only occasionally a big swing
-///            (default RANDOMIZE_SPREAD). Checkboxes have no "spread" to
-///            widen; a touched checkbox is always a 50/50 coin-flip, so
-///            `probability` alone controls how often they leave `centre`.
-export function randomizeAxes(base, centre, controls, rand, skippedAxes = [], options = {}) {
-  const { probability = RANDOMIZE_PROBABILITY, spread = RANDOMIZE_SPREAD } = options
+export function randomizeAxes(base, centre, controls, rand, skippedAxes = []) {
   const next = { ...base }
   controls.forEach(ctrl => {
     if (SKIPPED_CATEGORIES.includes(ctrl.category)) return
     if (skippedAxes.includes(ctrl.name)) return
 
     next[ctrl.name] = centre[ctrl.name]
-    if (rand() > probability) return
+    if (rand() > RANDOMIZE_PROBABILITY) return
 
     if (ctrl.type_ === 'checkbox') {
       next[ctrl.name] = rand() > 0.5
@@ -103,7 +87,7 @@ export function randomizeAxes(base, centre, controls, rand, skippedAxes = [], op
       const c = centre[ctrl.name] ?? (ctrl.min + ctrl.max) / 2
       const range = ctrl.max - ctrl.min
       // triangular distribution centred on 0: most draws land near `c`
-      const offset = (rand() - rand()) * range * spread
+      const offset = (rand() - rand()) * range * RANDOMIZE_SPREAD
       next[ctrl.name] = Math.min(ctrl.max, Math.max(ctrl.min, c + offset))
     }
   })
@@ -116,10 +100,7 @@ export function randomizeAxes(base, centre, controls, rand, skippedAxes = [], op
 /// font export.
 export function glyphAxes(char, seed, axes, controls, occurrence = 0) {
   const rand = mulberry32(glyphSeedFor(seed, char.codePointAt(0), occurrence))
-  return randomizeAxes(axes, axes, controls, rand, PER_GLYPH_SKIPPED_AXES, {
-    probability: PER_GLYPH_RANDOMIZE_PROBABILITY,
-    spread: PER_GLYPH_RANDOMIZE_SPREAD,
-  })
+  return randomizeAxes(axes, axes, controls, rand, PER_GLYPH_SKIPPED_AXES)
 }
 
 /// Build the parallel (chars, axesList) arrays the F# API expects for

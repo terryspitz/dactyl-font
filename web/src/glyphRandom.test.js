@@ -7,8 +7,7 @@ import {
   buildGlyphAxes,
   buildPerGlyphTextAxes,
   PER_GLYPH_SKIPPED_AXES,
-  RANDOMIZE_SPREAD,
-  PER_GLYPH_RANDOMIZE_PROBABILITY,
+  RANDOMIZE_PROBABILITY,
 } from './glyphRandom'
 
 // Stand-in for the Fable-generated controlDefinitions.
@@ -118,31 +117,6 @@ describe('randomizeAxes', () => {
     expect(changed).toBe(true)
   })
 
-  it('options.spread widens touched values beyond the default', () => {
-    const n = 300
-    const spanOf = vals => Math.max(...vals) - Math.min(...vals)
-    const narrow = Array.from({ length: n }, (_, s) =>
-      randomizeAxes(axes, axes, controls, mulberry32(s), [], { probability: 1, spread: RANDOMIZE_SPREAD }).weight
-    )
-    const wide = Array.from({ length: n }, (_, s) =>
-      randomizeAxes(axes, axes, controls, mulberry32(s), [], { probability: 1, spread: RANDOMIZE_SPREAD * 2 }).weight
-    )
-    expect(spanOf(wide)).toBeGreaterThan(spanOf(narrow))
-  })
-
-  it('a raised probability makes checkboxes track centre less', () => {
-    const stroked = { ...axes, stroked: true }
-    const n = 400
-    const fractionTrue = probability => {
-      const out = Array.from({ length: n }, (_, s) =>
-        randomizeAxes(stroked, stroked, controls, mulberry32(s), [], { probability }).stroked
-      )
-      return out.filter(Boolean).length / n
-    }
-    // With centre.stroked = true, a low touch-probability leaves most glyphs
-    // stuck on `true`; a high one pulls the average back toward an even split.
-    expect(fractionTrue(0.35)).toBeGreaterThan(fractionTrue(0.7))
-  })
 })
 
 describe('glyphAxes', () => {
@@ -157,21 +131,21 @@ describe('glyphAxes', () => {
     expect(new Set(rendered).size).toBeGreaterThan(letters.length / 2)
   })
 
-  it('uses the bolder per-glyph tuning, not the sidebar button\'s gentle nudge', () => {
-    // Regression guard: per-glyph mode used to reuse RANDOMIZE_PROBABILITY /
-    // RANDOMIZE_SPREAD, which mostly just tracked the current sidebar value
-    // and only nudged it slightly, giving repeated/adjacent characters barely
-    // visible differences.
+  it('gives repeated occurrences of one character real variety, not a faint nudge', () => {
+    // Regression guard: this used to reuse a much gentler tuning that mostly
+    // just tracked the current sidebar value, giving repeated/adjacent
+    // characters barely visible differences.
     const n = 300
     const occurrences = Array.from({ length: n }, (_, i) => glyphAxes('5', 1, axes, controls, i))
     const weightRange = Math.max(...occurrences.map(a => a.weight)) - Math.min(...occurrences.map(a => a.weight))
     const fullWeightRange = controls.find(c => c.name === 'weight').max - controls.find(c => c.name === 'weight').min
-    expect(weightRange).toBeGreaterThan(fullWeightRange * RANDOMIZE_SPREAD)
+    // A handful of samples should already cover a large chunk of the full range.
+    expect(weightRange).toBeGreaterThan(fullWeightRange * 0.5)
 
     // axes.stroked is false, so the expected fraction landing true is
     // roughly probability * 0.5 (touched half the time it's a 50/50 flip).
     const strokedFraction = occurrences.filter(a => a.stroked).length / n
-    const expectedFraction = PER_GLYPH_RANDOMIZE_PROBABILITY * 0.5
+    const expectedFraction = RANDOMIZE_PROBABILITY * 0.5
     expect(strokedFraction).toBeGreaterThan(expectedFraction - 0.15)
     expect(strokedFraction).toBeLessThan(expectedFraction + 0.15)
   })
