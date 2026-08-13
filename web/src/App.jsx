@@ -1894,8 +1894,15 @@ function App() {
                 <strong>Key:</strong> y: (t)op, (x)-height, (h)alf, (b)ottom, (d)escender, (o)ffset in, (e)xtended out. <br />
                 x: (l)eft, (c)enter, (r)ight, (w)ide. Solo point → dot. <br />
                 Dirs: N,S,E,W. Lines: (-) straight, (~) curve. Brackets mean 'fit this coordinate instead'. <br />
-                K: corner/kink (breaks tangent continuity, e.g. acute joins). j: interior joint (suppresses end caps). <br />
-                Repeats average coordinates (e.g. "bt"="h"); a digit repeats the letter before it, so "b2t"="bbt" and "r4c"="rrrrc".
+                K: corner/kink. j: interior joint (suppresses end caps). <br />
+                Repeats average coordinates (e.g. "bt"="h"); a digit repeats the letter before it, so "b2t"="bbt" and "r4c"="rrrrc". <br />
+                <a
+                  href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Full glyph definition docs
+                </a>
               </div>
             </div>
           )}
