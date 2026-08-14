@@ -776,38 +776,56 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     th_out = Some seg.tangentStart
                     isJoint = false
                     label = None } ]
-            elif isSharperThanRight then
-                // Inner side of a sharp corner. There is no single point that belongs to
-                // both offset edges here: a bisector miter at dist/cos(alpha) lands off
-                // both of them (and off them badly once clamped to a chord length) —
-                // this is what tapered '5's stem into its acute bowl join when
-                // constant_offset is off (the sampled outline path's emitAtBezPt has the
-                // same fix; see the comment there). So don't invent a join point: end
-                // the incoming edge where it really ends, start the outgoing edge where
-                // it really starts, and let the two bodies overlap.
-                [ { pt = segmentAddPolar seg th1 dist
-                    ty = newType
-                    th_in = Some lastSeg.tangentEnd
-                    th_out = None
-                    isJoint = false
-                    label = None }
-                  { pt = segmentAddPolar seg th2 dist
-                    ty = newType
-                    th_in = None
-                    th_out = Some seg.tangentStart
-                    isJoint = false
-                    label = None } ]
             else
-                // 90 degree corners (and shallower) are sharp miters (single knot)
-                let offset = min (min (dist / cos alpha) seg.seg_ch) lastSeg.seg_ch
-                let sharpPt = addPolarContrast seg.X seg.Y (th1 + alpha) offset
+                // Inner (concave) side. Both edges are offset by the same dist here, so the
+                // bisector miter at dist/cos(alpha) *is* the intersection of the two offset
+                // edge lines — the vertex of the union the two stroke bodies actually lay
+                // down, and the right answer wherever both edges really are straight (it is
+                // what keeps 'z's diagonal full width into its bars). Clamping it back along
+                // the bisector to an adjacent chord pulls that vertex in toward the spine and
+                // tapers the stroke, which is what narrowed '5's stem into its acute bowl
+                // join — so instead only take the miter on a sharp bend when both edges
+                // really are straight, i.e. neither adjacent segment turns along its length.
+                // The miter is found by extrapolating the two *tangent* lines, so as soon as
+                // an edge curves away the intersection sits off the real offset edge and
+                // outside the stroke, the further out the sharper the bend: that is what
+                // collapses the cusped waist of '3' and what tapered '5's stem into its
+                // acute bowl join. Bevel there instead — end each edge at its own
+                // perpendicular foot and let the two bodies overlap, which the nonzero fill
+                // rule unions into the ink a stroke of this width actually lays down.
+                // The sampled outline path's emitAtBezPt does the same; see the comment there.
+                let isStraight (s: Segment) = abs (norm (s.tangentEnd - s.tangentStart)) < 1e-3
+                let bothEdgesStraight = isStraight lastSeg && isStraight seg
+                let mitre = dist / cos alpha
 
-                [ { pt = sharpPt
-                    ty = newType
-                    th_in = Some lastSeg.tangentEnd
-                    th_out = Some seg.tangentStart
-                    isJoint = false
-                    label = None } ]
+                if isSharperThanRight && not bothEdgesStraight then
+                    [ { pt = segmentAddPolar seg th1 dist
+                        ty = newType
+                        th_in = Some lastSeg.tangentEnd
+                        th_out = None
+                        isJoint = false
+                        label = None }
+                      { pt = segmentAddPolar seg th2 dist
+                        ty = newType
+                        th_in = None
+                        th_out = Some seg.tangentStart
+                        isJoint = false
+                        label = None } ]
+                else
+                    // 90 degree corners (and shallower) stay clamped to the chord lengths, so
+                    // a short adjacent segment can't be overshot.
+                    let offset =
+                        if isSharperThanRight then mitre
+                        else min (min mitre seg.seg_ch) lastSeg.seg_ch
+
+                    let sharpPt = addPolarContrast seg.X seg.Y (th1 + alpha) offset
+
+                    [ { pt = sharpPt
+                        ty = newType
+                        th_in = Some lastSeg.tangentEnd
+                        th_out = Some seg.tangentStart
+                        isJoint = false
+                        label = None } ]
         | SpiroPointType.Right ->
             let t = Some seg.tangentStart
 
@@ -1620,47 +1638,48 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                             let p1 = addPolarContrast bx by th1 wIn
                             let p2 = addPolarContrast bx by th2 wOut
 
-                            if isSharperThanRight then
-                                // Inner side of a sharp corner. There is no single point that
-                                // belongs to both edges here: a bisector miter at
-                                // w/cos(bend/2) lands off both of them (and off them badly
-                                // once clamped), which is what tapered 5's stem into its acute
-                                // bowl join, and the intersection of the two tangent *lines*
-                                // overshoots wherever the outgoing edge curves away — on 5 it
-                                // lands 100 units above anything the bowl ever reaches.
-                                //
-                                // So don't invent a join point: end the incoming edge where it
-                                // really ends, start the outgoing edge where it really starts,
-                                // and let the two bodies overlap. The nonzero fill rule unions
-                                // them, which is exactly the ink a stroke of this width lays
-                                // down, and both edges stay true to their own stroke.
-                                knots.Add(plainKnot p1)
-                                knots.Add(plainKnot p2)
+                            // Inner (concave) side, at any bend: the two offset edges do meet,
+                            // and the exact intersection of their lines is the vertex of the
+                            // union the two stroke bodies actually lay down. Taking the
+                            // intersection keeps each edge parallel to its own stroke right up
+                            // to that vertex, unlike a bisector miter at w/cos(bend/2), which
+                            // drifts off both once contrast makes the offset non-uniform and —
+                            // once clamped along the bisector to a chord length — pulls the
+                            // vertex back toward the spine, tapering 5's stem into its acute
+                            // bowl join. Clamp each edge *along itself* instead, so a short or
+                            // curving-away segment shortens the edge rather than bending it.
+                            let d1x, d1y = cos (bp.th_in + dTh), sin (bp.th_in + dTh)
+                            let d2x, d2y = cos (bp.th_out + dTh), sin (bp.th_out + dTh)
+                            let det = -d1x * d2y + d2x * d1y
+
+                            if abs det < 1e-9 then
+                                // Edges parallel: no intersection to find.
+                                knots.Add(plainKnot (addPolarContrast bx by th1 ((wIn + wOut) / 2.0)))
                             else
-                                // Gentle corner: the two offset edges do meet, and the exact
-                                // intersection of their lines keeps each edge parallel to its
-                                // own stroke right up to the vertex (a bisector miter drifts
-                                // off both once contrast makes the offset non-uniform). Clamp
-                                // each edge *along itself* to the arc length available on its
-                                // side, so a short segment can't be overshot.
-                                let d1x, d1y = cos (bp.th_in + dTh), sin (bp.th_in + dTh)
-                                let d2x, d2y = cos (bp.th_out + dTh), sin (bp.th_out + dTh)
-                                let det = -d1x * d2y + d2x * d1y
+                                let dx, dy = p2.x - p1.x, p2.y - p1.y
+                                let s = (-dx * d2y + d2x * dy) / det
+                                let u = (d1x * dy - d1y * dx) / det
 
-                                if abs det < 1e-9 then
-                                    // Edges parallel: no intersection to find.
-                                    knots.Add(plainKnot (addPolarContrast bx by th1 ((wIn + wOut) / 2.0)))
+                                let limIn, limOut =
+                                    if isClosed then totalLen, totalLen
+                                    else
+                                        let at = cumLenAtBez.[min i segCount]
+                                        max at 1e-6, max (totalLen - at) 1e-6
+
+                                // On a sharp bend the vertex is found by extrapolating the two
+                                // *tangent* lines, so it only lands on the real offset edges
+                                // while both of those edges are straight. As soon as one curves
+                                // away the intersection sits off it and outside the stroke, the
+                                // further out the sharper the bend — 5's stem into its acute
+                                // bowl join, 3's cusped waist. Bevel there instead: end each
+                                // edge at its own perpendicular foot and let the bodies overlap.
+                                let straightIn = abs (norm (bp.th_in - prev.th_out)) < 1e-3
+                                let straightOut = abs (norm (nxt.th_in - bp.th_out)) < 1e-3
+
+                                if isSharperThanRight && not (straightIn && straightOut) then
+                                    knots.Add(plainKnot p1)
+                                    knots.Add(plainKnot p2)
                                 else
-                                    let dx, dy = p2.x - p1.x, p2.y - p1.y
-                                    let s = (-dx * d2y + d2x * dy) / det
-                                    let u = (d1x * dy - d1y * dx) / det
-
-                                    let limIn, limOut =
-                                        if isClosed then totalLen, totalLen
-                                        else
-                                            let at = cumLenAtBez.[min i segCount]
-                                            max at 1e-6, max (totalLen - at) 1e-6
-
                                     let sc = max -limIn (min limIn s)
                                     let uc = max -limOut (min limOut u)
                                     let q1 = { x = p1.x + sc * d1x; y = p1.y + sc * d1y; x_fit = false; y_fit = false }

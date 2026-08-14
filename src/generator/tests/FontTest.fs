@@ -78,17 +78,16 @@ type FontTests() =
         Assert.That(svgStr, Does.Contain("M "), "SVG should contain a moveto")
 
         // A correct V outline has a closed path. Count 'C' and 'L' commands.
-        // The sharp inner corner at BC is 8 commands, not 7: offsetSegment now ends
-        // the incoming edge at its own true endpoint and starts the outgoing edge at
-        // its own true endpoint (see the comment on offsetSegment's Corner case) rather
-        // than a single bisector-miter point, so there's one more line segment
-        // (the short connector between those two true endpoints) than before.
+        // Both of V's strokes are straight, so the sharp inner corner at BC resolves to a
+        // single miter knot — the intersection of the two offset edges — and stays at 7
+        // commands. (A sharp inner corner between *curved* edges bevels into two knots
+        // instead; see offsetSegment's Corner case.)
         let commands = svgStr.Split(' ') |> Array.filter (fun s -> s = "L" || s = "C")
 
         Assert.That(
             commands,
-            Has.Length.EqualTo(8),
-            sprintf "Expected 8 path commands for v outline, got %d in: %s" commands.Length svgStr
+            Has.Length.EqualTo(7),
+            sprintf "Expected 7 path commands for v outline, got %d in: %s" commands.Length svgStr
         )
 
     [<Test>]
@@ -1225,6 +1224,55 @@ type CornerOutlineTests() =
                         "stem's east edge should sit at x=%.1f at y=%.0f (%.0f above the join, constant_offset=%b), got %.1f — the stem is tapering into the join"
                         edgeX y (above * t) constantOffset nearest
                 )
+
+    [<Test>]
+    member _.ZGlyph_OutlineDoesNotCrossItself() =
+        // 'z' is three straight strokes meeting at two acute corners. Both edges of each
+        // corner really are straight, so their offset lines do meet and the inner side
+        // resolves to that single meeting point. Ending the two edges at their own
+        // perpendicular feet instead cuts the corner: the incoming edge stops short and
+        // dives inside the bar it is joining, so the contour crosses its own bar edge —
+        // a spike and a notch at each corner, and a diagonal thinner than the stroke.
+        //
+        // Checked on both outline-building paths — the sampled/constant-offset path
+        // (default; emitAtBezPt's Corner case) and the segment-based path
+        // (constant_offset=false; offsetSegment's Corner case) — since each has its own
+        // independent implementation of the same corner geometry.
+        for constantOffset in [ true; false ] do
+            let axes = { Axes.DefaultAxes with constant_offset = constantOffset }
+            let font = Font.Font(axes)
+
+            let pts =
+                match font.CharToOutline 'z' with
+                | Curve(knots, _) -> knots |> List.map (fun k -> k.pt.x, k.pt.y) |> Array.ofList
+                | e -> failwithf "expected a single Curve outline for 'z' (constant_offset=%b), got %A" constantOffset e
+
+            let n = pts.Length
+
+            // Do two *open* segments properly cross? Touching at a shared endpoint doesn't count.
+            let crosses (ax, ay) (bx, by) (cx, cy) (dx, dy) =
+                let side (px, py) (qx, qy) (rx, ry) = (qx - px) * (ry - py) - (qy - py) * (rx - px)
+                let d1 = side (ax, ay) (bx, by) (cx, cy)
+                let d2 = side (ax, ay) (bx, by) (dx, dy)
+                let d3 = side (cx, cy) (dx, dy) (ax, ay)
+                let d4 = side (cx, cy) (dx, dy) (bx, by)
+                d1 * d2 < 0.0 && d3 * d4 < 0.0
+
+            for i in 0 .. n - 1 do
+                // j starts at i+2 so neighbouring segments (which share a vertex) are skipped,
+                // and the last segment is skipped for i=0 since it wraps back to vertex 0.
+                for j in i + 2 .. n - 1 do
+                    if not (i = 0 && j = n - 1) then
+                        let a, b = pts.[i], pts.[(i + 1) % n]
+                        let c, d = pts.[j], pts.[(j + 1) % n]
+
+                        Assert.That(
+                            crosses a b c d,
+                            Is.False,
+                            sprintf
+                                "'z' outline crosses itself (constant_offset=%b): %A-%A crosses %A-%A — an acute corner is cutting into its own stroke"
+                                constantOffset a b c d
+                        )
 
     [<Test>]
     member _.CuspGlyphs_AreSingleStrokes() =
