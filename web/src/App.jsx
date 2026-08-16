@@ -169,8 +169,8 @@ function App() {
     return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom, generate: zoom }
   })
   const [layerVisibility, setLayerVisibility] = useState({
-    spiro: true,
-    spline2: true,
+    spiro: false,
+    spline2: false,
     dspline: true,
     guides: true,
     knots: true,
@@ -2621,35 +2621,6 @@ function App() {
               userSelect: 'none'
             }}
           >
-            <div className="legend-item">
-              <input
-                type="checkbox"
-                checked={layerVisibility.spiro}
-                onChange={e => setLayerVisibility(prev => ({ ...prev, spiro: e.target.checked }))}
-              />
-              <span className="swatch blue"></span>
-              <a href="https://www.levien.com/spiro/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>Spiro</a>
-            </div>
-            <div className="legend-item">
-              <input
-                type="checkbox"
-                checked={layerVisibility.spline2}
-                onChange={e => setLayerVisibility(prev => ({ ...prev, spline2: e.target.checked }))}
-              />
-              <span className="swatch green"></span>
-              <a href="https://raphlinus.github.io/curves/2018/12/21/new-spline.html" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>Spline2</a>
-            </div>
-            <div className="legend-item">
-              <input
-                type="checkbox"
-                checked={layerVisibility.dspline}
-                onChange={e => setLayerVisibility(prev => ({ ...prev, dspline: e.target.checked }))}
-              />
-              <span className="swatch orange"></span>
-              <span>
-                <a href="#" onClick={(e) => { e.preventDefault(); setTabWithUrl('splines'); }} style={{ color: 'inherit', textDecoration: 'underline' }}>DactylSpline</a>
-              </span>
-            </div>
             <div className="legend-item legend-heading">
               <input
                 ref={setDebugMasterRef}
@@ -2710,6 +2681,40 @@ function App() {
                   onChange={e => setGlyphsFilled(e.target.checked)}
                 />
                 Filled
+              </div>
+            </div>
+            <div className="legend-item legend-heading">
+              <strong>Splines</strong>
+            </div>
+            <div className="legend-debug-group">
+              <div className="legend-item">
+                <input
+                  type="checkbox"
+                  checked={layerVisibility.spiro}
+                  onChange={e => setLayerVisibility(prev => ({ ...prev, spiro: e.target.checked }))}
+                />
+                <span className="swatch blue"></span>
+                <a href="https://www.levien.com/spiro/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>Spiro</a>
+              </div>
+              <div className="legend-item">
+                <input
+                  type="checkbox"
+                  checked={layerVisibility.spline2}
+                  onChange={e => setLayerVisibility(prev => ({ ...prev, spline2: e.target.checked }))}
+                />
+                <span className="swatch green"></span>
+                <a href="https://raphlinus.github.io/curves/2018/12/21/new-spline.html" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>Spline2</a>
+              </div>
+              <div className="legend-item">
+                <input
+                  type="checkbox"
+                  checked={layerVisibility.dspline}
+                  onChange={e => setLayerVisibility(prev => ({ ...prev, dspline: e.target.checked }))}
+                />
+                <span className="swatch orange"></span>
+                <span>
+                  <a href="#" onClick={(e) => { e.preventDefault(); setTabWithUrl('splines'); }} style={{ color: 'inherit', textDecoration: 'underline' }}>DactylSpline</a>
+                </span>
               </div>
             </div>
           </div>
