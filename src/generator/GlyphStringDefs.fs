@@ -139,7 +139,11 @@ let glyphMap =
           // vertex above the optical middle. `h8tl4r` is 1/5 along the arm, the point the
           // coordinate grid puts closest to the arm's spine once it is lowered (0.2 units
           // off) — springing from off the spine leaves a spur at hairline weights.
-          'K', "tl-bl tr-h9bl h8tl4rj-br"
+          // Both interior ends are marked `j`: the arm's lands on the stem, so the
+          // geometric heuristic already suppresses its cap while the `joints` axis is on,
+          // but with that axis off the marker is what stops a serif bracket (or bulb)
+          // sprouting out through the far side of the stem.
+          'K', "tl-bl tr-h9blj h8tl4rj-br"
           'k', "tl-bl xb2l-xcr x2bc3lj-bcr"
           'L', "tl-bl-br"
           'l', "tl-xbl~bcW"
