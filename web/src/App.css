@@ -693,7 +693,7 @@
     border-radius: var(--radius-md);
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
     z-index: 2000;
     text-align: left;
     color: var(--text-primary);
@@ -756,7 +756,7 @@
 .legend-debug-group {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
     padding-left: 16px;
 }
 
