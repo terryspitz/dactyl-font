@@ -130,7 +130,16 @@ let glyphMap =
           'i', "xl-bl ttxl"
           'J', "tl-tr-hr~b(c)~bol"
           'j', "xc-bdc~dlE ttxc"
-          'K', "tl-bl tr-hl hl-br"
+          // Leg springs from the arm (like 'k' below), not from the stem: two strokes
+          // both ending at the stem cap each other perpendicular to their own axis, and
+          // the caps cross inside the stem, leaving the ink between them unfilled — a
+          // white bite out of the junction that widens with weight. `j` buries the leg's
+          // cap inside the arm instead. The junction sits at `h9b` rather than `h`: `h`
+          // takes the `balance` raise meant for crossbars and waists, which lifted this
+          // vertex above the optical middle. `h8tl4r` is 1/5 along the arm, the point the
+          // coordinate grid puts closest to the arm's spine once it is lowered (0.2 units
+          // off) — springing from off the spine leaves a spur at hairline weights.
+          'K', "tl-bl tr-h9bl h8tl4rj-br"
           'k', "tl-bl xb2l-xcr x2bc3lj-bcr"
           'L', "tl-bl-br"
           'l', "tl-xbl~bcW"
