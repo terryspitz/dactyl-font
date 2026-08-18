@@ -840,7 +840,9 @@
         bottom: 0;
         width: 64px;
         min-width: 64px;
-        z-index: 1000;
+        /* Above .progress-bar-container (z-index: 1000) so the pane isn't
+           see-through to the progress bar when both overlap on mobile. */
+        z-index: 1010;
         padding: 24px 12px;
         transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
         overflow-x: hidden;
@@ -905,7 +907,7 @@
         width: 40px;
         height: 40px;
         padding: 0;
-        z-index: 1001;
+        z-index: 1011;
         border-radius: var(--radius-md);
         background: var(--panel-bg);
         color: var(--text-primary);
@@ -917,7 +919,8 @@
         position: absolute;
         inset: 0;
         background: rgba(0, 0, 0, 0.4);
-        z-index: 999;
+        /* Above .progress-bar-container (z-index: 1000) so it dims that too. */
+        z-index: 1005;
     }
 
     .main {
