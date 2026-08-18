@@ -33,6 +33,13 @@
     color: var(--text-primary);
 }
 
+/* Mobile-only controls; hidden on desktop where the sidebar is always
+   fully visible. Shown again inside the max-width:768px media query. */
+.sidebar-toggle,
+.sidebar-backdrop {
+    display: none;
+}
+
 .sidebar-title {
     width: 100%;
     margin-bottom: -10px;
@@ -837,15 +844,19 @@
         background: var(--sidebar-bg);
     }
 
-    .sidebar:hover, .sidebar:focus-within {
+    /* Expansion is driven by the .mobile-open class (toggled on tap via
+       .sidebar-toggle), not :hover/:focus-within — touch devices have no
+       hover, so a hover-only rule left the pane permanently collapsed and
+       its contents unreachable/unscrollable on mobile. */
+    .sidebar.mobile-open {
         width: 300px;
         box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
     }
 
     /* Hide text labels in shrunken sidebar */
-    .sidebar h2, 
+    .sidebar h2,
     .sidebar .sidebar-title,
-    .sidebar .category-header .category-title, 
+    .sidebar .category-header .category-title,
     .sidebar .control-group label,
     .sidebar .value-display,
     .sidebar .category-header span:not(.material-symbols-outlined) {
@@ -855,12 +866,12 @@
         pointer-events: none;
     }
 
-    .sidebar:hover h2,
-    .sidebar:hover .sidebar-title,
-    .sidebar:hover .category-header .category-title,
-    .sidebar:hover .control-group label,
-    .sidebar:hover .value-display,
-    .sidebar:hover .category-header span {
+    .sidebar.mobile-open h2,
+    .sidebar.mobile-open .sidebar-title,
+    .sidebar.mobile-open .category-header .category-title,
+    .sidebar.mobile-open .control-group label,
+    .sidebar.mobile-open .value-display,
+    .sidebar.mobile-open .category-header span {
         opacity: 1;
         pointer-events: auto;
     }
@@ -871,13 +882,38 @@
         padding: 0;
     }
 
-    .sidebar:hover .category-header {
+    .sidebar.mobile-open .category-header {
         justify-content: flex-start;
         padding-left: 0;
     }
 
     .sidebar .material-symbols-outlined {
         font-size: 24px;
+    }
+
+    .sidebar-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        z-index: 1001;
+        border-radius: var(--radius-md);
+        background: var(--panel-bg);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    .sidebar-backdrop {
+        display: block;
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 999;
     }
 
     .main {
