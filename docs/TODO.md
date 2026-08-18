@@ -1,5 +1,9 @@
 
 # TODOs
+- Generalise stroke drawing: replace the `stroked`/`scratches` booleans with a
+  continuous "traces" axis family and a pluggable pen model — see
+  [GeneralisedStrokes.md](GeneralisedStrokes.md), which also covers the artistic
+  axes below.
 - Artistic axes (not yet implemented):
   - **pressure**: stroke width varies with curvature — tighter curves get thicker, straighter segments stay thin (mimics brush pressure). Tried (curvature-from-tangent-samples) but the result looked wrong/noisy; reverted. Needs a smoother curvature estimate.
   - **bounce**: per-glyph random vertical baseline displacement for hand-lettering feel
