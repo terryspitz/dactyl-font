@@ -455,6 +455,10 @@ function App() {
     setOpenCategories(prev => ({ ...prev, [cat]: !prev[cat] }))
   }
 
+  // On mobile the sidebar is collapsed to an icon rail; CSS :hover has no touch
+  // equivalent, so track an explicit open/closed state and toggle it by tap.
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+
   const handleLegendMouseDown = (e) => {
     // Only drag on left click and not on interactive elements inside
     if (e.button !== 0 || e.target.tagName === 'INPUT' || e.target.tagName === 'A') return
@@ -1692,7 +1696,18 @@ function App() {
 
   return (
     <div className="container">
-      <div className="sidebar">
+      <button
+        className="sidebar-toggle"
+        onClick={() => setMobileSidebarOpen(open => !open)}
+        title={mobileSidebarOpen ? 'Close controls' : 'Open controls'}
+        aria-label={mobileSidebarOpen ? 'Close controls' : 'Open controls'}
+      >
+        <span className="material-symbols-outlined">{mobileSidebarOpen ? 'close' : 'menu'}</span>
+      </button>
+      {mobileSidebarOpen && (
+        <div className="sidebar-backdrop" onClick={() => setMobileSidebarOpen(false)} />
+      )}
+      <div className={`sidebar${mobileSidebarOpen ? ' mobile-open' : ''}`}>
         <div className="sidebar-title" dangerouslySetInnerHTML={{ __html: generateTweenSvg("Dactyl", { ...defaultAxes, weight: 35 }) }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flex: '0 0 auto' }}>
           <h2 style={{ margin: 0 }}>Controls</h2>
