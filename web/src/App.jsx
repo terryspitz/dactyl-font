@@ -540,6 +540,7 @@ function App() {
     }
     const onMouseMove = (e) => applyDelta(e.clientY)
     const onTouchMove = (e) => {
+      if (!resizingInputAreaRef.current) return
       applyDelta(e.touches[0].clientY)
       if (e.cancelable) e.preventDefault()
     }
@@ -1693,6 +1694,13 @@ function App() {
     setGlyphSeed(newGlyphSeed())
   }
 
+  // Constant inputs — memoized so this isn't recomputed on every render
+  // (e.g. every slider tick), which was expensive enough to noticeably
+  // delay the browser's touch-scroll response when dragging a slider.
+  const sidebarTitleSvg = useMemo(
+    () => generateTweenSvg("Dactyl", { ...defaultAxes, weight: 35 }),
+    []
+  )
 
   return (
     <div className="container">
@@ -1708,7 +1716,7 @@ function App() {
         <div className="sidebar-backdrop" onClick={() => setMobileSidebarOpen(false)} />
       )}
       <div className={`sidebar${mobileSidebarOpen ? ' mobile-open' : ''}`}>
-        <div className="sidebar-title" dangerouslySetInnerHTML={{ __html: generateTweenSvg("Dactyl", { ...defaultAxes, weight: 35 }) }} />
+        <div className="sidebar-title" dangerouslySetInnerHTML={{ __html: sidebarTitleSvg }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flex: '0 0 auto' }}>
           <h2 style={{ margin: 0 }}>Controls</h2>
           <div className="toolbar" style={{ display: 'flex', gap: '5px' }}>
