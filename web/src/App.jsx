@@ -540,6 +540,7 @@ function App() {
     }
     const onMouseMove = (e) => applyDelta(e.clientY)
     const onTouchMove = (e) => {
+      if (!resizingInputAreaRef.current) return
       applyDelta(e.touches[0].clientY)
       if (e.cancelable) e.preventDefault()
     }
