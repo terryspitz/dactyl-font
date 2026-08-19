@@ -236,14 +236,18 @@ rendering, so it deserves its own change and its own snapshot review.
 
 ## 5. UI
 
-The `artistic` category already holds 12 controls in a flat scrolling list;
-adding 4 trace axes and 3 pen axes would take it to ~19.  Three cheap changes
-keep it usable, one optional one makes it pleasant.
+The sidebar holds **44 axes in 5 collapsible sections** today, and `artistic` is
+already the largest at 13.  These changes remove 2 axes (`stroked`,
+`scratches`) and add 8 (4 `trace_*`, plus `pressure`, `ink_spread`, `gravity`,
+`bounce`), so `artistic` would reach 19 in one flat scrolling list.  It needs
+restructuring either way; §5.2 is the recommended shape.
 
 ### 5.1 Pen presets (chip row) — *recommended, do this with §3.1*
 
-A row of chips at the top of the **Artistic** category, each applying a named
-bundle of artistic axes and leaving backbone/outline axes alone:
+A row of chips at the very top of the controls list, above the first section —
+a preset is a statement about the whole pen, so it cuts across the groups in
+§5.2 rather than living inside one.  Each chip applies a named bundle of pen
+axes and leaves the backbone and render axes alone:
 
 > `Solid` · `Broad nib` · `Brush` · `Marker` · `Sketch` · `Inline` · `Split nib` · `Ribbon` · `Backscratch`
 
@@ -265,29 +269,65 @@ static member presets =
 The Textures tab already has chip styling (`.proof-chip`, `App.jsx:2217`) to
 reuse.
 
-### 5.2 Sub-groups inside a category
+### 5.2 Retire `artistic`; promote the groups to top level — *recommended*
 
-Let a category collapse into labelled sub-groups so 19 sliders read as five
-short lists:
+The natural instinct is to keep `artistic` as a roof and nest labelled
+sub-groups underneath it.  Sketching both side by side (see
+[the comparison](https://claude.ai/code/artifact/39f7da82-44d5-435e-a8cf-1e79b3a881fa))
+makes the flat option the clear winner: **the accordion is already the
+nesting.**  A second level inside it costs a click on every slider and a new
+field threaded through `Axes.fs` → `Api.fs` → `App.jsx`, and leaves a category
+name that never said what was inside it.
 
-- **Pen** — `weight`, `contrast`, `nib`, `nib_angle`, `pressure`
-- **Ends** — `taper`, `taper_end`, `flare`, `end_bulb`, `serif`, `joint_gap`
-- **Hand** — `wobble`, `roughness`, `ink_spread`, `gravity`, `bounce`
-- **Traces** — `traces`, `trace_spread`, `trace_weight`, `trace_jitter`
-- **Ribbon** — `mobius`
+Dissolve `artistic` and let its groups stand as top-level sections:
 
-Rather than widening the 4-tuple in `Axes.controls` (45 entries to edit), add a
-sibling list and let `Api.getControlDetails` attach a `group` field:
+| section | axes | |
+|---|---|---|
+| **Backbone** | `width`, `height`, `x_height`, `descender_depth`, `spacing`, `leading`, `monospace`, `slant`, `cursive`, `roundedness`, `overshoot`, `balance` | 12, unchanged |
+| **Pen** | `weight`, `contrast`, `nib`, `nib_angle`, `pressure` | 5 |
+| **Ends** | `taper`, `taper_end`, `flare`, `end_bulb`, `serif`, `joint_gap` | 6 |
+| **Hand** | `wobble`, `roughness`, `ink_spread`, `gravity`, `bounce` | 5 |
+| **Traces** | `traces`, `trace_spread`, `trace_weight`, `trace_jitter`, `mobius` | 5 |
+| **Render** | `softness`, `axis_align_caps`, `outline`, `filled` | 4, was `outline` |
+| **Experimental** | *(unchanged)* | 8 |
+| **Debug** | *(unchanged)* | 5 |
 
-```fsharp
-static member groups =
-    [ "Pen",    [ "weight"; "contrast"; "nib"; "nib_angle"; "pressure" ]
-      "Traces", [ "traces"; "trace_spread"; "trace_weight"; "trace_jitter" ]
-      ... ]
-```
+Two things fall out of drawing it, neither of them obvious from the axis list
+alone:
 
-`App.jsx`'s `controlsByCategory` (line 423) gains one more level of grouping;
-render a sub-heading only when a group has more than one control.
+- **`mobius` folds into Traces.**  A "Ribbon" section holding exactly one axis
+  is noise, and "how many ribbons and how they twist" is one idea.
+- **`weight` and `contrast` move into Pen.**  They live in `outline` today, not
+  `artistic` — so under *any* grouping of the artistic axes they would end up
+  separated from `nib` and `pressure`, which is backwards: they are the base of
+  the same half-width term (§1).  Once they leave, `outline` is holding only
+  render switches, hence the rename to **Render**.
+
+#### Cost
+
+Almost nothing, because the section renderer already loops over whatever
+categories it finds:
+
+- `Axes.fs` — a one-word edit per axis line, changing the `category` string in
+  the 4-tuple.  No new list, no new field, no `Api.getControlDetails` change.
+- `App.jsx` — four new entries in `categoryIcons` (line 433) and one line in the
+  `openCategories` initialiser (line 444) so the new sections start closed
+  except **Pen**.  `controlsByCategory` and the rendering below it are untouched.
+- Randomisation and Visual Diffs keep working unchanged: `glyphRandom.js` skips
+  by category name (`SKIPPED_CATEGORIES = ['experimental', 'debug']`), and none
+  of the new names are in that list.
+
+Suggested icons, matching the existing Material Symbols set: `ink_pen` (Pen),
+`line_end` (Ends), `gesture` (Hand), `density_medium` (Traces); `brush` stays
+with Render, `straighten` with Backbone.
+
+#### The one real cost
+
+The collapsed sidebar is a hover-to-expand icon rail, and it goes from **5
+icons to 8**.  There is also no longer a single click that hides every effect at
+once.  Defaulting the four new sections closed except Pen should absorb both —
+but this is the part worth eyeballing on a phone before committing, since the
+rail is the whole mobile navigation.
 
 ### 5.3 Dim inapplicable axes
 
@@ -305,7 +345,7 @@ matters much more once traces exist.
 
 ### 5.4 Stroke preview *(optional, nice)*
 
-A ~120×60 inline SVG at the top of the Artistic panel showing a single S-curve
+A ~120×60 inline SVG at the top of the Pen section showing a single S-curve
 and a 45° bar drawn with the current pen and nothing else.  It updates on every
 slider drag at roughly one glyph's cost, so nib angle, taper, trace spacing and
 jitter are all legible without hunting for a letter that happens to show them.
@@ -336,7 +376,7 @@ no-op.
 |---|---|---|
 | **1** | Extract the `Pen` record (§3.2) — no axis changes | **none** (this is the acceptance test) |
 | **2** | Add the four `trace_*` axes; delete `stroked`, `scratches`, `spiroToLines`, `getStroked`, `getScratches` and the ≥30 thickness clamp | defaults unchanged; two tween rows replaced by four |
-| **3** | UI: preset chips, sub-groups, dimming (§5.1–5.3) | sidebar layout only |
+| **3** | UI: preset chips, retire `artistic` for top-level groups, dimming (§5.1–5.3) | sidebar layout only |
 | **4** | New pen terms: `pressure`, `ink_spread`, `gravity`, and glyph-level `bounce` | new tween rows only, defaults off |
 | **5** | *(optional)* unify `contrast` into `halfWidth` (§4) | real diff, needs its own review |
 
