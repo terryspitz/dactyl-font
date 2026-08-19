@@ -238,3 +238,127 @@ let translateBy dx dy =
             x = p.x + dx }
 
     movePoints shift None
+
+
+/// Everything known about one arc-length sample of a solved spine, handed to the
+/// pen so a width or displacement term can depend on where it is along the
+/// stroke, which way the stroke is heading, how sharply it is turning, and
+/// which of the two edges is being emitted.
+type PenSample =
+    { /// arc length from the start of the curve, in font units
+      s: float
+      /// s as a fraction of the curve's total length
+      sFrac: float
+      /// spine tangent angle at this sample
+      th: float
+      /// signed curvature (1/radius) of the spine here
+      curvature: float
+      /// +1 on the outer edge, -1 on the inner one; lets a term differ per side
+      side: float }
+
+/// A pen is what turns a solved spine into ribbons.  Every artistic axis that
+/// varies along a stroke is a term in one of these functions, so they compose by
+/// construction: width terms multiply, displacement terms add.
+///
+/// Built per curve rather than per font because several terms need the curve's
+/// total arc length (see Pen.ofAxes).
+type Pen =
+    { /// Perpendicular displacement of the spine itself, in font units, paired
+      /// with its slope d(offset)/ds.  The slope is what keeps the offsets
+      /// perpendicular to the *displaced* spine rather than the original one.
+      displace: PenSample -> float * float
+      /// Ribbon half-width before any per-side jitter.  Separate from halfWidth
+      /// because the mobius panels scale this rather than the roughened width.
+      baseHalfWidth: PenSample -> float
+      /// Ribbon half-width as the body edges use it: baseHalfWidth plus any
+      /// per-side jitter.
+      halfWidth: PenSample -> float
+      /// Ribbon twist angle; apparent width scales by |cos twist|.
+      twist: PenSample -> float }
+
+module Pen =
+
+    let private wobbleWavelength = 200.0
+    let private roughnessWavelength = 40.0
+    let private mobiusHalfTwistLen = 300.0
+
+    /// Deterministic pseudo-noise from a few incommensurate sine harmonics, so a
+    /// stroke edge jitters without a repeating pattern.  `side` shifts the phase
+    /// so the two edges jitter independently, giving an uneven width (unlike
+    /// wobble, which displaces the whole spine and keeps the width constant).
+    let noise (sLen: float) (side: float) =
+        let s = sLen + side * 129.0
+        let n1 = sin (2.0 * System.Math.PI * s / roughnessWavelength)
+        let n2 = sin (2.0 * System.Math.PI * s * 2.19 / roughnessWavelength + 1.3)
+        let n3 = sin (2.0 * System.Math.PI * s * 4.73 / roughnessWavelength + 3.1)
+        (n1 + 0.5 * n2 + 0.25 * n3) / 1.75
+
+    /// Number of mobius half-twists over a curve of this length.
+    let halfTwists (mobius: float) (totalLen: float) =
+        max 1 (int (System.Math.Round(totalLen * mobius / mobiusHalfTwistLen)))
+
+    /// Build the pen implied by an axis set, for one curve.
+    ///
+    /// `totalLen` and `isClosed` describe the curve the pen will be run along:
+    /// taper is a fraction of the whole stroke, and wobble fits a whole number of
+    /// cycles into it so the displacement vanishes at open ends (letting caps
+    /// meet the body) and stays continuous around closed ones.
+    let ofAxes (axes: Axes.Axes) (thickness: float) (totalLen: float) (isClosed: bool) : Pen =
+        let PI = System.Math.PI
+        let nib = axes.nib
+        let nibAngle = float axes.nib_angle * PI / 180.0
+        let taper = axes.taper
+        let taperEnd = axes.taper_end
+        let wobble = axes.wobble
+        let roughness = axes.roughness
+        let mobius = axes.mobius
+
+        let wobbleCycles = max 1.0 (System.Math.Round(totalLen / wobbleWavelength))
+
+        // wobble=1.0 displaces the spine by half a stroke-thickness at the peaks.
+        let amp = wobble * thickness * 0.5
+
+        let displace (p: PenSample) =
+            if wobble = 0.0 then
+                0.0, 0.0
+            else
+                let phase = 2.0 * PI * wobbleCycles * p.s / totalLen
+                amp * sin phase, amp * 2.0 * PI * wobbleCycles / totalLen * cos phase
+
+        /// Broad-nib width factor for a stroke running at angle th: 1.0 when the
+        /// stroke is perpendicular to the nib, shrinking toward 0.05 when it runs
+        /// along the nib.  Clamped so the outline never degenerates completely.
+        let nibFactor th = max (1.0 - nib * (1.0 - abs (sin (th - nibAngle)))) 0.05
+
+        let baseHalfWidth (p: PenSample) =
+            let mutable w = thickness
+
+            if nib > 0.0 then
+                w <- w * nibFactor p.th
+
+            if taper > 0.0 && not isClosed then
+                // Brush ends: narrow over the first and last (taper/2) fraction of
+                // the stroke, down to taper_end of full width at the very tips
+                // (taper_end = 0 gives a sharp point).
+                let ramp = 0.5 * taper
+                let rampF = min 1.0 (min p.sFrac (1.0 - p.sFrac) / ramp)
+                w <- w * (taperEnd + (1.0 - taperEnd) * rampF)
+
+            w
+
+        let halfWidth (p: PenSample) =
+            let w = baseHalfWidth p
+            if roughness = 0.0 then w
+            else max (0.15 * thickness) (w + roughness * thickness * 0.4 * noise p.s p.side)
+
+        let twist =
+            if mobius <= 0.0 then
+                fun (_: PenSample) -> 0.0
+            else
+                let n = halfTwists mobius totalLen
+                fun (p: PenSample) -> PI * float n * p.s / totalLen
+
+        { displace = displace
+          baseHalfWidth = baseHalfWidth
+          halfWidth = halfWidth
+          twist = twist }

@@ -1284,15 +1284,10 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     member this.getDactylConstantOffsetOutlines e =
         let fthickness = float thickness
         let nib = axes.nib
-        let nibAngle = float axes.nib_angle * PI / 180.0
         let taper = axes.taper
-        let taperEnd = axes.taper_end
         let wobble = axes.wobble
-        let wobbleWavelength = 200.0
         let roughness = axes.roughness
-        let roughnessWavelength = 40.0
         let mobius = axes.mobius
-        let mobiusHalfTwistLen = 300.0
         // Axes whose width or displacement varies with arc length need interior samples
         // even on straight spine segments.
         let widthVariesAlongStroke = nib > 0.0 || taper > 0.0 || wobble > 0.0 || roughness > 0.0 || mobius > 0.0
@@ -1377,22 +1372,24 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
             let totalLen = max cumLenAtBez.[segCount] 1e-9
 
-            let wobbleCycles = max 1.0 (Math.Round(totalLen / wobbleWavelength))
+            // Every width and displacement term for this curve, in one object.
+            // Built here rather than per font because taper is a fraction of the
+            // whole stroke and wobble fits a whole number of cycles into it.
+            let pen = Pen.ofAxes axes fthickness totalLen isClosed
+
+            /// A sample of this curve, for the pen to evaluate.  `side` only matters
+            /// to per-side terms (roughness); callers that have no side pass 0.
+            let penSample (sLen: float) (th: float) (side: float) =
+                { s = sLen; sFrac = sLen / totalLen; th = th; curvature = 0.0; side = side }
 
             /// Hand-drawn waviness: displace a spine sample perpendicular to its tangent.
-            /// An integer cycle count makes the displacement vanish at open-stroke
-            /// endpoints (so caps fit) and stay continuous around closed curves. The
-            /// tangent is corrected by the displacement slope so offsets remain
-            /// perpendicular to the displaced spine.
+            /// The pen supplies the offset and its slope; the slope corrects the tangent
+            /// so offsets stay perpendicular to the *displaced* spine.
             let displace (x: float, y: float, th: float, sLen: float) =
-                if wobble = 0.0 then
+                let d, slope = pen.displace (penSample sLen th 0.0)
+                if d = 0.0 && slope = 0.0 then
                     (x, y, th, sLen)
                 else
-                    // wobble=1.0 displaces the spine by half a stroke-thickness at the wave peaks.
-                    let amp = wobble * fthickness * 0.5
-                    let phase = 2.0 * PI * wobbleCycles * sLen / totalLen
-                    let d = amp * sin phase
-                    let slope = amp * 2.0 * PI * wobbleCycles / totalLen * cos phase
                     // Offset perpendicular to the tangent: rotate (d, 0) by th + 90° = (-d sin th, d cos th).
                     (x - d * sin th, y + d * cos th, th + atan slope, sLen)
 
@@ -1471,47 +1468,15 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             let hasTrim = startTrim > 1e-9 || endTrim > 1e-9
             let inBody sLen = sLen >= bodyStart - 1e-6 && sLen <= bodyEnd + 1e-6
 
-            /// Broad-nib width factor for a stroke running at angle th: 1.0 when the stroke
-            /// is perpendicular to the nib, shrinking toward 0.05 when it runs along the nib.
-            let nibFactor th = max (1.0 - nib * (1.0 - abs (sin (th - nibAngle)))) 0.05
+            /// Stroke half-width at a given arc length and spine tangent direction,
+            /// before per-side jitter.  Used by the mobius panels, which scale the
+            /// unjittered width.
+            let widthAt (sLen: float) (th: float) = pen.baseHalfWidth (penSample sLen th 0.0)
 
-            /// Stroke half-width at a given arc length and spine tangent direction.
-            let widthAt (sLen: float) (th: float) =
-                let mutable w = fthickness
-
-                if nib > 0.0 then
-                    // Broad-nib pen: the ribbon width is the projection of the nib onto the
-                    // stroke's perpendicular, so strokes along the nib angle nearly vanish.
-                    // Clamp to 5% so the outline never degenerates completely.
-                    w <- w * nibFactor th
-
-                if taper > 0.0 && not isClosed then
-                    // Brush ends: narrow over the first and last (taper/2) fraction of the
-                    // stroke's arc length, down to taper_end of full width at the very tips
-                    // (taper_end = 0 gives a sharp point).
-                    let sFrac = sLen / totalLen
-                    let ramp = 0.5 * taper
-                    let rampF = min 1.0 (min sFrac (1.0 - sFrac) / ramp)
-                    w <- w * (taperEnd + (1.0 - taperEnd) * rampF)
-
-                w
-
-            /// Deterministic pseudo-noise from a few incommensurate sine harmonics, so the
-            /// stroke edge jitters without a repeating pattern. `side` shifts the phase so
-            /// the outer and inner edges jitter independently, giving an uneven width
-            /// (unlike wobble, which displaces the whole spine and keeps a constant width).
-            let roughnessNoise (sLen: float) (side: float) =
-                let s = sLen + side * 129.0
-                let n1 = sin (2.0 * PI * s / roughnessWavelength)
-                let n2 = sin (2.0 * PI * s * 2.19 / roughnessWavelength + 1.3)
-                let n3 = sin (2.0 * PI * s * 4.73 / roughnessWavelength + 3.1)
-                (n1 + 0.5 * n2 + 0.25 * n3) / 1.75
-
-            /// Perturb a half-width with roughness jitter, clamped so the outline never
-            /// collapses to zero or crosses the spine.
-            let roughen (side: float) (sLen: float) (w: float) =
-                if roughness = 0.0 then w
-                else max (0.15 * fthickness) (w + roughness * fthickness * 0.4 * roughnessNoise sLen side)
+            /// Stroke half-width as the body edges use it: widthAt plus roughness
+            /// jitter, which differs per side and so gives an uneven width.
+            let widthAtSide (side: float) (sLen: float) (th: float) =
+                pen.halfWidth (penSample sLen th side)
 
             // Build one side (outer when sign=+1, inner when sign=-1) of the offset polyline.
             // Smooth bezier points emit a single perpendicular offset. Corner bezier points
@@ -1524,7 +1489,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 let knots = System.Collections.Generic.List<Knot>()
 
                 let emitPerpRaw x y th sLen =
-                    let w = widthAt sLen th |> roughen sign sLen
+                    let w = widthAtSide sign sLen th
                     knots.Add(plainKnot (addPolarContrast x y (th + perpAngle) w))
 
                 // Samples outside the trimmed span belong to the receded joint end.
@@ -1545,8 +1510,8 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     if not isCorner then
                         emitPerp bx by (bp.th_in + dTh) sLen
                     else
-                        let wIn  = widthAt sLen (bp.th_in  + dTh) |> roughen sign sLen
-                        let wOut = widthAt sLen (bp.th_out + dTh) |> roughen sign sLen
+                        let wIn  = widthAtSide sign sLen (bp.th_in  + dTh)
+                        let wOut = widthAtSide sign sLen (bp.th_out + dTh)
                         let prev = bezPts.[(i - 1 + n) % n]
                         let nxt  = bezPts.[(i + 1) % n]
                         let prevLen = hypot (bp.x - prev.x) (bp.y - prev.y)
@@ -1697,7 +1662,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             // a ribbon seen alternately from the front and the back (and the panels are
             // ready for per-panel front/back shading later).
             let buildMobiusPanels () =
-                let halfTwists = max 1 (int (Math.Round(totalLen * mobius / mobiusHalfTwistLen)))
+                let halfTwists = Pen.halfTwists mobius totalLen
 
                 let widthMobius sLen th =
                     let theta = PI * float halfTwists * sLen / totalLen
@@ -1847,7 +1812,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 let inner = buildSide -1.0 false |> List.rev
                 [ Curve(outer, true); Curve(inner, true) ]
                 |> List.map this.applySoftCorners
-            elif taper > 0.0 && taperEnd <= 0.0 then
+            elif taper > 0.0 && axes.taper_end <= 0.0 then
                 // Pointed ends: the width shrinks to nothing at the spine endpoints, so
                 // the two sides simply meet there — a pointed-brush lift. No cap geometry.
                 let startPt = plainKnot { x = bezPts.[0].x; y = bezPts.[0].y; x_fit = false; y_fit = false }
