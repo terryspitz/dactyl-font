@@ -9,9 +9,7 @@
 - flare with tangents wrong way round
 - move outline point inward only
 - improve serifs
-- join lines properly, including in m and A
 - fix italic 8
-- correct tight bend in '5'
 - render animation
 - try merging with https://magenta.tensorflow.org/svg-vae
 - calculate kerning
@@ -30,6 +28,17 @@
 - submit curated fonts to dafont and FontSpace for reach
 
 **DONE: Implemented Features**
+- `K` (kink) marker in the glyph language: a corner whose tangents are left free, 
+  for '5', '3' and 'm'.
+- Correct outlines through sharp corners, on both outline-building paths (the sampled
+  default path and the segment-based path used when `constant_offset` is off or with
+  Spiro/Spline2). On the inner side of an acute corner, the two offset edges are joined
+  at their true intersection when both really are straight ('z'), which is no longer
+  clamped back along the bisector to a chord length — that clamp tapered '5's stem into
+  its bowl. Where either edge curves, that intersection would be extrapolated off the
+  real edge and outside the stroke ('3's cusped waist), so each edge instead ends on its
+  own stroke and the nonzero fill unions the overlap. Also fixed the spike at
+  near-180-degree corners and body samples doubling back behind a corner miter.
 - optical corrections from https://www.typography.com/blog/typographic-illusions: `overshoot` (round and pointed extremes project past the flat guides) and `balance` (crossbars and waists sit above the geometric half height)
 - add documentation links
 - add punctuation chars

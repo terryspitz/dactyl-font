@@ -78,12 +78,16 @@ type FontTests() =
         Assert.That(svgStr, Does.Contain("M "), "SVG should contain a moveto")
 
         // A correct V outline has a closed path. Count 'C' and 'L' commands.
+        // Both of V's strokes are straight, so the sharp inner corner at BC resolves to a
+        // single miter knot — the intersection of the two offset edges — and stays at 7
+        // commands. (A sharp inner corner between *curved* edges bevels into two knots
+        // instead; see offsetSegment's Corner case.)
         let commands = svgStr.Split(' ') |> Array.filter (fun s -> s = "L" || s = "C")
 
         Assert.That(
             commands,
             Has.Length.EqualTo(7),
-            sprintf "Expected at 7 path commands for v outline, got %d in: %s" commands.Length svgStr
+            sprintf "Expected 7 path commands for v outline, got %d in: %s" commands.Length svgStr
         )
 
     [<Test>]
@@ -1113,3 +1117,219 @@ type ArtisticAxesTests() =
                 let svg = font.charToSvg ch 0.0 0.0 "black" |> String.concat " "
                 Assert.That(svg, Does.Contain("M "),
                     sprintf "%s outline for '%c' should render" name ch)
+
+[<TestFixture>]
+type CornerOutlineTests() =
+    let metrics = FontMetrics(Axes.DefaultAxes)
+    let fthickness = float Axes.DefaultAxes.weight
+
+    /// Widest excursion of the outline beyond the spine's own bounding box. A corner
+    /// miter should stay within a stroke width or two; a degenerate one spikes far out.
+    let outlineOvershoot (font: Font.Font) (def: string) =
+        let elem = GlyphStringDefs.rawDefToElem metrics def false
+        let sl, sr, sb, st = bounds elem
+        let ol, orr, ob, ot = bounds (font.getOutline elem)
+        List.max [ sl - ol; orr - sr; sb - ob; ot - st ]
+
+    [<Test>]
+    member _.CuspOutline_DoesNotSpike_OnNearReversal() =
+        // A `K` cusp where the curve doubles back on itself is a ~180 degree bend.
+        // norm() maps that to +PI or -PI arbitrarily, so the corner can be classified
+        // as an inner bend, whose miter distance w/cos(bend/2) is unbounded there — it
+        // used to shoot a spike right out of the glyph (seen on a '3' waisted at the
+        // centre). Both sides must wrap the tip instead.
+        for constantOffset in [ true; false ] do
+            let font =
+                Font.Font(
+                    { Axes.DefaultAxes with
+                        dactyl_spline = true
+                        outline = true
+                        constant_offset = constantOffset }
+                )
+
+            // Two arcs meeting head-on at the middle: in heading West, out heading East.
+            let overshoot = outlineOvershoot font "tol~t(c)~(th)r~hcK~(bh)r~b(c)~bol"
+
+            Assert.That(
+                overshoot,
+                Is.LessThan(1.55 * fthickness),
+                sprintf
+                    "cusp outline should stay near the spine (constant_offset=%b), overshot by %.1f"
+                    constantOffset
+                    overshoot
+            )
+
+    [<Test>]
+    member _.CuspGlyphs_RenderWithoutFallback() =
+        // '3' and '5' are now single strokes joined at a `K` kink; a solver or outline
+        // failure would fall back to the red error dot.
+        for axes in
+            [ Axes.DefaultAxes
+              { Axes.DefaultAxes with weight = 60 }
+              { Axes.DefaultAxes with serif = 30 }
+              { Axes.DefaultAxes with constant_offset = false }
+              { Axes.DefaultAxes with dactyl_spline = false } ] do
+            let font = Font.Font(axes)
+            for ch in [ '3'; '5'; 'm' ] do
+                let svg = font.charToSvg ch 0.0 0.0 "black" |> String.concat " "
+                Assert.That(svg, Does.Contain("M "), sprintf "'%c' should render" ch)
+                Assert.That(svg, Does.Not.Contain("stroke:#e00000"),
+                    sprintf "'%c' should not fall back to the error dot" ch)
+
+    [<Test>]
+    member _.AcuteJoin_DoesNotTaperTheIncomingStroke() =
+        // '5' runs its stem into its bowl at an acute kink. The stem's east edge must
+        // stay dead straight all the way down to the join: a bisector miter there lands
+        // off both offset edges (further off the sharper the corner, and further still
+        // once clamped), which sloped this edge inwards and visibly tapered the stem.
+        //
+        // Checked on both outline-building paths — the sampled/constant-offset path
+        // (default; emitAtBezPt's Corner case) and the segment-based path
+        // (constant_offset=false; offsetSegment's Corner case) — since they have their
+        // own, independent implementations of the same corner geometry and the taper
+        // bug was fixed in each separately.
+        for constantOffset in [ true; false ] do
+            let axes = { Axes.DefaultAxes with constant_offset = constantOffset }
+            let font = Font.Font(axes)
+            let metrics = FontMetrics(axes)
+            let t = metrics.thickness
+            // charToElem translates the glyph by (thickness, thickness).
+            let spineX = metrics.L + t
+            let joinY = metrics.H + t
+            let edgeX = spineX + t * (1.0 + axes.contrast)
+
+            let outline =
+                match font.CharToOutline '5' with
+                | Curve(knots, _) -> knots |> List.map (fun k -> k.pt.x, k.pt.y)
+                | e -> failwithf "expected a single Curve outline for '5' (constant_offset=%b), got %A" constantOffset e
+
+            // Where does the outline cross a given height, on the stem's east side?
+            let crossingsAt (y: float) =
+                [ for i in 0 .. outline.Length - 1 do
+                    let x1, y1 = outline.[i]
+                    let x2, y2 = outline.[(i + 1) % outline.Length]
+                    if (y1 - y) * (y2 - y) <= 0.0 && abs (y2 - y1) > 1e-9 then
+                        let x = x1 + (x2 - x1) * (y - y1) / (y2 - y1)
+                        if x > spineX then yield x ]
+
+            for above in [ 2.0; 4.0; 6.0 ] do
+                let y = joinY + above * t
+                let xs = crossingsAt y
+                Assert.That(xs, Is.Not.Empty, sprintf "outline should have an east-side edge at y=%.0f (constant_offset=%b)" y constantOffset)
+                let nearest = xs |> List.minBy (fun x -> abs (x - edgeX))
+                Assert.That(
+                    abs (nearest - edgeX),
+                    Is.LessThan 2.0,
+                    sprintf
+                        "stem's east edge should sit at x=%.1f at y=%.0f (%.0f above the join, constant_offset=%b), got %.1f — the stem is tapering into the join"
+                        edgeX y (above * t) constantOffset nearest
+                )
+
+    [<Test>]
+    member _.ZGlyph_OutlineDoesNotCrossItself() =
+        // 'z' is three straight strokes meeting at two acute corners. Both edges of each
+        // corner really are straight, so their offset lines do meet and the inner side
+        // resolves to that single meeting point. Ending the two edges at their own
+        // perpendicular feet instead cuts the corner: the incoming edge stops short and
+        // dives inside the bar it is joining, so the contour crosses its own bar edge —
+        // a spike and a notch at each corner, and a diagonal thinner than the stroke.
+        //
+        // Checked on both outline-building paths — the sampled/constant-offset path
+        // (default; emitAtBezPt's Corner case) and the segment-based path
+        // (constant_offset=false; offsetSegment's Corner case) — since each has its own
+        // independent implementation of the same corner geometry.
+        for constantOffset in [ true; false ] do
+            let axes = { Axes.DefaultAxes with constant_offset = constantOffset }
+            let font = Font.Font(axes)
+
+            let pts =
+                match font.CharToOutline 'z' with
+                | Curve(knots, _) -> knots |> List.map (fun k -> k.pt.x, k.pt.y) |> Array.ofList
+                | e -> failwithf "expected a single Curve outline for 'z' (constant_offset=%b), got %A" constantOffset e
+
+            let n = pts.Length
+
+            // Do two *open* segments properly cross? Touching at a shared endpoint doesn't count.
+            let crosses (ax, ay) (bx, by) (cx, cy) (dx, dy) =
+                let side (px, py) (qx, qy) (rx, ry) = (qx - px) * (ry - py) - (qy - py) * (rx - px)
+                let d1 = side (ax, ay) (bx, by) (cx, cy)
+                let d2 = side (ax, ay) (bx, by) (dx, dy)
+                let d3 = side (cx, cy) (dx, dy) (ax, ay)
+                let d4 = side (cx, cy) (dx, dy) (bx, by)
+                d1 * d2 < 0.0 && d3 * d4 < 0.0
+
+            for i in 0 .. n - 1 do
+                // j starts at i+2 so neighbouring segments (which share a vertex) are skipped,
+                // and the last segment is skipped for i=0 since it wraps back to vertex 0.
+                for j in i + 2 .. n - 1 do
+                    if not (i = 0 && j = n - 1) then
+                        let a, b = pts.[i], pts.[(i + 1) % n]
+                        let c, d = pts.[j], pts.[(j + 1) % n]
+
+                        Assert.That(
+                            crosses a b c d,
+                            Is.False,
+                            sprintf
+                                "'z' outline crosses itself (constant_offset=%b): %A-%A crosses %A-%A — an acute corner is cutting into its own stroke"
+                                constantOffset a b c d
+                        )
+
+    [<Test>]
+    member _.CuspGlyphs_AreSingleStrokes() =
+        // The point of the `K` marker: '3' and '5' are one curve each, not two
+        // overlapping strokes whose end caps meet in the middle.
+        let font = Font.Font(Axes.DefaultAxes)
+
+        let curveCount ch =
+            let rec count e =
+                match e with
+                | Curve _ -> 1
+                | EList(es) -> List.sumBy count es
+                | _ -> 0
+            count (font.charToElem ch)
+
+        Assert.That(curveCount '3', Is.EqualTo(1), "'3' should be a single stroke")
+        Assert.That(curveCount '5', Is.EqualTo(1), "'5' should be a single stroke")
+
+    [<Test>]
+    member _.M_ArchesAreOneStrokeJoinedAtTheMiddleLeg() =
+        // 'm' is stem + (arch, kink, arch, right leg) + middle leg: the two arches
+        // belong to one stroke that kinks over the middle leg, rather than the second
+        // arch springing off the first leg with an end cap in the crotch.
+        let font = Font.Font(Axes.DefaultAxes)
+
+        let curves =
+            let rec collect e =
+                match e with
+                | Curve(knots, _) -> [ knots ]
+                | EList(es) -> List.collect collect es
+                | _ -> []
+            collect (font.charToElem 'm')
+
+        Assert.That(curves.Length, Is.EqualTo(3), "'m' should be three strokes")
+
+        let labelsOf (knots: Knot list) = knots |> List.choose (fun k -> k.label)
+
+        let archStroke =
+            curves
+            |> List.filter (fun ks ->
+                let ls = labelsOf ks
+                List.contains "x(llw)" ls && List.contains "x(rw)" ls)
+
+        Assert.That(archStroke.Length, Is.EqualTo(1), "both arch apexes should be on one stroke")
+
+        let kink = archStroke.Head |> List.find (fun k -> k.label = Some "xxblwK")
+        Assert.That(kink.ty, Is.EqualTo(GeneratorTypes.Corner), "the arches meet at a corner")
+        Assert.That(kink.th_in, Is.EqualTo(None), "kink tangents are left to the solver")
+        Assert.That(kink.th_out, Is.EqualTo(None), "kink tangents are left to the solver")
+
+        // The middle leg hangs off that same point as an explicit joint, so its top
+        // gets no cap (serif / flare / bulb) in the middle of the letter.
+        let legTop =
+            curves
+            |> List.collect id
+            |> List.filter (fun k -> k.label = Some "xxblwj")
+
+        Assert.That(legTop.Length, Is.EqualTo(1), "middle leg should start at the kink")
+        Assert.That(legTop.Head.isJoint, Is.True, "middle leg top is a joint")
+        Assert.That(legTop.Head.pt.GetXY, Is.EqualTo(kink.pt.GetXY), "leg top sits on the kink")

@@ -50,14 +50,11 @@ Character (char)
 
 `Font.getOutline` dispatches to one of four strategies based on axes:
 
-### `getDactylSansOutlines` (default)
-The main outline path.  For each solved Bézier segment from the DactylSpline:
-- Calls `offsetSegment` to build the left and right offset paths at distance ±`thickness/2`.
-- Joins adjacent segments with **miter** geometry at convex corners and a **bisector** point at concave corners.
-- Calls `startCap` / `endCap` to close open stroke ends.
+### `getDactylSansOutlines` (when `dactyl_spline = true`, `constant_offset = false`, and no artistic width axis is active)
+For each solved Bézier segment from the DactylSpline, calls `offsetSegment` to build the left and right offset paths at distance ±`thickness/2`, then `startCap` / `endCap` to close open stroke ends. Corner joins are described below, under "Corner geometry" — shared with `getDactylConstantOffsetOutlines`.
 
-### `getDactylConstantOffsetOutlines` (when `dactyl_spline = true` and (`constant_offset = true` or any *artistic width* axis is active))
-Walks every cubic Bézier at 16 t-steps, emitting perpendicular offset samples as straight-line `Corner` knots.  Produces smoother outlines for strongly curved strokes at the cost of more points.  Cap and join logic is shared with the default path.
+### `getDactylConstantOffsetOutlines` (default: `dactyl_spline = true` and (`constant_offset = true` or any *artistic width* axis is active))
+Walks every cubic Bézier at 16 t-steps, emitting perpendicular offset samples as straight-line `Corner` knots.  Produces smoother outlines for strongly curved strokes at the cost of more points.  Cap logic is shared with `getDactylSansOutlines`; corner joins use the same geometry (below) but, because artistic axes can give the two sides of a stroke different widths, offset each side at its own width rather than a shared `thickness/2`.
 
 Because it samples the spine densely, this path also hosts the arc-length-varying **artistic axes** (`sampledArtistic` auto-routes here when `dactyl_spline` is on):
 
@@ -69,12 +66,18 @@ Because it samples the spine densely, this path also hosts the arc-length-varyin
 | `roughness` | Random-looking width jitter: each side's half-width is perturbed by deterministic sum-of-sines noise, phase-shifted per side so the two edges jitter independently (unlike `wobble`, which moves the whole spine and keeps width constant). |
 | `mobius` | Twisting ribbon: width follows `|cos θ|` of a per-arc-length twist, split into separate closed panels at the pinch points. |
 
-Because these make the two sides of a stroke (and its ends) different widths, the corner and cap handling is specialised:
-- **Corners** offset each side at its own width. Gentle (≤ right-angle) corners use the exact intersection of the two offset edges; sharp outer corners bevel; sharp inner corners use a clamped bisector.
-- **Caps** (nib / taper, `taper_end > 0`) build the normal cap geometry — so ends extend to the same length and keep the serif/flare/bulb style — then squeeze it perpendicular to the reduced end width. Pointed taper (`taper_end = 0`) simply meets at the spine endpoint.
+**Caps** (nib / taper, `taper_end > 0`) build the normal cap geometry — so ends extend to the same length and keep the serif/flare/bulb style — then squeeze it perpendicular to the reduced end width. Pointed taper (`taper_end = 0`) simply meets at the spine endpoint.
+
+#### Corner geometry (`offsetSegment` and `emitAtBezPt`)
+Both outline paths classify a `Corner` knot by how sharp the bend is and, if sharp, whether it's convex ("outer") or concave ("inner") from the offset side being built — each side of a stroke is built separately, so the same spine corner can be outer on one side and inner on the other:
+- **Gentle** (≤ ~right angle): the exact intersection of the two offset edge lines, so each edge stays parallel to its own stroke right up to the vertex. Clamped along each edge to the arc length/chord available on its side, so a short adjacent segment can't be overshot.
+- **Sharp, outer**: a true miter would spike far out, so it's chamfered — two points, one on each edge, positioned so neither edge is bent by the bevel.
+- **Sharp, inner** — *between straight edges*: the two offset edges genuinely meet, and their intersection is the vertex of the union the two stroke bodies lay down, so it is used as-is. It must **not** be clamped back along the bisector to an adjacent chord length: that drags the vertex in toward the spine and tapers the stroke (it used to narrow `5`'s stem into its acute bowl join), and cutting the corner instead — ending each edge at its own perpendicular foot — makes the contour dive inside the stroke it is joining, which spikes and notches `z`'s two corners and thins its diagonal.
+- **Sharp, inner** — *where either edge curves*: the vertex above is found by extrapolating the two *tangent* lines, so once an edge curves away from its tangent the intersection sits off the real offset edge and outside the stroke — further out the sharper the bend (`3`'s cusped waist). No join point is invented there: the incoming edge ends at its own perpendicular foot, the outgoing edge starts at its own, and the two bodies are left to overlap — the nonzero fill rule unions them into the ink a stroke of that width actually lays down.
+- **Near-180° (a cusp, e.g. `K`-joined glyphs like `3`'s waist)**: `norm()` maps a ~180° bend to +π or −π arbitrarily, so "outer" is meaningless and the sharp-outer bevel is used unconditionally on both sides to avoid an unbounded miter spike.
 
 ### `getSpiroSansOutlines` (when `dactyl_spline = false`)
-Same structural approach as the DactylSpline path but uses the Spiro-solved segments (or Spline2 when `spline2 = true`).  Because the spine engine choice takes precedence over `constant_offset`/artistic axes, this path is selected whenever `dactyl_spline` is off, regardless of those settings.
+Same structural approach (and the same `offsetSegment` corner geometry) as `getDactylSansOutlines`, but uses the Spiro-solved segments (or Spline2 when `spline2 = true`).  Because the spine engine choice takes precedence over `constant_offset`/artistic axes, this path is selected whenever `dactyl_spline` is off, regardless of those settings.
 
 ### `getStroked` / `getScratches`
 Alternative rendering modes (four-line backscratch font; textured scratch effect) that bypass the normal outline logic entirely.
