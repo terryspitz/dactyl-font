@@ -36,8 +36,10 @@ type Axes =
       //spine : bool              //show the single width glyph, use with outline off or filled off
       filled: bool //(svg only) filled or empty outlines
       outline: bool //use thickness to expand stroke width
-      stroked: bool //each stroke is 4 parallel lines
-      scratches: bool //horror/paint strokes font
+      traces: int //number of parallel strokes drawn per spine (1 = one solid stroke)
+      trace_spread: float //lateral span from first trace to last, in stroke thicknesses
+      trace_weight: float //each trace's width as a fraction of weight
+      trace_jitter: float //random per-trace lateral offset and end-length variation
       nib: float //broad-nib pen: stroke width follows stroke direction (0=off, 1=full nib effect)
       nib_angle: int //nib angle in degrees anticlockwise from horizontal
       taper: float //strokes taper to points at their ends (0=off, 1=pointed all the way to the middle)
@@ -81,8 +83,10 @@ type Axes =
           axis_align_caps = true
           filled = true
           outline = true
-          stroked = false
-          scratches = false
+          traces = 1
+          trace_spread = 2.0
+          trace_weight = 0.1
+          trace_jitter = 0.0
           nib = 0.0
           nib_angle = 30
           taper = 0.0
@@ -127,8 +131,10 @@ type Axes =
           "end_bulb", FracRange(-1.0, 3.0), "artistic", "Fraction of thickness to apply curves to endcaps"
           "flare", FracRange(-1.0, 1.0), "artistic", "End caps expand by this amount"
           "joint_gap", FracRange(0.0, 1.0), "artistic", "Stencil effect: interior joints stop short of the stroke they join (0=flush/off, just above 0=parting from its edge, 1=a full thickness of clear air)"
-          "stroked", Checkbox, "artistic", "Each stroke is 4 parallel lines"
-          "scratches", Checkbox, "artistic", "Horror/paint strokes font"
+          "traces", Range(1, 6), "artistic", "Number of parallel strokes drawn per spine. 1 = a single solid stroke; higher counts give inline, split-nib and sketchy multi-pass looks"
+          "trace_spread", FracRange(0.0, 3.0), "artistic", "Lateral span from the first trace to the last, in stroke thicknesses. 2.0 puts the outer traces exactly where a solid stroke's edges would be"
+          "trace_weight", FracRange(0.02, 1.0), "artistic", "Each trace's width as a fraction of the main weight"
+          "trace_jitter", FracRange(0.0, 1.0), "artistic", "Sketchy multi-pass look: random per-trace lateral offset and end-length variation"
           "nib", FracRange(0.0, 1.0), "artistic", "Broad-nib pen: stroke width follows stroke direction (0=off, 1=full nib effect)"
           "nib_angle", Range(0, 180), "artistic", "Nib angle in degrees anticlockwise from horizontal"
           "taper", FracRange(0.0, 1.0), "artistic", "Strokes taper to points at their ends (0=off, 1=pointed all the way to the middle)"
@@ -165,6 +171,8 @@ type Axes =
     /// along the stroke is active; these require the arc-length sampled outline path.
     member this.sampledArtistic =
         this.nib > 0.0 || this.taper > 0.0 || this.wobble > 0.0 || this.roughness > 0.0 || this.mobius > 0.0
+        // Parallel traces are built by offsetting the sampled spine.
+        || this.traces > 1
         // joint_gap trims the spine by arc length, which only the sampled path can do.
         || this.joint_gap > 0.0
 

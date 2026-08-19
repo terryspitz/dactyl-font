@@ -34,7 +34,19 @@ type PenNoOpDumpTests() =
               "serifflare",(fun a -> { a with serif = 40; flare = 0.5; end_bulb = 0.4 })
               "combo",     (fun a -> { a with nib = 0.5; taper = 0.4; wobble = 0.3; roughness = 0.3 })
               "italic",    (fun a -> { a with slant = 0.3; nib = 0.4 })
-              "soft",      (fun a -> { a with softness = 0.7; contrast = 0.3 }) ]
+              "soft",      (fun a -> { a with softness = 0.7; contrast = 0.3 })
+              // Trace presets from docs/GeneralisedStrokes.md
+              "stroked",   (fun a -> { a with weight = 30; traces = 4; trace_spread = 2.0; trace_weight = 0.07 })
+              "scratches", (fun a -> { a with weight = 30; traces = 3; trace_spread = 2.0; trace_weight = 0.33; trace_jitter = 0.5; roughness = 0.3 })
+              "inline",    (fun a -> { a with traces = 2; trace_spread = 2.0; trace_weight = 0.35 })
+              "splitnib",  (fun a -> { a with traces = 2; trace_spread = 0.45; trace_weight = 0.12; nib = 0.8 })
+              "backscr",   (fun a -> { a with weight = 30; traces = 4; trace_spread = 2.4; trace_weight = 0.05; trace_jitter = 0.15 })
+              "tracecap",  (fun a -> { a with traces = 3; trace_spread = 2.0; trace_weight = 0.2; serif = 40 })
+              "traceclosed",(fun a -> { a with traces = 3; trace_spread = 1.5; trace_weight = 0.2; taper = 0.5 })
+              // Stress: widest spread on a heavy pen, where an offset curve is most
+              // likely to self-intersect on the concave side of a tight bend.
+              "wide",      (fun a -> { a with weight = 60; traces = 2; trace_spread = 3.0; trace_weight = 0.15 })
+              "wide3",     (fun a -> { a with weight = 80; traces = 3; trace_spread = 3.0; trace_weight = 0.1 }) ]
         let sb = System.Text.StringBuilder()
         for (name, f) in variants do
             let axes = f Axes.DefaultAxes

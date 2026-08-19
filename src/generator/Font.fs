@@ -991,91 +991,6 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         let results = spiroToOutlines e
         if results.Length > 1 then EList(results) else results.[0]
 
-    member this.spiroToLines lines spiro =
-        let thicknessby3 = float thickness / 3.0
-
-        match spiro with
-        | SpiroOpenCurve(segments) ->
-            let segs = List.map toSegment segments
-
-            [ for i in 0 .. lines - 1 do
-                  let offset =
-                      if lines <= 1 then
-                          0.0
-                      else
-                          (float thickness) * (float i / float (lines - 1) - 0.5) * 2.0
-
-                  clearElemTangents (Curve(this.offsetSegments segs 0 (segs.Length - 1) false false offset, false)) ]
-        | SpiroClosedCurve(segments) ->
-            let segs = List.map toSegment segments
-
-            [ for i in 0 .. lines - 1 do
-                  let offset =
-                      if lines <= 1 then
-                          0.0
-                      else
-                          (float thickness) * (float i / float (lines - 1) - 0.5) * 2.0
-
-                  clearElemTangents (Curve(this.offsetSegments segs 0 (segs.Length - 1) false true offset, true)) ]
-        | SpiroDot(p) ->
-            [ dotToClosedCurve p.x p.y thickness
-              dotToClosedCurve p.x p.y (thickness / 2.0) ]
-        | SpiroSpace -> [ Space ]
-
-    member this.getStroked =
-        applyToSegments (this.spiroToLines 4)
-        >> Font({ Axes.DefaultAxes with weight = 2 }).getSpiroSansOutlines
-
-    member this.getScratches e =
-        let spiroToScratchOutlines spiro =
-            let thicknessby3 = float thickness / 3.0
-
-            let offsetPointCap X Y theta =
-                addPolarContrast X Y theta (thicknessby3 * sqrt 2.0)
-
-            let startCap (seg: Segment) =
-                let t = Some seg.tangentStart
-
-                [ { pt = segmentAddPolar seg (seg.tangentStart - PI * 0.90) (thicknessby3 * 3.0)
-                    ty = Corner
-                    th_in = t
-                    th_out = t
-                    isJoint = false
-                    label = None }
-                  { pt = offsetPointCap seg.X seg.Y (seg.tangentStart + PI * 0.75)
-                    ty = Corner
-                    th_in = t
-                    th_out = t
-                    isJoint = false
-                    label = None } ]
-
-            let endCap (seg: Segment) (lastSeg: Segment) =
-                let t = Some lastSeg.tangentEnd
-
-                [ { pt = offsetPointCap seg.X seg.Y lastSeg.tangentEnd
-                    ty = Corner
-                    th_in = t
-                    th_out = t
-                    isJoint = false
-                    label = None } ]
-
-            match spiro with
-            | SpiroOpenCurve(segments) ->
-                let segs = List.map toSegment segments
-
-                this.strokeSegments segs thicknessby3 startCap endCap false
-                |> List.map clearElemTangents
-            | SpiroClosedCurve(segments) ->
-                let segs = List.map toSegment segments
-
-                this.strokeSegments segs (thicknessby3 / 3.) startCap endCap true
-                |> List.map clearElemTangents
-            | SpiroDot(p) -> [ Dot(p) ]
-            | SpiroSpace -> [ Space ]
-
-        applyToSegments (this.spiroToLines 3) e
-        |> applyToSegments spiroToScratchOutlines
-
     member this.italicisePt(p: Point) =
         { p with
             x = p.x + this.axes.slant * p.y }
@@ -1288,6 +1203,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         let wobble = axes.wobble
         let roughness = axes.roughness
         let mobius = axes.mobius
+        let traceCount = max 1 axes.traces
         // Axes whose width or displacement varies with arc length need interior samples
         // even on straight spine segments.
         let widthVariesAlongStroke = nib > 0.0 || taper > 0.0 || wobble > 0.0 || roughness > 0.0 || mobius > 0.0
@@ -1372,6 +1288,51 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
             let totalLen = max cumLenAtBez.[segCount] 1e-9
 
+            // Signed curvature along the spine, indexed by arc length.  Sampled from
+            // the same cubics at the same parameters as the spine itself, using the
+            // analytic second-derivative formula rather than differencing tangents
+            // between samples — the differenced estimate is noisy enough to make
+            // curvature-driven width visibly lumpy.
+            //
+            // Kept as its own array rather than widened into the sample tuples, so
+            // the sampling and mobius code paths are untouched.
+            let curvSeq =
+                [| for segIdx in 0 .. segCount - 1 do
+                       let p1 = bezPts.[segIdx]
+                       let p2 = bezPts.[(segIdx + 1) % n]
+                       let cp1, cp2 = p1.rpt(), p2.lpt()
+                       let segStart = cumLenAtBez.[segIdx]
+                       // Walk the same parameter steps the spine sampler uses and
+                       // accumulate the same chord lengths, so a curvature is filed
+                       // under the arc length it actually occurs at.  Spacing the
+                       // samples evenly in t instead would mis-file curvature wherever
+                       // the parameterisation is uneven — which is exactly at the tight
+                       // bends the clamp below exists for.
+                       let mutable len = 0.0
+                       let mutable px, py = p1.x, p1.y
+                       for si in 0 .. samplesPerSeg do
+                           let t = float si / float samplesPerSeg
+                           let x, y, _, _ =
+                               getBezPtAndTangent (p1.x, p1.y) (cp1.x, cp1.y) (cp2.x, cp2.y) (p2.x, p2.y) t
+                           len <- len + hypot (x - px) (y - py)
+                           px <- x
+                           py <- y
+                           let k =
+                               getCurvature (p1.x, p1.y) (cp1.x, cp1.y) (cp2.x, cp2.y) (p2.x, p2.y) t
+                           yield segStart + len, k |]
+
+            /// Signed curvature at an arc length, linearly interpolated between samples.
+            let curvatureAt (sLen: float) =
+                if curvSeq.Length = 0 then 0.0
+                else
+                    let m = curvSeq.Length
+                    let mutable i = 0
+                    while i < m - 2 && fst curvSeq.[i + 1] < sLen do
+                        i <- i + 1
+                    let (s1, k1) = curvSeq.[i]
+                    let (s2, k2) = curvSeq.[min (i + 1) (m - 1)]
+                    if s2 - s1 < 1e-9 then k1 else k1 + (k2 - k1) * (sLen - s1) / (s2 - s1)
+
             // Every width and displacement term for this curve, in one object.
             // Built here rather than per font because taper is a fraction of the
             // whole stroke and wobble fits a whole number of cycles into it.
@@ -1380,7 +1341,11 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             /// A sample of this curve, for the pen to evaluate.  `side` only matters
             /// to per-side terms (roughness); callers that have no side pass 0.
             let penSample (sLen: float) (th: float) (side: float) =
-                { s = sLen; sFrac = sLen / totalLen; th = th; curvature = 0.0; side = side }
+                { s = sLen
+                  sFrac = sLen / totalLen
+                  th = th
+                  curvature = curvatureAt sLen
+                  side = side }
 
             /// Hand-drawn waviness: displace a spine sample perpendicular to its tangent.
             /// The pen supplies the offset and its slope; the slope corrects the tangent
@@ -1483,14 +1448,55 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             // (th_in ≠ th_out) reuse the offsetSegment-Corner logic: outer convex bends get a
             // pair of miter points, inner convex bends collapse to a single bisector point
             // clamped to the chord lengths, avoiding self-intersection on sharp inner corners.
-            let buildSide (sign: float) (includeEnds: bool) =
-                let reverse = sign < 0.
-                let perpAngle = sign * PI / 2.
+            let buildSide (centre: float) (widthScale: float) (extraTrim: float) (sign: float) (includeEnds: bool) =
                 let knots = System.Collections.Generic.List<Knot>()
+                // This trace's own span, inside whatever the joint gap already trimmed.
+                let tStart = bodyStart + extraTrim
+                let tEnd = bodyEnd - extraTrim
+                let inBody sLen = sLen >= tStart - 1e-6 && sLen <= tEnd + 1e-6
+
+                /// Place a point at a *signed* perpendicular offset from the spine.
+                ///
+                /// Kept in (direction, positive distance) form rather than passing a
+                /// signed distance straight to addPolarContrast: that helper adds
+                /// `contrast * thickness` to the distance before projecting onto x, so
+                /// a signed distance would have contrast fight the offset on the inner
+                /// edge instead of widening both edges symmetrically.
+                // Offsetting further than the radius of curvature folds an edge back
+                // through itself on the side the curve turns toward — the loops that
+                // show up on e, 5, 8 and S at wide spreads.  Pull the offset back to
+                // just inside that radius.
+                //
+                // Only applied when there is more than one trace: a solid stroke's own
+                // edges can already exceed it on a tight enough bend, and clamping
+                // those would change existing letterforms for reasons unrelated to
+                // traces.
+                let clampOffset (sLen: float) (o: float) =
+                    if traceCount <= 1 || o = 0.0 then o
+                    else
+                        let k = curvatureAt sLen
+                        // The curve turns toward +90° of the tangent when k > 0, which
+                        // is the direction a positive offset moves in.  Only offsets
+                        // heading that way can fold.
+                        if abs k < 1e-9 || (o > 0.0) <> (k > 0.0) then o
+                        else
+                            // Saturate smoothly rather than cutting at the radius: a hard
+                            // limit leaves a visible notch wherever it starts and stops
+                            // biting, because neighbouring samples land either side of it.
+                            // tanh is ~identity while the offset is small against the
+                            // radius and never reaches it, so the offset curve stays
+                            // clear of the cusp instead of sitting on it.
+                            let r = 1.0 / abs k
+                            r * tanh (o / r)
+
+                let emitAt x y th sLen (o: float) =
+                    let o = clampOffset sLen o
+                    let s = if o < 0.0 then -1.0 else 1.0
+                    plainKnot (addPolarContrast x y (th + s * PI / 2.) (abs o))
 
                 let emitPerpRaw x y th sLen =
-                    let w = widthAtSide sign sLen th
-                    knots.Add(plainKnot (addPolarContrast x y (th + perpAngle) w))
+                    let w = widthScale * widthAtSide sign sLen th
+                    knots.Add(emitAt x y th sLen (centre + sign * w))
 
                 // Samples outside the trimmed span belong to the receded joint end.
                 let emitPerp x y th sLen =
@@ -1510,8 +1516,18 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     if not isCorner then
                         emitPerp bx by (bp.th_in + dTh) sLen
                     else
-                        let wIn  = widthAtSide sign sLen (bp.th_in  + dTh)
-                        let wOut = widthAtSide sign sLen (bp.th_out + dTh)
+                        // Signed offsets of this edge either side of the corner. With
+                        // traces the edge can sit wholly off the spine, so which way it
+                        // faces — and therefore whether a bend is convex or concave for
+                        // it — follows the sign of the offset, not which of the pair it
+                        // is. At centre = 0 this reduces to the old `sign`/`reverse`.
+                        let oIn  = clampOffset sLen (centre + sign * widthScale * widthAtSide sign sLen (bp.th_in  + dTh))
+                        let oOut = clampOffset sLen (centre + sign * widthScale * widthAtSide sign sLen (bp.th_out + dTh))
+                        let edgeSign = if oIn + oOut < 0.0 then -1.0 else 1.0
+                        let reverse = edgeSign < 0.0
+                        let perpAngle = edgeSign * PI / 2.
+                        let wIn  = abs oIn
+                        let wOut = abs oOut
                         let prev = bezPts.[(i - 1 + n) % n]
                         let nxt  = bezPts.[(i + 1) % n]
                         let prevLen = hypot (bp.x - prev.x) (bp.y - prev.y)
@@ -1594,7 +1610,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 else
                     // Open: caps own bp[0] and bp[n-1]; emit only interior bezier points,
                     // unless the end style needs the body to reach the stroke endpoints.
-                    if startTrim > 1e-9 then emitAtArcLen bodyStart
+                    if startTrim > 1e-9 || extraTrim > 1e-9 then emitAtArcLen tStart
                     elif includeEnds then
                         let (bx, by, dTh, _) = dispBez.[0]
                         emitPerp bx by (bezPts.[0].th_out + dTh) 0.0
@@ -1602,7 +1618,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     for i in 1 .. n - 2 do
                         emitAtBezPt i
                         emitMidSamples i
-                    if endTrim > 1e-9 then emitAtArcLen bodyEnd
+                    if endTrim > 1e-9 || extraTrim > 1e-9 then emitAtArcLen tEnd
                     elif includeEnds then
                         let (bx, by, dTh, _) = dispBez.[n - 1]
                         emitPerp bx by (bezPts.[n - 1].th_in + dTh) totalLen
@@ -1620,22 +1636,29 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             // body sample (the "extra sharp points" at curve endings on glyphs like 'c').
             // Strip them so the cap-to-body edges are straight lines, matching the body
             // polyline. Intermediate cap knots (serif/flare/bulb) are untouched.
-            let makeCaps () =
+            let makeCaps (extraTrim: float) =
                 // With joint_gap the cap sits at the trimmed spine point, facing along the
                 // spine there, so it closes the body exactly where the body now stops.
+                // A jittered trace trims a little further, and its cap follows to the
+                // same place for the same reason.
+                let tStart = bodyStart + extraTrim
+                let tEnd = bodyEnd - extraTrim
+                let trimStart = startTrim > 1e-9 || extraTrim > 1e-9
+                let trimEnd = endTrim > 1e-9 || extraTrim > 1e-9
+
                 let trimmedSeg (s: float) =
                     let (cx, cy, cth) = spineAt s
                     { X = cx; Y = cy; tangentStart = cth; tangentEnd = cth; seg_ch = 1.0; Type = Corner }
 
                 let firstSeg =
-                    if startTrim > 1e-9 then trimmedSeg bodyStart
+                    if trimStart then trimmedSeg tStart
                     else makeCapSeg bezPts.[0] bezPts.[0].th_out bezPts.[0].th_out
                 let endpointSeg =
-                    if endTrim > 1e-9 then trimmedSeg bodyEnd
+                    if trimEnd then trimmedSeg tEnd
                     else makeCapSeg bezPts.[n-1] bezPts.[n-1].th_in bezPts.[n-1].th_in
                 // penultimateSeg.tangentEnd is the incoming tangent at the final point
                 let penultSeg =
-                    if endTrim > 1e-9 then trimmedSeg bodyEnd
+                    if trimEnd then trimmedSeg tEnd
                     else makeCapSeg bezPts.[n-2] bezPts.[n-2].th_out bezPts.[n-1].th_in
 
                 let stripBoundaryTangents (caps: Knot list) =
@@ -1650,8 +1673,8 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                             else k)
 
                 // Use original element (before reduce) so isJoint detects stroke intersections.
-                let startCapKnots = this.startCapEx firstSeg eForJoints startAlign Corner (startTrim > 1e-9) |> stripBoundaryTangents
-                let endCapKnots   = this.endCapEx endpointSeg penultSeg eForJoints endAlign Corner (endTrim > 1e-9) |> stripBoundaryTangents
+                let startCapKnots = this.startCapEx firstSeg eForJoints startAlign Corner trimStart |> stripBoundaryTangents
+                let endCapKnots   = this.endCapEx endpointSeg penultSeg eForJoints endAlign Corner trimEnd |> stripBoundaryTangents
                 startCapKnots, endCapKnots
 
             // --- Möbius ribbon panels ---
@@ -1728,7 +1751,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     // Standard caps only fit a full-width stroke end; pinch to the spine
                     // endpoint instead when nib/taper have altered the end width.
                     let startCapKnots, endCapKnots =
-                        if nib > 0.0 || taper > 0.0 then [], [] else makeCaps ()
+                        if nib > 0.0 || taper > 0.0 then [], [] else makeCaps 0.0
 
                     let boundsList = 0.0 :: pinches @ [ totalLen ]
 
@@ -1785,64 +1808,97 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                                       true
                                   ) ]
 
-            // Squeeze a cap's knots perpendicular to the stroke tangent by perpScale, while
-            // keeping the cap's extension along the tangent. With perpScale set to the body
-            // half-width fraction at the endpoint, the cap (axis-align/serif/flare/bulb)
-            // keeps the same end length and style as a plain stroke but matches the nib- or
-            // taper-reduced end width — instead of stopping short at the spine endpoint or
-            // protruding past the body.
-            let squeezeCap (cx: float) (cy: float) (th: float) (perpScale: float) (knots: Knot list) =
+            // Move a cap's knots perpendicular to the stroke tangent — scaling by
+            // perpScale and then shifting by perpShift — while keeping the cap's
+            // extension along the tangent.
+            //
+            // perpScale set to the body half-width fraction at the endpoint lets the cap
+            // (axis-align/serif/flare/bulb) keep the same end length and style as a plain
+            // stroke while matching a nib- or taper-reduced end width, instead of stopping
+            // short at the spine endpoint or protruding past the body. perpShift puts that
+            // same cap on a trace that sits off the spine, so every trace gets real cap
+            // styling rather than the bare ends the old `stroked` axis produced.
+            let transformCap (cx: float) (cy: float) (th: float) (perpScale: float) (perpShift: float) (knots: Knot list) =
+                // An identity transform must be exactly identity: rotating into the
+                // tangent frame and back is only identity to within floating-point
+                // error, which is enough to perturb a coordinate's sign bit and move
+                // rendered outlines for no reason.
+                if perpScale = 1.0 && perpShift = 0.0 then knots else
                 knots
                 |> List.map (fun k ->
                     let dx = k.pt.x - cx
                     let dy = k.pt.y - cy
                     let along = dx * cos th + dy * sin th
                     let perp = -dx * sin th + dy * cos th
-                    let perp' = perp * perpScale
+                    let perp' = perp * perpScale + perpShift
                     { k with
                         pt =
                             { k.pt with
                                 x = cx + along * cos th - perp' * sin th
                                 y = cy + along * sin th + perp' * cos th } })
 
+            // One ribbon of the stroke, at a lateral offset from the spine. A solid
+            // stroke is the single trace (0, 1, 0), so this is the only path and the
+            // one-trace case emits exactly what it always did.
+            let buildTrace (centre: float, widthScale: float, extraTrim: float) =
+                let side = buildSide centre widthScale extraTrim
+                // Caps belong to the trace, so they scale to its width and shift to
+                // its centre along with the body.
+                let capAt cx cy th baseScale knots =
+                    transformCap cx cy th (baseScale * widthScale) centre knots
+
+                if isClosed then
+                    let outer = side  1.0 false
+                    let inner = side -1.0 false |> List.rev
+                    [ Curve(outer, true); Curve(inner, true) ]
+                elif taper > 0.0 && axes.taper_end <= 0.0 then
+                    // Pointed ends: the width shrinks to nothing at the spine endpoints, so
+                    // the two sides simply meet there — a pointed-brush lift. No cap geometry.
+                    // The meeting point rides the trace's centre.
+                    // On the spine the tip is the spine endpoint itself. Note the zero
+                    // case has to be spelled out: addPolarContrast adds the contrast
+                    // term even at zero distance, so asking it for a zero-length offset
+                    // would nudge the tip sideways.
+                    let tip (bp: BezierPoint) th =
+                        if centre = 0.0 then
+                            plainKnot { x = bp.x; y = bp.y; x_fit = false; y_fit = false }
+                        else
+                            let sgn = if centre < 0.0 then -1.0 else 1.0
+                            plainKnot (addPolarContrast bp.x bp.y (th + sgn * PI / 2.) (abs centre))
+                    let startPt = tip bezPts.[0] bezPts.[0].th_out
+                    let endPt = tip bezPts.[n - 1] bezPts.[n - 1].th_in
+                    let outer = side  1.0 false
+                    let inner = side -1.0 false |> List.rev
+                    [ Curve([ startPt ] @ outer @ [ endPt ] @ inner, true) ]
+                elif nib > 0.0 || taper > 0.0 then
+                    // Nib / taper caps: use the normal cap geometry (so ends extend to the same
+                    // length and keep the same style as a plain stroke), then squeeze each cap
+                    // perpendicular to the body half-width at that endpoint so it matches the
+                    // nib- or taper-reduced end width without protruding or stopping short.
+                    let startTh = bezPts.[0].th_out
+                    let endTh   = bezPts.[n - 1].th_in
+                    let startScale = widthAt 0.0 startTh / fthickness
+                    let endScale   = widthAt totalLen endTh / fthickness
+                    let startCapKnots, endCapKnots = makeCaps extraTrim
+                    let startCapKnots = capAt bezPts.[0].x bezPts.[0].y startTh startScale startCapKnots
+                    let endCapKnots   = capAt bezPts.[n - 1].x bezPts.[n - 1].y endTh endScale endCapKnots
+                    let outer = side  1.0 false
+                    let inner = side -1.0 false |> List.rev
+                    [ Curve(startCapKnots @ outer @ endCapKnots @ inner, true) ]
+                else
+                    let startCapKnots, endCapKnots = makeCaps extraTrim
+                    let startCapKnots = capAt bezPts.[0].x bezPts.[0].y bezPts.[0].th_out 1.0 startCapKnots
+                    let endCapKnots   = capAt bezPts.[n - 1].x bezPts.[n - 1].y bezPts.[n - 1].th_in 1.0 endCapKnots
+                    let outer = side  1.0 false
+                    let inner = side -1.0 false |> List.rev
+                    // Path: startCap → outer body → endCap → inner body (reversed)
+                    [ Curve(startCapKnots @ outer @ endCapKnots @ inner, true) ]
+
             if mobius > 0.0 then
                 buildMobiusPanels () |> List.map this.applySoftCorners
-            elif isClosed then
-                let outer = buildSide  1.0 false
-                let inner = buildSide -1.0 false |> List.rev
-                [ Curve(outer, true); Curve(inner, true) ]
-                |> List.map this.applySoftCorners
-            elif taper > 0.0 && axes.taper_end <= 0.0 then
-                // Pointed ends: the width shrinks to nothing at the spine endpoints, so
-                // the two sides simply meet there — a pointed-brush lift. No cap geometry.
-                let startPt = plainKnot { x = bezPts.[0].x; y = bezPts.[0].y; x_fit = false; y_fit = false }
-                let endPt = plainKnot { x = bezPts.[n - 1].x; y = bezPts.[n - 1].y; x_fit = false; y_fit = false }
-                let outer = buildSide  1.0 false
-                let inner = buildSide -1.0 false |> List.rev
-                [ Curve([ startPt ] @ outer @ [ endPt ] @ inner, true) ]
-                |> List.map this.applySoftCorners
-            elif nib > 0.0 || taper > 0.0 then
-                // Nib / taper caps: use the normal cap geometry (so ends extend to the same
-                // length and keep the same style as a plain stroke), then squeeze each cap
-                // perpendicular to the body half-width at that endpoint so it matches the
-                // nib- or taper-reduced end width without protruding or stopping short.
-                let startTh = bezPts.[0].th_out
-                let endTh   = bezPts.[n - 1].th_in
-                let startScale = widthAt 0.0 startTh / fthickness
-                let endScale   = widthAt totalLen endTh / fthickness
-                let startCapKnots, endCapKnots = makeCaps ()
-                let startCapKnots = squeezeCap bezPts.[0].x bezPts.[0].y startTh startScale startCapKnots
-                let endCapKnots   = squeezeCap bezPts.[n - 1].x bezPts.[n - 1].y endTh endScale endCapKnots
-                let outer = buildSide  1.0 false
-                let inner = buildSide -1.0 false |> List.rev
-                [ Curve(startCapKnots @ outer @ endCapKnots @ inner, true) ]
-                |> List.map this.applySoftCorners
             else
-                let startCapKnots, endCapKnots = makeCaps ()
-                let outer = buildSide  1.0 false
-                let inner = buildSide -1.0 false |> List.rev
-                // Path: startCap → outer body → endCap → inner body (reversed)
-                [ Curve(startCapKnots @ outer @ endCapKnots @ inner, true) ]
+                pen.traces
+                |> List.collect buildTrace
                 |> List.map this.applySoftCorners
 
         let solveAndOffset (pts: Knot list) isClosed =
@@ -1872,11 +1928,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         else EList(results)
 
     member this.getOutline =
-        if this.axes.stroked then
-            this.getStroked
-        elif this.axes.scratches then
-            this.getScratches
-        elif this.axes.outline then
+        if this.axes.outline then
             // The chosen spine engine takes precedence.  When dactyl_spline is off the spine is
             // built by Spiro (or Spline2, which getSpiroSansOutlines selects via spline2), so we
             // must use the Spiro outline path — constant_offset/sampledArtistic are

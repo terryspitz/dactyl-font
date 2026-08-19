@@ -70,11 +70,7 @@ type FontMetrics(axes: Axes.Axes) =
         else
             float axes.balance * sin (System.Math.PI * (y - this.B) / (this.T - this.B))
 
-    member this.thickness =
-        if axes.stroked || axes.scratches then
-            max (float axes.weight) 30.0
-        else
-            float axes.weight
+    member this.thickness = float axes.weight
 
 type Knot =
     { pt: Point
@@ -274,7 +270,12 @@ type Pen =
       /// per-side jitter.
       halfWidth: PenSample -> float
       /// Ribbon twist angle; apparent width scales by |cos twist|.
-      twist: PenSample -> float }
+      twist: PenSample -> float
+      /// One entry per parallel ribbon: its lateral centre offset from the spine
+      /// (font units), its width as a fraction of the pen's, and how much arc
+      /// length to trim off each of its ends.  A solid stroke is the single
+      /// entry (0, 1, 0), so the renderer only has the one code path.
+      traces: (float * float * float) list }
 
 module Pen =
 
@@ -358,7 +359,32 @@ module Pen =
                 let n = halfTwists mobius totalLen
                 fun (p: PenSample) -> PI * float n * p.s / totalLen
 
+        // Parallel traces.  Centres are spread evenly across `trace_spread`
+        // thicknesses, so spread = 2 puts the outermost pair exactly where a solid
+        // stroke's two edges would be.  Jitter is deterministic per trace index —
+        // a font must render the same way every time — and shifts each trace
+        // sideways and shortens it a little, which is what makes repeated
+        // hand-drawn passes read as separate strokes rather than a printed rule.
+        let traces =
+            let n = max 1 axes.traces
+            if n <= 1 then
+                [ 0.0, 1.0, 0.0 ]
+            else
+                [ for i in 0 .. n - 1 ->
+                    let frac = float i / float (n - 1) - 0.5
+                    let centre = thickness * axes.trace_spread * frac
+                    let jitter =
+                        if axes.trace_jitter <= 0.0 then 0.0, 0.0
+                        else
+                            // Two decorrelated deterministic values in [-1, 1].
+                            let r k = 2.0 * (let v = sin (float i * 127.1 + k) * 43758.5453 in v - floor v) - 1.0
+                            r 311.7, r 74.7
+                    let dCentre = fst jitter * axes.trace_jitter * thickness * 0.5
+                    let dTrim = abs (snd jitter) * axes.trace_jitter * totalLen * 0.08
+                    centre + dCentre, axes.trace_weight, dTrim ]
+
         { displace = displace
           baseHalfWidth = baseHalfWidth
           halfWidth = halfWidth
-          twist = twist }
+          twist = twist
+          traces = traces }
