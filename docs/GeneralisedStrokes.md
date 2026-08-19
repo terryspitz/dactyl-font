@@ -1,6 +1,9 @@
 # Generalised stroke rendering — proposal
 
-*Status: proposal, nothing implemented yet.*
+*Status: implemented.*  Phases 1–4 of the rollout in §6 are on
+`claude/generalized-stroke-design-85lros`; §7 records where the built thing
+differs from the proposal, and why.  Phase 5 (`contrast`) is deliberately still
+outstanding.
 
 `stroked` and `scratches` are two hardcoded points in a space the renderer could
 expose continuously.  This document works out what that space is, proposes the
@@ -87,7 +90,7 @@ spine**:
 
 | axis | control | default | meaning |
 |---|---|---|---|
-| `traces` | `Range(1, 6)` | `1` | number of parallel strokes drawn per spine. 1 = today's solid stroke |
+| `traces` | `SteppedFracRange(1, 6, 1)` | `1` | number of parallel strokes drawn per spine. 1 = today's solid stroke |
 | `trace_spread` | `FracRange(0.0, 3.0)` | `2.0` | lateral span from first trace to last, in stroke thicknesses. 2.0 puts the outer traces exactly where a solid stroke's edges would be |
 | `trace_weight` | `FracRange(0.02, 1.0)` | `0.1` | each trace's width as a fraction of `weight` |
 | `trace_jitter` | `FracRange(0.0, 1.0)` | `0.0` | random per-trace lateral offset and end-length variation — the sketchy multi-pass look |
@@ -147,11 +150,16 @@ with three consequential changes:
 
 **Self-intersection guard.**  Offsetting a spine by `c` self-intersects on the
 concave side once `|c|` approaches the curvature radius — visible today on
-`stroked` at tight bends.  Curvature is now available for free (§3.3), so clamp
-per sample:
+`stroked` at tight bends.  Curvature is now available for free (§3.3), so pull
+the offset back per sample.
+
+A hard clamp turned out to be the wrong shape (§7.2): it leaves a visible notch
+wherever it starts and stops biting.  The built version saturates smoothly
+instead, and only where the offset heads toward the inside of the bend:
 
 ```fsharp
-let cSafe = if k = 0.0 then c else clamp c (-0.9 / abs k) (0.9 / abs k)  // sign-aware
+// r = 1/|k|; ~identity while |o| << r, and never reaches r
+if (o > 0.0) <> (k > 0.0) then o else r * tanh (o / r)
 ```
 
 ### 3.2 Layer 2: the *pen* record
@@ -171,18 +179,21 @@ type PenSample =
 
 /// A pen is what turns a spine into ribbons.
 type Pen =
-    { /// perpendicular spine displacement, font units
-      displace: PenSample -> float
+    { /// spine displacement as (offset, d(offset)/ds) — the derivative lets the
+      /// caller re-angle the tangent so the displaced spine's normal stays normal
+      displace: PenSample -> float * float
+      /// half-width before the twist factor — what `mobius` pinches
+      baseHalfWidth: PenSample -> float
       /// ribbon half-width, font units
       halfWidth: PenSample -> float
       /// ribbon twist angle; apparent width scales by |cos φ|
       twist: PenSample -> float
-      /// (lateral centre, width scale) per parallel trace
-      traces: (float * float) list }
+      /// (lateral centre, width scale, extra end trim) per parallel trace
+      traces: (float * float * float) list }
 
 module Pen =
     /// Build the pen implied by an axis set. Each axis contributes one term.
-    let ofAxes (axes: Axes) (thickness: float) (totalLen: float) : Pen = ...
+    let ofAxes (axes: Axes) (thickness: float) (totalLen: float) (isClosed: bool) : Pen = ...
 ```
 
 Width terms multiply, displacement terms add, so `ofAxes` is a fold and each
@@ -249,25 +260,36 @@ a preset is a statement about the whole pen, so it cuts across the groups in
 §5.2 rather than living inside one.  Each chip applies a named bundle of pen
 axes and leaves the backbone and render axes alone:
 
-> `Solid` · `Broad nib` · `Brush` · `Marker` · `Sketch` · `Inline` · `Split nib` · `Ribbon` · `Backscratch`
+> `Solid` · `Broad nib` · `Brush` · `Marker` · `Sketch` · `Inline` · `Split nib` · `Ribbon` · `Backscratch` · `Tired hand`
 
 This is what actually replaces the discoverability of the two checkboxes — one
 click still gets you the scratchy font, but now it lands you *inside* a space
-you can keep tuning, instead of at a dead end.  Define the table in F# next to
-the axes so it exports through `Api.controlDefinitions`' existing mechanism:
+you can keep tuning, instead of at a dead end.  The table lives in F# next to
+the axes (`Axes.presets`) and exports through `Api.penPresets`:
 
-```fsharp
-static member presets =
-    [ "Solid",      [ "traces", 1.0 ]
-      "Sketch",     [ "traces", 3.0; "trace_spread", 2.0; "trace_weight", 0.33
-                      "trace_jitter", 0.5; "roughness", 0.3 ]
-      "Split nib",  [ "traces", 2.0; "trace_spread", 0.45; "trace_weight", 0.12
-                      "nib", 0.8 ]
-      ... ]
-```
+| preset | axes |
+|---|---|
+| **Solid** | *(all pen axes at default)* |
+| **Broad nib** | `nib 1.0`, `nib_angle 30` |
+| **Brush** | `pressure 0.8`, `taper 0.2`, `taper_end 0.45`, `ink_spread 0.15` |
+| **Marker** | `ink_spread 0.55`, `flare 0.1`, `end_bulb 0.3` |
+| **Sketch** | `traces 3`, `trace_spread 2.0`, `trace_weight 0.33`, `trace_jitter 0.5`, `roughness 0.3` |
+| **Inline** | `traces 2`, `trace_spread 1.2`, `trace_weight 0.15` |
+| **Split nib** | `traces 2`, `trace_spread 0.8`, `trace_weight 0.2`, `nib 0.8` |
+| **Ribbon** | `mobius 1.0`, `taper 0.2` |
+| **Backscratch** | `traces 5`, `trace_spread 2.4`, `trace_weight 0.06`, `trace_jitter 0.9`, `roughness 0.5`, `wobble 0.2` |
+| **Tired hand** | `gravity 0.7`, `wobble 0.4`, `roughness 0.25` |
 
-The Textures tab already has chip styling (`.proof-chip`, `App.jsx:2217`) to
-reuse.
+A second list, `Axes.presetAxes`, names the 16 axes a preset *speaks for*.
+Applying a chip resets all 16 to their defaults and then applies that chip's
+values, so the chips are alternatives rather than layers — clicking `Sketch`
+after `Broad nib` gives a sketch, not a sketchy nib.  `weight`, `contrast` and
+`serif` are deliberately outside that set (typographic choices the user makes
+independently of pen character), as are `bounce` (a property of the line, not
+the stroke) and `joint_gap` (a stencil effect).
+
+The Textures tab's chip styling (`.proof-chip`) is reused, and the chip for the
+preset the axes currently match exactly is shown selected.
 
 ### 5.2 Retire `artistic`; promote the groups to top level — *recommended*
 
@@ -310,9 +332,15 @@ categories it finds:
 
 - `Axes.fs` — a one-word edit per axis line, changing the `category` string in
   the 4-tuple.  No new list, no new field, no `Api.getControlDetails` change.
-- `App.jsx` — four new entries in `categoryIcons` (line 433) and one line in the
-  `openCategories` initialiser (line 444) so the new sections start closed
-  except **Pen**.  `controlsByCategory` and the rendering below it are untouched.
+- `App.jsx` — four new entries in `categoryIcons` and a `CLOSED_CATEGORIES` list
+  in the `openCategories` initialiser.  As built, **Backbone**, **Pen** and
+  **Render** start open and Ends/Hand/Traces start closed, which keeps the
+  opened height close to today's.  `controlsByCategory` and the rendering below
+  it are untouched.
+- One extra edit not foreseen: the sections render in `Axes.controls` order, so
+  that list was re-sorted into the section order above.  It also drives the
+  per-glyph randomiser's stream of `rand()` calls, so re-sorting changes which
+  glyph gets which roll — cosmetic, but it does move the randomised snapshots.
 - Randomisation and Visual Diffs keep working unchanged: `glyphRandom.js` skips
   by category name (`SKIPPED_CATEGORIES = ['experimental', 'debug']`), and none
   of the new names are in that list.
@@ -336,10 +364,13 @@ all three `trace_*` do nothing at `traces = 1`.  Add
 
 ```fsharp
 static member dependsOn = [ "nib_angle", "nib"; "taper_end", "taper"
-                            "trace_spread", "traces"; ... ]
+                            "trace_spread", "traces"; "trace_weight", "traces"
+                            "trace_jitter", "traces" ]
 ```
 
-and grey out (do not hide) the dependent slider when its parent is at default.
+and grey out (do not hide) the dependent slider when its parent is at default —
+`.control-group.inactive { opacity: 0.45 }`.  The slider still works; moving the
+parent brings it back to full strength.
 This shrinks the *apparent* size of the panel without hiding anything, and
 matters much more once traces exist.
 
@@ -372,13 +403,13 @@ into the query string would be a small, separate win.
 Ordered so each phase is independently reviewable, and the first is provably a
 no-op.
 
-| phase | change | expected visual diff |
-|---|---|---|
-| **1** | Extract the `Pen` record (§3.2) — no axis changes | **none** (this is the acceptance test) |
-| **2** | Add the four `trace_*` axes; delete `stroked`, `scratches`, `spiroToLines`, `getStroked`, `getScratches` and the ≥30 thickness clamp | defaults unchanged; two tween rows replaced by four |
-| **3** | UI: preset chips, retire `artistic` for top-level groups, dimming (§5.1–5.3) | sidebar layout only |
-| **4** | New pen terms: `pressure`, `ink_spread`, `gravity`, and glyph-level `bounce` | new tween rows only, defaults off |
-| **5** | *(optional)* unify `contrast` into `halfWidth` (§4) | real diff, needs its own review |
+| phase | change | expected visual diff | |
+|---|---|---|---|
+| **1** | Extract the `Pen` record (§3.2) — no axis changes | **none** (this is the acceptance test) | done |
+| **2** | Add the four `trace_*` axes; delete `stroked`, `scratches`, `spiroToLines`, `getStroked`, `getScratches` and the ≥30 thickness clamp | defaults unchanged; two tween rows replaced by four | done |
+| **3** | UI: preset chips, retire `artistic` for top-level groups, dimming (§5.1–5.3) | sidebar layout only | done |
+| **4** | New pen terms: `pressure`, `ink_spread`, `gravity`, and glyph-level `bounce` | new tween rows only, defaults off | done |
+| **5** | *(optional)* unify `contrast` into `halfWidth` (§4) | real diff, needs its own review | not done |
 
 ### Snapshot impact
 
@@ -409,3 +440,81 @@ workflow, per `CLAUDE.md`.)
   pixels.  If an exact match matters, the raked cap is itself generalisable — a
   `cap_rake` axis skewing the cap edge off perpendicular, which is a real
   calligraphic feature worth having independently.
+
+---
+
+## 7. As built — where the implementation differs, and why
+
+Phases 1–4 landed as described above.  Five things came out differently once the
+code existed; each is a correction to this document, not a shortcut.
+
+### 7.1 A no-op has to be proved, not asserted
+
+Phase 1's acceptance test is "**none**", and unit tests are a poor instrument
+for that — they check the properties you thought to check.  What actually
+carried the phase was `src/generator/tests/PenNoOpDump.fs`: a harness that
+renders 70 glyphs × ~19 axis variants to SVG and writes them to `$DUMP_OUT`, so
+before/after is a `diff` over ~840 renderings.
+
+It earned its keep twice.  It caught a cap-transform helper that was
+algebraically the identity but emitted `-0` where the old code emitted `0`, and
+it caught the pointed-tip case where `addPolarContrast` still adds
+`contrast · thickness` at zero distance — so "offset by nothing" is not the same
+as "don't offset".  Both are invisible to any test anyone would have written,
+and both would have shown up later as an unexplained snapshot diff.
+
+### 7.2 The curvature clamp needed two fixes
+
+The guard in §3.1 shipped, but not on the first two attempts:
+
+1. **Curvature was filed against the wrong arc length.**  The first version
+   indexed the curvature sequence by uniform spline parameter while the offsets
+   were indexed by arc length, so on unevenly-parameterised segments the clamp
+   consulted the curvature of a different part of the curve.  Fixed by
+   accumulating true chord lengths alongside the samples.
+2. **A hard clamp leaves notches.**  Cutting the offset at `0.9/|k|` makes
+   neighbouring samples land either side of the cut, which reads as a small
+   corner in the outline.  Replaced with `r·tanh(o/r)` (§3.1), which is
+   ~identity while the offset is small against the radius and asymptotes below
+   it, so the edge never reaches the cusp at all.
+
+The fold-back loops this guards against were only ever visible in a rendered
+image — subpath counts said the geometry was fine.
+
+### 7.3 `gravity` needed the sampler told about it
+
+`widthVariesAlongStroke` decides whether a straight spine segment gets interior
+samples.  A straight segment otherwise carries only its two endpoints, and
+`gravity`'s sag is zero at both ends by construction — so `T`'s crossbar did not
+move at all until the new axes were added to that predicate.  `ink_spread` had
+the same problem and the same fix.
+
+`pressure` is deliberately **not** in the predicate: it is driven by curvature,
+which is zero along a straight segment, so forcing samples there would cost
+geometry for no visible change.
+
+### 7.4 `traces` had to become a stepped control
+
+`Range(1, 6)` derives its slider step as `(max - min) / 20`, i.e. `0.25` — so
+the slider could hand the renderer 2.25 traces, corrupting both the loop bound
+and the even spacing.  It is now `SteppedFracRange(1, 6, 1)`, and both consumers
+round defensively, since the randomiser ignores step.
+
+### 7.5 One pre-existing quirk surfaced
+
+A vertical bar's bounding box shifts by one unit when arc-length sampling is
+forced on, independent of any new axis (provable by setting `roughness` to
+`1e-9`).  It is integer rounding of the forced samples and predates this work;
+noted here so it is not mistaken for a regression.  The relevant test compares
+against a same-sampling baseline rather than the unsampled one.
+
+### 7.6 Still outstanding
+
+- **Phase 5** (`contrast` into `halfWidth`, §4) — unchanged from the proposal: a
+  real rendering change that deserves its own review.
+- **§5.4**, the inline stroke preview — not built.  Worth revisiting now that
+  presets exist, since the two answer the same "what does this axis do" question
+  from opposite ends.
+- **Snapshot rebaselining** is the repo owner's manual step, per `CLAUDE.md`.
+  `tabs.spec.js-snapshots/tweens-chromium-linux.png` changes (the grid gains and
+  loses axis rows), as do the randomised shots (§5.2).

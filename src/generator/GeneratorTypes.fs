@@ -404,7 +404,9 @@ module Pen =
         // sideways and shortens it a little, which is what makes repeated
         // hand-drawn passes read as separate strokes rather than a printed rule.
         let traces =
-            let n = max 1 axes.traces
+            // Rounded because the UI slider hands us a float: a fractional count
+            // would corrupt both the loop bound and the even spacing below.
+            let n = max 1 (int (round (float axes.traces)))
             if n <= 1 then
                 [ 0.0, 1.0, 0.0 ]
             else

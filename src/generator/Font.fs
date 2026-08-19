@@ -1203,7 +1203,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         let wobble = axes.wobble
         let roughness = axes.roughness
         let mobius = axes.mobius
-        let traceCount = max 1 axes.traces
+        let traceCount = max 1 (int (round (float axes.traces)))
         // Axes whose width or displacement varies with arc length need interior samples
         // even on straight spine segments — a straight segment otherwise carries only
         // its two endpoints, and sag or bleed evaluated at just the ends is no effect

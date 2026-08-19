@@ -100,6 +100,25 @@
     align-items: flex-start;
 }
 
+/* An axis whose parent is at its default has no visible effect. Dim it rather
+   than hide it: the slider still works, and moving the parent brings it back. */
+.control-group.inactive {
+    opacity: 0.45;
+}
+
+/* Pen preset chips, above the first section of the controls list. */
+.pen-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 18px;
+}
+
+.pen-presets .proof-chip {
+    padding: 3px 10px;
+    font-size: 0.75em;
+}
+
 .control-group label {
     font-weight: 500;
     margin-bottom: 6px;
