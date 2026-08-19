@@ -501,7 +501,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         checkElem elem
 
     /// True when a knot exactly at (X,Y) was explicitly declared an interior
-    /// joint via the `j` marker in the glyph string. Unlike the geometric
+    /// joint via the `J` marker in the glyph string. Unlike the geometric
     /// heuristic above this handles joints landing on curves (e.g. R's leg, m's
     /// arches) and is always honoured, independent of the `joints` axis.
     member this.isExplicitJoint elem X Y =
@@ -645,7 +645,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             //
             // e=0 makes the corners t*cos(theta) from the spine, which is <= t for
             // any angle, so a flat cut can never poke out. It relies on the joint
-            // knot already lying inside the covering ink; every `j` knot now sits
+            // knot already lying inside the covering ink; every `J` knot now sits
             // exactly on its covering spine, so that holds at all weights.
             //
             // joint_gap recession is NOT applied here: the caller trims the spine by

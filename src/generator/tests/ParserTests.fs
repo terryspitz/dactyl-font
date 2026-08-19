@@ -125,22 +125,22 @@ type ParserTests() =
 
     [<Test>]
     member this.TestJointMarker() =
-        // A trailing `j` marks an explicit interior joint; the coordinate is
-        // unchanged and the `j` is consumed (not left in the remaining def).
+        // A trailing `J` marks an explicit interior joint; the coordinate is
+        // unchanged and the `J` is consumed (not left in the remaining def).
         let plain, _, _, plainJoint, _, _ = parse_point metrics "hc"
-        let jointed, _, _, isJoint, label, rest = parse_point metrics "hcj"
+        let jointed, _, _, isJoint, label, rest = parse_point metrics "hcJ"
         Assert.That(plainJoint, Is.False, "plain point is not a joint")
-        Assert.That(isJoint, Is.True, "`j` suffix should mark a joint")
+        Assert.That(isJoint, Is.True, "`J` suffix should mark a joint")
         Assert.That(jointed.x, Is.EqualTo(plain.x), "x unchanged by joint marker")
         Assert.That(jointed.y, Is.EqualTo(plain.y), "y unchanged by joint marker")
-        Assert.That(label, Is.EqualTo("hcj"))
-        Assert.That(rest, Is.EqualTo(""), "`j` should be consumed")
+        Assert.That(label, Is.EqualTo("hcJ"))
+        Assert.That(rest, Is.EqualTo(""), "`J` should be consumed")
 
     [<Test>]
     member this.TestJointMarkerOnKnotAndDetection() =
-        // The `j` marker survives into the parsed knot, and Font.isJoint reports
+        // The `J` marker survives into the parsed knot, and Font.isJoint reports
         // true at that point even when the geometric `joints` heuristic is off.
-        let elem = parse_curve metrics "hcj-br" false
+        let elem = parse_curve metrics "hcJ-br" false
 
         match elem with
         | Curve(knots, _) ->
@@ -159,7 +159,7 @@ type ParserTests() =
     [<Test>]
     member this.TestCornerMarker() =
         // A trailing `K` marks an explicit corner (kink); the coordinate is unchanged
-        // and the `K` is consumed. It composes with the joint marker (`Kj`).
+        // and the `K` is consumed. It composes with the joint marker (`KJ`).
         let plain, _, plainCorner, _, _, _ = parse_point metrics "hc"
         let kinked, _, isCorner, _, label, rest = parse_point metrics "hcK"
         Assert.That(plainCorner, Is.False, "plain point is not a corner")
@@ -169,9 +169,9 @@ type ParserTests() =
         Assert.That(label, Is.EqualTo("hcK"))
         Assert.That(rest, Is.EqualTo(""), "`K` should be consumed")
 
-        let _, _, bothCorner, bothJoint, _, _ = parse_point metrics "hcKj"
-        Assert.That(bothCorner, Is.True, "`K` before `j` is still a corner")
-        Assert.That(bothJoint, Is.True, "`j` after `K` is still a joint")
+        let _, _, bothCorner, bothJoint, _, _ = parse_point metrics "hcKJ"
+        Assert.That(bothCorner, Is.True, "`K` before `J` is still a corner")
+        Assert.That(bothJoint, Is.True, "`J` after `K` is still a joint")
 
     [<Test>]
     member this.TestCornerMarkerBreaksLineToCurve() =
