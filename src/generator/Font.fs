@@ -1205,8 +1205,15 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         let mobius = axes.mobius
         let traceCount = max 1 axes.traces
         // Axes whose width or displacement varies with arc length need interior samples
-        // even on straight spine segments.
-        let widthVariesAlongStroke = nib > 0.0 || taper > 0.0 || wobble > 0.0 || roughness > 0.0 || mobius > 0.0
+        // even on straight spine segments — a straight segment otherwise carries only
+        // its two endpoints, and sag or bleed evaluated at just the ends is no effect
+        // at all (gravity is zero at both ends by construction).
+        // pressure is deliberately absent: curvature is zero along a straight segment,
+        // so it has nothing to vary there, and forcing samples would only pad the path
+        // with collinear points.
+        let widthVariesAlongStroke =
+            nib > 0.0 || taper > 0.0 || wobble > 0.0 || roughness > 0.0 || mobius > 0.0
+            || axes.ink_spread > 0.0 || axes.gravity > 0.0
         let samplesPerSeg = 16
         let isFreeCurveEnd ty = ty = G2 || ty = G4
 
@@ -2126,6 +2133,21 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
     member this.translateByThickness = translateBy thickness thickness
 
+    /// Hand-lettered line: how far this character sits off the baseline.
+    ///
+    /// A property of the glyph, not of any one stroke, so it is applied here at
+    /// placement rather than in the pen. Derived from the code point so a letter
+    /// lands in the same place every time it appears — a font whose glyphs moved
+    /// between renders could not be exported, and repeated letters in a word have
+    /// to agree.
+    member this.bounceOffset(ch: char) =
+        if axes.bounce <= 0.0 then
+            0.0
+        else
+            let h = sin (float (int ch) * 12.9898) * 43758.5453
+            let r = 2.0 * (h - floor h) - 1.0
+            r * axes.bounce * float _metrics.X * 0.12
+
     member this.charToElem ch =
         Glyph(ch)
         |> this.reduce
@@ -2133,6 +2155,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         |> this.monospace
         |> this.translateByThickness
         |> this.italicise
+        |> applyIf (axes.bounce > 0.0) (translateBy 0.0 (this.bounceOffset ch))
 
     member this.charToSvg ch offsetX offsetY colour =
         if axes.debug then

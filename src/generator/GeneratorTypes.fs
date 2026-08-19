@@ -313,18 +313,41 @@ module Pen =
         let wobble = axes.wobble
         let roughness = axes.roughness
         let mobius = axes.mobius
+        let pressure = axes.pressure
+        let inkSpread = axes.ink_spread
+        let gravity = axes.gravity
 
         let wobbleCycles = max 1.0 (System.Math.Round(totalLen / wobbleWavelength))
 
         // wobble=1.0 displaces the spine by half a stroke-thickness at the peaks.
         let amp = wobble * thickness * 0.5
 
+        // How far a sagging stroke droops at its middle, at full gravity.
+        let sagAmp = gravity * thickness * 0.9
+
         let displace (p: PenSample) =
-            if wobble = 0.0 then
-                0.0, 0.0
-            else
-                let phase = 2.0 * PI * wobbleCycles * p.s / totalLen
-                amp * sin phase, amp * 2.0 * PI * wobbleCycles / totalLen * cos phase
+            let wobbleD, wobbleSlope =
+                if wobble = 0.0 then
+                    0.0, 0.0
+                else
+                    let phase = 2.0 * PI * wobbleCycles * p.s / totalLen
+                    amp * sin phase, amp * 2.0 * PI * wobbleCycles / totalLen * cos phase
+
+            let gravityD, gravitySlope =
+                if gravity = 0.0 then
+                    0.0, 0.0
+                else
+                    // Sag is downward in the glyph, not perpendicular to the stroke, so
+                    // project world-down onto the perpendicular: the normal is
+                    // (-sin th, cos th), so a downward pull of g contributes -g cos th.
+                    // A horizontal stroke sags fully, a vertical one not at all — which
+                    // is what a tiring hand actually does. The tangential remainder only
+                    // slides points along the curve and cannot change its shape.
+                    let profile = sin (PI * p.sFrac)
+                    let dProfile = PI / totalLen * cos (PI * p.sFrac)
+                    -sagAmp * profile * cos p.th, -sagAmp * dProfile * cos p.th
+
+            wobbleD + gravityD, wobbleSlope + gravitySlope
 
         /// Broad-nib width factor for a stroke running at angle th: 1.0 when the
         /// stroke is perpendicular to the nib, shrinking toward 0.05 when it runs
@@ -344,6 +367,21 @@ module Pen =
                 let ramp = 0.5 * taper
                 let rampF = min 1.0 (min p.sFrac (1.0 - p.sFrac) / ramp)
                 w <- w * (taperEnd + (1.0 - taperEnd) * rampF)
+
+            if pressure > 0.0 then
+                // A brush pressed into a curve lays down more ink, so width follows how
+                // tightly the spine is turning. Scaled against the stroke's own width —
+                // a bend is "tight" relative to how fat the pen is — and passed through
+                // tanh so a hairpin cannot run away with the width.
+                w <- w * (1.0 + pressure * tanh (abs p.curvature * thickness))
+
+            if inkSpread > 0.0 then
+                // Ink wicking into paper: a mostly even bleed outward, with a fine
+                // irregular edge from the fibres. Additive rather than multiplicative,
+                // because bleed is a property of the paper, not of how hard you pressed —
+                // it spreads a hairline as much as a broad stroke.
+                let fibre = 0.75 + 0.25 * noise (p.s * 3.7) (p.side + 17.0)
+                w <- w + inkSpread * thickness * 0.18 * fibre
 
             w
 

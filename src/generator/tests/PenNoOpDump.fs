@@ -46,7 +46,11 @@ type PenNoOpDumpTests() =
               // Stress: widest spread on a heavy pen, where an offset curve is most
               // likely to self-intersect on the concave side of a tight bend.
               "wide",      (fun a -> { a with weight = 60; traces = 2; trace_spread = 3.0; trace_weight = 0.15 })
-              "wide3",     (fun a -> { a with weight = 80; traces = 3; trace_spread = 3.0; trace_weight = 0.1 }) ]
+              "wide3",     (fun a -> { a with weight = 80; traces = 3; trace_spread = 3.0; trace_weight = 0.1 })
+              "pressure",  (fun a -> { a with pressure = 0.9 })
+              "inkspread", (fun a -> { a with ink_spread = 0.8 })
+              "gravity",   (fun a -> { a with gravity = 0.8 })
+              "bounce",    (fun a -> { a with bounce = 0.8 }) ]
         let sb = System.Text.StringBuilder()
         for (name, f) in variants do
             let axes = f Axes.DefaultAxes

@@ -47,6 +47,10 @@ type Axes =
       wobble: float //hand-drawn waviness: spine displacement amplitude in units of thickness (0=off)
       roughness: float //random width jitter along the stroke edge, independent per side (0=off)
       mobius: float //strokes are twisting ribbons pinched where edge-on; half-twist density (0=off, 1 ≈ every 300 units)
+      pressure: float //stroke widens where the spine turns tightly, as a brush loaded on a curve (0=off)
+      ink_spread: float //stroke bleeds outward, as ink wicking into paper fibres (0=off)
+      gravity: float //strokes sag downward at their middle, like a line drawn with a tired hand (0=off)
+      bounce: float //each glyph sits a little above or below the baseline, for a hand-lettered line (0=off)
       constant_offset: bool //prototype: outlines are dense polylines at constant perpendicular distance from the spine
       max_spline_iter: int //max number of iterations to solve spline curves
       show_knots: bool //show small circles for the points used to define lines/curves
@@ -94,6 +98,10 @@ type Axes =
           wobble = 0.0
           roughness = 0.0
           mobius = 0.0
+          pressure = 0.0
+          ink_spread = 0.0
+          gravity = 0.0
+          bounce = 0.0
           constant_offset = true
           max_spline_iter = 500
           show_knots = false
@@ -142,6 +150,10 @@ type Axes =
           "wobble", FracRange(0.0, 1.0), "artistic", "Hand-drawn waviness: spine displacement amplitude in units of thickness (0=off)"
           "roughness", FracRange(0.0, 1.0), "artistic", "Random width jitter along the stroke edge, independent per side (0=off)"
           "mobius", FracRange(0.0, 3.0), "artistic", "Strokes are twisting ribbons pinched where edge-on; half-twist density (0=off, 1 ≈ every 300 units)"
+          "pressure", FracRange(0.0, 1.0), "artistic", "Stroke widens where the spine turns tightly and stays thin on straight runs, like a brush pressed into a curve (0=off)"
+          "ink_spread", FracRange(0.0, 1.0), "artistic", "Stroke bleeds outward with a fibrous edge, as ink wicking into paper (0=off)"
+          "gravity", FracRange(0.0, 1.0), "artistic", "Strokes sag downward at their middle, most on horizontals and not at all on verticals (0=off)"
+          "bounce", FracRange(0.0, 1.0), "artistic", "Hand-lettered line: each glyph sits a little above or below the baseline, the same way every time (0=off)"
           "serif", Range(0, 70), "artistic", "Serif size"
           "constraints", Checkbox, "experimental", "Constrain tangents to within borders"
           "constant_offset", Checkbox, "experimental", "Prototype: outlines are dense polylines at constant perpendicular distance from the spine"
@@ -173,6 +185,8 @@ type Axes =
         this.nib > 0.0 || this.taper > 0.0 || this.wobble > 0.0 || this.roughness > 0.0 || this.mobius > 0.0
         // Parallel traces are built by offsetting the sampled spine.
         || this.traces > 1
+        // Curvature-driven width, ink bleed and sag all vary along the stroke.
+        || this.pressure > 0.0 || this.ink_spread > 0.0 || this.gravity > 0.0
         // joint_gap trims the spine by arc length, which only the sampled path can do.
         || this.joint_gap > 0.0
 
