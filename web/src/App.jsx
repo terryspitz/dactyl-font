@@ -455,6 +455,10 @@ function App() {
     setOpenCategories(prev => ({ ...prev, [cat]: !prev[cat] }))
   }
 
+  // On mobile the sidebar is collapsed to an icon rail; CSS :hover has no touch
+  // equivalent, so track an explicit open/closed state and toggle it by tap.
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+
   const handleLegendMouseDown = (e) => {
     // Only drag on left click and not on interactive elements inside
     if (e.button !== 0 || e.target.tagName === 'INPUT' || e.target.tagName === 'A') return
@@ -536,6 +540,7 @@ function App() {
     }
     const onMouseMove = (e) => applyDelta(e.clientY)
     const onTouchMove = (e) => {
+      if (!resizingInputAreaRef.current) return
       applyDelta(e.touches[0].clientY)
       if (e.cancelable) e.preventDefault()
     }
@@ -1689,11 +1694,32 @@ function App() {
     setGlyphSeed(newGlyphSeed())
   }
 
+  // Constant inputs — memoized so this isn't recomputed on every render
+  // (e.g. every slider tick), which was expensive enough to noticeably
+  // delay the browser's touch-scroll response when dragging a slider.
+  const sidebarTitleSvg = useMemo(
+    () => generateTweenSvg("Dactyl", { ...defaultAxes, weight: 35 }),
+    []
+  )
 
   return (
     <div className="container">
-      <div className="sidebar">
-        <div className="sidebar-title" dangerouslySetInnerHTML={{ __html: generateTweenSvg("Dactyl", { ...defaultAxes, weight: 35 }) }} />
+      <button
+        className="sidebar-toggle"
+        onClick={() => setMobileSidebarOpen(open => !open)}
+        title={mobileSidebarOpen ? 'Close controls' : 'Open controls'}
+        aria-label={mobileSidebarOpen ? 'Close controls' : 'Open controls'}
+      >
+        <span className="material-symbols-outlined">{mobileSidebarOpen ? 'close' : 'menu'}</span>
+      </button>
+      {mobileSidebarOpen && (
+        <div className="sidebar-backdrop" onClick={() => setMobileSidebarOpen(false)} />
+      )}
+      <div
+        className={`sidebar${mobileSidebarOpen ? ' mobile-open' : ''}`}
+        onClick={() => { if (!mobileSidebarOpen) setMobileSidebarOpen(true) }}
+      >
+        <div className="sidebar-title" dangerouslySetInnerHTML={{ __html: sidebarTitleSvg }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flex: '0 0 auto' }}>
           <h2 style={{ margin: 0 }}>Controls</h2>
           <div className="toolbar" style={{ display: 'flex', gap: '5px' }}>
