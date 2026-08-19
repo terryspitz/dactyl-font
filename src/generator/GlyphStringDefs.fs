@@ -15,10 +15,10 @@ let y_re = "[txhbd0-9]+|\([txhbd0-9]+\)"
 let offset_re = "[oe]"
 let x_re = "[lrcw0-9]+|\([lrcw0-9]+\)"
 let direction_re = "[NSEW]"
-// Explicit interior-joint marker: a trailing `j` on a point declares that an
+// Explicit interior-joint marker: a trailing `J` on a point declares that an
 // open-stroke endpoint landing here is a joint against another stroke, so its
 // cap (serif/flare/bulb) is suppressed. See Font.isJointRaw and DactylGlyphs.md.
-let joint_re = "j"
+let joint_re = "J"
 // Explicit corner (kink) marker: a trailing `K` forces the point to be a Corner,
 // breaking tangent continuity there while leaving both tangents free for the
 // solver. This is what lets a straight stem run directly into a curve that
@@ -102,15 +102,15 @@ let glyphMap =
           // One continuous stroke: the stem runs into the bowl at an acute kink (`K`),
           // rather than two overlapping strokes whose caps left a notch at the join.
           '5', "tr-tl-hlK~ttb(c)~(bbt)r~b(c)~bol"
-          '6', "tor~t(c)~(h)l~bbtl~b(c)~bbtr~ttbc~bbtlNj"
+          '6', "tor~t(c)~(h)l~bbtl~b(c)~bbtr~ttbc~bbtlNJ"
           '7', "tl-tr-bcl"
           //  two loops:
           //  '8', "hc~thl~tc~thr~ hc~bhl~bc~bhr~"
           // figure of eight:
           '8', "hc~(th)l~t(c)~(th)r~hc~(bh)l~b(c)~(bh)r~"
-          '9', "bol~b(c)~(h)r~ttbr~t(c)~ttbl~bbtc~ttbrSj"
+          '9', "bol~b(c)~(h)r~ttbr~t(c)~ttbl~bbtc~ttbrSJ"
 
-          'A', "bl-tc-br bhl3cj-bhcr3j"
+          'A', "bl-tc-br bhl3cJ-bhcr3J"
           'a', "xr-br xor~x(c)~(xb)l~b(c)~bor"
           'B', "hl-hlo~(bh)r~blo-bl-tl-tlo~(th)r~hlo-hl"
           'b', "tl-bl bol~b(c)~(xb)r~x(c)~xol"
@@ -119,7 +119,7 @@ let glyphMap =
           'D', "tl-bl-blo~(h)r~tlo-"
           'd', "tr-br xor~x(c)~(xb)l~b(c)~bor"
           'E', "tr-tl-bl-br hl-hr"
-          'e', "xblj-xbrN~x(c)~xblS~b(c)~bor5c"
+          'e', "xblJ-xbrN~x(c)~xblS~b(c)~bor5c"
           'F', "bl-tl-tr hl-hrc"
           'f', "bllc-xtllc~tcrW xl-xc"
           'G', "tor~t(c)~(h)l~b(c)~bhr-hr-hc"
@@ -133,18 +133,18 @@ let glyphMap =
           // Leg springs from the arm (like 'k' below), not from the stem: two strokes
           // both ending at the stem cap each other perpendicular to their own axis, and
           // the caps cross inside the stem, leaving the ink between them unfilled — a
-          // white bite out of the junction that widens with weight. `j` buries the leg's
+          // white bite out of the junction that widens with weight. `J` buries the leg's
           // cap inside the arm instead. The junction sits at `h9b` rather than `h`: `h`
           // takes the `balance` raise meant for crossbars and waists, which lifted this
           // vertex above the optical middle. `h8tl4r` is 1/5 along the arm, the point the
           // coordinate grid puts closest to the arm's spine once it is lowered (0.2 units
           // off) — springing from off the spine leaves a spur at hairline weights.
-          // Both interior ends are marked `j`: the arm's lands on the stem, so the
+          // Both interior ends are marked `J`: the arm's lands on the stem, so the
           // geometric heuristic already suppresses its cap while the `joints` axis is on,
           // but with that axis off the marker is what stops a serif bracket (or bulb)
           // sprouting out through the far side of the stem.
-          'K', "tl-bl tr-h9blj h8tl4rj-br"
-          'k', "tl-bl xb2l-xcr x2bc3lj-bcr"
+          'K', "tl-bl tr-h9blJ h8tl4rJ-br"
+          'k', "tl-bl xb2l-xcr x2bc3lJ-bcr"
           'L', "tl-bl-br"
           'l', "tl-xbl~bcW"
           'M', "bl-tl-blw-tw-bw"
@@ -154,7 +154,7 @@ let glyphMap =
           // crotch — the thinnest part of the junction — and stepped the outline there.
           // Of the three strokes meeting here, the leg is the one whose cap hides best:
           // it starts below the crotch with arch ink either side of it.
-          'm', "xl-bl xolj~x(llw)~xxblwK~x(rw)~xxbw-bw xxblwj-blw"
+          'm', "xl-bl xolJ~x(llw)~xxblwK~x(rw)~xxbw-bw xxblwJ-blw"
           'N', "bl-tl-br-tr"
           'n', "xl-bl xol~x(c)~xbr-br"
           'O', "(h)l~t(c)~(h)r~b(c)~"
@@ -163,7 +163,7 @@ let glyphMap =
           'p', "xl-dl bol~b(c)~(xb)r~x(c)~xol"
           'Q', "(h)l~t(c)~(h)r~b(c)~ br-hbc"
           'q', "xr-dr xor~x(c)~(xb)l~b(c)~bor"
-          'R', "bl-tl-tlo~(th)r~hlo-hlj hloj-br"
+          'R', "bl-tl-tlo~(th)r~hlo-hlJ hloJ-br"
           'r', "xl-bl xol~xlcc~xoccr"
           'S', "thr~t(c)~(ttb)l~hc~(tbb)r~b(c)~bhl"
           's', "xor~x(c)~(xxb)l~xbcE~(xbb)r~b(c)~bol"
@@ -177,7 +177,7 @@ let glyphMap =
           'w', "xl-bl3w-xlw-blw3-xw"
           'X', "tl-br tr-bl"
           'x', "xl-br xr-bl"
-          'Y', "tl-hc-tr hcj-bc"
+          'Y', "tl-hc-tr hcJ-bc"
           'y', "xl-xbl~b(c)~xbr-xr xr-br~d(c)~dol"
           'Z', "tl-tr-bl-br"
           'z', "xl-xr-bl-br" ]
