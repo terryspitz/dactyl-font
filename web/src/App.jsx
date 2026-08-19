@@ -1720,10 +1720,7 @@ function App() {
       {mobileSidebarOpen && (
         <div className="sidebar-backdrop" onClick={() => setMobileSidebarOpen(false)} />
       )}
-      <div
-        className={`sidebar${mobileSidebarOpen ? ' mobile-open' : ''}`}
-        onClick={() => { if (!mobileSidebarOpen) setMobileSidebarOpen(true) }}
-      >
+      <div className={`sidebar${mobileSidebarOpen ? ' mobile-open' : ''}`}>
         <div className="sidebar-title" dangerouslySetInnerHTML={{ __html: sidebarTitleSvg }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flex: '0 0 auto' }}>
           <h2 style={{ margin: 0 }}>Controls</h2>
