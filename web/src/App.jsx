@@ -166,7 +166,11 @@ function App() {
   const [tabZooms, setTabZooms] = useState(() => {
     const urlZoom = parseFloat(new URLSearchParams(window.location.search).get('zoom'))
     const zoom = isNaN(urlZoom) ? 1.0 : urlZoom
-    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom, generate: zoom }
+    // Narrow (mobile) screens only fit a couple of 150px tween boxes at zoom 1,
+    // so default the tweens tab to a smaller zoom there to fit more variations.
+    const isMobileWidth = window.innerWidth <= 768
+    const tweensZoom = isNaN(urlZoom) && isMobileWidth ? 0.5 : zoom
+    return { font: zoom, glyphs: zoom, tweens: tweensZoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom, generate: zoom }
   })
   const [layerVisibility, setLayerVisibility] = useState({
     spiro: false,
@@ -1033,7 +1037,7 @@ function App() {
       typeReq = 'tweens'
       const boxWidth = 150 * zoom
       const availableWidth = previewRef.current?.clientWidth ?? window.innerWidth
-      const steps = Math.max(2, Math.floor((availableWidth + 10) / (boxWidth + 10)))
+      const steps = Math.max(4, Math.floor((availableWidth + 10) / (boxWidth + 10)))
       args = [char, axes, steps]
     } else if (activeTab === 'visualDiffs') {
       if (compareMode === 'font') {
@@ -1743,10 +1747,17 @@ function App() {
   // Constant inputs — memoized so this isn't recomputed on every render
   // (e.g. every slider tick), which was expensive enough to noticeably
   // delay the browser's touch-scroll response when dragging a slider.
-  const sidebarTitleSvg = useMemo(
-    () => generateTweenSvg("Dactyl", { ...defaultAxes, weight: 35 }),
-    []
-  )
+  const sidebarTitleSvg = useMemo(() => {
+    const svg = generateTweenSvg("Dactyl", { ...defaultAxes, weight: 35 })
+    // The D's rounded top slightly overshoots the generator's computed
+    // viewBox (measured ~15 units short on a 1000-unit-tall glyph), so its
+    // top edge gets clipped. Give it some headroom here rather than in the
+    // shared generator, which other, unaffected renders also depend on.
+    return svg.replace(/viewBox='(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)'/, (_, x, y, w, h) => {
+      const margin = 20
+      return `viewBox='${x} ${parseFloat(y) - margin} ${w} ${parseFloat(h) + margin}'`
+    })
+  }, [])
 
   return (
     <div className="container">
