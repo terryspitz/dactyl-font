@@ -106,12 +106,19 @@
     opacity: 0.45;
 }
 
-/* Pen preset chips, above the first section of the controls list. */
+/* Pen preset chips, above the first section of the controls list.
+   The sidebar is shrink-to-fit (width: auto), and a wrapping flex row's
+   max-content width is every chip on one line — which would drag the sidebar
+   to its 400px max and narrow the preview area on every tab. width: 0 keeps
+   the row out of that intrinsic measurement; min-width: 100% then fills
+   whatever width the sidebar settles on. */
 .pen-presets {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
     margin-bottom: 18px;
+    width: 0;
+    min-width: 100%;
 }
 
 .pen-presets .proof-chip {
