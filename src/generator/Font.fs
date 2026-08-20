@@ -1625,30 +1625,13 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                             isReversal
                             || (not reverse && bend < -PI / 8.0)
                             || (reverse && bend > PI / 8.0)
-                        // True when one of the two edges at this corner runs along the
-                        // horizontal/vertical axis (a straight stem or serif edge) rather
-                        // than both edges being diagonal (a symmetric apex, e.g. the middle
-                        // of M/W or the point of A/V/Y). The w*sqrt(2) crisp-point push below
-                        // is correctly calibrated for axis-aligned elbows, whose spine corner
-                        // sits a full stroke-width short of the metric line expecting exactly
-                        // that push. Diagonal apexes' spine points are only inset by half a
-                        // stroke-width (the usual optical-overshoot allowance), so they need
-                        // half the push — otherwise they overshoot the metric line by the
-                        // other half (the M/W "sticks out" bug).
-                        let isNearAxis (t: float) =
-                            let d = (norm t) * 180.0 / PI
-                            let m = ((d % 90.0) + 90.0) % 90.0
-                            (min m (90.0 - m)) < 5.0
-                        let isElbow =
-                            isNearAxis (bp.th_in + dTh) || isNearAxis (bp.th_out + dTh)
-                        let apexScale = if isElbow then 1.0 else 0.5
                         if isOuter && isSharperThanRight then
                             // Outer side of a sharp corner: a true miter would spike far out,
                             // so chamfer it. Both points still sit exactly on their own edge
                             // line (a distance w*sqrt2 at 45 degrees to the perpendicular has
                             // component w along it), so neither edge is bent by the bevel.
-                            let pa = addPolarContrast bx by (this.maybeAlign th1 - perpAngle / 2.0) (wIn * sqrt 2.0 * apexScale)
-                            let pb = addPolarContrast bx by (this.maybeAlign th2 + perpAngle / 2.0) (wOut * sqrt 2.0 * apexScale)
+                            let pa = addPolarContrast bx by (this.maybeAlign th1 - perpAngle / 2.0) (wIn * sqrt 2.0)
+                            let pb = addPolarContrast bx by (this.maybeAlign th2 + perpAngle / 2.0) (wOut * sqrt 2.0)
                             knots.Add(plainKnot pa)
                             knots.Add(plainKnot pb)
                         else
