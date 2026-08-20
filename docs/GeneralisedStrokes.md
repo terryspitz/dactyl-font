@@ -516,5 +516,28 @@ against a same-sampling baseline rather than the unsampled one.
   presets exist, since the two answer the same "what does this axis do" question
   from opposite ends.
 - **Snapshot rebaselining** is the repo owner's manual step, per `CLAUDE.md`.
-  `tabs.spec.js-snapshots/tweens-chromium-linux.png` changes (the grid gains and
-  loses axis rows), as do the randomised shots (§5.2).
+  Two shots change, both verified by eye first:
+  - `tabs.spec.js-snapshots/tweens-chromium-linux.png` — the grid gains and loses
+    axis rows.
+  - `tweens.spec.js-snapshots/tween-pressure-chromium-linux.png` — **a stale
+    baseline**, not a new one. The reverted `pressure` attempt left a committed
+    snapshot behind in which all six samples are identical, because the axis did
+    nothing; the new implementation thickens the bowl of the `a` while leaving
+    its straight stem alone, so it legitimately differs. The other new axes
+    (`ink_spread`, `gravity`, `bounce`, the four `trace_*`) have no baseline and
+    are generated rather than failed, per `updateSnapshots: 'missing'`.
+
+  Other stale baselines sit alongside it for axes that no longer exist —
+  `tween-stroked` and `tween-scratches` are newly orphaned by §3.1, joining
+  `tween-thickness`, `tween-italic`, `tween-alt-a-g`, `tween-show-comb` and
+  `tween-soft-corners` from earlier changes. They do not fail anything; deleting
+  them is left to the repo owner along with the rest of the snapshot handling.
+
+- **A sidebar feature can move every tab snapshot.**  `.sidebar` is shrink-to-fit
+  (`width: auto`, 280–400px) and the tab tests screenshot `.preview-content`
+  beside it, so anything that widens the sidebar narrows the preview on *every*
+  tab. A wrapping flex row's max-content width is all of its items on one line —
+  wrapping is not considered — so the ten preset chips pushed the sidebar to its
+  400px cap and moved 13 snapshots. `width: 0` keeps the row out of that
+  intrinsic measurement and `min-width: 100%` fills the settled width. Worth
+  knowing before adding anything else to the sidebar.
