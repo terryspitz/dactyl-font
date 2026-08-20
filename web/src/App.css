@@ -33,6 +33,13 @@
     color: var(--text-primary);
 }
 
+/* Mobile-only controls; hidden on desktop where the sidebar is always
+   fully visible. Shown again inside the max-width:768px media query. */
+.sidebar-toggle,
+.sidebar-backdrop {
+    display: none;
+}
+
 .sidebar-title {
     width: 100%;
     margin-bottom: -10px;
@@ -143,6 +150,10 @@
     position: relative;
     cursor: pointer;
     margin: 0;
+    /* Sliders sit inside vertically-scrollable lists (e.g. the mobile
+       sidebar); without this, touch drags starting on the slider are
+       claimed for the (horizontal) thumb drag and can't scroll the list. */
+    touch-action: pan-y;
 }
 
 .modern-slider:focus {
@@ -355,6 +366,41 @@
     padding-bottom: 8px;
     display: flex;
     justify-content: space-between;
+}
+
+/* "?" button in the Glyph Definitions header, and the cheatsheet it opens.
+   The popup is fixed-position (see App.jsx) so the scrolling panel it is nested
+   in can't clip it; it therefore has to re-state the type styles the panel sets. */
+.glyph-key-button {
+    display: inline-flex;
+    align-items: center;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.glyph-key-button:hover {
+    color: var(--accent-color);
+}
+
+.glyph-key-popup {
+    position: fixed;
+    z-index: 50;
+    width: 340px;
+    max-width: calc(100vw - 16px);
+    padding: 10px 12px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: normal;
+    line-height: 1.6;
+    white-space: normal;
+    text-align: left;
 }
 
 .text-reset-button {
@@ -822,66 +868,60 @@
 
 /* Mobile Portrait Overrides */
 @media (max-width: 768px) {
+    /* No shrunken icon-rail on mobile — the pane is fully off-screen until
+       opened via .sidebar-toggle, which is simpler than the old
+       hover-driven "shrunken rail" (hover has no touch equivalent, so it
+       needed extra state/CSS just to reveal contents on tap). */
     .sidebar {
         position: absolute;
         left: 0;
         top: 0;
         bottom: 0;
-        width: 64px;
-        min-width: 64px;
-        z-index: 1000;
-        padding: 24px 12px;
-        transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
-        overflow-x: hidden;
+        width: 300px;
+        min-width: 0;
+        max-width: 85vw;
+        /* Above .progress-bar-container (z-index: 1000) so the pane isn't
+           see-through to the progress bar when both overlap on mobile. */
+        z-index: 1010;
+        padding: 24px;
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
         border-right: 1px solid var(--border-color);
         background: var(--sidebar-bg);
     }
 
-    .sidebar:hover, .sidebar:focus-within {
-        width: 300px;
+    .sidebar.mobile-open {
+        transform: translateX(0);
         box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
     }
 
-    /* Hide text labels in shrunken sidebar */
-    .sidebar h2, 
-    .sidebar .sidebar-title,
-    .sidebar .category-header .category-title, 
-    .sidebar .control-group label,
-    .sidebar .value-display,
-    .sidebar .category-header span:not(.material-symbols-outlined) {
-        opacity: 0;
-        white-space: nowrap;
-        transition: opacity 0.2s ease;
-        pointer-events: none;
-    }
-
-    .sidebar:hover h2,
-    .sidebar:hover .sidebar-title,
-    .sidebar:hover .category-header .category-title,
-    .sidebar:hover .control-group label,
-    .sidebar:hover .value-display,
-    .sidebar:hover .category-header span {
-        opacity: 1;
-        pointer-events: auto;
-    }
-
-    /* Keep icons visible and centered */
-    .sidebar .category-header {
+    .sidebar-toggle {
+        display: flex;
+        align-items: center;
         justify-content: center;
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        width: 40px;
+        height: 40px;
         padding: 0;
+        z-index: 1011;
+        border-radius: var(--radius-md);
+        background: var(--panel-bg);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
     }
 
-    .sidebar:hover .category-header {
-        justify-content: flex-start;
-        padding-left: 0;
-    }
-
-    .sidebar .material-symbols-outlined {
-        font-size: 24px;
+    .sidebar-backdrop {
+        display: block;
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        /* Above .progress-bar-container (z-index: 1000) so it dims that too. */
+        z-index: 1005;
     }
 
     .main {
-        margin-left: 64px;
         padding: 16px;
     }
 
@@ -904,6 +944,9 @@
         flex-direction: column;
         align-items: flex-start;
         gap: 12px;
+        /* Clear the floating .sidebar-toggle button (top:12px, left:12px,
+           40x40px) so it doesn't sit on top of the first row of content. */
+        padding-left: 56px;
     }
 
     .tabs {

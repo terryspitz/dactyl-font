@@ -239,6 +239,11 @@ function App() {
   const [savingGlyphsImage, setSavingGlyphsImage] = useState(false)
   const [glyphsCopied, setGlyphsCopied] = useState(false)
   const [glyphsMenuOpen, setGlyphsMenuOpen, glyphsMenuRef] = useDownloadMenu()
+  // Glyph-string cheatsheet popup. Reuses the download menu's outside-click/Escape
+  // wiring; the panel it lives in scrolls, so the popup is positioned fixed against
+  // the button's rect rather than absolutely (which the panel would clip).
+  const [glyphKeyOpen, setGlyphKeyOpen, glyphKeyRef] = useDownloadMenu()
+  const [glyphKeyPos, setGlyphKeyPos] = useState(null)
   // Splines tab image export — SplineEditor holds interactive state (dragged
   // control points) no fresh worker call could reconstruct, so this serialises
   // the live svg.se-canvas DOM node instead of re-fetching.
@@ -455,6 +460,10 @@ function App() {
     setOpenCategories(prev => ({ ...prev, [cat]: !prev[cat] }))
   }
 
+  // On mobile the sidebar is collapsed to an icon rail; CSS :hover has no touch
+  // equivalent, so track an explicit open/closed state and toggle it by tap.
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+
   const handleLegendMouseDown = (e) => {
     // Only drag on left click and not on interactive elements inside
     if (e.button !== 0 || e.target.tagName === 'INPUT' || e.target.tagName === 'A') return
@@ -536,6 +545,7 @@ function App() {
     }
     const onMouseMove = (e) => applyDelta(e.clientY)
     const onTouchMove = (e) => {
+      if (!resizingInputAreaRef.current) return
       applyDelta(e.touches[0].clientY)
       if (e.cancelable) e.preventDefault()
     }
@@ -1689,11 +1699,29 @@ function App() {
     setGlyphSeed(newGlyphSeed())
   }
 
+  // Constant inputs — memoized so this isn't recomputed on every render
+  // (e.g. every slider tick), which was expensive enough to noticeably
+  // delay the browser's touch-scroll response when dragging a slider.
+  const sidebarTitleSvg = useMemo(
+    () => generateTweenSvg("Dactyl", { ...defaultAxes, weight: 35 }),
+    []
+  )
 
   return (
     <div className="container">
-      <div className="sidebar">
-        <div className="sidebar-title" dangerouslySetInnerHTML={{ __html: generateTweenSvg("Dactyl", { ...defaultAxes, weight: 35 }) }} />
+      <button
+        className="sidebar-toggle"
+        onClick={() => setMobileSidebarOpen(open => !open)}
+        title={mobileSidebarOpen ? 'Close controls' : 'Open controls'}
+        aria-label={mobileSidebarOpen ? 'Close controls' : 'Open controls'}
+      >
+        <span className="material-symbols-outlined">{mobileSidebarOpen ? 'close' : 'menu'}</span>
+      </button>
+      {mobileSidebarOpen && (
+        <div className="sidebar-backdrop" onClick={() => setMobileSidebarOpen(false)} />
+      )}
+      <div className={`sidebar${mobileSidebarOpen ? ' mobile-open' : ''}`}>
+        <div className="sidebar-title" dangerouslySetInnerHTML={{ __html: sidebarTitleSvg }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flex: '0 0 auto' }}>
           <h2 style={{ margin: 0 }}>Controls</h2>
           <div className="toolbar" style={{ display: 'flex', gap: '5px' }}>
@@ -1874,15 +1902,53 @@ function App() {
           </div>
           {activeTab === 'glyphs' && (
             <div className="glyph-defs-panel" style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-              <h3 style={{ margin: 0 }}>Glyph Definitions{' '}
-                <a
-                  href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontWeight: 'normal', textDecoration: 'underline' }}
-                >
-                  (docs)
-                </a>
+              <h3 style={{ margin: 0 }}>
+                Glyph Definitions
+                <span ref={glyphKeyRef} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <a
+                    href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontWeight: 'normal', textDecoration: 'underline' }}
+                  >
+                    (docs)
+                  </a>
+                  <button
+                    type="button"
+                    className="glyph-key-button"
+                    title="Glyph string key"
+                    aria-label="Glyph string key"
+                    aria-expanded={glyphKeyOpen}
+                    onClick={e => {
+                      const r = e.currentTarget.getBoundingClientRect()
+                      // Right-align the popup to the button, then keep it on screen.
+                      const left = Math.max(8, Math.min(r.right - 340, window.innerWidth - 348))
+                      setGlyphKeyPos({ top: r.bottom + 6, left })
+                      setGlyphKeyOpen(o => !o)
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>help</span>
+                  </button>
+                  {glyphKeyOpen && glyphKeyPos && (
+                    <div
+                      className="glyph-key-popup"
+                      style={{ top: `${glyphKeyPos.top}px`, left: `${glyphKeyPos.left}px` }}
+                    >
+                      <strong>Key:</strong> y: (t)op, (x)-height, (h)alf, (b)ottom, (d)escender, (o)ffset in, (e)xtended out. <br />
+                      x: (l)eft, (c)enter, (r)ight, (w)ide. Solo point → dot. <br />
+                      Dirs: N,S,E,W. Lines: (-) straight, (~) curve. Brackets: auto fit. <br />
+                      K: corner/kink. J: interior joint (suppresses end caps). <br />
+                      Repeats average coordinates (e.g. "bt"="h"); a digit repeats the letter before it, so "b2t"="bbt". <br />
+                      <a
+                        href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Full glyph definition docs
+                      </a>
+                    </div>
+                  )}
+                </span>
               </h3>
               <textarea
                 value={glyphsDefsText}
@@ -1890,12 +1956,6 @@ function App() {
                 style={{ width: '100%', flex: '1', minHeight: '100px', fontFamily: 'monospace', resize: 'vertical' }}
                 spellCheck="false"
               />
-              <div className="helper-key" style={{ fontSize: '0.85em', color: '#666' }}>
-                <strong>Key:</strong> y: (t)op, (x)-height, (h)alf, (b)ottom, (d)escender, (o)ffset in, (e)xtended out. <br />
-                x: (l)eft, (c)enter, (r)ight, (w)ide. Solo point → dot. <br />
-                Dirs: N,S,E,W. Lines: (-) straight, (~) curve. Brackets mean 'fit this coordinate instead'. <br />
-                Repeats average coordinates (e.g. "bt"="h"); a digit repeats the letter before it, so "b2t"="bbt" and "r4c"="rrrrc".
-              </div>
             </div>
           )}
           {activeTab === 'generate' && (

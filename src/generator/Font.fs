@@ -501,7 +501,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         checkElem elem
 
     /// True when a knot exactly at (X,Y) was explicitly declared an interior
-    /// joint via the `j` marker in the glyph string. Unlike the geometric
+    /// joint via the `J` marker in the glyph string. Unlike the geometric
     /// heuristic above this handles joints landing on curves (e.g. R's leg, m's
     /// arches) and is always honoured, independent of the `joints` axis.
     member this.isExplicitJoint elem X Y =
@@ -645,7 +645,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
             //
             // e=0 makes the corners t*cos(theta) from the spine, which is <= t for
             // any angle, so a flat cut can never poke out. It relies on the joint
-            // knot already lying inside the covering ink; every `j` knot now sits
+            // knot already lying inside the covering ink; every `J` knot now sits
             // exactly on its covering spine, so that holds at all weights.
             //
             // joint_gap recession is NOT applied here: the caller trims the spine by
@@ -753,9 +753,17 @@ type Font(axes: Axes, ?showCombOpt: bool) =
 
             let isSharperThanRight = abs bend >= 2.0 // Approx 115 degrees. 90 deg is 1.57.
             let isOuterBend = (not reverse && bend < -PI / 8.0) || (reverse && bend > PI / 8.0)
+            // Near-reversal (cusp): both sides have to wrap around the tip, and which one
+            // counts as "outer" is meaningless — norm() maps a 180 degree bend to +PI or
+            // -PI arbitrarily. The miter below would then place a point at dist/cos(alpha)
+            // (unbounded as alpha approaches +-90 degrees) and spike far out of the glyph.
+            let isReversal = abs bend > 3.0 // Approx 172 degrees.
 
-            if isOuterBend && isSharperThanRight then
-                // REVERT: Use two points at the same location (the miter point) for sharp corners
+            if isSharperThanRight && (isOuterBend || isReversal) then
+                // Outer bend (or full reversal): a true miter would spike far out, so
+                // chamfer it. Both points still sit exactly on their own edge line (a
+                // distance dist*sqrt2 at 45 degrees to the perpendicular has component
+                // dist along it), so neither edge is bent by the bevel.
                 [ { pt = segmentAddPolar seg (this.maybeAlign th1 - angle / 2.0) (dist * sqrt 2.0)
                     ty = newType
                     th_in = Some lastSeg.tangentEnd
@@ -769,16 +777,55 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     isJoint = false
                     label = None } ]
             else
-                // 90 degree corners (and shallower/inner) are sharp miters (single knot)
-                let offset = min (min (dist / cos alpha) seg.seg_ch) lastSeg.seg_ch
-                let sharpPt = addPolarContrast seg.X seg.Y (th1 + alpha) offset
+                // Inner (concave) side. Both edges are offset by the same dist here, so the
+                // bisector miter at dist/cos(alpha) *is* the intersection of the two offset
+                // edge lines — the vertex of the union the two stroke bodies actually lay
+                // down, and the right answer wherever both edges really are straight (it is
+                // what keeps 'z's diagonal full width into its bars). Clamping it back along
+                // the bisector to an adjacent chord pulls that vertex in toward the spine and
+                // tapers the stroke, which is what narrowed '5's stem into its acute bowl
+                // join — so instead only take the miter on a sharp bend when both edges
+                // really are straight, i.e. neither adjacent segment turns along its length.
+                // The miter is found by extrapolating the two *tangent* lines, so as soon as
+                // an edge curves away the intersection sits off the real offset edge and
+                // outside the stroke, the further out the sharper the bend: that is what
+                // collapses the cusped waist of '3' and what tapered '5's stem into its
+                // acute bowl join. Bevel there instead — end each edge at its own
+                // perpendicular foot and let the two bodies overlap, which the nonzero fill
+                // rule unions into the ink a stroke of this width actually lays down.
+                // The sampled outline path's emitAtBezPt does the same; see the comment there.
+                let isStraight (s: Segment) = abs (norm (s.tangentEnd - s.tangentStart)) < 1e-3
+                let bothEdgesStraight = isStraight lastSeg && isStraight seg
+                let mitre = dist / cos alpha
 
-                [ { pt = sharpPt
-                    ty = newType
-                    th_in = Some lastSeg.tangentEnd
-                    th_out = Some seg.tangentStart
-                    isJoint = false
-                    label = None } ]
+                if isSharperThanRight && not bothEdgesStraight then
+                    [ { pt = segmentAddPolar seg th1 dist
+                        ty = newType
+                        th_in = Some lastSeg.tangentEnd
+                        th_out = None
+                        isJoint = false
+                        label = None }
+                      { pt = segmentAddPolar seg th2 dist
+                        ty = newType
+                        th_in = None
+                        th_out = Some seg.tangentStart
+                        isJoint = false
+                        label = None } ]
+                else
+                    // 90 degree corners (and shallower) stay clamped to the chord lengths, so
+                    // a short adjacent segment can't be overshot.
+                    let offset =
+                        if isSharperThanRight then mitre
+                        else min (min mitre seg.seg_ch) lastSeg.seg_ch
+
+                    let sharpPt = addPolarContrast seg.X seg.Y (th1 + alpha) offset
+
+                    [ { pt = sharpPt
+                        ty = newType
+                        th_in = Some lastSeg.tangentEnd
+                        th_out = Some seg.tangentStart
+                        isJoint = false
+                        label = None } ]
         | SpiroPointType.Right ->
             let t = Some seg.tangentStart
 
@@ -1523,9 +1570,22 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                 let perpAngle = sign * PI / 2.
                 let knots = System.Collections.Generic.List<Knot>()
 
-                let emitPerpRaw x y th sLen =
+                /// Where the offset edge sits for a spine sample: perpendicular to the
+                /// tangent, at the (possibly tapered / roughened) half width.
+                let perpPoint x y th sLen =
                     let w = widthAt sLen th |> roughen sign sLen
-                    knots.Add(plainKnot (addPolarContrast x y (th + perpAngle) w))
+                    addPolarContrast x y (th + perpAngle) w
+
+                // A corner emits its miter/bevel point, which can sit further along the
+                // outgoing edge than the first body samples of the next segment do — the
+                // polyline then doubles back on itself and nicks the outline (clearly
+                // visible at heavy weights on 5's stem/bowl join). Samples behind the
+                // miter are skipped: this gate holds the miter point and the outgoing
+                // direction to measure them against, and is armed by emitAtBezPt.
+                let mutable cornerGate: (Point * float * float) option = None
+
+                let emitPerpRaw x y th sLen =
+                    knots.Add(plainKnot (perpPoint x y th sLen))
 
                 // Samples outside the trimmed span belong to the receded joint end.
                 let emitPerp x y th sLen =
@@ -1537,7 +1597,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                     let (x, y, th) = spineAt s
                     emitPerpRaw x y th s
 
-                let emitAtBezPt (i: int) =
+                let emitAtBezPtRaw (i: int) =
                     let bp = bezPts.[i]
                     let (bx, by, dTh, sLen) = dispBez.[i]
                     if not (inBody sLen) then () else
@@ -1555,8 +1615,15 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                         let th2 = norm (bp.th_out + dTh + perpAngle)
                         let bend = norm (th2 - th1)
                         let isSharperThanRight = abs bend >= 2.0
+                        // At a near-reversal (a cusp, e.g. the waist of '3') both sides wrap
+                        // around the tip and "outer" is meaningless: norm() maps a 180 degree
+                        // bend to +PI or -PI arbitrarily, and the inner miter distance
+                        // w/cos(alpha) is unbounded there, so the fall-through would spike
+                        // right out of the glyph. Bevel both sides around the tip instead.
+                        let isReversal = abs bend > 3.0
                         let isOuter =
-                            (not reverse && bend < -PI / 8.0)
+                            isReversal
+                            || (not reverse && bend < -PI / 8.0)
                             || (reverse && bend > PI / 8.0)
                         // True when one of the two edges at this corner runs along the
                         // horizontal/vertical axis (a straight stem or serif edge) rather
@@ -1575,69 +1642,95 @@ type Font(axes: Axes, ?showCombOpt: bool) =
                         let isElbow =
                             isNearAxis (bp.th_in + dTh) || isNearAxis (bp.th_out + dTh)
                         let apexScale = if isElbow then 1.0 else 0.5
-                        if abs (wIn - wOut) > 1e-6 then
-                            // Nib (or other direction-varying width): the two sides of the
-                            // corner have different half-widths, so a single-width miter
-                            // doesn't meet the wider side's body edge.
-                            if isSharperThanRight then
-                                // Sharp (acute) corner: a single miter would spike far out
-                                // (outer) or make the body samples double back (inner). Bevel
-                                // with two points, each on its own side at its own width.
-                                if isOuter then
-                                    // Outer: extend slightly along the diagonal for a crisp point.
-                                    let pa = addPolarContrast bx by (this.maybeAlign th1 - perpAngle / 2.0) (wIn * sqrt 2.0 * apexScale)
-                                    let pb = addPolarContrast bx by (this.maybeAlign th2 + perpAngle / 2.0) (wOut * sqrt 2.0 * apexScale)
-                                    knots.Add(plainKnot pa)
-                                    knots.Add(plainKnot pb)
-                                else
-                                    // Inner: single bisector miter clamped to the chord
-                                    // lengths. The concave vertex sits above the spine corner;
-                                    // a raw edge intersection would overshoot the body samples.
-                                    let alpha = bend / 2.0
-                                    let wm = min wIn wOut
-                                    let offset = min (min (wm / cos alpha) prevLen) nextLen
-                                    knots.Add(plainKnot (addPolarContrast bx by (th1 + alpha) offset))
-                            else
-                                // Gentle corner (≤ ~right angle): exact intersection of the two
-                                // offset edge lines — incoming offset by wIn, outgoing by wOut —
-                                // so each side meets its own body edge with no notch. Clamped to
-                                // the chord lengths to avoid overshoot on short segments.
-                                let p1 = addPolarContrast bx by th1 wIn
-                                let p2 = addPolarContrast bx by th2 wOut
-                                let d1x, d1y = cos (bp.th_in + dTh), sin (bp.th_in + dTh)
-                                let d2x, d2y = cos (bp.th_out + dTh), sin (bp.th_out + dTh)
-                                let det = -d1x * d2y + d2x * d1y
-                                if abs det < 1e-9 then
-                                    knots.Add(plainKnot (addPolarContrast bx by th1 ((wIn + wOut) / 2.0)))
-                                else
-                                    let s = (-(p2.x - p1.x) * d2y + d2x * (p2.y - p1.y)) / det
-                                    let mx = p1.x + s * d1x
-                                    let my = p1.y + s * d1y
-                                    let mdist = hypot (mx - bx) (my - by)
-                                    let maxd = min (min prevLen nextLen) (4.0 * fthickness)
-                                    if mdist > maxd && mdist > 1e-9 then
-                                        let k = maxd / mdist
-                                        knots.Add(plainKnot { x = bx + (mx - bx) * k; y = by + (my - by) * k; x_fit = false; y_fit = false })
-                                    else
-                                        knots.Add(plainKnot { x = mx; y = my; x_fit = false; y_fit = false })
-                        else
-                        let w = wIn
                         if isOuter && isSharperThanRight then
-                            // Two miter points (mirrors offsetSegment Corner outer-bend case).
-                            let pa = addPolarContrast bx by (this.maybeAlign th1 - perpAngle / 2.0) (w * sqrt 2.0 * apexScale)
-                            let pb = addPolarContrast bx by (this.maybeAlign th2 + perpAngle / 2.0) (w * sqrt 2.0 * apexScale)
+                            // Outer side of a sharp corner: a true miter would spike far out,
+                            // so chamfer it. Both points still sit exactly on their own edge
+                            // line (a distance w*sqrt2 at 45 degrees to the perpendicular has
+                            // component w along it), so neither edge is bent by the bevel.
+                            let pa = addPolarContrast bx by (this.maybeAlign th1 - perpAngle / 2.0) (wIn * sqrt 2.0 * apexScale)
+                            let pb = addPolarContrast bx by (this.maybeAlign th2 + perpAngle / 2.0) (wOut * sqrt 2.0 * apexScale)
                             knots.Add(plainKnot pa)
                             knots.Add(plainKnot pb)
                         else
-                            // Single sharp miter, clamped to chord lengths to avoid overshoot.
-                            let alpha = bend / 2.0
-                            let offset = min (min (w / cos alpha) prevLen) nextLen
-                            let p = addPolarContrast bx by (th1 + alpha) offset
-                            knots.Add(plainKnot p)
+                            let p1 = addPolarContrast bx by th1 wIn
+                            let p2 = addPolarContrast bx by th2 wOut
 
+                            // Inner (concave) side, at any bend: the two offset edges do meet,
+                            // and the exact intersection of their lines is the vertex of the
+                            // union the two stroke bodies actually lay down. Taking the
+                            // intersection keeps each edge parallel to its own stroke right up
+                            // to that vertex, unlike a bisector miter at w/cos(bend/2), which
+                            // drifts off both once contrast makes the offset non-uniform and —
+                            // once clamped along the bisector to a chord length — pulls the
+                            // vertex back toward the spine, tapering 5's stem into its acute
+                            // bowl join. Clamp each edge *along itself* instead, so a short or
+                            // curving-away segment shortens the edge rather than bending it.
+                            let d1x, d1y = cos (bp.th_in + dTh), sin (bp.th_in + dTh)
+                            let d2x, d2y = cos (bp.th_out + dTh), sin (bp.th_out + dTh)
+                            let det = -d1x * d2y + d2x * d1y
+
+                            if abs det < 1e-9 then
+                                // Edges parallel: no intersection to find.
+                                knots.Add(plainKnot (addPolarContrast bx by th1 ((wIn + wOut) / 2.0)))
+                            else
+                                let dx, dy = p2.x - p1.x, p2.y - p1.y
+                                let s = (-dx * d2y + d2x * dy) / det
+                                let u = (d1x * dy - d1y * dx) / det
+
+                                let limIn, limOut =
+                                    if isClosed then totalLen, totalLen
+                                    else
+                                        let at = cumLenAtBez.[min i segCount]
+                                        max at 1e-6, max (totalLen - at) 1e-6
+
+                                // On a sharp bend the vertex is found by extrapolating the two
+                                // *tangent* lines, so it only lands on the real offset edges
+                                // while both of those edges are straight. As soon as one curves
+                                // away the intersection sits off it and outside the stroke, the
+                                // further out the sharper the bend — 5's stem into its acute
+                                // bowl join, 3's cusped waist. Bevel there instead: end each
+                                // edge at its own perpendicular foot and let the bodies overlap.
+                                let straightIn = abs (norm (bp.th_in - prev.th_out)) < 1e-3
+                                let straightOut = abs (norm (nxt.th_in - bp.th_out)) < 1e-3
+
+                                if isSharperThanRight && not (straightIn && straightOut) then
+                                    knots.Add(plainKnot p1)
+                                    knots.Add(plainKnot p2)
+                                else
+                                    let sc = max -limIn (min limIn s)
+                                    let uc = max -limOut (min limOut u)
+                                    let q1 = { x = p1.x + sc * d1x; y = p1.y + sc * d1y; x_fit = false; y_fit = false }
+                                    let q2 = { x = p2.x + uc * d2x; y = p2.y + uc * d2y; x_fit = false; y_fit = false }
+                                    knots.Add(plainKnot q1)
+                                    if hypot (q2.x - q1.x) (q2.y - q1.y) > 1e-6 then
+                                        knots.Add(plainKnot q2)
+
+                /// Emit the knots for bez point i, then arm the corner gate at the miter
+                /// point so the next segment's samples can be measured against it.
+                let emitAtBezPt (i: int) =
+                    let before = knots.Count
+                    cornerGate <- None
+                    emitAtBezPtRaw i
+                    let bp = bezPts.[i]
+                    let isCorner = abs (norm (bp.th_out - bp.th_in)) > 1e-3
+                    if isCorner && knots.Count > before then
+                        let (_, _, dTh, _) = dispBez.[i]
+                        let thOut = bp.th_out + dTh
+                        cornerGate <- Some(knots.[knots.Count - 1].pt, cos thOut, sin thOut)
+
+                // The gate stays armed across segments: at a sharp corner the miter can
+                // reach past the next knot, and every sample behind it doubles back.
                 let emitMidSamples (segIdx: int) =
                     for (x, y, th, sLen) in spineSamples.[segIdx] do
-                        emitPerp x y th sLen
+                        if inBody sLen then
+                            let p = perpPoint x y th sLen
+
+                            match cornerGate with
+                            | Some(g, dx, dy) ->
+                                if (p.x - g.x) * dx + (p.y - g.y) * dy >= 0.0 then
+                                    cornerGate <- None
+                                    knots.Add(plainKnot p)
+                            | None -> knots.Add(plainKnot p)
 
                 if isClosed then
                     for i in 0 .. n - 1 do
