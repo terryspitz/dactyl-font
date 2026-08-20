@@ -296,12 +296,20 @@ type OpticalTests() =
 
     [<Test>]
     member this.TestPointedOvershoot() =
-        // The apex of `A` is a wedge, so it gets the larger pointed overshoot;
-        // the feet are open-curve endpoints and stay on the baseline.
-        let knots = knotsOf "bl-tc-br"
-        Assert.That(knots.[1].pt.y, Is.EqualTo(metrics.T + 15.0).Within(1e-9), "apex overshoots by 1.5x")
-        Assert.That(knots.[0].pt.y, Is.EqualTo(metrics.B))
-        Assert.That(knots.[2].pt.y, Is.EqualTo(metrics.B))
+        // A wedge only earns the pointed overshoot if the outline will render it as
+        // an actual point.  `A`'s apex is acute, so Font.buildSide chamfers it into a
+        // flat about a stem wide rather than mitering it to a spike -- and a flat cut
+        // belongs on the guide, like any stem terminal.  The feet are open-curve
+        // endpoints and stay on the baseline.
+        let apex = knotsOf "bl-tc-br"
+        Assert.That(apex.[1].pt.y, Is.EqualTo(metrics.T).Within(1e-9), "chamfered apex stays on the cap line")
+        Assert.That(apex.[0].pt.y, Is.EqualTo(metrics.B))
+        Assert.That(apex.[2].pt.y, Is.EqualTo(metrics.B))
+
+        // The caret's wedge is shallow enough that the outline miters it to a real
+        // point, so it does keep the larger pointed overshoot.
+        let caret = knotsOf "ttbl-tc-ttbr"
+        Assert.That(caret.[1].pt.y, Is.EqualTo(metrics.T + 15.0).Within(1e-9), "sharp apex overshoots by 1.5x")
 
     [<Test>]
     member this.TestFlatLettersDoNotOvershoot() =
