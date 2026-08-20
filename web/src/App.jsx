@@ -166,7 +166,11 @@ function App() {
   const [tabZooms, setTabZooms] = useState(() => {
     const urlZoom = parseFloat(new URLSearchParams(window.location.search).get('zoom'))
     const zoom = isNaN(urlZoom) ? 1.0 : urlZoom
-    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom, generate: zoom }
+    // Narrow (mobile) screens only fit a couple of 150px tween boxes at zoom 1,
+    // so default the tweens tab to a smaller zoom there to fit more variations.
+    const isMobileWidth = window.innerWidth <= 768
+    const tweensZoom = isNaN(urlZoom) && isMobileWidth ? 0.5 : zoom
+    return { font: zoom, glyphs: zoom, tweens: tweensZoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom, generate: zoom }
   })
   const [layerVisibility, setLayerVisibility] = useState({
     spiro: false,
@@ -1028,7 +1032,7 @@ function App() {
       typeReq = 'tweens'
       const boxWidth = 150 * zoom
       const availableWidth = previewRef.current?.clientWidth ?? window.innerWidth
-      const steps = Math.max(2, Math.floor((availableWidth + 10) / (boxWidth + 10)))
+      const steps = Math.max(4, Math.floor((availableWidth + 10) / (boxWidth + 10)))
       args = [char, axes, steps]
     } else if (activeTab === 'visualDiffs') {
       if (compareMode === 'font') {
