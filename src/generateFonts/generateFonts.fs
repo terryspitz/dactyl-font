@@ -121,13 +121,19 @@ let main argv =
             ("Dactyl Stroked",
             Font(
                 { Axes.DefaultAxes with
-                    stroked = true
+                    traces = 4
+                    trace_spread = 2.0
+                    trace_weight = 0.07
                     weight = 60 }
             ))
             ("Dactyl Scratch",
             Font(
                 { Axes.DefaultAxes with
-                    scratches = true
+                    traces = 3
+                    trace_spread = 2.0
+                    trace_weight = 0.33
+                    trace_jitter = 0.5
+                    roughness = 0.3
                     weight = 60 }
             ))
             ("Dactyl Roman", Font({ Axes.DefaultAxes with serif = 30 }))

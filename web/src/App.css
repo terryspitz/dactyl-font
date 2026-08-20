@@ -387,6 +387,41 @@
     justify-content: space-between;
 }
 
+/* "?" button in the Glyph Definitions header, and the cheatsheet it opens.
+   The popup is fixed-position (see App.jsx) so the scrolling panel it is nested
+   in can't clip it; it therefore has to re-state the type styles the panel sets. */
+.glyph-key-button {
+    display: inline-flex;
+    align-items: center;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.glyph-key-button:hover {
+    color: var(--accent-color);
+}
+
+.glyph-key-popup {
+    position: fixed;
+    z-index: 50;
+    width: 340px;
+    max-width: calc(100vw - 16px);
+    padding: 10px 12px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: normal;
+    line-height: 1.6;
+    white-space: normal;
+    text-align: left;
+}
+
 .text-reset-button {
     position: absolute;
     top: 8px;
