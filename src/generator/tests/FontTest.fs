@@ -1452,7 +1452,7 @@ type CornerOutlineTests() =
         let legTop =
             curves
             |> List.collect id
-            |> List.filter (fun k -> k.label = Some "xxblwj")
+            |> List.filter (fun k -> k.label = Some "xxblwJ")
 
         Assert.That(legTop.Length, Is.EqualTo(1), "middle leg should start at the kink")
         Assert.That(legTop.Head.isJoint, Is.True, "middle leg top is a joint")

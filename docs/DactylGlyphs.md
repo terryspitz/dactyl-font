@@ -117,12 +117,12 @@ whose end caps left a notch at the join.
 - *Example:* `5 = "tr-tl-hlK~ttb(c)~(bbt)r~b(c)~bol"` — the bar, stem and bowl
   are a single stroke; `hlK` is the acute join where the stem meets the bowl, and
   the bowl springs back out of it at whatever angle the solver likes.
-- *Example:* `m = "xl-bl xolj~x(llw)~xxblwK~x(rw)~xxbw-bw xxblwj-blw"` — both
+- *Example:* `m = "xl-bl xolJ~x(llw)~xxblwK~x(rw)~xxbw-bw xxblwJ-blw"` — both
   arches are one stroke, kinked over the middle leg, and the leg hangs off that
   kink as a joint.
 
 `K` works at any junction (line→curve, curve→line and curve→curve, where it gives
-a cusp) and composes with the other modifiers: `hlKj` is a corner that is also an
+a cusp) and composes with the other modifiers: `hlKJ` is a corner that is also an
 interior joint.
 
 A kink can be as sharp as the design wants — the outline builder does not need it
@@ -154,7 +154,7 @@ the other two are thickest. In `m` the two arches kink and the leg branches, so
 the leg's cap is buried under arch ink on both sides rather than sitting out in
 the thin crotch between the arches.
 
-### Explicit Joints (`j`)
+### Explicit Joints (`J`)
 Many letters are drawn as several separate strokes that **meet in the middle**
 of another stroke rather than at a free end — the crossbar of `A`, the leg of
 `R` springing off the bowl, the arches of `m` springing off the stem. At such
@@ -162,19 +162,19 @@ an **interior joint** you do *not* want the stroke end decorated like a free
 terminal: a serif, flare or end-bulb poking out of the middle of the letter
 looks wrong.
 
-Append a trailing **`j`** to the endpoint that lands on another stroke to
+Append a trailing **`J`** to the endpoint that lands on another stroke to
 declare it an interior joint. Its cap (serif / flare / bulb) is then suppressed
 and the join is cleanly aligned instead.
-- *Example:* in `R = "bl-tl-tlo~(th)r~hlo-hlj hcj-br"`, the bowl end `hlj` and
-  the leg top `hcj` are joints, while the leg foot `br` stays a real terminal
+- *Example:* in `R = "bl-tl-tlo~(th)r~hlo-hlJ hloJ-br"`, the bowl end `hlJ` and
+  the leg top `hloJ` are joints, while the leg foot `br` stays a real terminal
   that still receives a serif.
 
 The generator also has a geometric heuristic (the debug **`joints`** axis) that
 auto-detects joints where an endpoint lands on a *straight* segment of another
-stroke. The explicit `j` marker is more reliable: it also covers endpoints that
+stroke. The explicit `J` marker is more reliable: it also covers endpoints that
 land on **curves** (which the heuristic cannot see) or that sit just past a
 neighbouring stroke's last knot, and it applies regardless of the `joints`
-axis. Prefer marking joints explicitly with `j`.
+axis. Prefer marking joints explicitly with `J`.
 
 ---
 

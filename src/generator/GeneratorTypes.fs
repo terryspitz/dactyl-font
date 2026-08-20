@@ -77,7 +77,7 @@ type Knot =
       ty: SpiroPointType
       th_in: float option
       th_out: float option
-      // Explicitly-declared interior joint (via the `j` marker in the glyph
+      // Explicitly-declared interior joint (via the `J` marker in the glyph
       // string language). When true, an open-stroke endpoint at this knot
       // suppresses its cap (serif/flare/bulb) regardless of the geometric
       // joint heuristic — see Font.isJointRaw.
