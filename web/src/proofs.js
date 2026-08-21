@@ -41,15 +41,13 @@ const SPACING_CONTROL_STRINGS = [
   'nnOOnonoOOoo',
 ]
 
-const spacingStringsForGlyph = (c) => [
-  `nn${c}nonouu${c}nono${c}oo`,
-  `HH${c}HOHO${c}OO`,
-]
+const spacingStringsForGlyph = (c) =>
+  `${c} nn${c}nonouu${c}nono${c}oo HH${c}HOHO${c}OO`
 
 const spacingStringsText = [
   ...SPACING_CONTROL_STRINGS,
   '',
-  ...Array.from(alphabetChars.replace(/\n/g, '')).flatMap(spacingStringsForGlyph),
+  ...Array.from(alphabetChars.replace(/\n/g, '')).map(spacingStringsForGlyph),
 ].join('\n')
 
 export const proofTexts = {
