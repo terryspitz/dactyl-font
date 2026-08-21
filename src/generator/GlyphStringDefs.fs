@@ -412,10 +412,31 @@ let private applyOvershoot (glyph: FontMetrics) isClosed (knots: list<Knot>) =
                   let isPointed =
                       not isCurved && (prev.x - k.pt.x) * (next.x - k.pt.x) < 0.0
 
+                  /// A wedge only earns the pointed overshoot if the outline actually
+                  /// renders it as a point.  Font.buildSide chamfers any outer corner
+                  /// whose turn is >= 2.0 rad (included angle <= ~65 degrees) into a flat
+                  /// roughly a stem wide, because a true miter there would spike far out
+                  /// -- A's ~26 degree apex would reach ~130 units past its spine vertex.
+                  /// That chamfer is a flat cut like any stem terminal, and flat cuts sit
+                  /// on the guide: pushed past it a blunt apex just reads as sticking out,
+                  /// most visibly on W, whose middle peak would otherwise project above its
+                  /// own shoulders.  Shallower wedges (the caret) do miter to a real point,
+                  /// and keep the overshoot.  Mirrors buildSide's isSharperThanRight test.
+                  let isChamferedApex =
+                      let ax, ay = prev.x - k.pt.x, prev.y - k.pt.y
+                      let bx, by = next.x - k.pt.x, next.y - k.pt.y
+                      let la, lb = sqrt (ax * ax + ay * ay), sqrt (bx * bx + by * by)
+
+                      if la < 1e-9 || lb < 1e-9 then
+                          false
+                      else
+                          let cosPhi = (ax * bx + ay * by) / (la * lb)
+                          acos (max -1.0 (min 1.0 cosPhi)) <= PI - 2.0
+
                   let amount =
                       if dir = 0.0 then 0.0
                       elif isCurved then glyph.overshoot
-                      elif isPointed then glyph.pointedOvershoot
+                      elif isPointed && not isChamferedApex then glyph.pointedOvershoot
                       else 0.0
 
                   if amount = 0.0 then
