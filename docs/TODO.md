@@ -1,24 +1,25 @@
 
 # TODOs
-- Artistic axes (not yet implemented):
-  - **pressure**: stroke width varies with curvature — tighter curves get thicker, straighter segments stay thin (mimics brush pressure). Tried (curvature-from-tangent-samples) but the result looked wrong/noisy; reverted. Needs a smoother curvature estimate.
-  - **bounce**: per-glyph random vertical baseline displacement for hand-lettering feel
-  - **ink_spread**: slight outward bulge at each stroke sample point, simulating ink bleeding into paper fibres
-  - **split_nib**: like nib but cleaves the stroke into two parallel thin lines (like a reed pen or double-stroke)
-  - **gravity**: the offset spine droops downward at the middle of each stroke (catenary sag)
+- ~~Generalise stroke drawing: replace the `stroked`/`scratches` booleans with a
+  continuous "traces" axis family and a pluggable pen model~~ — done, see
+  [GeneralisedStrokes.md](GeneralisedStrokes.md) (phases 1–4; PR #223). Phase 5
+  (unify `contrast` into `halfWidth`) is still open, as is §5.4's inline stroke
+  preview.
+  - ~~**pressure**~~: done — curvature-driven width using `DactylSpline.getCurvature`'s
+    analytic curvature instead of noisy tangent-differencing.
+  - ~~**bounce**~~: done — per-glyph baseline offset seeded from the code point.
+  - ~~**ink_spread**~~: done — fibrous outward bulge along the stroke.
+  - ~~**split_nib**~~: done, as a `traces = 2` preset (see "Split nib" chip) rather
+    than its own axis — it's a point in the traces space, not a separate feature.
+  - ~~**gravity**~~: done — spine sags at the middle, most on horizontals and not
+    at all on verticals.
 - flare with tangents wrong way round
 - move outline point inward only
 - improve serifs
-- join lines properly, including in m and A
 - fix italic 8
-- correct tight bend in '5'
 - render animation
 - try merging with https://magenta.tensorflow.org/svg-vae
 - calculate kerning
-- from https://www.typography.com/blog/typographic-illusions:
--  overshoot
--  balance (mid height > 1/2)
-- debug 'sharp bend' duplicate points in 'e'
 -
 **Publishing to freeware font sites** (see FONTLICENSE.md)
 - licensing: fonts under SIL OFL 1.1 with Reserved Font Name "Dactyl" (done); proofs stay CC BY-NC-SA
@@ -34,6 +35,18 @@
 - submit curated fonts to dafont and FontSpace for reach
 
 **DONE: Implemented Features**
+- `K` (kink) marker in the glyph language: a corner whose tangents are left free, 
+  for '5', '3' and 'm'.
+- Correct outlines through sharp corners, on both outline-building paths (the sampled
+  default path and the segment-based path used when `constant_offset` is off or with
+  Spiro/Spline2). On the inner side of an acute corner, the two offset edges are joined
+  at their true intersection when both really are straight ('z'), which is no longer
+  clamped back along the bisector to a chord length — that clamp tapered '5's stem into
+  its bowl. Where either edge curves, that intersection would be extrapolated off the
+  real edge and outside the stroke ('3's cusped waist), so each edge instead ends on its
+  own stroke and the nonzero fill unions the overlap. Also fixed the spike at
+  near-180-degree corners and body samples doubling back behind a corner miter.
+- optical corrections from https://www.typography.com/blog/typographic-illusions: `overshoot` (round and pointed extremes project past the flat guides) and `balance` (crossbars and waists sit above the geometric half height)
 - add documentation links
 - add punctuation chars
 - add typographic punctuation: smart quotes ‘’ “”, en/em dashes – —, ellipsis …, bullet •

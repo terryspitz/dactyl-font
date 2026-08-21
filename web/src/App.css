@@ -33,6 +33,13 @@
     color: var(--text-primary);
 }
 
+/* Mobile-only controls; hidden on desktop where the sidebar is always
+   fully visible. Shown again inside the max-width:768px media query. */
+.sidebar-toggle,
+.sidebar-backdrop {
+    display: none;
+}
+
 .sidebar-title {
     width: 100%;
     margin-bottom: -10px;
@@ -93,6 +100,32 @@
     align-items: flex-start;
 }
 
+/* An axis whose parent is at its default has no visible effect. Dim it rather
+   than hide it: the slider still works, and moving the parent brings it back. */
+.control-group.inactive {
+    opacity: 0.45;
+}
+
+/* Pen preset chips, above the first section of the controls list.
+   The sidebar is shrink-to-fit (width: auto), and a wrapping flex row's
+   max-content width is every chip on one line — which would drag the sidebar
+   to its 400px max and narrow the preview area on every tab. width: 0 keeps
+   the row out of that intrinsic measurement; min-width: 100% then fills
+   whatever width the sidebar settles on. */
+.pen-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 18px;
+    width: 0;
+    min-width: 100%;
+}
+
+.pen-presets .proof-chip {
+    padding: 3px 10px;
+    font-size: 0.75em;
+}
+
 .control-group label {
     font-weight: 500;
     margin-bottom: 6px;
@@ -143,6 +176,10 @@
     position: relative;
     cursor: pointer;
     margin: 0;
+    /* Sliders sit inside vertically-scrollable lists (e.g. the mobile
+       sidebar); without this, touch drags starting on the slider are
+       claimed for the (horizontal) thumb drag and can't scroll the list. */
+    touch-action: pan-y;
 }
 
 .modern-slider:focus {
@@ -242,6 +279,40 @@
     display: flex;
     gap: 16px;
     align-items: stretch;
+    /* Default cap of ~1/3 of .main's height — flex-basis, not a hard max, so
+       shorter content (e.g. Font tab) doesn't force empty space. Overridden
+       by an explicit inline pixel height once the resize handle is dragged.
+       min-height:0 lets it actually shrink below content size so children's
+       own overflow:auto (.controls-panel) can kick in instead of the box
+       just growing forever. */
+    flex: 0 1 33%;
+    min-height: 0;
+}
+
+.input-area-resize-handle {
+    flex: 0 0 auto;
+    height: 10px;
+    margin: -5px 0;
+    cursor: row-resize;
+    position: relative;
+    z-index: 5;
+}
+
+.input-area-resize-handle::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 48px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.2);
+    transition: background 0.15s;
+}
+
+.input-area-resize-handle:hover::after {
+    background: rgba(255, 255, 255, 0.45);
 }
 
 .input-wrapper {
@@ -264,7 +335,12 @@
     padding: 16px;
     overflow-y: auto;
     display: flex;
-    align-items: center;
+    /* align-items:center clips overflowing content symmetrically top+bottom
+       with overflow:auto, and the top half becomes unreachable (scrollTop
+       can't go negative) — a classic flexbox+overflow trap. Only matters now
+       that .input-area actually gets height-constrained (the resize handle);
+       flex-start keeps controls anchored top and fully scrollable. */
+    align-items: flex-start;
 }
 
 .controls-panel > * {
@@ -316,6 +392,41 @@
     padding-bottom: 8px;
     display: flex;
     justify-content: space-between;
+}
+
+/* "?" button in the Glyph Definitions header, and the cheatsheet it opens.
+   The popup is fixed-position (see App.jsx) so the scrolling panel it is nested
+   in can't clip it; it therefore has to re-state the type styles the panel sets. */
+.glyph-key-button {
+    display: inline-flex;
+    align-items: center;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.glyph-key-button:hover {
+    color: var(--accent-color);
+}
+
+.glyph-key-popup {
+    position: fixed;
+    z-index: 50;
+    width: 340px;
+    max-width: calc(100vw - 16px);
+    padding: 10px 12px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: normal;
+    line-height: 1.6;
+    white-space: normal;
+    text-align: left;
 }
 
 .text-reset-button {
@@ -733,7 +844,7 @@
     border-radius: var(--radius-md);
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
     z-index: 2000;
     text-align: left;
     color: var(--text-primary);
@@ -796,7 +907,7 @@
 .legend-debug-group {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
     padding-left: 16px;
 }
 
@@ -862,66 +973,60 @@
 
 /* Mobile Portrait Overrides */
 @media (max-width: 768px) {
+    /* No shrunken icon-rail on mobile — the pane is fully off-screen until
+       opened via .sidebar-toggle, which is simpler than the old
+       hover-driven "shrunken rail" (hover has no touch equivalent, so it
+       needed extra state/CSS just to reveal contents on tap). */
     .sidebar {
         position: absolute;
         left: 0;
         top: 0;
         bottom: 0;
-        width: 64px;
-        min-width: 64px;
-        z-index: 1000;
-        padding: 24px 12px;
-        transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
-        overflow-x: hidden;
+        width: 300px;
+        min-width: 0;
+        max-width: 85vw;
+        /* Above .progress-bar-container (z-index: 1000) so the pane isn't
+           see-through to the progress bar when both overlap on mobile. */
+        z-index: 1010;
+        padding: 24px;
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
         border-right: 1px solid var(--border-color);
         background: var(--sidebar-bg);
     }
 
-    .sidebar:hover, .sidebar:focus-within {
-        width: 300px;
+    .sidebar.mobile-open {
+        transform: translateX(0);
         box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
     }
 
-    /* Hide text labels in shrunken sidebar */
-    .sidebar h2, 
-    .sidebar .sidebar-title,
-    .sidebar .category-header .category-title, 
-    .sidebar .control-group label,
-    .sidebar .value-display,
-    .sidebar .category-header span:not(.material-symbols-outlined) {
-        opacity: 0;
-        white-space: nowrap;
-        transition: opacity 0.2s ease;
-        pointer-events: none;
-    }
-
-    .sidebar:hover h2,
-    .sidebar:hover .sidebar-title,
-    .sidebar:hover .category-header .category-title,
-    .sidebar:hover .control-group label,
-    .sidebar:hover .value-display,
-    .sidebar:hover .category-header span {
-        opacity: 1;
-        pointer-events: auto;
-    }
-
-    /* Keep icons visible and centered */
-    .sidebar .category-header {
+    .sidebar-toggle {
+        display: flex;
+        align-items: center;
         justify-content: center;
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        width: 40px;
+        height: 40px;
         padding: 0;
+        z-index: 1011;
+        border-radius: var(--radius-md);
+        background: var(--panel-bg);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
     }
 
-    .sidebar:hover .category-header {
-        justify-content: flex-start;
-        padding-left: 0;
-    }
-
-    .sidebar .material-symbols-outlined {
-        font-size: 24px;
+    .sidebar-backdrop {
+        display: block;
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        /* Above .progress-bar-container (z-index: 1000) so it dims that too. */
+        z-index: 1005;
     }
 
     .main {
-        margin-left: 64px;
         padding: 16px;
     }
 
@@ -944,6 +1049,9 @@
         flex-direction: column;
         align-items: flex-start;
         gap: 12px;
+        /* Clear the floating .sidebar-toggle button (top:12px, left:12px,
+           40x40px) so it doesn't sit on top of the first row of content. */
+        padding-left: 56px;
     }
 
     .tabs {

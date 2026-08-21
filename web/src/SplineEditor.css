@@ -10,6 +10,11 @@
   align-items: center;
   gap: 16px;
   padding: 8px 12px;
+  /* Reserve room on the right for the zoom-controls overlay (copy/download +
+     zoom buttons), which sits absolutely positioned over this toolbar's
+     top-right corner — without this, flex-wrap has no reason to wrap before
+     the overlay hides the last item(s). */
+  padding-right: 210px;
   background: var(--panel-bg, #1e1e2e);
   border-bottom: 1px solid rgba(255,255,255,0.08);
   flex-wrap: wrap;

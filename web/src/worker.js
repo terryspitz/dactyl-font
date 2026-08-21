@@ -2,6 +2,7 @@ import { generateSvg, generateSvgPerGlyph, generateSplineDebugSvgFromDefs, gener
 import { buildFontDataUrl } from './fontExport'
 import { generateGrowthSvg, generateGrowthField } from './growthSvg'
 import { generateBranchSvg } from './branchSvg'
+import { generateTextureSvg } from './textureSvg'
 import { DControlPoint } from './lib/fable/generator/DactylSpline'
 
 self.onmessage = (e) => {
@@ -16,10 +17,11 @@ self.onmessage = (e) => {
                     self.postMessage({ id, type: 'progress', value: p });
                 })
                 break
-            // Same as 'font' but every character gets its own axes (see glyphRandom.js)
+            // Same as 'font' but every character occurrence gets its own axes
+            // (see glyphRandom.js's buildPerGlyphTextAxes)
             case 'fontPerGlyph': {
-                const [fText, fBaseAxes, fChars, fAxesList, fAutoscale] = args
-                result = generateSvgPerGlyph(fText, fBaseAxes, fChars, fAxesList, fAutoscale, (p) => {
+                const [fText, fBaseAxes, fAxesList, fAutoscale] = args
+                result = generateSvgPerGlyph(fText, fBaseAxes, fAxesList, fAutoscale, (p) => {
                     self.postMessage({ id, type: 'progress', value: p });
                 })
                 break
@@ -104,6 +106,13 @@ self.onmessage = (e) => {
             case 'branch': {
                 const [brText, brAxes, brParams] = args
                 result = generateBranchSvg(brText, brAxes, brParams, (p) => {
+                    self.postMessage({ id, type: 'progress', value: p });
+                })
+                break
+            }
+            case 'texture': {
+                const [txText, txAxes, txParams] = args
+                result = generateTextureSvg(txText, txAxes, txParams, (p) => {
                     self.postMessage({ id, type: 'progress', value: p });
                 })
                 break

@@ -15,14 +15,28 @@ let y_re = "[txhbd0-9]+|\([txhbd0-9]+\)"
 let offset_re = "[oe]"
 let x_re = "[lrcw0-9]+|\([lrcw0-9]+\)"
 let direction_re = "[NSEW]"
-// Explicit interior-joint marker: a trailing `j` on a point declares that an
+// Explicit interior-joint marker: a trailing `J` on a point declares that an
 // open-stroke endpoint landing here is a joint against another stroke, so its
 // cap (serif/flare/bulb) is suppressed. See Font.isJointRaw and DactylGlyphs.md.
-let joint_re = "j"
+let joint_re = "J"
+// Explicit corner (kink) marker: a trailing `K` forces the point to be a Corner,
+// breaking tangent continuity there while leaving both tangents free for the
+// solver. This is what lets a straight stem run directly into a curve that
+// leaves at an angle of its own choosing (e.g. the acute join in '5'), which a
+// plain `-`~`~` junction would otherwise smooth over. See Font.fs and
+// DactylGlyphs.md.
+let corner_re = "K"
 let line_re = "[-~]"
 let separator_re = " "
 let optional_re x = x + "?"
-let point_re = y_re + optional_re offset_re + x_re + optional_re offset_re + optional_re direction_re + optional_re joint_re
+let point_re =
+    y_re
+    + optional_re offset_re
+    + x_re
+    + optional_re offset_re
+    + optional_re direction_re
+    + optional_re corner_re
+    + optional_re joint_re
 let curve_re = "(" + point_re + line_re + ")*" + point_re + optional_re line_re
 let glyph_re = "^ ?$|^(" + curve_re + separator_re + ")*" + curve_re + "$"
 
@@ -79,18 +93,24 @@ let glyphMap =
           '0', "(h)l~t(c)~(h)r~b(c)~ tr-bl"
           '1', "tol-tl3r-bl3r"
           '2', "tol~t(c)~(th)r~hbc-bl-br"
-          '3', "tol~t(c)~(th)r~hc-hllr hllr-hc~(bh)r~b(c)~bol"
+          // One continuous stroke through the waist: the upper bowl runs into the lower
+          // one at a kink (`K`), instead of two strokes each ending in a horizontal
+          // spur drawn twice on top of itself. `E` at the kink makes both tangents
+          // horizontal — in from the east, out to the east — so the waist is level.
+          '3', "tol~t(c)~(th)r~hllrEK~(bh)r~b(c)~bol"
           '4', "br3l-tr3l-bhl-bhr"
-          '5', "tr-tl-hl hl~ttb(c)~(bbt)r~b(c)~bol"
-          '6', "tor~t(c)~(h)l~bbtl~b(c)~bbtr~ttbc~bbtlNj"
+          // One continuous stroke: the stem runs into the bowl at an acute kink (`K`),
+          // rather than two overlapping strokes whose caps left a notch at the join.
+          '5', "tr-tl-hlK~ttb(c)~(bbt)r~b(c)~bol"
+          '6', "tor~t(c)~(h)l~bbtl~b(c)~bbtr~ttbc~bbtlNJ"
           '7', "tl-tr-bcl"
           //  two loops:
           //  '8', "hc~thl~tc~thr~ hc~bhl~bc~bhr~"
           // figure of eight:
           '8', "hc~(th)l~t(c)~(th)r~hc~(bh)l~b(c)~(bh)r~"
-          '9', "bol~b(c)~(h)r~ttbr~t(c)~ttbl~bbtc~ttbrSj"
+          '9', "bol~b(c)~(h)r~ttbr~t(c)~ttbl~bbtc~ttbrSJ"
 
-          'A', "bl-tc-br bhl3cj-bhcr3j"
+          'A', "bl-tc-br bhl3cJ-bhcr3J"
           'a', "xr-br xor~x(c)~(xb)l~b(c)~bor"
           'B', "hl-hlo~(bh)r~blo-bl-tl-tlo~(th)r~hlo-hl"
           'b', "tl-bl bol~b(c)~(xb)r~x(c)~xol"
@@ -99,7 +119,7 @@ let glyphMap =
           'D', "tl-bl-blo~(h)r~tlo-"
           'd', "tr-br xor~x(c)~(xb)l~b(c)~bor"
           'E', "tr-tl-bl-br hl-hr"
-          'e', "xbl-xbrN~x(c)~xblS~b(c)~bor5c"
+          'e', "xblJ-xbrN~x(c)~xblS~b(c)~bor5c"
           'F', "bl-tl-tr hl-hrc"
           'f', "bllc-xtllc~tcrW xl-xc"
           'G', "tor~t(c)~(h)l~b(c)~bhr-hr-hc"
@@ -110,12 +130,31 @@ let glyphMap =
           'i', "xl-bl ttxl"
           'J', "tl-tr-hr~b(c)~bol"
           'j', "xc-bdc~dlE ttxc"
-          'K', "tl-bl tr-hl hl-br"
-          'k', "tl-bl xb2l-xcr x2bc3lj-bcr"
+          // Leg springs from the arm (like 'k' below), not from the stem: two strokes
+          // both ending at the stem cap each other perpendicular to their own axis, and
+          // the caps cross inside the stem, leaving the ink between them unfilled — a
+          // white bite out of the junction that widens with weight. `J` buries the leg's
+          // cap inside the arm instead. The junction sits at `h9b` rather than `h`: `h`
+          // takes the `balance` raise meant for crossbars and waists, which lifted this
+          // vertex above the optical middle. `h8tl4r` is 1/5 along the arm, the point the
+          // coordinate grid puts closest to the arm's spine once it is lowered (0.2 units
+          // off) — springing from off the spine leaves a spur at hairline weights.
+          // Both interior ends are marked `J`: the arm's lands on the stem, so the
+          // geometric heuristic already suppresses its cap while the `joints` axis is on,
+          // but with that axis off the marker is what stops a serif bracket (or bulb)
+          // sprouting out through the far side of the stem.
+          'K', "tl-bl tr-h9blJ h8tl4rJ-br"
+          'k', "tl-bl xb2l-xcr x2bc3lJ-bcr"
           'L', "tl-bl-br"
           'l', "tl-xbl~bcW"
           'M', "bl-tl-blw-tw-bw"
-          'm', "xl-bl xolj~x(llw)~xxblw-blw x2blwj~x(lw4)~xxbw-bw"
+          // The two arches are one stroke, joined by a kink (`K`) over the middle leg,
+          // which then hangs from that kink as a joint. Previously the second arch
+          // sprang from a point part-way down the first leg, so its end cap sat in the
+          // crotch — the thinnest part of the junction — and stepped the outline there.
+          // Of the three strokes meeting here, the leg is the one whose cap hides best:
+          // it starts below the crotch with arch ink either side of it.
+          'm', "xl-bl xolJ~x(llw)~xxblwK~x(rw)~xxbw-bw xxblwJ-blw"
           'N', "bl-tl-br-tr"
           'n', "xl-bl xol~x(c)~xbr-br"
           'O', "(h)l~t(c)~(h)r~b(c)~"
@@ -124,7 +163,7 @@ let glyphMap =
           'p', "xl-dl bol~b(c)~(xb)r~x(c)~xol"
           'Q', "(h)l~t(c)~(h)r~b(c)~ br-hbc"
           'q', "xr-dr xor~x(c)~(xb)l~b(c)~bor"
-          'R', "bl-tl-tlo~(th)r~hlo-hlj hloj-br"
+          'R', "bl-tl-tlo~(th)r~hlo-hlJ hloJ-br"
           'r', "xl-bl xol~xlcc~xoccr"
           'S', "thr~t(c)~(ttb)l~hc~(tbb)r~b(c)~bhl"
           's', "xor~x(c)~(xxb)l~xbcE~(xbb)r~b(c)~bol"
@@ -138,7 +177,7 @@ let glyphMap =
           'w', "xl-bl3w-xlw-blw3-xw"
           'X', "tl-br tr-bl"
           'x', "xl-br xr-bl"
-          'Y', "tl-hc-tr hcj-bc"
+          'Y', "tl-hc-tr hcJ-bc"
           'y', "xl-xbl~b(c)~xbr-xr xr-br~d(c)~dol"
           'Z', "tl-tr-bl-br"
           'z', "xl-xr-bl-br" ]
@@ -205,6 +244,26 @@ let parse_point (glyph: FontMetrics) def_raw =
     let mutable y_coord = List.average y_coords
     def <- def.[match_y.Length ..]
 
+    // Optical balance ("mid height > 1/2"): a height that sits *between* the
+    // guides — a crossbar (`h` in H/E/F, `xb` in e) or a bowl waist (`h` in B/S)
+    // — is nudged up, because we read a letter drawn with an arithmetically
+    // centred bar as bottom-heavy.  Heights written as a single guide letter
+    // (`t`, `x`, `b`, `d`) are the reference lines themselves and never move, and
+    // neither do fitted heights (`(h)l`), which are the *side* extremes of round
+    // letters like O and o and want to stay symmetric.
+    let yLetters = ys |> Seq.filter System.Char.IsLetter |> Seq.distinct |> List.ofSeq
+
+    let isGuideHeight =
+        match yLetters with
+        | [ c ] -> c <> 'h' // `h` is itself a mid height, so it takes the raise
+        | _ -> false
+
+    let balanceRaise =
+        if y_fit || isGuideHeight then
+            0.0
+        else
+            glyph.balanceRaise y_coord
+
     // offset
     let matchOffset = Regex.Match(def, "^" + offset_re)
 
@@ -219,6 +278,10 @@ let parse_point (glyph: FontMetrics) def_raw =
                 y_coord + offsetAmount
             else
                 y_coord - offsetAmount
+
+    // Applied after the inward/outward offset so that the offset still keys off
+    // the guide the point was written against.
+    y_coord <- y_coord + balanceRaise
 
     // x_coord
     let match_x = Regex.Match(def, "^" + x_re)
@@ -284,6 +347,12 @@ let parse_point (glyph: FontMetrics) def_raw =
         else
             None
 
+    // optional explicit-corner (kink) marker
+    let match_corner = Regex.Match(def, "^" + corner_re)
+    let isCorner = match_corner.Success
+    if match_corner.Success then
+        def <- def.[match_corner.Length ..]
+
     // optional explicit-joint marker
     let match_joint = Regex.Match(def, "^" + joint_re)
     let isJoint = match_joint.Success
@@ -291,22 +360,106 @@ let parse_point (glyph: FontMetrics) def_raw =
         def <- def.[match_joint.Length ..]
 
     let label = start_def.Substring(0, start_def.Length - def.Length)
-    { y = y_coord; x = x_coord; y_fit = y_fit; x_fit = x_fit }, tangent, isJoint, label, def
+    { y = y_coord; x = x_coord; y_fit = y_fit; x_fit = x_fit }, tangent, isCorner, isJoint, label, def
+
+/// Optical overshoot: a round or pointed extreme drawn exactly on a guide reads
+/// as *shorter* than a flat letter that stops on the same line, so type
+/// designers push it slightly past.  Applied here, after the knots are built, so
+/// that both the shape (curve vs. point) and the neighbouring knots are known:
+///
+///   * a **round** extreme — a knot whose x coordinate is fitted (`t(c)`, the
+///     flat top of a bowl) or which has a curve on at least one side — sitting
+///     on the top, x-height, baseline or descender guide with both neighbours
+///     strictly on one side of it, moves out by `overshoot` (O, S, C, o, e, 6…).
+///   * a **pointed** extreme — a corner between two straight lines whose
+///     neighbours lie on *opposite* sides horizontally, i.e. a genuine wedge —
+///     moves out by `pointedOvershoot` (the apex of A, V, W, and the middle
+///     vertex of M/W).
+///
+/// A corner where the strokes don't converge into a point (the top of M's left
+/// stem, N's stem/diagonal junction) is left alone, as is any flat run, so
+/// letters that legitimately stop on the guide keep stopping on it.
+let private applyOvershoot (glyph: FontMetrics) isClosed (knots: list<Knot>) =
+    let n = knots.Length
+
+    if glyph.overshoot = 0.0 || n < 3 then
+        knots
+    else
+        let arr = List.toArray knots
+        let near a b = abs (a - b) < 0.001
+
+        let onGuide y =
+            near y glyph.T || near y glyph.X || near y glyph.B || near y glyph.D
+
+        [ for i in 0 .. n - 1 do
+              let k = arr.[i]
+              let isInterior = isClosed || (i > 0 && i < n - 1)
+
+              if not isInterior || not (onGuide k.pt.y) then
+                  yield k
+              else
+                  let prev = arr.[(i + n - 1) % n].pt
+                  let next = arr.[(i + 1) % n].pt
+
+                  let dir =
+                      if prev.y < k.pt.y && next.y < k.pt.y then 1.0
+                      elif prev.y > k.pt.y && next.y > k.pt.y then -1.0
+                      else 0.0
+
+                  let isCurved =
+                      k.pt.x_fit || k.ty = G2 || k.ty = LineToCurve || k.ty = CurveToLine
+
+                  let isPointed =
+                      not isCurved && (prev.x - k.pt.x) * (next.x - k.pt.x) < 0.0
+
+                  /// A wedge only earns the pointed overshoot if the outline actually
+                  /// renders it as a point.  Font.buildSide chamfers any outer corner
+                  /// whose turn is >= 2.0 rad (included angle <= ~65 degrees) into a flat
+                  /// roughly a stem wide, because a true miter there would spike far out
+                  /// -- A's ~26 degree apex would reach ~130 units past its spine vertex.
+                  /// That chamfer is a flat cut like any stem terminal, and flat cuts sit
+                  /// on the guide: pushed past it a blunt apex just reads as sticking out,
+                  /// most visibly on W, whose middle peak would otherwise project above its
+                  /// own shoulders.  Shallower wedges (the caret) do miter to a real point,
+                  /// and keep the overshoot.  Mirrors buildSide's isSharperThanRight test.
+                  let isChamferedApex =
+                      let ax, ay = prev.x - k.pt.x, prev.y - k.pt.y
+                      let bx, by = next.x - k.pt.x, next.y - k.pt.y
+                      let la, lb = sqrt (ax * ax + ay * ay), sqrt (bx * bx + by * by)
+
+                      if la < 1e-9 || lb < 1e-9 then
+                          false
+                      else
+                          let cosPhi = (ax * bx + ay * by) / (la * lb)
+                          acos (max -1.0 (min 1.0 cosPhi)) <= PI - 2.0
+
+                  let amount =
+                      if dir = 0.0 then 0.0
+                      elif isCurved then glyph.overshoot
+                      elif isPointed && not isChamferedApex then glyph.pointedOvershoot
+                      else 0.0
+
+                  if amount = 0.0 then
+                      yield k
+                  else
+                      yield { k with pt = { k.pt with y = k.pt.y + dir * amount } } ]
 
 let parse_curve (glyph: FontMetrics) raw_def debug =
     let mutable pts = []
     let mutable explicit_tangents = []
+    let mutable corners = []
     let mutable joints = []
     let mutable labels = []
     let mutable seps_out = []
     let mutable def: string = raw_def
 
     while def.Length > 0 do
-        let pt, tangent, isJoint, label, new_def = parse_point glyph def
+        let pt, tangent, isCorner, isJoint, label, new_def = parse_point glyph def
         def <- new_def
 
         pts <- pts @ [ pt ]
         explicit_tangents <- explicit_tangents @ [ tangent ]
+        corners <- corners @ [ isCorner ]
         joints <- joints @ [ isJoint ]
         labels <- labels @ [ label ]
         // line_re
@@ -335,6 +488,9 @@ let parse_curve (glyph: FontMetrics) raw_def debug =
                 let pt = pts.[i]
                 match explicit_tangents.[i] with
                 | Some _ as t -> t
+                // An explicit corner keeps both tangents free so the solver picks the
+                // curve's own natural direction out of (or into) the kink.
+                | None when corners.[i] -> None
                 | None when pt.y_fit || pt.x_fit ->
                     let isInterior = isClosed || (i > 0 && i < n - 1)
                     if isInterior then
@@ -360,17 +516,38 @@ let parse_curve (glyph: FontMetrics) raw_def debug =
                   let has_curve_in = (in_sep = "~")
                   let has_curve_out = (out_sep = "~")
 
+                  // At a kink the two sides are independent, so an explicit direction
+                  // there names the tangent's *axis* and each side is oriented along its
+                  // own direction of travel: into the point from the previous knot, out of
+                  // it toward the next. `hllrEK` in '3' therefore means "horizontal in and
+                  // out", giving a level waist where the stroke doubles back — writing the
+                  // same East angle on both sides would instead ask the upper bowl to
+                  // arrive travelling east while coming from the east, and it would loop.
+                  let orientAtKink t (dx: float) (dy: float) =
+                      let horizontal = abs (cos t) >= abs (sin t)
+                      if horizontal then
+                          if abs dx < 1e-9 then t elif dx > 0.0 then 0.0 else PI
+                      else if abs dy < 1e-9 then t
+                      elif dy > 0.0 then PI * 0.5
+                      else PI * -0.5
+
                   let tIn, tOut =
                       match explicit_tangents.[i] with
                       | Some t ->
                           if not has_curve_in && not has_curve_out then
                               invalidArg "tangent" "Explicit tangents cannot be applied to points with only straight lines."
-                          elif has_curve_in && has_curve_out then
-                              Some t, Some t
-                          elif has_curve_in then
-                              Some t, None
                           else
-                              None, Some t
+                              let tInAt, tOutAt =
+                                  if corners.[i] then
+                                      let prev = pts.[if i = 0 then n - 1 else i - 1]
+                                      let next = pts.[if i = n - 1 then 0 else i + 1]
+                                      orientAtKink t (pts.[i].x - prev.x) (pts.[i].y - prev.y),
+                                      orientAtKink t (next.x - pts.[i].x) (next.y - pts.[i].y)
+                                  else
+                                      t, t
+
+                              (if has_curve_in then Some tInAt else None),
+                              (if has_curve_out then Some tOutAt else None)
                       | None -> None, None
                       
                   let mutable ty = 
@@ -385,6 +562,10 @@ let parse_curve (glyph: FontMetrics) raw_def debug =
 
                   if ty = CurveToLine && tIn.IsSome then ty <- Corner
                   if ty = LineToCurve && tOut.IsSome then ty <- Corner
+                  // `K` forces a kink: tangent continuity is broken here even though the
+                  // separators would otherwise imply a smooth line→curve (or curve→curve)
+                  // transition.
+                  if corners.[i] then ty <- Corner
 
                   { pt = pts.[i]; ty = ty; th_in = tIn; th_out = tOut; isJoint = joints.[i]; label = Some labels.[i] } ]
             |> mergeConsecutive
@@ -398,6 +579,7 @@ let parse_curve (glyph: FontMetrics) raw_def debug =
                         th_out = Option.orElse k2.th_out k1.th_out
                         isJoint = k1.isJoint || k2.isJoint
                         label = Option.orElse k1.label k2.label })
+            |> applyOvershoot glyph isClosed
 
         validateKnotSequence knots isClosed
         Curve(knots, isClosed)

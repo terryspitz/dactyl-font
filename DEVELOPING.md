@@ -88,11 +88,15 @@ web/
 │   ├── App.jsx           — Root React component; tab routing, sidebar, worker orchestration
 │   ├── SplineEditor.jsx  — Interactive spline editor (Splines tab)
 │   ├── SplineGrid.jsx    — Grid view of spline shapes (Spline Grid tab)
-│   ├── GrowCanvas.jsx    — WebGL2 field-threshold preview (Grow tab)
-│   ├── growth.js         — Grow tab engine: distance field + marching-squares contours
-│   ├── growthSvg.js      — Grow tab back end: strokes → field / layered SVG (worker side)
-│   ├── glyphSpines.js    — Solves glyph backbones into polylines (Grow tab seed geometry)
-│   ├── growthExport.js   — Grow tab PNG/SVG save + clipboard helpers
+│   ├── GrowCanvas.jsx    — WebGL2 field-threshold preview (Generate tab, Bubble mode)
+│   ├── growth.js         — Bubble mode engine: distance field + marching-squares contours
+│   ├── growthSvg.js      — Bubble mode back end: strokes → field / layered SVG (worker side)
+│   ├── glyphSpines.js    — Solves glyph backbones into polylines (Generate tab seed geometry)
+│   ├── growthExport.js   — Generate tab PNG/SVG save + clipboard helpers (all three modes)
+│   ├── branching.js      — Grow mode engine: space-colonisation branching off the spine
+│   ├── branchSvg.js      — Grow mode back end: strokes → branches → SVG (worker side)
+│   ├── texture.js        — Texture mode engine: reaction-diffusion / maze / circuit patterns
+│   ├── textureSvg.js     — Texture mode back end: strokes → mask → pattern → SVG (worker side)
 │   ├── fontExport.js     — OTF font assembly via opentype.js + paper.js boolean union
 │   ├── fontExport.test.js — Vitest unit tests for font export
 │   ├── worker.js         — Web worker: calls Fable-compiled F# API off the main thread

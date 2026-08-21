@@ -7,16 +7,22 @@ The [Dactyl Live Explorer](https://terryspitz.github.io/dactyl-font) lets you de
 ## Layout
 
 ```
-┌──────────────┬──────────────────────────────────────────┐
-│              │  [Font][Glyphs][Tweens][Visual Diffs]    │
-│   Sidebar    │  [Splines][Spline Grid][Proofs][Grow] [⬇]│
-│  (Controls)  │                                           │
-│              │              Preview area                 │
-│              │                                           │
-└──────────────┴──────────────────────────────────────────┘
+┌──────────────┬──────────────────────────────────────────────┐
+│              │  [Font][Glyphs][Tweens][Visual Diffs]        │
+│   Sidebar    │  [Splines][Spline Grid][Proofs][Generate] [⬇]│
+│  (Controls)  │                                               │
+│              │              Preview area                     │
+│              │                                               │
+└──────────────┴──────────────────────────────────────────────┘
 ```
 
 The **sidebar** on the left holds all font axis controls.  The **top bar** holds the tab row and per-tab actions.  The **preview area** fills the rest of the page.
+
+Between the top text/controls boxes and the preview canvas is a drag handle
+(a thin bar, cursor turns into a resize cursor) — drag it to trade height
+between them.  It defaults to roughly a third of the page; on tabs with a lot
+of controls (e.g. Generate's Texture mode), the controls box scrolls
+internally rather than growing past that.
 
 ---
 
@@ -34,7 +40,7 @@ Controls are grouped into collapsible sections.  Click a section header to expan
 
 | Category | Icon | What it contains |
 |----------|------|-----------------|
-| **Backbone** | straighten | Overall glyph proportions: width, height, x-height, italic, monospace, tracking, leading, roundedness |
+| **Backbone** | straighten | Overall glyph proportions: width, height, x-height, italic, monospace, tracking, leading, roundedness, and the optical corrections overshoot and balance |
 | **Outline** | brush | Stroke appearance: thickness, contrast, soft_corners, axis_align_caps, outline toggle, filled toggle, smooth toggle |
 | **Artistic** | palette | Decorative features: end_bulb, flare, serif, stroked (backscratch), scratches, and the broad-nib / brush axes nib, nib_angle, taper, taper_end, wobble, roughness, mobius (these auto-use the arc-length sampled outline path) |
 | **Experimental** | science | Advanced solver settings: dactyl_spline, spline2, constraints, constant_offset, max_spline_iter, flatness, end_flatness |
@@ -57,7 +63,7 @@ The result is **stable**: clicking the button rolls a single seed, and every cha
 
 The **download button** (⬇) in the top-right exports a custom OTF font file built from the current axes.  With per-glyph randomisation on, the seed goes in the font's style name and filename (`Dactyl-Random216973057.otf`) — a random font isn't described by its axes, so the seed is what makes a saved file traceable back to the settings that produced it.
 
-**Saving the typed string as a picture.** On the canvas, next to the zoom buttons, are a **copy** (⧉) and a **download** (⬇) button, the same pair the Grow tab has:
+**Saving the typed string as a picture.** On the canvas, next to the zoom buttons, are a **copy** (⧉) and a **download** (⬇) button, the same pair every Generate tab mode has:
 
 | Button | What it does |
 |--------|-------------|
@@ -133,16 +139,38 @@ Renders the font using professionally designed proof texts (sourced from [typogr
 
 The Proofs tab renders using a live CSS `@font-face` built from the current axes, so it reflects the real typeset appearance (not SVG outlines).
 
-### Grow
-Grows the letterforms out of the current backbones — an experimental generative
-mode inspired by Namco's *Techno Drive* (1998) logotype.  Instead of offsetting
+### Generate
+Three experimental generative modes, all growing letterforms out of the
+*same* current backbones — pick one from the mode toolbar (**Bubble** /
+**Grow** / **Texture**) at the left of the top bar.  All the usual axes still
+apply, since every mode starts from the same solved spines.
+
+Every mode shares the same **save controls**, in the canvas zoom toolbar
+(top-right of the preview, alongside the zoom buttons): a **copy** icon
+copies the result as a PNG to the clipboard, and a **download** icon saves a
+PNG by default — its caret dropdown offers PNG (transparent, high-res) or SVG
+(vector). A **fast preview** checkbox renders just the first character at a
+coarser resolution while dragging sliders, and a **reset** icon restores the
+active mode's own settings (leaving the mode choice and the other modes'
+settings untouched).
+
+Every tab gets the same copy/download pair in that zoom toolbar, not just
+Generate — Font, Glyphs, Splines, Spline Grid, Tweens, Proofs and Visual Diffs
+all export too. Most reconstruct a true vector SVG (Splines serialises the
+live editor canvas; Spline Grid and Tweens composite their own small SVGs
+into one document; Proofs re-renders its text through the same vector glyph
+path Font uses, so long proof texts can take a while to save). Visual Diffs
+can save its axis-diff and outline-font-compare views, but not a live
+browser-font text comparison (no vector form to save at all in that case, so
+the button's disabled there).
+
+#### Bubble mode
+Inspired by Namco's *Techno Drive* (1998) logotype.  Instead of offsetting
 each spine by a fixed thickness, every stroke swells into the surrounding
 whitespace until the channel between it and the nearest *opposing* stroke
 narrows to a constant gap.  Counters (the holes in `a`, `e`, `o`) stay open
 because the opposing stroke pushes back, while joints (`n`, `e`) don't pinch.
-All the usual axes still apply, since growth starts from the same backbones.
 
-**Controls in the top bar:**
 | Control | Effect |
 |---------|--------|
 | `grow` | 0 = classic constant offset … 1 = full space-filling bulge |
@@ -152,15 +180,60 @@ All the usual axes still apply, since growth starts from the same backbones.
 | `layers` | Emit nested keyline bands (near-white core → light blue → dark blue → black keyline) that fuse between glyphs for a Y2K logotype look |
 | `animate` | Ramp the growth up and down so the letters visibly grow (WebGL only) |
 
-**Save controls** (top bar, right): a **copy** icon copies the result as a
-transparent PNG to the clipboard, and a **download** icon saves a PNG by
-default — its caret dropdown offers PNG (transparent, high-res) or SVG (vector).
-
 The preview renders on the GPU where WebGL2 is available: the worker computes a
 distance field once per text/axes change and a fragment shader thresholds it,
-so dragging `grow`/`gap`/`fuse`/`warp`/`layers` never re-runs the worker.  Without WebGL2 it
-falls back to a worker-rendered SVG.  Multi-line text is supported; a
+so dragging `grow`/`gap`/`fuse`/`warp`/`layers` never re-runs the worker.  Without
+WebGL2 it falls back to a worker-rendered SVG.  Multi-line text is supported; a
 determinate progress bar shows while the field is (re)built.
+
+#### Grow mode
+Space-colonisation branching (the venation algorithm): twigs grow from
+root nodes seeded along the spine toward randomly scattered attractor points
+in the counters and margins, consuming each attractor as a twig reaches it.
+At high attractor density / low pull radius it reads as bristly flared
+serifs; at low density / long pull radius, longer forking ivy-like tendrils.
+
+| Control | Effect |
+|---------|--------|
+| `density` | How densely attractors pack the counters/margins |
+| `influence` | Radius within which a twig "sees" and is pulled toward an attractor |
+| `kill dist` | Radius within which a reached attractor is consumed |
+| `step` | Twig segment length per growth iteration |
+| `iterations` | Growth steps to run |
+| `reach` | Farthest an attractor may sit from the spine |
+| `base radius` / `min radius` / `taper depth` | Twig taper from trunk to tip |
+| `backbone` (+ colour) | Show the classic (`grow=0`) outline underneath the twigs |
+| `colour` | Twig colour |
+| `seed` | RNG seed — same seed always grows the same twigs |
+
+This mode is always worker-rendered SVG (no WebGL path), since growth is an
+iterative simulation rather than a per-pixel field threshold.
+
+#### Texture mode
+Patterns confined to the interior of the grown (Bubble-mode) letterform —
+the field that defines the shape is reused purely as a domain mask.  Pick a
+**style** from the sub-toolbar: **Reaction-Diffusion**, **Maze**, or
+**Circuit**.
+
+| Control | Effect | Applies to |
+|---------|--------|-----------|
+| `grow` / `gap` / `fuse` | Shape the mask domain, same meaning as Bubble mode | all styles |
+| `seed` | RNG seed — same seed always gives the same pattern | all styles |
+| preset chips (`coral` / `cells` / `stitches`) | Gray–Scott reaction-diffusion parameter sets: thin branching veins, honeycomb cells, or scattered dashes-and-dots | Reaction-Diffusion |
+| `steps` | Simulation iterations — more develops the pattern further (slower) | Reaction-Diffusion |
+| `grain` | Corridor / trace width — coarser reads as a chunkier pattern | Maze, Circuit |
+| `density` | Fraction of the grid tried as circuit trace starting points | Circuit |
+| `colour` | Fill / wall colour | Reaction-Diffusion, Maze |
+| `trace` / `pad` colour | Circuit trace and pad colours | Circuit |
+| `backbone` (+ colour) | Show the classic outline underneath the pattern | all styles |
+
+Reaction-diffusion is a Gray-Scott simulation clamped to zero outside the
+mask every step, seeded with sparse fully-saturated points; maze is a perfect
+maze (recursive backtracker) carved through the mask's cell grid and
+rendered as the *uncarved* walls, so it traces the letterform's own shape;
+circuit is Manhattan-routed random-walk traces with pads at corners and
+ends, PCB-style.  Like Grow mode, this is always worker-rendered SVG — the
+simulations are iterative, not a per-pixel field threshold.
 
 ---
 
@@ -170,7 +243,8 @@ All tabs and settings are bookmarkable via URL parameters.
 
 | Parameter | Values | Effect |
 |-----------|--------|--------|
-| `?view=` | `font` `glyphs` `tweens` `visualDiffs` `splines` `splineGrid` `proofs` `grow` | Open the named tab on load |
+| `?view=` | `font` `glyphs` `tweens` `visualDiffs` `splines` `splineGrid` `proofs` `generate` | Open the named tab on load |
+| `?mode=` | `grow` `texture` (omit for Bubble, the default) | Pre-select a Generate tab mode |
 | `?zoom=` | e.g. `0.85` | Set initial zoom level for all tabs |
 | `?proof=` | `lowercase` `uppercase` `alphabet` `classic` | Select a proof preset |
 | `?book=` | integer index | Pre-select a specific classic book |

@@ -23,7 +23,7 @@ Before diving into the detailed syntax rules, here is what Dactyl Glyphs look li
 A point in a Dactyl Glyph definition string is mapped to specific horizontal (X) and vertical (Y) typographic guides.
 
 Each point typically takes the format:
-`[Y-Coordinates][Offset?][X-Coordinates][Offset?][Tangent?][Joint?]`
+`[Y-Coordinates][Offset?][X-Coordinates][Offset?][Tangent?][Corner?][Joint?]`
 
 ### Y-Coordinates (Vertical)
 Vertical coordinates are defined first. You can use single letters or combine them to average their heights (e.g., `tb` is halfway between top and bottom).
@@ -99,7 +99,62 @@ You can optionally append a direction to explicitly force the curve's heading as
 - `N` (North), `S` (South), `E` (East), `W` (West)
 *Example:* `blS` places a point at the bottom-left and mandates that curves entering or exiting this point must travel vertically downward (South).
 
-### Explicit Joints (`j`)
+### Explicit Corners (`K`)
+
+A straight line running into a curve (`-` then `~`) is *smoothed* by default: the
+curve is forced to leave along the line's heading (see rule 1 below), and two
+curves either side of a point (`~` `~`) are joined smoothly. That is what you
+want for a stem flowing into a shoulder, but not where a stroke changes direction
+sharply — the stem of `5` turning into its bowl, or the waist of `3` where the
+upper bowl doubles back into the lower one.
+
+Append a trailing **`K`** (kink) to make the point a **corner**: tangent
+continuity is broken there, and by default *both* tangents are left free, so the
+solver picks each side's own natural direction out of (or into) the kink. The
+curve therefore keeps exactly the shape it would have had as a separate stroke,
+but is now part of one continuous outline instead of two overlapping strokes
+whose end caps left a notch at the join.
+- *Example:* `5 = "tr-tl-hlK~ttb(c)~(bbt)r~b(c)~bol"` — the bar, stem and bowl
+  are a single stroke; `hlK` is the acute join where the stem meets the bowl, and
+  the bowl springs back out of it at whatever angle the solver likes.
+- *Example:* `m = "xl-bl xolJ~x(llw)~xxblwK~x(rw)~xxbw-bw xxblwJ-blw"` — both
+  arches are one stroke, kinked over the middle leg, and the leg hangs off that
+  kink as a joint.
+
+`K` works at any junction (line→curve, curve→line and curve→curve, where it gives
+a cusp) and composes with the other modifiers: `hlKJ` is a corner that is also an
+interior joint.
+
+A kink can be as sharp as the design wants — the outline builder does not need it
+softened. On the inner side of a sharp corner there is no single point belonging
+to both offset edges, so it ends the incoming edge where that edge really ends,
+starts the outgoing edge where it really starts, and lets the two bodies overlap;
+the nonzero fill rule unions them. Both edges therefore stay true to their own
+stroke however acute the kink is. (A bisector miter instead lands off both edges,
+which used to taper `5`'s stem visibly into its bowl join.)
+
+#### Tangents at a kink
+
+Adding a direction to a kink pins it, but the letter names the tangent's **axis**
+rather than one heading: each side is oriented along its own direction of travel
+— into the point from the previous knot, out of it toward the next. So `E` at a
+kink means "horizontal in and out".
+
+That distinction matters wherever a stroke doubles back. Writing the same East
+heading on both sides of `3`'s waist would ask the upper bowl to *arrive*
+travelling east while coming from the east, and it would loop; oriented per side
+it arrives travelling west and leaves travelling east, giving a level waist. A
+tangent on a point *without* `K` still applies verbatim to both sides.
+- *Example:* `3 = "tol~t(c)~(th)r~hllrEK~(bh)r~b(c)~bol"` — the upper bowl runs
+  straight into the lower one through a level cusp at the waist.
+
+Where three strokes meet, prefer to kink the two that flow into each other and
+let the third branch off as a joint — and pick the third so its cap lands where
+the other two are thickest. In `m` the two arches kink and the leg branches, so
+the leg's cap is buried under arch ink on both sides rather than sitting out in
+the thin crotch between the arches.
+
+### Explicit Joints (`J`)
 Many letters are drawn as several separate strokes that **meet in the middle**
 of another stroke rather than at a free end — the crossbar of `A`, the leg of
 `R` springing off the bowl, the arches of `m` springing off the stem. At such
@@ -107,19 +162,19 @@ an **interior joint** you do *not* want the stroke end decorated like a free
 terminal: a serif, flare or end-bulb poking out of the middle of the letter
 looks wrong.
 
-Append a trailing **`j`** to the endpoint that lands on another stroke to
+Append a trailing **`J`** to the endpoint that lands on another stroke to
 declare it an interior joint. Its cap (serif / flare / bulb) is then suppressed
 and the join is cleanly aligned instead.
-- *Example:* in `R = "bl-tl-tlo~(th)r~hlo-hlj hcj-br"`, the bowl end `hlj` and
-  the leg top `hcj` are joints, while the leg foot `br` stays a real terminal
+- *Example:* in `R = "bl-tl-tlo~(th)r~hlo-hlJ hloJ-br"`, the bowl end `hlJ` and
+  the leg top `hloJ` are joints, while the leg foot `br` stays a real terminal
   that still receives a serif.
 
 The generator also has a geometric heuristic (the debug **`joints`** axis) that
 auto-detects joints where an endpoint lands on a *straight* segment of another
-stroke. The explicit `j` marker is more reliable: it also covers endpoints that
+stroke. The explicit `J` marker is more reliable: it also covers endpoints that
 land on **curves** (which the heuristic cannot see) or that sit just past a
 neighbouring stroke's last knot, and it applies regardless of the `joints`
-axis. Prefer marking joints explicitly with `j`.
+axis. Prefer marking joints explicitly with `J`.
 
 ---
 
@@ -161,7 +216,56 @@ Dactyl Glyphs interpret topologies smartly depending on the combination of line/
 
 ---
 
-## 4. The Glyphs Tab
+## 4. Optical Corrections (`overshoot` and `balance`)
+
+Two axes quietly adjust the coordinates you write, because geometry and
+perception disagree about what "the same height" and "the middle" look like
+(see Hoefler & Co.'s [Typographic
+Illusions](https://www.typography.com/blog/typographic-illusions)).  Both are
+applied by the parser, so every glyph definition inherits them for free — you
+write the ideal geometry and the axes handle the illusion.  Set either to `0`
+to draw exactly what you wrote.
+
+### `overshoot` — round and pointed extremes grow past the guides
+A circle drawn to the same height as a square reads as smaller, and a shape
+that converges to a point reads smaller still.  So a knot that is an **extreme
+of the outline sitting on a guide** (`t`, `x`, `b` or `d`) is pushed a little
+past that guide:
+
+- **Round extremes** — a knot with a fitted X coordinate (`t(c)`, the flat top
+  of a bowl) or with a curve on at least one side — move out by `overshoot`.
+  This is what makes `O`, `S`, `C`, `o`, `e` and `6` taller than `T` and `H`.
+- **Pointed extremes** — a corner between two straight lines whose neighbours
+  lie on *opposite* sides horizontally, i.e. a genuine wedge — move out by
+  1.5 × `overshoot`: the apex of `A`, `V` and `v`, and the middle vertex of
+  `M` and `W`.
+
+Everything else stays exactly on the guide: flat tops and feet (`T`, `E`, `L`),
+open-path endpoints (the terminals of `C` and `c`), and corners that don't
+converge to a point (the top of `M`'s left stem, `N`'s stem/diagonal
+junction).
+
+### `balance` — mid heights sit above the geometric middle
+We read a letter whose crossbar is arithmetically centred as bottom-heavy, so
+heights that fall *between* the guides are raised by up to `balance` units:
+
+- A height written as a **single guide letter** (`t`, `x`, `b`, `d`) is a
+  reference line and never moves — the x-height stays flat across `x`, `z`
+  and the crossbar of `f`.
+- Any **mixed or half height** takes the raise: `h` (the crossbar of `H`, `E`,
+  `F` and the waist of `B` and `S`), `xb` (the bar of `e`), `bh` (the crossbar
+  of `A`), and so on.
+- **Fitted heights** — `(h)l`, `(xb)r` — are the *side* extremes of round
+  letters and stay where they are, so `O` and `o` stay symmetric.
+
+The raise follows a sine curve that is zero at the baseline and at cap height
+and peaks at the half height, so `h` gets the full `balance` and `bh` (a
+quarter up) about 70% of it.  Below the baseline it has faded to nothing, so
+descender geometry is untouched.
+
+---
+
+## 5. The Glyphs Tab
 
 The generator UI features a **Glyphs** tab, an invaluable tool for creating and debugging your Dactyl Glyphs definitions in real time.
 

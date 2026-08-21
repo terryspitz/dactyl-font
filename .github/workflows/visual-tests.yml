@@ -18,6 +18,10 @@ permissions:
 jobs:
   visual-test:
     runs-on: ubuntu-latest
+    # Backstop: a healthy run takes ~2 minutes.  Without this, a hung step runs
+    # until GitHub's 6-hour job limit (see the apt stalls that motivated the
+    # step timeouts below) instead of failing fast and visibly.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -31,7 +35,7 @@ jobs:
       - name: Setup .NET Core
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 8.0.*
+          dotnet-version: 10.0.*
 
       - name: Install .NET dependencies
         run: |
@@ -50,10 +54,12 @@ jobs:
         run: cd web && npm ci
 
       - name: Install Playwright browsers
-        run: cd web && npx playwright install --with-deps chromium
-
-      - name: Install ImageMagick
-        run: sudo apt-get install -y imagemagick fonts-dejavu-core
+        # No --with-deps: that flag shells out to apt-get, which is where this
+        # job has hung (twice for over an hour, on two different runners).  The
+        # ubuntu-latest image already ships Chromium's system libraries, so the
+        # browser download alone is enough — and it normally takes ~20s.
+        timeout-minutes: 5
+        run: cd web && npx playwright install chromium
 
       - name: Build web app
         run: cd web && npm run build
@@ -86,6 +92,17 @@ jobs:
             git commit -m "Add new visual regression baselines"
             git push
           fi
+
+      - name: Install ImageMagick for diff GIFs
+        # Only the diff-GIF step below uses `convert` and the DejaVu font, and it
+        # only runs on failure — so installing these unconditionally put an
+        # apt-get on the happy path for nothing.  It is not worth failing an
+        # already-failing run over, hence continue-on-error: the PNGs still
+        # upload even if this cannot install.
+        if: failure()
+        continue-on-error: true
+        timeout-minutes: 10
+        run: sudo apt-get install -y imagemagick fonts-dejavu-core
 
       - name: Generate failure diff GIFs
         if: failure()

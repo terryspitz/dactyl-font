@@ -1,17 +1,21 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, cursiveUsesAlt, allChars, alphabetChars } from './lib/fable/Api' // Adjust path if needed
+import { generateSvg, defaultAxes, controlDefinitions, penPresets, penPresetAxes, axisDependsOn, generateTweenSvg, getGlyphDefs, cursiveUsesAlt, allChars, alphabetChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
 import GrowCanvas from './GrowCanvas'
 import { downloadBlob, svgBlob, svgToPngBlob, growFilenameBase, filenameBase } from './growthExport'
 import { LAYER_COLORS } from './growth'
 import { DEFAULT_BRANCH_COLOR } from './branching'
+import { RD_PRESET_NAMES, DEFAULT_CIRCUIT_TRACE_COLOR, DEFAULT_CIRCUIT_PAD_COLOR } from './texture'
 import { downloadFont, buildFontDataUrl, getOverriddenAxes } from './fontExport'
+import ImageExportButtons, { useDownloadMenu } from './ImageExportButtons'
+import { buildSplineGridSvg } from './splineGridSvg'
+import { buildTweensSvg } from './tweensSvg'
 import { buildCompareOverlaySvg } from './fontCompare'
 import FontCompareControls from './FontCompareControls'
 import FontCompareTextOverlay from './FontCompareTextOverlay'
 import { proofTexts, proofLabels, proofCases, classicBooks } from './proofs'
-import { randomizeAxes, buildGlyphAxes, newGlyphSeed } from './glyphRandom'
+import { randomizeAxes, buildGlyphAxes, buildPerGlyphTextAxes, newGlyphSeed } from './glyphRandom'
 import './App.css'
 
 // Special Visual Diffs option: compare the old spiro/spline2 engine vs the new dactyl spline
@@ -32,11 +36,37 @@ const defaultBranchParams = () => ({
   backbone: true, color: DEFAULT_BRANCH_COLOR, backboneColor: '#000000',
   maxReach: 140, baseRadius: 10, minRadius: 1.2, maxDepthForTaper: 14,
 })
+const defaultTextureParams = () => ({
+  style: 'rd', // 'rd' (reaction-diffusion) | 'maze' | 'circuit'
+  grow: 0.6, gap: 25, fuse: 0, growScale: 120,
+  backbone: true, backboneColor: '#e8e8e8',
+  // Thick keyline band hugging the letterform's outer edge — same technique
+  // as Bubble mode's dark outer layer (two field contours, evenodd-filled).
+  edgeOutline: true, edgeOutlineWidth: 24, edgeOutlineColor: '#000000',
+  seed: 1,
+  // Reaction-diffusion
+  preset: 'coral', steps: 3000, color: '#ff6f4a',
+  // Maze / circuit share a coarser grid ("grain" in the UI) than the RD
+  // field default; textureSvg.js calls this `cell`.
+  cell: 18,
+  // Maze / circuit share a stroke width; maze has its own wall colour (kept
+  // separate from RD's `color` so switching styles doesn't carry over an
+  // unrelated fill colour as the wall colour).
+  strokeWidth: 3, wallColor: '#222222',
+  // Circuit
+  density: 0.12, traceColor: DEFAULT_CIRCUIT_TRACE_COLOR, padColor: DEFAULT_CIRCUIT_PAD_COLOR,
+})
 
 // Field grid spacing used for the "fast preview" toggle — coarser than the
 // normal 3–6 cellFor(text) range, so slider drags stay responsive on slow
 // modes (Grow especially) instead of recomputing at full resolution.
 const PREVIEW_CELL = 10
+
+// Texture mode's `cell` ("grain" in the UI) only applies to the maze/circuit
+// styles — reaction-diffusion wants its own finer, text-length-scaled
+// default (textureSvg.js's cellFor), so strip it out for that style rather
+// than let the shared params object's grain value override it.
+const textureWorkerParams = (p) => (p.style === 'rd' ? { ...p, cell: undefined } : p)
 
 // Build the two axes variants (and key labels) for the Visual Diffs tab
 function getDiffAxes(axes, diffConfig) {
@@ -142,11 +172,15 @@ function App() {
   const [tabZooms, setTabZooms] = useState(() => {
     const urlZoom = parseFloat(new URLSearchParams(window.location.search).get('zoom'))
     const zoom = isNaN(urlZoom) ? 1.0 : urlZoom
-    return { font: zoom, glyphs: zoom, tweens: zoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom, generate: zoom }
+    // Narrow (mobile) screens only fit a couple of 150px tween boxes at zoom 1,
+    // so default the tweens tab to a smaller zoom there to fit more variations.
+    const isMobileWidth = window.innerWidth <= 768
+    const tweensZoom = isNaN(urlZoom) && isMobileWidth ? 0.5 : zoom
+    return { font: zoom, glyphs: zoom, tweens: tweensZoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom, generate: zoom }
   })
   const [layerVisibility, setLayerVisibility] = useState({
-    spiro: true,
-    spline2: true,
+    spiro: false,
+    spline2: false,
     dspline: true,
     guides: true,
     knots: true,
@@ -158,18 +192,27 @@ function App() {
   const [legendPos, setLegendPos] = useState({ x: 0, y: 0 })
   const isDraggingRef = useRef(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
+  // Drag handle between the input-area (text box + controls panel) and the
+  // canvas below it. null means "use the default ~1/3-height cap" (CSS
+  // flex-basis); once dragged, an explicit pixel height takes over.
+  const [inputAreaHeight, setInputAreaHeight] = useState(null)
+  const inputAreaRef = useRef(null)
+  const resizingInputAreaRef = useRef(false)
+  const resizeStartRef = useRef({ y: 0, height: 0 })
   const [tweenFilter, setTweenFilter] = useState(
     () => new URLSearchParams(window.location.search).get('tween') || ''
   )
-  // Generate tab: which generative mode is active. Two UI-facing values:
+  // Generate tab: which generative mode is active. Three UI-facing values:
   // 'bubble' (constant-gap SDF inflation, implemented in growth.js/growParams
-  // — code keeps the "grow" name since that's the algorithm's name) and
-  // 'grow' (space-colonisation twigs, implemented in branching.js/branchParams
-  // — code keeps the "branch" name). URL-addressable so a chosen mode is
+  // — code keeps the "grow" name since that's the algorithm's name), 'grow'
+  // (space-colonisation twigs, implemented in branching.js/branchParams —
+  // code keeps the "branch" name), and 'texture' (reaction-diffusion / maze /
+  // circuit patterns confined to the letterform, implemented in
+  // texture.js/textureParams). URL-addressable so a chosen mode is
   // shareable/deep-linkable, same as compareMode.
   const [generateMode, setGenerateMode] = useState(() => {
     const m = new URLSearchParams(window.location.search).get('mode')
-    return m === 'grow' ? 'grow' : 'bubble'
+    return (m === 'grow' || m === 'texture') ? m : 'bubble'
   })
   // Bubble mode ('grow' internally): constant-gap growth parameters (see growth.js)
   const [growParams, setGrowParams] = useState(defaultGrowParams)
@@ -177,6 +220,8 @@ function App() {
   // (see branching.js). Dense/tight enough that twig coverage alone reads
   // legibly with the backbone off, not just with it on.
   const [branchParams, setBranchParams] = useState(defaultBranchParams)
+  // Texture mode: reaction-diffusion / maze / circuit patterns (see texture.js).
+  const [textureParams, setTextureParams] = useState(defaultTextureParams)
   // Fast preview: render just the first character at PREVIEW_CELL resolution
   // instead of the full text, for responsive slider dragging on slow modes.
   const [fastPreview, setFastPreview] = useState(false)
@@ -186,18 +231,66 @@ function App() {
   const [growField, setGrowField] = useState(null)
   const [savingGrow, setSavingGrow] = useState(false)
   const [growCopied, setGrowCopied] = useState(false)
-  const [growMenuOpen, setGrowMenuOpen] = useState(false)
-  const growMenuRef = useRef(null)
+  const [growMenuOpen, setGrowMenuOpen, growMenuRef] = useDownloadMenu()
   // Grow mode (branch-mode) export state — mirrors the Bubble mode ones above.
   const [savingBranch, setSavingBranch] = useState(false)
   const [branchCopied, setBranchCopied] = useState(false)
-  const [branchMenuOpen, setBranchMenuOpen] = useState(false)
-  const branchMenuRef = useRef(null)
+  const [branchMenuOpen, setBranchMenuOpen, branchMenuRef] = useDownloadMenu()
+  // Texture mode export state — mirrors the Bubble/Grow ones above.
+  const [savingTexture, setSavingTexture] = useState(false)
+  const [textureCopied, setTextureCopied] = useState(false)
+  const [textureMenuOpen, setTextureMenuOpen, textureMenuRef] = useDownloadMenu()
   // Font tab image export (same PNG/SVG copy + download as Grow, on the canvas)
   const [savingFontImage, setSavingFontImage] = useState(false)
   const [fontCopied, setFontCopied] = useState(false)
-  const [fontMenuOpen, setFontMenuOpen] = useState(false)
-  const fontMenuRef = useRef(null)
+  const [fontMenuOpen, setFontMenuOpen, fontMenuRef] = useDownloadMenu()
+  // Glyphs tab image export — reuses workerResult directly (it's already the
+  // exact SVG on screen, no autoscale/GPU-canvas mismatch to work around).
+  const [savingGlyphsImage, setSavingGlyphsImage] = useState(false)
+  const [glyphsCopied, setGlyphsCopied] = useState(false)
+  const [glyphsMenuOpen, setGlyphsMenuOpen, glyphsMenuRef] = useDownloadMenu()
+  // Glyph-string cheatsheet popup. Reuses the download menu's outside-click/Escape
+  // wiring; the panel it lives in scrolls, so the popup is positioned fixed against
+  // the button's rect rather than absolutely (which the panel would clip).
+  const [glyphKeyOpen, setGlyphKeyOpen, glyphKeyRef] = useDownloadMenu()
+  const [glyphKeyPos, setGlyphKeyPos] = useState(null)
+  // Splines tab image export — SplineEditor holds interactive state (dragged
+  // control points) no fresh worker call could reconstruct, so this serialises
+  // the live svg.se-canvas DOM node instead of re-fetching.
+  const [savingSplinesImage, setSavingSplinesImage] = useState(false)
+  const [splinesCopied, setSplinesCopied] = useState(false)
+  const [splinesMenuOpen, setSplinesMenuOpen, splinesMenuRef] = useDownloadMenu()
+  // Spline Grid tab image export — a big HTML table of tiny inline-styled
+  // SVG cells, not one clean vector document, so this rasterises the live DOM
+  // (see domCapture.js) rather than trying to reconstruct it as pure SVG.
+  const [savingSplineGridImage, setSavingSplineGridImage] = useState(false)
+  const [splineGridCopied, setSplineGridCopied] = useState(false)
+  const [splineGridMenuOpen, setSplineGridMenuOpen, splineGridMenuRef] = useDownloadMenu()
+  // Tweens tab image export — workerResult already holds the row data
+  // (buildTweensSvg composites it into one SVG; no fresh worker call needed).
+  const [savingTweensImage, setSavingTweensImage] = useState(false)
+  const [tweensCopied, setTweensCopied] = useState(false)
+  const [tweensMenuOpen, setTweensMenuOpen, tweensMenuRef] = useDownloadMenu()
+  // Proofs tab image export — the on-screen preview renders proof text with
+  // CSS/@font-face (fast for long paragraphs), but export reuses the Font
+  // tab's true vector renderer (requestFontSvg) on the proof text instead,
+  // so the saved file is real vector glyph outlines, not a font-in-browser
+  // rasterisation trick.
+  const [savingProofsImage, setSavingProofsImage] = useState(false)
+  const [proofsCopied, setProofsCopied] = useState(false)
+  const [proofsMenuOpen, setProofsMenuOpen, proofsMenuRef] = useDownloadMenu()
+  // Visual Diffs tab image export — axis-diff mode's workerResult and
+  // compare-font 'outline' mode's compareSvg are already plain SVG strings
+  // (no fresh fetch needed); compare-font 'text' mode overlays two live
+  // browser-rendered fonts with CSS and has no vector SVG representation at
+  // all, so it's excluded (see requestVisualDiffsSvg) rather than attempting
+  // a DOM-capture export — the foreignObject-taints-the-canvas issue
+  // documented in splineGridSvg.js would apply, and a cross-origin webfont
+  // (an uploaded/Google font, unlike Dactyl's own data-URI font) could also
+  // taint it for real, not just as a Chromium technicality.
+  const [savingVisualDiffsImage, setSavingVisualDiffsImage] = useState(false)
+  const [visualDiffsCopied, setVisualDiffsCopied] = useState(false)
+  const [visualDiffsMenuOpen, setVisualDiffsMenuOpen, visualDiffsMenuRef] = useDownloadMenu()
   const supportsWebGL2 = useMemo(() => {
     try { return !!document.createElement('canvas').getContext('webgl2') } catch { return false }
   }, [])
@@ -279,7 +372,7 @@ function App() {
   const setGenerateModeWithUrl = (m) => {
     setGenerateMode(m)
     const url = new URL(window.location)
-    if (m === 'grow') url.searchParams.set('mode', 'grow')
+    if (m === 'grow' || m === 'texture') url.searchParams.set('mode', m)
     else url.searchParams.delete('mode')
     window.history.replaceState({}, '', url)
   }
@@ -362,21 +455,26 @@ function App() {
 
   const categoryIcons = {
     backbone: 'straighten',
-    outline: 'brush',
-    artistic: 'palette',
+    pen: 'ink_pen',
+    ends: 'line_end',
+    hand: 'gesture',
+    traces: 'density_medium',
+    render: 'brush',
     experimental: 'science',
     debug: 'pest_control'
   }
 
 
-  // State for collapsible sections
-  // experimental closed by default, others open
+  // State for collapsible sections.  Flattening `artistic` into Pen/Ends/Hand/
+  // Traces/Render took the sidebar from 5 sections to 8, so only Backbone, Pen
+  // and Render open by default — enough to see the font and its main stroke
+  // controls without a wall of sliders.
+  const CLOSED_CATEGORIES = ['ends', 'hand', 'traces', 'experimental', 'debug']
   const [openCategories, setOpenCategories] = useState(() => {
     const cats = {}
     controlDefinitions.forEach(ctrl => {
       const cat = ctrl.category || 'default'
-      if (cat === 'experimental' || cat === 'debug') cats[cat] = false
-      else cats[cat] = true
+      cats[cat] = !CLOSED_CATEGORIES.includes(cat)
     })
     return cats
   })
@@ -384,6 +482,10 @@ function App() {
   const toggleCategory = (cat) => {
     setOpenCategories(prev => ({ ...prev, [cat]: !prev[cat] }))
   }
+
+  // On mobile the sidebar is collapsed to an icon rail; CSS :hover has no touch
+  // equivalent, so track an explicit open/closed state and toggle it by tap.
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
 
   const handleLegendMouseDown = (e) => {
     // Only drag on left click and not on interactive elements inside
@@ -444,6 +546,45 @@ function App() {
     }
   }, [activeTab, legendPos.x, legendPos.y])
 
+  const handleInputAreaResizeStart = (clientY) => {
+    resizingInputAreaRef.current = true
+    resizeStartRef.current = { y: clientY, height: inputAreaRef.current?.getBoundingClientRect().height ?? 0 }
+  }
+  const handleInputAreaResizeMouseDown = (e) => {
+    if (e.button !== 0) return
+    handleInputAreaResizeStart(e.clientY)
+    e.preventDefault()
+  }
+  const handleInputAreaResizeTouchStart = (e) => {
+    handleInputAreaResizeStart(e.touches[0].clientY)
+  }
+
+  useEffect(() => {
+    const MIN_HEIGHT = 60
+    const applyDelta = (clientY) => {
+      if (!resizingInputAreaRef.current) return
+      const delta = clientY - resizeStartRef.current.y
+      setInputAreaHeight(Math.max(MIN_HEIGHT, resizeStartRef.current.height + delta))
+    }
+    const onMouseMove = (e) => applyDelta(e.clientY)
+    const onTouchMove = (e) => {
+      if (!resizingInputAreaRef.current) return
+      applyDelta(e.touches[0].clientY)
+      if (e.cancelable) e.preventDefault()
+    }
+    const onEnd = () => { resizingInputAreaRef.current = false }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onEnd)
+    document.addEventListener('touchmove', onTouchMove, { passive: false })
+    document.addEventListener('touchend', onEnd)
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onEnd)
+      document.removeEventListener('touchmove', onTouchMove)
+      document.removeEventListener('touchend', onEnd)
+    }
+  }, [])
+
   // Worker state is now handled within the effect directly
 
   const [downloadingFont, setDownloadingFont] = useState(false)
@@ -477,15 +618,19 @@ function App() {
     return (!isNaN(idx) && idx >= 0 && idx < classicBooks.length) ? classicBooks[idx] : null
   })
 
-  // Per-glyph random axes, as the parallel (chars, axesList) arrays the F# API
-  // takes.  Two variants so the whole-font one (export / proofs / comparisons)
-  // doesn't churn every time the typed text changes.
+  // Per-glyph random axes for the two rendering paths (see glyphRandom.js):
+  //  - perGlyphFontAxes: per-character (chars, axesList), for anything backed
+  //    by a real font (export / embedded proof preview / comparisons), where
+  //    a code point can only have one glyph shape.
+  //  - perGlyphTextAxes: per-occurrence axesList for direct SVG rendering
+  //    (Font tab preview, Font/Proofs SVG export), so repeated characters
+  //    like "555555" can each render differently.
   const perGlyphFontAxes = useMemo(
     () => glyphSeed === null ? null : buildGlyphAxes(allChars.replace(/\n/g, '') + ' ', glyphSeed, axes, controlDefinitions),
     [glyphSeed, axes]
   )
   const perGlyphTextAxes = useMemo(
-    () => glyphSeed === null ? null : buildGlyphAxes(text || '', glyphSeed, axes, controlDefinitions),
+    () => glyphSeed === null ? null : buildPerGlyphTextAxes(text || '', glyphSeed, axes, controlDefinitions),
     [glyphSeed, axes, text]
   )
   const perGlyphFontArgs = perGlyphFontAxes ? [perGlyphFontAxes.chars, perGlyphFontAxes.axesList] : []
@@ -523,9 +668,71 @@ function App() {
     }
     worker.onerror = (err) => { worker.terminate(); reject(err) }
     worker.postMessage(perGlyphTextAxes
-      ? { id: 0, type: 'fontPerGlyph', args: [text, axes, perGlyphTextAxes.chars, perGlyphTextAxes.axesList, true] }
+      ? { id: 0, type: 'fontPerGlyph', args: [text, axes, perGlyphTextAxes, true] }
       : { id: 0, type: 'font', args: [text, axes, true] })
   })
+
+  // Same idea as requestFontSvg, but for the Proofs tab's (potentially much
+  // longer) text, with its own per-glyph axes if randomise-every-glyph is on.
+  const requestProofsSvg = () => new Promise((resolve, reject) => {
+    const proofsText = tabTexts.proofs
+    if (!proofsText) { resolve(''); return }
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    worker.onmessage = (e) => {
+      if (e.data.type === 'progress') return
+      worker.terminate()
+      if (e.data.error) reject(new Error(e.data.error))
+      else resolve(e.data.result)
+    }
+    worker.onerror = (err) => { worker.terminate(); reject(err) }
+    if (glyphSeed !== null) {
+      const axesList = buildPerGlyphTextAxes(proofsText, glyphSeed, axes, controlDefinitions)
+      worker.postMessage({ id: 0, type: 'fontPerGlyph', args: [proofsText, axes, axesList, true] })
+    } else {
+      worker.postMessage({ id: 0, type: 'font', args: [proofsText, axes, true] })
+    }
+  })
+
+  const handleDownloadProofsImage = async (format) => {
+    setProofsMenuOpen(false)
+    setSavingProofsImage(true)
+    setError(null)
+    try {
+      const svg = await requestProofsSvg()
+      if (!svg) return
+      const base = filenameBase('dactyl-proofs', proofCase)
+      if (format === 'svg') {
+        downloadBlob(svgBlob(svg), `${base}.svg`)
+      } else {
+        downloadBlob(await svgToPngBlob(svg, { scale: 3, background: '#ffffff' }), `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Proofs ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingProofsImage(false)
+    }
+  }
+
+  const handleCopyProofsImage = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    setSavingProofsImage(true)
+    setError(null)
+    try {
+      const svg = await requestProofsSvg()
+      if (!svg) throw new Error('nothing to copy')
+      const png = await svgToPngBlob(svg, { scale: 3, background: '#ffffff' })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setProofsCopied(true)
+      setTimeout(() => setProofsCopied(false), 1500)
+    } catch (e) {
+      setError(`Proofs copy failed: ${e.message}`)
+    } finally {
+      setSavingProofsImage(false)
+    }
+  }
 
   const fontImageBase = () =>
     filenameBase('dactyl', text, glyphSeed === null ? '' : `random${glyphSeed}`)
@@ -569,6 +776,201 @@ function App() {
       setError(`Font copy failed: ${e.message}`)
     } finally {
       setSavingFontImage(false)
+    }
+  }
+
+  // Glyphs tab export: workerResult already holds the exact on-screen SVG
+  // (glyphsFromDefs has no autoscale/GPU-canvas path to route around, unlike
+  // Font/Bubble), so no fresh worker re-fetch is needed here.
+  const handleDownloadGlyphsImage = async (format) => {
+    setGlyphsMenuOpen(false)
+    if (typeof workerResult !== 'string' || !workerResult) return
+    setSavingGlyphsImage(true)
+    setError(null)
+    try {
+      const base = filenameBase('glyphs', text)
+      if (format === 'svg') {
+        downloadBlob(svgBlob(workerResult), `${base}.svg`)
+      } else {
+        downloadBlob(await svgToPngBlob(workerResult, { scale: 3, background: null }), `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Glyphs ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingGlyphsImage(false)
+    }
+  }
+
+  const handleCopyGlyphsImage = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    if (typeof workerResult !== 'string' || !workerResult) return
+    setSavingGlyphsImage(true)
+    setError(null)
+    try {
+      const png = await svgToPngBlob(workerResult, { scale: 3, background: null })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setGlyphsCopied(true)
+      setTimeout(() => setGlyphsCopied(false), 1500)
+    } catch (e) {
+      setError(`Glyphs copy failed: ${e.message}`)
+    } finally {
+      setSavingGlyphsImage(false)
+    }
+  }
+
+  // Serialise the live curve-editor <svg> (control points, tangent handles,
+  // solved outline — whatever's currently on screen, including any dragged
+  // point positions) rather than re-fetching, since only the DOM reflects the
+  // editor's interactive state.
+  const requestSplinesSvg = () => {
+    const svgEl = previewRef.current?.querySelector('svg.se-canvas')
+    return svgEl ? new XMLSerializer().serializeToString(svgEl) : ''
+  }
+
+  const handleDownloadSplinesImage = async (format) => {
+    setSplinesMenuOpen(false)
+    const svg = requestSplinesSvg()
+    if (!svg) return
+    setSavingSplinesImage(true)
+    setError(null)
+    try {
+      const base = filenameBase('splines', text)
+      if (format === 'svg') {
+        downloadBlob(svgBlob(svg), `${base}.svg`)
+      } else {
+        downloadBlob(await svgToPngBlob(svg, { scale: 3, background: null }), `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Splines ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingSplinesImage(false)
+    }
+  }
+
+  const handleCopySplinesImage = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    const svg = requestSplinesSvg()
+    if (!svg) { setError('nothing to copy'); return }
+    setSavingSplinesImage(true)
+    setError(null)
+    try {
+      const png = await svgToPngBlob(svg, { scale: 3, background: null })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setSplinesCopied(true)
+      setTimeout(() => setSplinesCopied(false), 1500)
+    } catch (e) {
+      setError(`Splines copy failed: ${e.message}`)
+    } finally {
+      setSavingSplinesImage(false)
+    }
+  }
+
+  // Fresh one-off worker call (same 'solveSplineGrid' message SplineGrid.jsx
+  // itself uses) rebuilt as a standalone vector SVG (splineGridSvg.js) rather
+  // than screenshotting the on-screen HTML table — an SVG containing a
+  // <foreignObject> unconditionally taints the canvas in Chromium (confirmed
+  // by hand: even foreignObject content with no embedded images at all still
+  // taints it), so DOM-capture isn't viable here; nested plain <svg> has no
+  // such restriction.
+  const requestSplineGridSvg = () => new Promise((resolve, reject) => {
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    worker.onmessage = (e) => {
+      worker.terminate()
+      if (e.data.error) reject(new Error(e.data.error))
+      else resolve(buildSplineGridSvg(e.data.result))
+    }
+    worker.onerror = (err) => { worker.terminate(); reject(err) }
+    worker.postMessage({ id: 1, type: 'solveSplineGrid', args: [] })
+  })
+
+  const handleDownloadSplineGridImage = async (format) => {
+    setSplineGridMenuOpen(false)
+    setSavingSplineGridImage(true)
+    setError(null)
+    try {
+      const svg = await requestSplineGridSvg()
+      const base = 'dactyl-spline-grid'
+      if (format === 'svg') {
+        downloadBlob(svgBlob(svg), `${base}.svg`)
+      } else {
+        downloadBlob(await svgToPngBlob(svg, { scale: 2, background: '#ffffff' }), `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Spline Grid ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingSplineGridImage(false)
+    }
+  }
+
+  const handleCopySplineGridImage = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    setSavingSplineGridImage(true)
+    setError(null)
+    try {
+      const svg = await requestSplineGridSvg()
+      const png = await svgToPngBlob(svg, { scale: 2, background: '#ffffff' })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setSplineGridCopied(true)
+      setTimeout(() => setSplineGridCopied(false), 1500)
+    } catch (e) {
+      setError(`Spline Grid copy failed: ${e.message}`)
+    } finally {
+      setSavingSplineGridImage(false)
+    }
+  }
+
+  const requestTweensSvg = () => {
+    if (typeof workerResult !== 'object' || !workerResult) return ''
+    return buildTweensSvg(workerResult, controlDefinitions, tweenFilter)
+  }
+
+  const handleDownloadTweensImage = async (format) => {
+    setTweensMenuOpen(false)
+    const svg = requestTweensSvg()
+    if (!svg) return
+    setSavingTweensImage(true)
+    setError(null)
+    try {
+      const base = 'dactyl-tweens'
+      if (format === 'svg') {
+        downloadBlob(svgBlob(svg), `${base}.svg`)
+      } else {
+        downloadBlob(await svgToPngBlob(svg, { scale: 2, background: '#ffffff' }), `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Tweens ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingTweensImage(false)
+    }
+  }
+
+  const handleCopyTweensImage = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    const svg = requestTweensSvg()
+    if (!svg) { setError('nothing to copy'); return }
+    setSavingTweensImage(true)
+    setError(null)
+    try {
+      const png = await svgToPngBlob(svg, { scale: 2, background: '#ffffff' })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setTweensCopied(true)
+      setTimeout(() => setTweensCopied(false), 1500)
+    } catch (e) {
+      setError(`Tweens copy failed: ${e.message}`)
+    } finally {
+      setSavingTweensImage(false)
     }
   }
 
@@ -663,7 +1065,7 @@ function App() {
       }
       if (perGlyphTextAxes) {
         typeReq = 'fontPerGlyph'
-        args = [text, axes, perGlyphTextAxes.chars, perGlyphTextAxes.axesList, false]
+        args = [text, axes, perGlyphTextAxes, false]
       } else {
         typeReq = 'font'
         args = [text, axes, false]
@@ -676,7 +1078,7 @@ function App() {
       typeReq = 'tweens'
       const boxWidth = 150 * zoom
       const availableWidth = previewRef.current?.clientWidth ?? window.innerWidth
-      const steps = Math.max(2, Math.floor((availableWidth + 10) / (boxWidth + 10)))
+      const steps = Math.max(4, Math.floor((availableWidth + 10) / (boxWidth + 10)))
       args = [char, axes, steps]
     } else if (activeTab === 'visualDiffs') {
       if (compareMode === 'font') {
@@ -712,6 +1114,15 @@ function App() {
       if (generateMode === 'grow') {
         typeReq = 'branch'
         args = [previewText, axes, fastPreview ? { ...branchParams, cell: PREVIEW_CELL } : branchParams]
+      } else if (generateMode === 'texture') {
+        typeReq = 'texture'
+        // Only the rd style benefits from PREVIEW_CELL: maze/circuit already
+        // run their own (coarser, already-fast) grid, and forcing a finer
+        // PREVIEW_CELL on them would make fast-preview slower, not faster.
+        const tp = fastPreview && textureParams.style === 'rd'
+          ? { ...textureParams, cell: PREVIEW_CELL }
+          : textureParams
+        args = [previewText, axes, textureWorkerParams(tp)]
       } else {
         typeReq = 'growth'
         args = [previewText, axes, fastPreview ? { ...growParams, cell: PREVIEW_CELL } : growParams]
@@ -738,52 +1149,7 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, generateMode, growParams, branchParams, fastPreview, perGlyphTextAxes])
-
-  // Close the Bubble download-format menu on outside click / Escape.
-  useEffect(() => {
-    if (!growMenuOpen) return
-    const onDown = (e) => {
-      if (growMenuRef.current && !growMenuRef.current.contains(e.target)) setGrowMenuOpen(false)
-    }
-    const onKey = (e) => { if (e.key === 'Escape') setGrowMenuOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [growMenuOpen])
-
-  // Close the Grow download-format menu on outside click / Escape.
-  useEffect(() => {
-    if (!branchMenuOpen) return
-    const onDown = (e) => {
-      if (branchMenuRef.current && !branchMenuRef.current.contains(e.target)) setBranchMenuOpen(false)
-    }
-    const onKey = (e) => { if (e.key === 'Escape') setBranchMenuOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [branchMenuOpen])
-
-  // Same for the Font tab's download-format menu.
-  useEffect(() => {
-    if (!fontMenuOpen) return
-    const onDown = (e) => {
-      if (fontMenuRef.current && !fontMenuRef.current.contains(e.target)) setFontMenuOpen(false)
-    }
-    const onKey = (e) => { if (e.key === 'Escape') setFontMenuOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [fontMenuOpen])
+  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, generateMode, growParams, branchParams, textureParams, fastPreview, perGlyphTextAxes])
 
   // Dedicated effect for proofs tab: generates full font and builds a data URL.
   // Deps are [axes, activeTab] only — switching proof text doesn't re-trigger.
@@ -995,6 +1361,57 @@ function App() {
       return null
     }
   }, [compareMode, compareFont, dactylGlyphData, compareSize, text])
+
+  // '' when there's nothing exportable yet (still generating / no font
+  // picked), null specifically for the text-overlay mode that can't export.
+  const requestVisualDiffsSvg = () => {
+    if (compareMode === 'font') {
+      if (compareFont?.kind === 'text') return null
+      return compareSvg || ''
+    }
+    return typeof workerResult === 'string' ? workerResult : ''
+  }
+
+  const handleDownloadVisualDiffsImage = async (format) => {
+    setVisualDiffsMenuOpen(false)
+    const svg = requestVisualDiffsSvg()
+    if (!svg) return
+    setSavingVisualDiffsImage(true)
+    setError(null)
+    try {
+      const base = 'dactyl-visual-diff'
+      if (format === 'svg') {
+        downloadBlob(svgBlob(svg), `${base}.svg`)
+      } else {
+        downloadBlob(await svgToPngBlob(svg, { scale: 3, background: '#ffffff' }), `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Visual Diffs ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingVisualDiffsImage(false)
+    }
+  }
+
+  const handleCopyVisualDiffsImage = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    const svg = requestVisualDiffsSvg()
+    if (!svg) { setError('nothing to copy'); return }
+    setSavingVisualDiffsImage(true)
+    setError(null)
+    try {
+      const png = await svgToPngBlob(svg, { scale: 3, background: '#ffffff' })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setVisualDiffsCopied(true)
+      setTimeout(() => setVisualDiffsCopied(false), 1500)
+    } catch (e) {
+      setError(`Visual Diffs copy failed: ${e.message}`)
+    } finally {
+      setSavingVisualDiffsImage(false)
+    }
+  }
 
   // DactylCompare @font-face for text-mode comparison (Dactyl side rendered via CSS).
   const dactylCompareUrl = useMemo(() => {
@@ -1211,6 +1628,10 @@ function App() {
     if (!text) { resolve(''); return }
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
     worker.onmessage = (e) => {
+      // Ignore intermediate { type: 'progress' } ticks — resolving on the
+      // first one (instead of the final result) would silently save an
+      // empty/undefined SVG for slower (longer-text) renders.
+      if (e.data.type === 'progress') return
       worker.terminate()
       if (e.data.error) reject(new Error(e.data.error))
       else resolve(e.data.result)
@@ -1271,6 +1692,8 @@ function App() {
     if (!text) { resolve(''); return }
     const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
     worker.onmessage = (e) => {
+      // Ignore intermediate { type: 'progress' } ticks — see requestGrowthSvg.
+      if (e.data.type === 'progress') return
       worker.terminate()
       if (e.data.error) reject(new Error(e.data.error))
       else resolve(e.data.result)
@@ -1321,6 +1744,68 @@ function App() {
     }
   }
 
+  // Render the current Texture mode view to a vector SVG string via a
+  // one-off worker, for both SVG and PNG downloads — mirrors requestBranchSvg.
+  const requestTextureSvg = () => new Promise((resolve, reject) => {
+    if (!text) { resolve(''); return }
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    worker.onmessage = (e) => {
+      // Texture mode's reaction-diffusion simulation reports many intermediate
+      // { type: 'progress' } ticks before the final result — ignore those and
+      // wait for the message that actually carries a result/error, or this
+      // resolves (with undefined) on the very first progress tick instead of
+      // the finished SVG.
+      if (e.data.type === 'progress') return
+      worker.terminate()
+      if (e.data.error) reject(new Error(e.data.error))
+      else resolve(e.data.result)
+    }
+    worker.onerror = (err) => { worker.terminate(); reject(err) }
+    worker.postMessage({ id: 0, type: 'texture', args: [text, axes, textureWorkerParams(textureParams)] })
+  })
+
+  const handleDownloadTexture = async (format) => {
+    setTextureMenuOpen(false)
+    setSavingTexture(true)
+    setError(null)
+    try {
+      const svg = await requestTextureSvg()
+      if (!svg) return
+      const base = filenameBase('texture', text)
+      if (format === 'svg') {
+        downloadBlob(svgBlob(svg), `${base}.svg`)
+      } else {
+        const png = await svgToPngBlob(svg, { scale: 3, background: null })
+        downloadBlob(png, `${base}.png`)
+      }
+    } catch (e) {
+      setError(`Texture ${format.toUpperCase()} export failed: ${e.message}`)
+    } finally {
+      setSavingTexture(false)
+    }
+  }
+
+  const handleCopyTexture = async () => {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      setError('Clipboard image copy is not supported in this browser')
+      return
+    }
+    setSavingTexture(true)
+    setError(null)
+    try {
+      const svg = await requestTextureSvg()
+      if (!svg) throw new Error('nothing to copy')
+      const png = await svgToPngBlob(svg, { scale: 3, background: null })
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      setTextureCopied(true)
+      setTimeout(() => setTextureCopied(false), 1500)
+    } catch (e) {
+      setError(`Texture copy failed: ${e.message}`)
+    } finally {
+      setSavingTexture(false)
+    }
+  }
+
   const handleControlChange = (name, value) => {
     setAxes(prev => ({ ...prev, [name]: value }))
   }
@@ -1330,10 +1815,47 @@ function App() {
     setGlyphSeed(null)
   }
 
+  // Pen presets. Each chip first resets every axis the presets speak for
+  // (`penPresetAxes`) to its default and then applies its own values, so the
+  // chips are alternatives rather than layers — clicking Sketch after Broad nib
+  // gives a sketch, not a sketchy nib. Every slider stays live afterwards: a
+  // preset is a starting point inside the axis space, not a mode.
+  const applyPreset = (preset) => {
+    setAxes(prev => {
+      const next = { ...prev }
+      penPresetAxes.forEach(a => { next[a] = defaultAxes[a] })
+      preset.values.forEach(v => { next[v.axis] = v.value })
+      return next
+    })
+  }
+
+  // Which preset (if any) the current axes exactly match, so the chip row can
+  // show the active one.
+  const activePreset = useMemo(() => {
+    const match = penPresets.find(preset => {
+      const want = { ...Object.fromEntries(penPresetAxes.map(a => [a, defaultAxes[a]])) }
+      preset.values.forEach(v => { want[v.axis] = v.value })
+      return penPresetAxes.every(a => Number(axes[a]) === Number(want[a]))
+    })
+    return match ? match.name : null
+  }, [axes])
+
+  // An axis whose parent sits at its default has no visible effect, so it is
+  // dimmed (never hidden — the slider still works, and moving the parent brings
+  // it back).
+  const dimmedAxes = useMemo(() => {
+    const dimmed = new Set()
+    axisDependsOn.forEach(d => {
+      if (Number(axes[d.parent]) === Number(defaultAxes[d.parent])) dimmed.add(d.axis)
+    })
+    return dimmed
+  }, [axes])
+
   // Reset the active Generate mode's own settings to their defaults, leaving
   // the mode selection (and the other mode's settings) untouched.
   const handleResetGenerateParams = () => {
     if (generateMode === 'bubble') setGrowParams(defaultGrowParams())
+    else if (generateMode === 'texture') setTextureParams(defaultTextureParams())
     else setBranchParams(defaultBranchParams())
   }
 
@@ -1368,11 +1890,36 @@ function App() {
     setGlyphSeed(newGlyphSeed())
   }
 
+  // Constant inputs — memoized so this isn't recomputed on every render
+  // (e.g. every slider tick), which was expensive enough to noticeably
+  // delay the browser's touch-scroll response when dragging a slider.
+  const sidebarTitleSvg = useMemo(() => {
+    const svg = generateTweenSvg("Dactyl", { ...defaultAxes, weight: 35 })
+    // The D's rounded top slightly overshoots the generator's computed
+    // viewBox (measured ~15 units short on a 1000-unit-tall glyph), so its
+    // top edge gets clipped. Give it some headroom here rather than in the
+    // shared generator, which other, unaffected renders also depend on.
+    return svg.replace(/viewBox='(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)'/, (_, x, y, w, h) => {
+      const margin = 20
+      return `viewBox='${x} ${parseFloat(y) - margin} ${w} ${parseFloat(h) + margin}'`
+    })
+  }, [])
 
   return (
     <div className="container">
-      <div className="sidebar">
-        <div className="sidebar-title" dangerouslySetInnerHTML={{ __html: generateTweenSvg("Dactyl", { ...defaultAxes, weight: 35 }) }} />
+      <button
+        className="sidebar-toggle"
+        onClick={() => setMobileSidebarOpen(open => !open)}
+        title={mobileSidebarOpen ? 'Close controls' : 'Open controls'}
+        aria-label={mobileSidebarOpen ? 'Close controls' : 'Open controls'}
+      >
+        <span className="material-symbols-outlined">{mobileSidebarOpen ? 'close' : 'menu'}</span>
+      </button>
+      {mobileSidebarOpen && (
+        <div className="sidebar-backdrop" onClick={() => setMobileSidebarOpen(false)} />
+      )}
+      <div className={`sidebar${mobileSidebarOpen ? ' mobile-open' : ''}`}>
+        <div className="sidebar-title" dangerouslySetInnerHTML={{ __html: sidebarTitleSvg }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flex: '0 0 auto' }}>
           <h2 style={{ margin: 0 }}>Controls</h2>
           <div className="toolbar" style={{ display: 'flex', gap: '5px' }}>
@@ -1388,6 +1935,18 @@ function App() {
           </div>
         </div>
         <div className="controls-list">
+          <div className="pen-presets">
+            {penPresets.map(preset => (
+              <button
+                key={preset.name}
+                className={`proof-chip ${activePreset === preset.name ? 'selected' : ''}`}
+                onClick={() => applyPreset(preset)}
+                title={`Pen preset: ${preset.name}`}
+              >
+                {preset.name}
+              </button>
+            ))}
+          </div>
           {Object.entries(controlsByCategory).map(([category, controls]) => (
             <div key={category} className="category-group">
               <div
@@ -1409,7 +1968,11 @@ function App() {
               {openCategories[category] && (
                 <div className="category-content" style={{ paddingLeft: '10px' }}>
                   {controls.map(ctrl => (
-                    <div key={ctrl.name} className="control-group" title={ctrl.description}>
+                    <div
+                      key={ctrl.name}
+                      className={`control-group${dimmedAxes.has(ctrl.name) ? ' inactive' : ''}`}
+                      title={ctrl.description}
+                    >
                       <label>
                         {ctrl.name}
                       </label>
@@ -1494,7 +2057,17 @@ function App() {
           )}
         </div>
 
-        <div className={`input-area ${['glyphs', 'generate', 'visualDiffs'].includes(activeTab) ? 'with-side-panel' : ''}`} style={activeTab === 'splines' || activeTab === 'splineGrid' ? { display: 'none' } : undefined}>
+        <div
+          ref={inputAreaRef}
+          className={`input-area ${['glyphs', 'generate', 'visualDiffs'].includes(activeTab) ? 'with-side-panel' : ''}`}
+          style={
+            activeTab === 'splines' || activeTab === 'splineGrid'
+              ? { display: 'none' }
+              : inputAreaHeight != null
+                ? { height: `${inputAreaHeight}px`, flex: '0 0 auto' }
+                : undefined
+          }
+        >
           <div className="input-wrapper">
             <textarea
               value={text}
@@ -1551,15 +2124,53 @@ function App() {
           </div>
           {activeTab === 'glyphs' && (
             <div className="glyph-defs-panel" style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-              <h3 style={{ margin: 0 }}>Glyph Definitions{' '}
-                <a
-                  href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontWeight: 'normal', textDecoration: 'underline' }}
-                >
-                  (docs)
-                </a>
+              <h3 style={{ margin: 0 }}>
+                Glyph Definitions
+                <span ref={glyphKeyRef} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <a
+                    href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontWeight: 'normal', textDecoration: 'underline' }}
+                  >
+                    (docs)
+                  </a>
+                  <button
+                    type="button"
+                    className="glyph-key-button"
+                    title="Glyph string key"
+                    aria-label="Glyph string key"
+                    aria-expanded={glyphKeyOpen}
+                    onClick={e => {
+                      const r = e.currentTarget.getBoundingClientRect()
+                      // Right-align the popup to the button, then keep it on screen.
+                      const left = Math.max(8, Math.min(r.right - 340, window.innerWidth - 348))
+                      setGlyphKeyPos({ top: r.bottom + 6, left })
+                      setGlyphKeyOpen(o => !o)
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>help</span>
+                  </button>
+                  {glyphKeyOpen && glyphKeyPos && (
+                    <div
+                      className="glyph-key-popup"
+                      style={{ top: `${glyphKeyPos.top}px`, left: `${glyphKeyPos.left}px` }}
+                    >
+                      <strong>Key:</strong> y: (t)op, (x)-height, (h)alf, (b)ottom, (d)escender, (o)ffset in, (e)xtended out. <br />
+                      x: (l)eft, (c)enter, (r)ight, (w)ide. Solo point → dot. <br />
+                      Dirs: N,S,E,W. Lines: (-) straight, (~) curve. Brackets: auto fit. <br />
+                      K: corner/kink. J: interior joint (suppresses end caps). <br />
+                      Repeats average coordinates (e.g. "bt"="h"); a digit repeats the letter before it, so "b2t"="bbt". <br />
+                      <a
+                        href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Full glyph definition docs
+                      </a>
+                    </div>
+                  )}
+                </span>
               </h3>
               <textarea
                 value={glyphsDefsText}
@@ -1567,12 +2178,6 @@ function App() {
                 style={{ width: '100%', flex: '1', minHeight: '100px', fontFamily: 'monospace', resize: 'vertical' }}
                 spellCheck="false"
               />
-              <div className="helper-key" style={{ fontSize: '0.85em', color: '#666' }}>
-                <strong>Key:</strong> y: (t)op, (x)-height, (h)alf, (b)ottom, (d)escender, (o)ffset in, (e)xtended out. <br />
-                x: (l)eft, (c)enter, (r)ight, (w)ide. Solo point → dot. <br />
-                Dirs: N,S,E,W. Lines: (-) straight, (~) curve. Brackets mean 'fit this coordinate instead'. <br />
-                Repeats average coordinates (e.g. "bt"="h"); a digit repeats the letter before it, so "b2t"="bbt" and "r4c"="rrrrc".
-              </div>
             </div>
           )}
           {activeTab === 'generate' && (
@@ -1590,6 +2195,12 @@ function App() {
                     onClick={() => setGenerateModeWithUrl('grow')}
                   >
                     Grow
+                  </button>
+                  <button
+                    className={`proof-chip ${generateMode === 'texture' ? 'selected' : ''}`}
+                    onClick={() => setGenerateModeWithUrl('texture')}
+                  >
+                    Texture
                   </button>
                 </div>
                 <button
@@ -1700,62 +2311,6 @@ function App() {
                       />
                     </label>
                   ))}
-                  <div className="controls-break" />
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '4px' }}>
-                    <button
-                      className="icon-button"
-                      onClick={handleCopyGrow}
-                      disabled={savingGrow || !text}
-                      title="Copy PNG to clipboard"
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                        {growCopied ? 'check' : 'content_copy'}
-                      </span>
-                    </button>
-                    {/* Download defaults to PNG; the caret opens a PNG/SVG menu. */}
-                    <span ref={growMenuRef} className="grow-download-split" style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
-                      <button
-                        className="icon-button"
-                        onClick={() => handleDownloadGrow('png')}
-                        disabled={savingGrow || !text}
-                        title="Download PNG (transparent, high-res)"
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                          {savingGrow ? 'hourglass_empty' : 'download'}
-                        </span>
-                      </button>
-                      <button
-                        className="icon-button"
-                        onClick={() => setGrowMenuOpen(o => !o)}
-                        disabled={savingGrow || !text}
-                        title="Choose download format"
-                        aria-haspopup="menu"
-                        aria-expanded={growMenuOpen}
-                        style={{ width: '24px', minWidth: '24px', padding: '6px 0' }}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_drop_down</span>
-                      </button>
-                      {growMenuOpen && (
-                        <div
-                          role="menu"
-                          style={{
-                            position: 'absolute', top: '100%', right: 0, marginTop: '4px', zIndex: 20,
-                            background: 'var(--panel-bg)', border: '1px solid var(--border-color)',
-                            borderRadius: 'var(--radius-md)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden', minWidth: '160px',
-                          }}
-                        >
-                          <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadGrow('png')}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>image</span>
-                            PNG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>transparent</span>
-                          </button>
-                          <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadGrow('svg')}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>polyline</span>
-                            SVG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>vector</span>
-                          </button>
-                        </div>
-                      )}
-                    </span>
-                  </span>
                 </>)}
                 {generateMode === 'grow' && (<>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1876,62 +2431,215 @@ function App() {
                       />
                     </label>
                   )}
-                  <div className="controls-break" />
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '4px' }}>
+                </>)}
+                {generateMode === 'texture' && (<>
+                  <div className="proof-chips" style={{ marginLeft: 0 }}>
                     <button
-                      className="icon-button"
-                      onClick={handleCopyBranch}
-                      disabled={savingBranch || !text}
-                      title="Copy PNG to clipboard"
+                      className={`proof-chip ${textureParams.style === 'rd' ? 'selected' : ''}`}
+                      onClick={() => setTextureParams(p => ({ ...p, style: 'rd' }))}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                        {branchCopied ? 'check' : 'content_copy'}
-                      </span>
+                      Reaction-Diffusion
                     </button>
-                    {/* Download defaults to PNG; the caret opens a PNG/SVG menu. */}
-                    <span ref={branchMenuRef} className="grow-download-split" style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
-                      <button
-                        className="icon-button"
-                        onClick={() => handleDownloadBranch('png')}
-                        disabled={savingBranch || !text}
-                        title="Download PNG (transparent, high-res)"
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                          {savingBranch ? 'hourglass_empty' : 'download'}
-                        </span>
-                      </button>
-                      <button
-                        className="icon-button"
-                        onClick={() => setBranchMenuOpen(o => !o)}
-                        disabled={savingBranch || !text}
-                        title="Choose download format"
-                        aria-haspopup="menu"
-                        aria-expanded={branchMenuOpen}
-                        style={{ width: '24px', minWidth: '24px', padding: '6px 0' }}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_drop_down</span>
-                      </button>
-                      {branchMenuOpen && (
-                        <div
-                          role="menu"
-                          style={{
-                            position: 'absolute', top: '100%', right: 0, marginTop: '4px', zIndex: 20,
-                            background: 'var(--panel-bg)', border: '1px solid var(--border-color)',
-                            borderRadius: 'var(--radius-md)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden', minWidth: '160px',
-                          }}
+                    <button
+                      className={`proof-chip ${textureParams.style === 'maze' ? 'selected' : ''}`}
+                      onClick={() => setTextureParams(p => ({ ...p, style: 'maze' }))}
+                    >
+                      Maze
+                    </button>
+                    <button
+                      className={`proof-chip ${textureParams.style === 'circuit' ? 'selected' : ''}`}
+                      onClick={() => setTextureParams(p => ({ ...p, style: 'circuit' }))}
+                    >
+                      Circuit
+                    </button>
+                  </div>
+                  <div className="controls-break" />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="How far the domain bulges beyond the classic outline">
+                    grow
+                    <input
+                      type="range" min="0" max="1" step="0.05"
+                      value={textureParams.grow}
+                      onChange={e => setTextureParams(p => ({ ...p, grow: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2.5em' }}>{textureParams.grow.toFixed(2)}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    gap
+                    <input
+                      type="range" min="5" max="100" step="5"
+                      value={textureParams.gap}
+                      onChange={e => setTextureParams(p => ({ ...p, gap: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2em' }}>{textureParams.gap}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Melt neighbouring letters' domains together">
+                    fuse
+                    <input
+                      type="range" min="0" max="1" step="0.05"
+                      value={textureParams.fuse}
+                      onChange={e => setTextureParams(p => ({ ...p, fuse: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2.5em' }}>{textureParams.fuse.toFixed(2)}</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    seed
+                    <input
+                      type="range" min="1" max="50" step="1"
+                      value={textureParams.seed}
+                      onChange={e => setTextureParams(p => ({ ...p, seed: parseFloat(e.target.value) }))}
+                    />
+                    <span style={{ minWidth: '2em' }}>{textureParams.seed}</span>
+                  </label>
+                  <div className="controls-break" />
+                  {textureParams.style === 'rd' && (<>
+                    <div className="proof-chips" style={{ marginLeft: 0 }}>
+                      {RD_PRESET_NAMES.map(name => (
+                        <button
+                          key={name}
+                          className={`proof-chip ${textureParams.preset === name ? 'selected' : ''}`}
+                          onClick={() => setTextureParams(p => ({ ...p, preset: name }))}
                         >
-                          <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadBranch('png')}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>image</span>
-                            PNG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>transparent</span>
-                          </button>
-                          <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadBranch('svg')}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>polyline</span>
-                            SVG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>vector</span>
-                          </button>
-                        </div>
-                      )}
-                    </span>
-                  </span>
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="More steps develop the pattern further (slower)">
+                      steps
+                      <input
+                        type="range" min="1000" max="6000" step="250"
+                        value={textureParams.steps}
+                        onChange={e => setTextureParams(p => ({ ...p, steps: parseFloat(e.target.value) }))}
+                      />
+                      <span style={{ minWidth: '3em' }}>{textureParams.steps}</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      colour
+                      <input
+                        type="color"
+                        value={textureParams.color}
+                        onChange={e => setTextureParams(p => ({ ...p, color: e.target.value }))}
+                      />
+                    </label>
+                  </>)}
+                  {textureParams.style === 'maze' && (<>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Corridor width — coarser reads as a chunkier maze">
+                      grain
+                      <input
+                        type="range" min="8" max="32" step="2"
+                        value={textureParams.cell}
+                        onChange={e => setTextureParams(p => ({ ...p, cell: parseFloat(e.target.value) }))}
+                      />
+                      <span style={{ minWidth: '2em' }}>{textureParams.cell}</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Wall stroke width">
+                      maze width
+                      <input
+                        type="range" min="1" max="10" step="0.5"
+                        value={textureParams.strokeWidth}
+                        onChange={e => setTextureParams(p => ({ ...p, strokeWidth: parseFloat(e.target.value) }))}
+                      />
+                      <span style={{ minWidth: '2em' }}>{textureParams.strokeWidth}</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      maze colour
+                      <input
+                        type="color"
+                        value={textureParams.wallColor}
+                        onChange={e => setTextureParams(p => ({ ...p, wallColor: e.target.value }))}
+                      />
+                    </label>
+                  </>)}
+                  {textureParams.style === 'circuit' && (<>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Trace width — coarser reads as chunkier PCB traces">
+                      grain
+                      <input
+                        type="range" min="8" max="32" step="2"
+                        value={textureParams.cell}
+                        onChange={e => setTextureParams(p => ({ ...p, cell: parseFloat(e.target.value) }))}
+                      />
+                      <span style={{ minWidth: '2em' }}>{textureParams.cell}</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Fraction of the available grid tried as trace starting points">
+                      density
+                      <input
+                        type="range" min="0.05" max="0.3" step="0.01"
+                        value={textureParams.density}
+                        onChange={e => setTextureParams(p => ({ ...p, density: parseFloat(e.target.value) }))}
+                      />
+                      <span style={{ minWidth: '2.5em' }}>{textureParams.density.toFixed(2)}</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Trace stroke width">
+                      trace width
+                      <input
+                        type="range" min="1" max="12" step="0.5"
+                        value={textureParams.strokeWidth}
+                        onChange={e => setTextureParams(p => ({ ...p, strokeWidth: parseFloat(e.target.value) }))}
+                      />
+                      <span style={{ minWidth: '2em' }}>{textureParams.strokeWidth}</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      trace
+                      <input
+                        type="color"
+                        value={textureParams.traceColor}
+                        onChange={e => setTextureParams(p => ({ ...p, traceColor: e.target.value }))}
+                      />
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      pad
+                      <input
+                        type="color"
+                        value={textureParams.padColor}
+                        onChange={e => setTextureParams(p => ({ ...p, padColor: e.target.value }))}
+                      />
+                    </label>
+                  </>)}
+                  <div className="controls-break" />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Fill the letterform silhouette behind the pattern">
+                    background
+                    <input
+                      type="checkbox"
+                      checked={textureParams.backbone}
+                      onChange={e => setTextureParams(p => ({ ...p, backbone: e.target.checked }))}
+                    />
+                  </label>
+                  {textureParams.backbone && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      background colour
+                      <input
+                        type="color"
+                        value={textureParams.backboneColor}
+                        onChange={e => setTextureParams(p => ({ ...p, backboneColor: e.target.value }))}
+                      />
+                    </label>
+                  )}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="A thick keyline band hugging the letterform's outer edge">
+                    outline
+                    <input
+                      type="checkbox"
+                      checked={textureParams.edgeOutline}
+                      onChange={e => setTextureParams(p => ({ ...p, edgeOutline: e.target.checked }))}
+                    />
+                  </label>
+                  {textureParams.edgeOutline && (<>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      outline width
+                      <input
+                        type="range" min="5" max="60" step="1"
+                        value={textureParams.edgeOutlineWidth}
+                        onChange={e => setTextureParams(p => ({ ...p, edgeOutlineWidth: parseFloat(e.target.value) }))}
+                      />
+                      <span style={{ minWidth: '2em' }}>{textureParams.edgeOutlineWidth}</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      outline colour
+                      <input
+                        type="color"
+                        value={textureParams.edgeOutlineColor}
+                        onChange={e => setTextureParams(p => ({ ...p, edgeOutlineColor: e.target.value }))}
+                      />
+                    </label>
+                  </>)}
                 </>)}
               </div>
             </div>
@@ -2018,6 +2726,14 @@ function App() {
             )
           })()}
         </div>
+        {activeTab !== 'splines' && activeTab !== 'splineGrid' && (
+          <div
+            className="input-area-resize-handle"
+            onMouseDown={handleInputAreaResizeMouseDown}
+            onTouchStart={handleInputAreaResizeTouchStart}
+            title="Drag to resize"
+          />
+        )}
         <div className="preview">
           {showProgress && (
             <div className="progress-bar-container">
@@ -2032,65 +2748,132 @@ function App() {
             </div>
           )}
           <div className="zoom-controls">
-            {/* Image export for the typed string, alongside the zoom buttons.
-                Font tab only for now — the other tabs render debug overlays,
-                grids or their own canvases that don't export meaningfully. */}
+            {/* Image export for the current tab's content, alongside the zoom
+                buttons — every tab gets a copy/download pair here (see each
+                tab's own ImageExportButtons block below for its data source). */}
             {activeTab === 'font' && (
-              <>
-                <button
-                  onClick={handleCopyFontImage}
-                  disabled={savingFontImage || !text}
-                  title="Copy PNG to clipboard"
-                >
-                  <span className="material-symbols-outlined">
-                    {fontCopied ? 'check' : 'content_copy'}
-                  </span>
-                </button>
-                {/* Download defaults to PNG; the caret opens a PNG/SVG menu. */}
-                <span ref={fontMenuRef} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
-                  <button
-                    onClick={() => handleDownloadFontImage('png')}
-                    disabled={savingFontImage || !text}
-                    title="Download PNG (transparent, high-res)"
-                  >
-                    <span className="material-symbols-outlined">
-                      {savingFontImage ? 'hourglass_empty' : 'download'}
-                    </span>
-                  </button>
-                  {/* overflow:hidden keeps the caret glyph inside its button, so it
-                      can't sit on top of the download button and swallow its clicks */}
-                  <button
-                    onClick={() => setFontMenuOpen(o => !o)}
-                    disabled={savingFontImage || !text}
-                    title="Choose download format"
-                    aria-haspopup="menu"
-                    aria-expanded={fontMenuOpen}
-                    style={{ width: '20px', minWidth: '20px', padding: '6px 0', overflow: 'hidden' }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_drop_down</span>
-                  </button>
-                  {fontMenuOpen && (
-                    <div
-                      role="menu"
-                      style={{
-                        position: 'absolute', top: '100%', right: 0, marginTop: '8px', zIndex: 20,
-                        background: 'var(--panel-bg)', border: '1px solid var(--border-color)',
-                        borderRadius: 'var(--radius-md)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden', minWidth: '160px',
-                      }}
-                    >
-                      <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadFontImage('png')}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>image</span>
-                        PNG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>transparent</span>
-                      </button>
-                      <button className="grow-menu-item" role="menuitem" onClick={() => handleDownloadFontImage('svg')}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>polyline</span>
-                        SVG <span style={{ opacity: 0.55, marginLeft: 'auto', fontSize: '0.8em' }}>vector</span>
-                      </button>
-                    </div>
-                  )}
-                </span>
-                <span style={{ width: '1px', background: 'rgba(255,255,255,0.2)', margin: '2px 2px' }} />
-              </>
+              <ImageExportButtons
+                onCopy={handleCopyFontImage}
+                onDownload={handleDownloadFontImage}
+                copied={fontCopied}
+                saving={savingFontImage}
+                disabled={!text}
+                menuOpen={fontMenuOpen}
+                setMenuOpen={setFontMenuOpen}
+                menuRef={fontMenuRef}
+              />
+            )}
+            {activeTab === 'glyphs' && (
+              <ImageExportButtons
+                onCopy={handleCopyGlyphsImage}
+                onDownload={handleDownloadGlyphsImage}
+                copied={glyphsCopied}
+                saving={savingGlyphsImage}
+                disabled={typeof workerResult !== 'string' || !workerResult}
+                menuOpen={glyphsMenuOpen}
+                setMenuOpen={setGlyphsMenuOpen}
+                menuRef={glyphsMenuRef}
+              />
+            )}
+            {activeTab === 'splines' && (
+              <ImageExportButtons
+                onCopy={handleCopySplinesImage}
+                onDownload={handleDownloadSplinesImage}
+                copied={splinesCopied}
+                saving={savingSplinesImage}
+                disabled={false}
+                menuOpen={splinesMenuOpen}
+                setMenuOpen={setSplinesMenuOpen}
+                menuRef={splinesMenuRef}
+              />
+            )}
+            {activeTab === 'splineGrid' && (
+              <ImageExportButtons
+                onCopy={handleCopySplineGridImage}
+                onDownload={handleDownloadSplineGridImage}
+                copied={splineGridCopied}
+                saving={savingSplineGridImage}
+                disabled={false}
+                menuOpen={splineGridMenuOpen}
+                setMenuOpen={setSplineGridMenuOpen}
+                menuRef={splineGridMenuRef}
+              />
+            )}
+            {activeTab === 'tweens' && (
+              <ImageExportButtons
+                onCopy={handleCopyTweensImage}
+                onDownload={handleDownloadTweensImage}
+                copied={tweensCopied}
+                saving={savingTweensImage}
+                disabled={typeof workerResult !== 'object' || !workerResult}
+                menuOpen={tweensMenuOpen}
+                setMenuOpen={setTweensMenuOpen}
+                menuRef={tweensMenuRef}
+              />
+            )}
+            {activeTab === 'proofs' && (
+              <ImageExportButtons
+                onCopy={handleCopyProofsImage}
+                onDownload={handleDownloadProofsImage}
+                copied={proofsCopied}
+                saving={savingProofsImage}
+                disabled={!tabTexts.proofs}
+                menuOpen={proofsMenuOpen}
+                setMenuOpen={setProofsMenuOpen}
+                menuRef={proofsMenuRef}
+              />
+            )}
+            {activeTab === 'visualDiffs' && compareMode === 'font' && compareFont?.kind === 'text' ? (
+              <button disabled title="Can't export a live browser-font comparison — only axis-diff and outline-font comparisons can be saved">
+                <span className="material-symbols-outlined">download</span>
+              </button>
+            ) : activeTab === 'visualDiffs' && (
+              <ImageExportButtons
+                onCopy={handleCopyVisualDiffsImage}
+                onDownload={handleDownloadVisualDiffsImage}
+                copied={visualDiffsCopied}
+                saving={savingVisualDiffsImage}
+                disabled={!requestVisualDiffsSvg()}
+                menuOpen={visualDiffsMenuOpen}
+                setMenuOpen={setVisualDiffsMenuOpen}
+                menuRef={visualDiffsMenuRef}
+              />
+            )}
+            {activeTab === 'generate' && generateMode === 'bubble' && (
+              <ImageExportButtons
+                onCopy={handleCopyGrow}
+                onDownload={handleDownloadGrow}
+                copied={growCopied}
+                saving={savingGrow}
+                disabled={!text}
+                menuOpen={growMenuOpen}
+                setMenuOpen={setGrowMenuOpen}
+                menuRef={growMenuRef}
+              />
+            )}
+            {activeTab === 'generate' && generateMode === 'grow' && (
+              <ImageExportButtons
+                onCopy={handleCopyBranch}
+                onDownload={handleDownloadBranch}
+                copied={branchCopied}
+                saving={savingBranch}
+                disabled={!text}
+                menuOpen={branchMenuOpen}
+                setMenuOpen={setBranchMenuOpen}
+                menuRef={branchMenuRef}
+              />
+            )}
+            {activeTab === 'generate' && generateMode === 'texture' && (
+              <ImageExportButtons
+                onCopy={handleCopyTexture}
+                onDownload={handleDownloadTexture}
+                copied={textureCopied}
+                saving={savingTexture}
+                disabled={!text}
+                menuOpen={textureMenuOpen}
+                setMenuOpen={setTextureMenuOpen}
+                menuRef={textureMenuRef}
+              />
             )}
             <button onClick={() => setZoom(z => Math.min(z + 0.1, 5.0))} title="Zoom In">
               <span className="material-symbols-outlined">add</span>
@@ -2128,35 +2911,6 @@ function App() {
               userSelect: 'none'
             }}
           >
-            <div className="legend-item">
-              <input
-                type="checkbox"
-                checked={layerVisibility.spiro}
-                onChange={e => setLayerVisibility(prev => ({ ...prev, spiro: e.target.checked }))}
-              />
-              <span className="swatch blue"></span>
-              <a href="https://www.levien.com/spiro/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>Spiro</a>
-            </div>
-            <div className="legend-item">
-              <input
-                type="checkbox"
-                checked={layerVisibility.spline2}
-                onChange={e => setLayerVisibility(prev => ({ ...prev, spline2: e.target.checked }))}
-              />
-              <span className="swatch green"></span>
-              <a href="https://raphlinus.github.io/curves/2018/12/21/new-spline.html" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>Spline2</a>
-            </div>
-            <div className="legend-item">
-              <input
-                type="checkbox"
-                checked={layerVisibility.dspline}
-                onChange={e => setLayerVisibility(prev => ({ ...prev, dspline: e.target.checked }))}
-              />
-              <span className="swatch orange"></span>
-              <span>
-                <a href="#" onClick={(e) => { e.preventDefault(); setTabWithUrl('splines'); }} style={{ color: 'inherit', textDecoration: 'underline' }}>DactylSpline</a>
-              </span>
-            </div>
             <div className="legend-item legend-heading">
               <input
                 ref={setDebugMasterRef}
@@ -2217,6 +2971,40 @@ function App() {
                   onChange={e => setGlyphsFilled(e.target.checked)}
                 />
                 Filled
+              </div>
+            </div>
+            <div className="legend-item legend-heading">
+              <strong>Splines</strong>
+            </div>
+            <div className="legend-debug-group">
+              <div className="legend-item">
+                <input
+                  type="checkbox"
+                  checked={layerVisibility.spiro}
+                  onChange={e => setLayerVisibility(prev => ({ ...prev, spiro: e.target.checked }))}
+                />
+                <span className="swatch blue"></span>
+                <a href="https://www.levien.com/spiro/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>Spiro</a>
+              </div>
+              <div className="legend-item">
+                <input
+                  type="checkbox"
+                  checked={layerVisibility.spline2}
+                  onChange={e => setLayerVisibility(prev => ({ ...prev, spline2: e.target.checked }))}
+                />
+                <span className="swatch green"></span>
+                <a href="https://raphlinus.github.io/curves/2018/12/21/new-spline.html" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>Spline2</a>
+              </div>
+              <div className="legend-item">
+                <input
+                  type="checkbox"
+                  checked={layerVisibility.dspline}
+                  onChange={e => setLayerVisibility(prev => ({ ...prev, dspline: e.target.checked }))}
+                />
+                <span className="swatch orange"></span>
+                <span>
+                  <a href="#" onClick={(e) => { e.preventDefault(); setTabWithUrl('splines'); }} style={{ color: 'inherit', textDecoration: 'underline' }}>DactylSpline</a>
+                </span>
               </div>
             </div>
           </div>

@@ -4,7 +4,7 @@ NOTE: This README is best viewed at https://terryspitz.github.io/dactyl-font/REA
 
 ## tl;dr
 
-Play with the [Dactyl Live Explorer](https://terryspitz.github.io/dactyl-font) — design fonts interactively using 30+ axes, then download a custom OTF. Switch between tabs to inspect individual **Glyphs**, watch **Tweens** animate axis changes, compare **Visual Diffs** across settings, explore the **Spline** maths, review **Proofs** with real text, or **Grow** letterforms into blobby Y2K logotypes.
+Play with the [Dactyl Live Explorer](https://terryspitz.github.io/dactyl-font) — design fonts interactively using 30+ axes, then download a custom OTF. Switch between tabs to inspect individual **Glyphs**, watch **Tweens** animate axis changes, compare **Visual Diffs** across settings, explore the **Spline** maths, review **Proofs** with real text, or **Generate** blobby Y2K logotypes, ivy-like branching serifs, and reaction-diffusion/maze/circuit-board textures out of the same backbones.
 
 See some of the chequered development history at the [Dactyl Font Gallery](gallery.html), a rotating gallery of past renders.
 
@@ -18,7 +18,7 @@ Dactyl is parameterised with a large number of inputs grouped into categories:
 
 | Category | Axes |
 |----------|------|
-| **Backbone** | width, height, x-height, tracking, leading, monospace, italic, roundedness |
+| **Backbone** | width, height, x-height, tracking, leading, monospace, italic, roundedness, overshoot, balance |
 | **Outline** | thickness, contrast, soft corners, axis-align caps, filled, smooth |
 | **Artistic** | end-bulbs, flare, serif, stroked, scratches, broad-nib pen (nib angle), taper, wobble, roughness, mobius ribbons |
 | **Experimental** | dactyl spline, spline2, constraints, constant offset, flatness, end flatness |
@@ -40,7 +40,7 @@ The [Dactyl Live Explorer](https://terryspitz.github.io/dactyl-font) runs entire
 | **Splines** | Interactive spline curve editor |
 | **Spline Grid** | Grid of curve variations |
 | **Proofs** | Real prose rendered with the current font for proofing |
-| **Grow** | Grows strokes out of the backbones to fill whitespace (constant-gap inflation), fuses neighbouring letters into a logotype, warps edges into an organic wobble, with layered Y2K keylines; save as PNG/SVG |
+| **Generate** | Three generative modes sharing the same backbones — **Bubble**: grows strokes to fill whitespace (constant-gap inflation), fuses neighbouring letters into a logotype, warps edges, layered Y2K keylines; **Grow**: space-colonisation branching sprouts ivy/serif-like twigs off the spine; **Texture**: reaction-diffusion (coral/cellular/dashed presets), a rectilinear maze, or PCB-style circuit traces, all confined to the grown letterform. Save any mode as PNG/SVG |
 
 ## Documentation
 
@@ -49,7 +49,7 @@ The [Dactyl Live Explorer](https://terryspitz.github.io/dactyl-font) runs entire
 - [DactylSpline Documentation](docs/DactylSpline.md) — The DactylSpline curve implementation
 - [DactylSpline Optimization Suggestions](docs/suggestions.md) — Ideas for improving the spline solver
 - [Font Rendering Pipeline](docs/FontPipeline.md) — Spine → outline → SVG pipeline, caps, serifs, and font export
-- [Growing Fonts](docs/growth-brainstorm.md) — Design notes for the **Grow** tab and future generative-growth directions
+- [Growing Fonts](docs/growth-brainstorm.md) — Design notes for the **Generate** tab's Bubble/Grow/Texture modes and future generative-growth directions
 - [TODO](docs/TODO.md) — Planned features and known issues
 - [Developing](DEVELOPING.md) — Building, running, testing, contributing, and the web directory layout
 

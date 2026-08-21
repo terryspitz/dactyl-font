@@ -671,7 +671,10 @@ type IntegrationTests() =
         let axes =
             { Axes.Axes.DefaultAxes with
                 width = 1000
-                height = 1000 }
+                height = 1000
+                // exact nominal coordinates: no optical overshoot/balance nudges
+                overshoot = 0
+                balance = 0 }
 
         let glyphDefs = FontMetrics(axes)
 
@@ -680,9 +683,9 @@ type IntegrationTests() =
         // B(L) means x=0 is optional.
 
         // Parsing
-        let p1, _, _, _, _ = parse_point glyphDefs "tl"
-        let p2, _, _, _, _ = parse_point glyphDefs "b(l)"
-        let p3, _, _, _, _ = parse_point glyphDefs "tr"
+        let p1, _, _, _, _, _ = parse_point glyphDefs "tl"
+        let p2, _, _, _, _, _ = parse_point glyphDefs "b(l)"
+        let p3, _, _, _, _, _ = parse_point glyphDefs "tr"
 
         let cp1 = pointToDcp p1
         let cp2 = pointToDcp p2
@@ -717,14 +720,17 @@ type IntegrationTests() =
         let axes =
             { Axes.Axes.DefaultAxes with
                 width = 1000
-                height = 1000 }
+                height = 1000
+                // exact nominal coordinates: no optical overshoot/balance nudges
+                overshoot = 0
+                balance = 0 }
 
         let glyphDefs = FontMetrics(axes)
 
-        let p1, _, _, _, _ = parse_point glyphDefs "tl"
-        let p2, _, _, _, _ = parse_point glyphDefs "hl" // (0, 500)
-        let p3, _, _, _, _ = parse_point glyphDefs "b(c)" // (500, 0) optional x
-        let p4, _, _, _, _ = parse_point glyphDefs "tr"
+        let p1, _, _, _, _, _ = parse_point glyphDefs "tl"
+        let p2, _, _, _, _, _ = parse_point glyphDefs "hl" // (0, 500)
+        let p3, _, _, _, _, _ = parse_point glyphDefs "b(c)" // (500, 0) optional x
+        let p4, _, _, _, _, _ = parse_point glyphDefs "tr"
 
         let cp1 = pointToDcp p1
         let cp2 = pointToDcp p2
@@ -761,15 +767,18 @@ type IntegrationTests() =
         let axes =
             { Axes.Axes.DefaultAxes with
                 width = 1000
-                height = 1000 }
+                height = 1000
+                // exact nominal coordinates: no optical overshoot/balance nudges
+                overshoot = 0
+                balance = 0 }
 
         let glyphDefs = FontMetrics(axes)
 
-        let p1, _, _, _, _ = parse_point glyphDefs "tl"
-        let p2, _, _, _, _ = parse_point glyphDefs "tbbl"
-        let p3, _, _, _, _ = parse_point glyphDefs "b(c)"
-        let p4, _, _, _, _ = parse_point glyphDefs "tbr"
-        let p5, _, _, _, _ = parse_point glyphDefs "tr"
+        let p1, _, _, _, _, _ = parse_point glyphDefs "tl"
+        let p2, _, _, _, _, _ = parse_point glyphDefs "tbbl"
+        let p3, _, _, _, _, _ = parse_point glyphDefs "b(c)"
+        let p4, _, _, _, _, _ = parse_point glyphDefs "tbr"
+        let p5, _, _, _, _, _ = parse_point glyphDefs "tr"
 
         printfn "P1: %A" p1
         printfn "P2: %A" p2

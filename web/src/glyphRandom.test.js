@@ -5,7 +5,9 @@ import {
   randomizeAxes,
   glyphAxes,
   buildGlyphAxes,
+  buildPerGlyphTextAxes,
   PER_GLYPH_SKIPPED_AXES,
+  RANDOMIZE_PROBABILITY,
 } from './glyphRandom'
 
 // Stand-in for the Fable-generated controlDefinitions.
@@ -60,6 +62,15 @@ describe('glyphSeedFor', () => {
     const b = glyphSeedFor(2, 97)
     expect(a).not.toBe(b)
   })
+
+  it('defaults occurrence to 0, matching the plain (seed, codePoint) form', () => {
+    expect(glyphSeedFor(1, 97, 0)).toBe(glyphSeedFor(1, 97))
+  })
+
+  it('separates occurrences of the same character', () => {
+    const seeds = new Set(Array.from({ length: 10 }, (_, n) => glyphSeedFor(1, 97, n)))
+    expect(seeds.size).toBe(10)
+  })
 })
 
 describe('randomizeAxes', () => {
@@ -105,6 +116,7 @@ describe('randomizeAxes', () => {
     ).some(out => out.weight !== defaults.weight || out.slant !== defaults.slant)
     expect(changed).toBe(true)
   })
+
 })
 
 describe('glyphAxes', () => {
@@ -117,6 +129,25 @@ describe('glyphAxes', () => {
     const rendered = letters.map(c => JSON.stringify(glyphAxes(c, 99, axes, controls)))
     // not asking for all-distinct (rolls can coincide), just real variety
     expect(new Set(rendered).size).toBeGreaterThan(letters.length / 2)
+  })
+
+  it('gives repeated occurrences of one character real variety, not a faint nudge', () => {
+    // Regression guard: this used to reuse a much gentler tuning that mostly
+    // just tracked the current sidebar value, giving repeated/adjacent
+    // characters barely visible differences.
+    const n = 300
+    const occurrences = Array.from({ length: n }, (_, i) => glyphAxes('5', 1, axes, controls, i))
+    const weightRange = Math.max(...occurrences.map(a => a.weight)) - Math.min(...occurrences.map(a => a.weight))
+    const fullWeightRange = controls.find(c => c.name === 'weight').max - controls.find(c => c.name === 'weight').min
+    // A handful of samples should already cover a large chunk of the full range.
+    expect(weightRange).toBeGreaterThan(fullWeightRange * 0.5)
+
+    // axes.stroked is false, so the expected fraction landing true is
+    // roughly probability * 0.5 (touched half the time it's a 50/50 flip).
+    const strokedFraction = occurrences.filter(a => a.stroked).length / n
+    const expectedFraction = RANDOMIZE_PROBABILITY * 0.5
+    expect(strokedFraction).toBeGreaterThan(expectedFraction - 0.15)
+    expect(strokedFraction).toBeLessThan(expectedFraction + 0.15)
   })
 
   it('changes when the seed changes', () => {
@@ -152,5 +183,35 @@ describe('buildGlyphAxes', () => {
     const b = buildGlyphAxes('cba', 7, axes, controls)
     const byChar = o => Object.fromEntries(o.chars.split('').map((c, i) => [c, o.axesList[i]]))
     expect(byChar(a)).toEqual(byChar(b))
+  })
+})
+
+describe('buildPerGlyphTextAxes', () => {
+  it('keeps repeated characters as separate, potentially different entries', () => {
+    const axesList = buildPerGlyphTextAxes('555555', 7, axes, controls)
+    expect(axesList).toHaveLength(6)
+    // not asking for all-distinct (rolls can coincide), just real variety
+    expect(new Set(axesList.map(a => JSON.stringify(a))).size).toBeGreaterThan(1)
+  })
+
+  it('gives each occurrence the same axes as glyphAxes with that occurrence index', () => {
+    const axesList = buildPerGlyphTextAxes('555555', 7, axes, controls)
+    axesList.forEach((a, i) => {
+      expect(a).toEqual(glyphAxes('5', 7, axes, controls, i))
+    })
+  })
+
+  it('drops newlines but keeps position alignment otherwise', () => {
+    const axesList = buildPerGlyphTextAxes('ab\ncd', 7, axes, controls)
+    expect(axesList).toHaveLength(4)
+    expect(axesList[0]).toEqual(glyphAxes('a', 7, axes, controls, 0))
+    expect(axesList[1]).toEqual(glyphAxes('b', 7, axes, controls, 0))
+    expect(axesList[2]).toEqual(glyphAxes('c', 7, axes, controls, 0))
+    expect(axesList[3]).toEqual(glyphAxes('d', 7, axes, controls, 0))
+  })
+
+  it('is stable for the same seed and text', () => {
+    expect(buildPerGlyphTextAxes('555555', 7, axes, controls))
+      .toEqual(buildPerGlyphTextAxes('555555', 7, axes, controls))
   })
 })
