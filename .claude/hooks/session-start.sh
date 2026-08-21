@@ -6,14 +6,14 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
   exit 0
 fi
 
-# Install .NET 8 SDK if not present
+# Install .NET 10 SDK if not present
 if ! command -v dotnet &>/dev/null; then
-  echo "Installing .NET 8 SDK..."
+  echo "Installing .NET 10 SDK..."
   # -o Acquire::AllowReleaseInfoChange::Label=true tolerates third-party PPAs
   # (e.g. ondrej/php) that change their Release file's Label field, which apt
   # otherwise treats as a hard error and aborts `apt-get update`.
   apt-get update -q -o Acquire::AllowReleaseInfoChange::Label=true || true
-  apt-get install -y dotnet-sdk-8.0
+  apt-get install -y dotnet-sdk-10.0
 fi
 
 # Initialize git submodules (fmin is a submodule under web/src/lib/fmin)
