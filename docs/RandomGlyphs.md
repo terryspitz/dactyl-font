@@ -121,6 +121,16 @@ recognisable ways. Each filter below targets a failure actually observed:
 Filtering is where quality comes from. The proposer should be run generously
 and rejected from hard, rather than tuned to be conservative.
 
+**But connectivity should be built in, not filtered for.** Rejecting glyphs
+whose strokes happen not to touch throws away most of what is sampled and still
+leaves near-misses. Placing each stroke so that one of its endpoints lands on a
+point of an already-placed stroke makes every candidate connected by
+construction, and turns the connectivity test into a cheap assertion. With the
+enlarged corpus of section 4 and this placement rule, the observed failure modes
+above — floating strokes, spikes, out-of-box drift, trivial single bars — are
+essentially eliminated, and the output reads as a coherent invented script
+rather than a pile of fragments.
+
 ### Stage 3 — Assemble an alphabet
 
 An alphabet is not a bag of independent glyphs. Sampling 26 glyphs
@@ -180,19 +190,45 @@ So rank sources by how close they already are to spines.
 
 ### Tier 1 — already centrelines, no skeletonisation
 
-- **[Hershey fonts](https://en.wikipedia.org/wiki/Hershey_fonts)** — public
-  domain, ~2,000+ glyphs defined as polyline strokes on a coordinate grid,
-  covering Latin, **Greek, Cyrillic, Japanese kana**, and symbols. These are
-  almost exactly Dactyl strings in a different notation; the format is a near
-  perfect match and the licence is unencumbered. Best possible starting point.
-- **[KanjiVG](https://kanjivg.tagaini.net/)** (CC BY-SA 3.0) — ~11,000 kanji as
-  SVG **stroke centrelines**, each stroke tagged with type and stroke order.
-  The largest centreline corpus available anywhere, and stroke-typed, which
-  feeds the role classifier directly.
+**Status: built and validated.** Hershey fonts were ingested end to end — parsed,
+compiled to glyph strings, rendered through Dactyl, and used to regenerate.
 
-Tier 1 alone moves the corpus from 159 strokes to on the order of 100,000,
-across four-plus scripts — the point at which the learned models in §3 become
-trainable, and the natural home for the SVG-VAE idea in TODO.md.
+- **[Hershey fonts](https://en.wikipedia.org/wiki/Hershey_fonts)** — public
+  domain, glyphs defined as polyline strokes on a coordinate grid, covering
+  Latin, Greek, Cyrillic, Japanese kana and symbols. 14 font files parse to
+  **1,441 glyphs / 6,272 strokes / 33,896 points**.
+- **[KanjiVG](https://kanjivg.tagaini.net/)** (CC BY-SA 3.0) — ~11,000 kanji as
+  SVG **stroke centrelines**, tagged with stroke type and order. Not yet
+  ingested; the largest centreline corpus available.
+
+> **Trap: most Hershey fonts are not centrelines.** Only the *simplex* faces are
+> single-stroke spines. The *duplex*, *complex* and *triplex* faces draw every
+> stem as two, three or more parallel lines, and `japanese.jhf` traces brush
+> **outlines**. The give-away is the stroke count of `A`: **3** in `futural`,
+> `rowmans` and `greeks` (two diagonals and a crossbar — a true spine) against
+> 6 in the duplex faces, 9 in `gothgrt`, 12 in `rowmant` and 7 in `japanese`.
+> Ingesting those would silently fill the corpus with half-strokes that only
+> make sense in pairs. Check the count; do not trust the file name.
+>
+> A ratio test (path length over bounding-box diagonal) was tried first and is
+> *not* reliable here — it labelled the verified-clean `futural` "mixed" and the
+> outline-based `japanese` "centreline", because a single curved stroke wanders
+> as much as an outline doubles back. Render one glyph and count strokes instead.
+
+Hershey's metrics, measured rather than assumed: baseline at `y = -9`, cap
+height 21 units, x-height 14 (0.67 of cap), descender 7 below baseline.
+
+Two bugs in the inverse compiler are worth naming, because both produce output
+that parses cleanly and only looks wrong once rendered:
+
+- **Corners must be detected on the original polyline, not on the simplified
+  one.** A coarsely resampled arc has large turn angles between its chords, so
+  corner-detection after Ramer–Douglas–Peucker sprays spurious `K` kinks around
+  every bowl (`C`, `D`, `G`, `O`).
+- **A closed contour repeats its start point at the end.** Keeping both leaves a
+  zero-length segment that the solver renders as a lump — `O` and `Q` came out
+  as dented eggs until the duplicate was dropped and the trailing separator left
+  to close the path.
 
 ### Tier 2 — monoline outline fonts
 
