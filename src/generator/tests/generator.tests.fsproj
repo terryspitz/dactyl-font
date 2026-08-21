@@ -12,6 +12,7 @@
   <ItemGroup>
     <Compile Include="DactylSplineTest.fs" />
     <Compile Include="FontTest.fs" />
+    <Compile Include="PenNoOpDump.fs" />
     <Compile Include="StrokeCorpusTests.fs" />
     <Compile Include="ParserTests.fs" />
   </ItemGroup>

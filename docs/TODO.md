@@ -1,11 +1,18 @@
 
 # TODOs
-- Artistic axes (not yet implemented):
-  - **pressure**: stroke width varies with curvature — tighter curves get thicker, straighter segments stay thin (mimics brush pressure). Tried (curvature-from-tangent-samples) but the result looked wrong/noisy; reverted. Needs a smoother curvature estimate.
-  - **bounce**: per-glyph random vertical baseline displacement for hand-lettering feel
-  - **ink_spread**: slight outward bulge at each stroke sample point, simulating ink bleeding into paper fibres
-  - **split_nib**: like nib but cleaves the stroke into two parallel thin lines (like a reed pen or double-stroke)
-  - **gravity**: the offset spine droops downward at the middle of each stroke (catenary sag)
+- ~~Generalise stroke drawing: replace the `stroked`/`scratches` booleans with a
+  continuous "traces" axis family and a pluggable pen model~~ — done, see
+  [GeneralisedStrokes.md](GeneralisedStrokes.md) (phases 1–4; PR #223). Phase 5
+  (unify `contrast` into `halfWidth`) is still open, as is §5.4's inline stroke
+  preview.
+  - ~~**pressure**~~: done — curvature-driven width using `DactylSpline.getCurvature`'s
+    analytic curvature instead of noisy tangent-differencing.
+  - ~~**bounce**~~: done — per-glyph baseline offset seeded from the code point.
+  - ~~**ink_spread**~~: done — fibrous outward bulge along the stroke.
+  - ~~**split_nib**~~: done, as a `traces = 2` preset (see "Split nib" chip) rather
+    than its own axis — it's a point in the traces space, not a separate feature.
+  - ~~**gravity**~~: done — spine sags at the middle, most on horizontals and not
+    at all on verticals.
 - flare with tangents wrong way round
 - move outline point inward only
 - improve serifs
