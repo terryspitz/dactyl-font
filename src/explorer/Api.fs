@@ -46,6 +46,25 @@ let getControlDetails (name: string, control: Controls, category: string, descri
 
 let controlDefinitions = Axes.controls |> List.map getControlDetails |> Array.ofList
 
+/// Named pen presets for the sidebar chip row.  `axes` names every axis a
+/// preset speaks for (all of them are reset to their defaults first), and
+/// `values` the overrides this preset then applies.
+let penPresets =
+    Axes.presets
+    |> List.map (fun (name, values) ->
+        {| name = name
+           values = values |> List.map (fun (axis, v) -> {| axis = axis; value = v |}) |> Array.ofList |})
+    |> Array.ofList
+
+/// Axes that every preset resets before applying its own values.
+let penPresetAxes = Axes.presetAxes |> Array.ofList
+
+/// (axis, parent) pairs: `axis` does nothing while `parent` is at its default.
+let axisDependsOn =
+    Axes.dependsOn
+    |> List.map (fun (axis, parent) -> {| axis = axis; parent = parent |})
+    |> Array.ofList
+
 let defaultAxes = Axes.DefaultAxes
 
 let allChars =

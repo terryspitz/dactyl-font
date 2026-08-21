@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { generateSvg, defaultAxes, controlDefinitions, generateTweenSvg, getGlyphDefs, cursiveUsesAlt, allChars, alphabetChars } from './lib/fable/Api' // Adjust path if needed
+import { generateSvg, defaultAxes, controlDefinitions, penPresets, penPresetAxes, axisDependsOn, generateTweenSvg, getGlyphDefs, cursiveUsesAlt, allChars, alphabetChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
 import GrowCanvas from './GrowCanvas'
@@ -441,21 +441,26 @@ function App() {
 
   const categoryIcons = {
     backbone: 'straighten',
-    outline: 'brush',
-    artistic: 'palette',
+    pen: 'ink_pen',
+    ends: 'line_end',
+    hand: 'gesture',
+    traces: 'density_medium',
+    render: 'brush',
     experimental: 'science',
     debug: 'pest_control'
   }
 
 
-  // State for collapsible sections
-  // experimental closed by default, others open
+  // State for collapsible sections.  Flattening `artistic` into Pen/Ends/Hand/
+  // Traces/Render took the sidebar from 5 sections to 8, so only Backbone, Pen
+  // and Render open by default — enough to see the font and its main stroke
+  // controls without a wall of sliders.
+  const CLOSED_CATEGORIES = ['ends', 'hand', 'traces', 'experimental', 'debug']
   const [openCategories, setOpenCategories] = useState(() => {
     const cats = {}
     controlDefinitions.forEach(ctrl => {
       const cat = ctrl.category || 'default'
-      if (cat === 'experimental' || cat === 'debug') cats[cat] = false
-      else cats[cat] = true
+      cats[cat] = !CLOSED_CATEGORIES.includes(cat)
     })
     return cats
   })
@@ -1664,6 +1669,42 @@ function App() {
     setGlyphSeed(null)
   }
 
+  // Pen presets. Each chip first resets every axis the presets speak for
+  // (`penPresetAxes`) to its default and then applies its own values, so the
+  // chips are alternatives rather than layers — clicking Sketch after Broad nib
+  // gives a sketch, not a sketchy nib. Every slider stays live afterwards: a
+  // preset is a starting point inside the axis space, not a mode.
+  const applyPreset = (preset) => {
+    setAxes(prev => {
+      const next = { ...prev }
+      penPresetAxes.forEach(a => { next[a] = defaultAxes[a] })
+      preset.values.forEach(v => { next[v.axis] = v.value })
+      return next
+    })
+  }
+
+  // Which preset (if any) the current axes exactly match, so the chip row can
+  // show the active one.
+  const activePreset = useMemo(() => {
+    const match = penPresets.find(preset => {
+      const want = { ...Object.fromEntries(penPresetAxes.map(a => [a, defaultAxes[a]])) }
+      preset.values.forEach(v => { want[v.axis] = v.value })
+      return penPresetAxes.every(a => Number(axes[a]) === Number(want[a]))
+    })
+    return match ? match.name : null
+  }, [axes])
+
+  // An axis whose parent sits at its default has no visible effect, so it is
+  // dimmed (never hidden — the slider still works, and moving the parent brings
+  // it back).
+  const dimmedAxes = useMemo(() => {
+    const dimmed = new Set()
+    axisDependsOn.forEach(d => {
+      if (Number(axes[d.parent]) === Number(defaultAxes[d.parent])) dimmed.add(d.axis)
+    })
+    return dimmed
+  }, [axes])
+
   // Reset the active Generate mode's own settings to their defaults, leaving
   // the mode selection (and the other mode's settings) untouched.
   const handleResetGenerateParams = () => {
@@ -1748,6 +1789,18 @@ function App() {
           </div>
         </div>
         <div className="controls-list">
+          <div className="pen-presets">
+            {penPresets.map(preset => (
+              <button
+                key={preset.name}
+                className={`proof-chip ${activePreset === preset.name ? 'selected' : ''}`}
+                onClick={() => applyPreset(preset)}
+                title={`Pen preset: ${preset.name}`}
+              >
+                {preset.name}
+              </button>
+            ))}
+          </div>
           {Object.entries(controlsByCategory).map(([category, controls]) => (
             <div key={category} className="category-group">
               <div
@@ -1769,7 +1822,11 @@ function App() {
               {openCategories[category] && (
                 <div className="category-content" style={{ paddingLeft: '10px' }}>
                   {controls.map(ctrl => (
-                    <div key={ctrl.name} className="control-group" title={ctrl.description}>
+                    <div
+                      key={ctrl.name}
+                      className={`control-group${dimmedAxes.has(ctrl.name) ? ' inactive' : ''}`}
+                      title={ctrl.description}
+                    >
                       <label>
                         {ctrl.name}
                       </label>

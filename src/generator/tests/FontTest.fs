@@ -1119,6 +1119,130 @@ type ArtisticAxesTests() =
                     sprintf "%s outline for '%c' should render" name ch)
 
 [<TestFixture>]
+type PenAxisTests() =
+
+    /// All (x, y) pairs in a glyph's rendered path.
+    let points (axes: Axes) (ch: char) =
+        Font.Font(axes).charToSvg ch 0.0 0.0 "black"
+        |> String.concat " "
+        |> fun s ->
+            System.Text.RegularExpressions.Regex.Matches(s, @"[ML] (-?\d+),(-?\d+)")
+            |> Seq.map (fun m -> float m.Groups.[1].Value, float m.Groups.[2].Value)
+            |> List.ofSeq
+
+    /// Number of closed subpaths — one per ribbon edge loop.
+    let subpaths (axes: Axes) (ch: char) =
+        Font.Font(axes).charToSvg ch 0.0 0.0 "black"
+        |> String.concat " "
+        |> fun s -> s.Split([| "M " |], StringSplitOptions.None).Length - 1
+
+    /// Outer bounding box of a glyph's outline. A stroke that has been widened
+    /// pushes its outer edge out, so the box grows — which is checkable without
+    /// depending on how the outline happens to be sampled.
+    let bbox (axes: Axes) (ch: char) =
+        let ps = points axes ch
+        let xs = List.map fst ps
+        let ys = List.map snd ps
+        List.min xs, List.min ys, List.max xs, List.max ys
+
+    let boxArea axes ch =
+        let (x0, y0, x1, y1) = bbox axes ch
+        (x1 - x0) * (y1 - y0)
+
+    [<Test>]
+    member _.Traces_OneIsASolidStroke() =
+        // The whole design rests on traces = 1 being the ordinary stroke, so that
+        // every existing font renders unchanged.
+        let solid = { Axes.DefaultAxes with traces = 1 }
+        for ch in [ 'o'; 'a'; 'n'; 'S' ] do
+            Assert.That(points solid ch, Is.EqualTo<list<float * float>>(points Axes.DefaultAxes ch), sprintf "traces=1 changed '%c'" ch)
+
+    [<Test>]
+    member _.Traces_EachAddsARibbon() =
+        // 'o' is a closed curve, so each ribbon contributes an outer and an inner loop.
+        let at n =
+            subpaths { Axes.DefaultAxes with traces = n; trace_spread = 2.0; trace_weight = 0.15 } 'o'
+        Assert.That(at 1, Is.EqualTo(2))
+        Assert.That(at 2, Is.EqualTo(4))
+        Assert.That(at 4, Is.EqualTo(8))
+
+    [<Test>]
+    member _.Traces_StayInsideTheGlyph() =
+        // Offsetting further than the radius of curvature used to fold a trace back
+        // through itself, which showed up as loops escaping the letter. The saturation
+        // in clampOffset should keep every trace within the solid stroke's own bounds
+        // plus the spread it was asked for.
+        let axes = { Axes.DefaultAxes with weight = 60; traces = 3; trace_spread = 3.0; trace_weight = 0.1 }
+        let allowed = float axes.weight * axes.trace_spread
+        for ch in [ 'e'; '5'; '8'; 'S'; 'g' ] do
+            let baseline = points Axes.DefaultAxes ch
+            let bx = baseline |> List.map fst
+            let by = baseline |> List.map snd
+            for (x, y) in points axes ch do
+                Assert.That(x, Is.InRange(List.min bx - allowed, List.max bx + allowed), sprintf "'%c' x escaped" ch)
+                Assert.That(y, Is.InRange(List.min by - allowed, List.max by + allowed), sprintf "'%c' y escaped" ch)
+
+    [<Test>]
+    member _.Pressure_RespondsToCurvatureAndNothingElse() =
+        // The point of pressure: width follows how tightly the spine turns, so the
+        // glyphs built only from straight lines must come out untouched while the
+        // round ones fatten. The straights below are the repo's own list (see
+        // docs/TODO.md), and the fact that they are exactly the glyphs pressure
+        // leaves alone is the check that it is reading curvature and not, say, arc
+        // length.
+        let pressed = { Axes.DefaultAxes with pressure = 1.0 }
+        for ch in "AEFHIKLMNTVWXYZ147" do
+            Assert.That(points pressed ch, Is.EqualTo<list<float * float>>(points Axes.DefaultAxes ch), sprintf "straight glyph '%c' has no curvature to respond to" ch)
+        for ch in "oscOSC" do
+            Assert.That(boxArea pressed ch, Is.GreaterThan(boxArea Axes.DefaultAxes ch), sprintf "round glyph '%c' should thicken" ch)
+
+    [<Test>]
+    member _.InkSpread_WidensStraightsAndCurvesAlike() =
+        // Bleed is a property of the paper, not of how the stroke was drawn, so unlike
+        // pressure it must reach the straight glyphs too.
+        let bled = { Axes.DefaultAxes with ink_spread = 1.0 }
+        for ch in [ 'I'; 'H'; 'o'; 'S' ] do
+            Assert.That(boxArea bled ch, Is.GreaterThan(boxArea Axes.DefaultAxes ch), sprintf "'%c' should bleed wider" ch)
+
+    [<Test>]
+    member _.Gravity_SagsHorizontalsAndSparesVerticals() =
+        // Sag is downward in the glyph, not perpendicular to the stroke: the
+        // perpendicular of a vertical stem is horizontal, so there is nothing for
+        // gravity to pull it into. '|' is a single vertical bar.
+        let heavy = { Axes.DefaultAxes with gravity = 1.0 }
+        // Compared against a baseline that samples the same way rather than against
+        // the defaults. Switching gravity on makes the sampler emit interior points
+        // along straight segments — it has to, or sag evaluated only at the two ends
+        // would be no sag at all — and that alone shifts an integer-rounded outline by
+        // a unit, for every sampled axis, not just this one. Holding the sampling
+        // fixed isolates what gravity itself does, which to a vertical bar is nothing.
+        let sampledBase = { Axes.DefaultAxes with roughness = 1e-9 }
+        let sampledHeavy = { sampledBase with gravity = 1.0 }
+        Assert.That(bbox sampledHeavy '|', Is.EqualTo(bbox sampledBase '|'), "a vertical bar should not sag sideways")
+        // An em dash is a single long horizontal, which is the case gravity exists for:
+        // its middle should hang below where its ends are pinned. Measured on the
+        // bottom edge, since that is what the sag carries downward. (A 'T' would not
+        // show it on the bounding box — its stem foot sits on the baseline and hides
+        // any droop in the bar above.)
+        let lowest ax = points ax '—' |> List.map snd |> List.min
+        Assert.That(lowest sampledHeavy, Is.LessThan(lowest sampledBase), "a horizontal stroke should sag at its middle")
+
+    [<Test>]
+    member _.Bounce_IsPerGlyphAndRepeatable() =
+        // A font whose glyphs moved between renders could not be exported, and the two
+        // 'o's in "look" have to agree, so the offset must come from the code point.
+        let font = Font.Font({ Axes.DefaultAxes with bounce = 1.0 })
+        for ch in [ 'a'; 'x'; '5' ] do
+            Assert.That(font.bounceOffset ch, Is.EqualTo(font.bounceOffset ch))
+        let offsets = [ 'a'; 'b'; 'c'; 'd'; 'e'; 'f' ] |> List.map font.bounceOffset
+        Assert.That(List.distinct offsets |> List.length, Is.GreaterThan(3), "glyphs should not all bounce alike")
+        // Bounded: a hand-lettered line wanders, it does not come apart.
+        let metrics = FontMetrics({ Axes.DefaultAxes with bounce = 1.0 })
+        for o in offsets do
+            Assert.That(abs o, Is.LessThan(float metrics.X * 0.2))
+        Assert.That(Font.Font(Axes.DefaultAxes).bounceOffset 'a', Is.EqualTo(0.0), "off by default")
+
+[<TestFixture>]
 type CornerOutlineTests() =
     let metrics = FontMetrics(Axes.DefaultAxes)
     let fthickness = float Axes.DefaultAxes.weight
