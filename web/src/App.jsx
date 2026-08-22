@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { generateSvg, defaultAxes, controlDefinitions, penPresets, penPresetAxes, axisDependsOn, generateTweenSvg, getGlyphDefs, cursiveUsesAlt, allChars, alphabetChars } from './lib/fable/Api' // Adjust path if needed
+import { generateSvg, defaultAxes, controlDefinitions, penPresets, penPresetAxes, axisDependsOn, generateTweenSvg, getGlyphDefs, generateRandomGlyphDefs, generateRandomGlyphsPreviewSvg, cursiveUsesAlt, allChars, alphabetChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
 import GrowCanvas from './GrowCanvas'
@@ -114,7 +114,22 @@ function App() {
     const initialText = tabTexts['glyphs'] || 'a'
     return getGlyphDefs(initialText, cursiveUsesAlt(defaultAxes.cursive, defaultAxes.slant))
   })
+  // Set by the Glyphs tab's "Random" button, rendered in place of the normal
+  // live debug preview until the next manual edit clears it. Deliberately
+  // bypasses that preview's usual Spiro+Spline2+DactylSpline debug render:
+  // freshly generated geometry is far likelier than hand-authored strings to
+  // land on a real numerical pathology in the legacy Spiro solver where a
+  // specific coordinate/separator combination takes single-digit seconds and
+  // emits tens of megabytes of path data for one glyph (see
+  // docs/RandomGlyphs.md). generateRandomGlyphsPreviewSvg renders with just
+  // the one engine the exported font actually uses, which sidesteps it.
+  const [randomPreviewSvg, setRandomPreviewSvg] = useState(null)
   const [axes, setAxes] = useState({ ...defaultAxes })
+  // A frozen preview would otherwise show the wrong proportions/weight once
+  // sliders move -- clear it so the tab falls back to the normal live render.
+  useEffect(() => {
+    setRandomPreviewSvg(null)
+  }, [axes])
   // "Randomise every glyph": null = off, otherwise the seed that every
   // character's axes are derived from.  Holding a seed (rather than a big map of
   // per-glyph axes) is what makes the variant font stable — it only changes when
@@ -413,6 +428,7 @@ function App() {
     if (activeTab === 'glyphs') {
       localStorage.setItem('glyphText', newVal)
       setGlyphsDefsText(getGlyphDefs(newVal || 'a', cursiveUsesAlt(axes.cursive, axes.slant)))
+      setRandomPreviewSvg(null)
     }
   }
 
@@ -1336,6 +1352,22 @@ function App() {
       // If we return null, it might flash.
     }
 
+    // A fresh Random-button batch: render its own lean preview instead of the
+    // normal (and, for this kind of geometry, occasionally very slow) debug
+    // multi-engine pipeline. See randomPreviewSvg's declaration above.
+    if (activeTab === 'glyphs' && randomPreviewSvg) {
+      const visibilityClasses = Object.entries(layerVisibility)
+        .filter(([, visible]) => !visible)
+        .map(([key]) => `hide-${key}`)
+        .join(' ')
+
+      return (
+        <div className={`glyphs-container ${visibilityClasses}`}>
+          <div className="svg-container" dangerouslySetInnerHTML={{ __html: randomPreviewSvg }} />
+        </div>
+      )
+    }
+
     // SplineEditor manages its own state/worker — render immediately
     if (activeTab === 'splines') {
       return <SplineEditor axes={axes} zoom={zoom} />
@@ -1983,6 +2015,18 @@ function App() {
                   </a>
                   <button
                     type="button"
+                    className="proof-chip"
+                    title="Generate a fresh batch of novel glyphs sampled from the stroke corpus (see docs/RandomGlyphs.md)"
+                    onClick={() => {
+                      const defs = generateRandomGlyphDefs(newGlyphSeed(), axes, 26)
+                      setGlyphsDefsText(defs)
+                      setRandomPreviewSvg(generateRandomGlyphsPreviewSvg(defs, axes))
+                    }}
+                  >
+                    Random
+                  </button>
+                  <button
+                    type="button"
                     className="glyph-key-button"
                     title="Glyph string key"
                     aria-label="Glyph string key"
@@ -2020,7 +2064,10 @@ function App() {
               </h3>
               <textarea
                 value={glyphsDefsText}
-                onChange={e => setGlyphsDefsText(e.target.value)}
+                onChange={e => {
+                  setGlyphsDefsText(e.target.value)
+                  setRandomPreviewSvg(null)
+                }}
                 style={{ width: '100%', flex: '1', minHeight: '100px', fontFamily: 'monospace', resize: 'vertical' }}
                 spellCheck="false"
               />
