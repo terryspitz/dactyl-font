@@ -931,77 +931,78 @@ let strokes: (string * string * string) list =
       "stem", "dactyl", "xcr-bcr"
       "stem", "dactyl", "hcJ-bc" ]
 
-/// Role patterns observed across source glyphs, e.g. ["stem"; "bar"].
-/// Sampling one of these keeps generated glyphs to combinations real
-/// letters actually use.
-let rolePatterns: string list list =
-    [ [ "arc" ]
-      [ "arc"; "arc" ]
-      [ "arc"; "arc"; "arc" ]
-      [ "arc"; "arc"; "arc"; "arc" ]
-      [ "arc"; "arc"; "bar" ]
-      [ "arc"; "arc"; "stem" ]
-      [ "arc"; "bar" ]
-      [ "arc"; "bar"; "bar" ]
-      [ "arc"; "bowl" ]
-      [ "arc"; "diag" ]
-      [ "arc"; "diag"; "stem"; "arc" ]
-      [ "arc"; "dot" ]
-      [ "arc"; "stem" ]
-      [ "arc"; "stem"; "arc"; "arc" ]
-      [ "arc"; "stem"; "arc"; "stem" ]
-      [ "arc"; "stem"; "bowl" ]
-      [ "bar" ]
-      [ "bar"; "bar" ]
-      [ "bar"; "bar"; "stem"; "stem" ]
-      [ "bar"; "diag"; "bar" ]
-      [ "bar"; "stem" ]
-      [ "bar"; "stem"; "bar" ]
-      [ "bowl" ]
-      [ "bowl"; "arc" ]
-      [ "bowl"; "arc"; "arc" ]
-      [ "bowl"; "bowl" ]
-      [ "bowl"; "bowl"; "diag" ]
-      [ "bowl"; "diag" ]
-      [ "bowl"; "stem" ]
-      [ "bowl"; "stem"; "arc"; "arc"; "arc"; "arc" ]
-      [ "diag" ]
-      [ "diag"; "arc" ]
-      [ "diag"; "arc"; "arc" ]
-      [ "diag"; "arc"; "bowl" ]
-      [ "diag"; "arc"; "diag" ]
-      [ "diag"; "bar" ]
-      [ "diag"; "bar"; "bar" ]
-      [ "diag"; "bar"; "bar"; "arc"; "arc" ]
-      [ "diag"; "diag" ]
-      [ "diag"; "diag"; "arc" ]
-      [ "diag"; "diag"; "arc"; "arc" ]
-      [ "diag"; "diag"; "arc"; "arc"; "arc" ]
-      [ "diag"; "diag"; "bar" ]
-      [ "diag"; "diag"; "bar"; "bar" ]
-      [ "diag"; "diag"; "diag"; "diag" ]
-      [ "diag"; "diag"; "stem" ]
-      [ "diag"; "stem"; "diag"; "diag" ]
-      [ "dot" ]
-      [ "dot"; "diag" ]
-      [ "dot"; "dot" ]
-      [ "dot"; "dot"; "dot" ]
-      [ "stem" ]
-      [ "stem"; "arc" ]
-      [ "stem"; "arc"; "arc" ]
-      [ "stem"; "arc"; "diag" ]
-      [ "stem"; "arc"; "stem" ]
-      [ "stem"; "bar" ]
-      [ "stem"; "bar"; "bar" ]
-      [ "stem"; "bar"; "bar"; "bar" ]
-      [ "stem"; "bar"; "stem" ]
-      [ "stem"; "bowl" ]
-      [ "stem"; "diag"; "diag" ]
-      [ "stem"; "diag"; "diag"; "stem" ]
-      [ "stem"; "diag"; "stem" ]
-      [ "stem"; "dot" ]
-      [ "stem"; "stem"; "arc" ]
-      [ "stem"; "stem"; "bar" ]
-      [ "stem"; "stem"; "bar"; "bar" ]
-      [ "stem"; "stem"; "diag"; "diag" ]
-      [ "stem"; "stem"; "stem"; "bowl" ] ]
+/// Role patterns observed across source glyphs, e.g. ["stem"; "bar"], paired
+/// with how many source glyphs used that exact pattern. Sampling weighted by
+/// this count keeps generated glyphs to combinations real letters actually use,
+/// in roughly the proportions real letters actually use them.
+let rolePatterns: (string list * int) list =
+    [ [ "arc" ], 132
+      [ "arc"; "arc" ], 33
+      [ "arc"; "arc"; "arc" ], 16
+      [ "arc"; "arc"; "arc"; "arc" ], 1
+      [ "arc"; "arc"; "bar" ], 1
+      [ "arc"; "arc"; "stem" ], 3
+      [ "arc"; "bar" ], 10
+      [ "arc"; "bar"; "bar" ], 1
+      [ "arc"; "bowl" ], 3
+      [ "arc"; "diag" ], 8
+      [ "arc"; "diag"; "stem"; "arc" ], 1
+      [ "arc"; "dot" ], 2
+      [ "arc"; "stem" ], 8
+      [ "arc"; "stem"; "arc"; "arc" ], 1
+      [ "arc"; "stem"; "arc"; "stem" ], 4
+      [ "arc"; "stem"; "bowl" ], 1
+      [ "bar" ], 12
+      [ "bar"; "bar" ], 5
+      [ "bar"; "bar"; "stem"; "stem" ], 1
+      [ "bar"; "diag"; "bar" ], 1
+      [ "bar"; "stem" ], 2
+      [ "bar"; "stem"; "bar" ], 1
+      [ "bowl" ], 23
+      [ "bowl"; "arc" ], 8
+      [ "bowl"; "arc"; "arc" ], 1
+      [ "bowl"; "bowl" ], 4
+      [ "bowl"; "bowl"; "diag" ], 1
+      [ "bowl"; "diag" ], 5
+      [ "bowl"; "stem" ], 2
+      [ "bowl"; "stem"; "arc"; "arc"; "arc"; "arc" ], 1
+      [ "diag" ], 14
+      [ "diag"; "arc" ], 3
+      [ "diag"; "arc"; "arc" ], 2
+      [ "diag"; "arc"; "bowl" ], 4
+      [ "diag"; "arc"; "diag" ], 1
+      [ "diag"; "bar" ], 3
+      [ "diag"; "bar"; "bar" ], 5
+      [ "diag"; "bar"; "bar"; "arc"; "arc" ], 1
+      [ "diag"; "diag" ], 21
+      [ "diag"; "diag"; "arc" ], 1
+      [ "diag"; "diag"; "arc"; "arc" ], 1
+      [ "diag"; "diag"; "arc"; "arc"; "arc" ], 1
+      [ "diag"; "diag"; "bar" ], 4
+      [ "diag"; "diag"; "bar"; "bar" ], 4
+      [ "diag"; "diag"; "diag"; "diag" ], 4
+      [ "diag"; "diag"; "stem" ], 1
+      [ "diag"; "stem"; "diag"; "diag" ], 2
+      [ "dot" ], 2
+      [ "dot"; "diag" ], 1
+      [ "dot"; "dot" ], 1
+      [ "dot"; "dot"; "dot" ], 1
+      [ "stem" ], 10
+      [ "stem"; "arc" ], 31
+      [ "stem"; "arc"; "arc" ], 6
+      [ "stem"; "arc"; "diag" ], 2
+      [ "stem"; "arc"; "stem" ], 3
+      [ "stem"; "bar" ], 11
+      [ "stem"; "bar"; "bar" ], 2
+      [ "stem"; "bar"; "bar"; "bar" ], 3
+      [ "stem"; "bar"; "stem" ], 1
+      [ "stem"; "bowl" ], 4
+      [ "stem"; "diag"; "diag" ], 11
+      [ "stem"; "diag"; "diag"; "stem" ], 3
+      [ "stem"; "diag"; "stem" ], 3
+      [ "stem"; "dot" ], 2
+      [ "stem"; "stem"; "arc" ], 4
+      [ "stem"; "stem"; "bar" ], 4
+      [ "stem"; "stem"; "bar"; "bar" ], 4
+      [ "stem"; "stem"; "diag"; "diag" ], 4
+      [ "stem"; "stem"; "stem"; "bowl" ], 1 ]

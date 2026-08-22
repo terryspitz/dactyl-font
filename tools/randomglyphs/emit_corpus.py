@@ -25,7 +25,8 @@ def main():
     for role in sorted(inv):
         for source, defn, _pts, _seps, _closed in inv[role]:
             rows.append((role, source, defn))
-    patterns = sorted(set(combos))
+    from collections import Counter
+    pattern_counts = sorted(Counter(combos).items())
 
     L = []
     L.append("/// GENERATED FILE - do not edit by hand.")
@@ -41,17 +42,18 @@ def main():
     L.append("    [ " + "\n      ".join(
         f"{fsharp_str(r)}, {fsharp_str(s)}, {fsharp_str(d)}" for r, s, d in rows) + " ]")
     L.append("")
-    L.append("/// Role patterns observed across source glyphs, e.g. [\"stem\"; \"bar\"].")
-    L.append("/// Sampling one of these keeps generated glyphs to combinations real")
-    L.append("/// letters actually use.")
-    L.append("let rolePatterns: string list list =")
+    L.append("/// Role patterns observed across source glyphs, e.g. [\"stem\"; \"bar\"], paired")
+    L.append("/// with how many source glyphs used that exact pattern. Sampling weighted by")
+    L.append("/// this count keeps generated glyphs to combinations real letters actually use,")
+    L.append("/// in roughly the proportions real letters actually use them.")
+    L.append("let rolePatterns: (string list * int) list =")
     L.append("    [ " + "\n      ".join(
-        "[ " + "; ".join(fsharp_str(x) for x in p) + " ]" for p in patterns) + " ]")
+        "[ " + "; ".join(fsharp_str(x) for x in p) + " ], " + str(n) for p, n in pattern_counts) + " ]")
     L.append("")
     open(OUT, 'w').write("\n".join(L))
     print(f"wrote {os.path.relpath(OUT, REPO)}")
     print(f"  {len(rows)} strokes from {len(SIMPLEX)} Hershey simplex faces + dactyl")
-    print(f"  {len(patterns)} role patterns over {len(combos)} source glyphs")
+    print(f"  {len(pattern_counts)} role patterns over {len(combos)} source glyphs")
 
 if __name__ == '__main__':
     main()

@@ -149,12 +149,53 @@ read as a writing system:
 
 ### Where it lives
 
-In F#, beside `GlyphStringDefs.fs`, so it is shared by the web app via Fable
-and by `generateFonts`. Stage 2 needs the parser and outline geometry anyway.
-No new dependencies. The natural UI is a "Random" button on the **Glyphs** tab,
-which already renders multi-line `char: def` text through
-`generateSplineDebugSvgFromDefs` — so the output target exists today and needs
-no new rendering work.
+**Status: implemented.** [`src/generator/RandomGlyphs.fs`](../src/generator/RandomGlyphs.fs)
+runs entirely client-side (F# → Fable), reading the stroke corpus
+([`StrokeCorpus.fs`](../src/generator/StrokeCorpus.fs), harvested offline by
+`tools/randomglyphs/` — see section 4) and sampling a fresh alphabet on every
+call: no server, no precomputed output. `generateAlphabetDefs axes seed count`
+is the entry point; [`src/generator/tests/RandomGlyphsTests.fs`](../src/generator/tests/RandomGlyphsTests.fs)
+covers determinism, non-degenerate parsing, and scaling to non-default axes.
+A **Random** button on the **Glyphs** tab calls it via
+`Api.generateRandomGlyphDefs` and drops the result straight into the existing
+definitions textarea.
+
+One divergence from the corpus-analysis stage above, made when porting to
+F#: role patterns are sampled **weighted by how often each one occurs** in
+the source corpus (a lone `arc` far more often than a four-stroke pileup),
+not uniformly across the deduplicated pattern list — `StrokeCorpus.rolePatterns`
+carries `(pattern, count)` pairs rather than bare patterns, matching what
+`gen2.py` was actually shown to produce good results with.
+
+#### A real bug this surfaced: a Spiro pathology, not a RandomGlyphs one
+
+Wiring the button to the Glyphs tab's existing debug preview
+(`generateSplineDebugSvgFromDefs`, which solves Spiro *and* Spline2 *and*
+DactylSpline for every glyph so a glyph author can compare them) produced an
+alphabet where one glyph out of 26 took **30 seconds** and emitted a **20 MB**
+SVG string — bad enough to look, at first, like an infinite loop in the
+generator.
+
+It wasn't. Isolating it down to a single 3-point closed stroke
+(`d3t2l4r3~d4t2l4r3-d4x4l4w2-`) and testing coordinate/separator variants
+individually showed the DactylSpline and Spline2 engines render that exact
+shape in milliseconds; only the legacy **Spiro** solver is pathological on
+it, and only for that specific combination — round-number coordinates with
+the identical separator pattern, or the identical coordinates with any other
+separator pattern, are all fast. That specificity is exactly why hand-authored
+glyphs never hit it (a human wouldn't happen to type this), while a generator
+sampling thousands of coordinate/separator combinations eventually will.
+
+Fixing Spiro's solver is out of scope here — a working, widely-relied-on
+engine change reaching every existing glyph is a different kind of PR
+entirely. Instead, [`Api.generateRandomGlyphsPreviewSvg`](../src/explorer/Api.fs)
+renders freshly generated glyphs through **DactylSpline alone** — the engine
+the exported font actually uses — sidestepping Spiro entirely for this path.
+Same 26-glyph alphabet: **612 ms**, 32 KB. The App.jsx wiring keeps this
+preview showing until the next manual edit to the definitions textarea, at
+which point control reverts to the normal (Spiro-inclusive) live debug
+render — appropriate there, since that view exists specifically for comparing
+engines while hand-authoring.
 
 ---
 
@@ -278,8 +319,8 @@ deliberately, rather than an undifferentiated average of all scripts.
 
 | Phase | Work | Unlocks |
 |---|---|---|
-| 1 | Recombination sampler + filters, F#, Glyphs-tab button | Usable fake alphabets now, no new deps |
-| 2 | Hershey ingestion + round-trip verification | Validates the inverse compiler; adds Greek/Cyrillic/kana |
+| 1 | Recombination sampler + filters, F#, Glyphs-tab button | **Done.** Usable fake alphabets, no new deps |
+| 2 | Hershey ingestion + round-trip verification | **Done.** Corpus expanded to Latin/Greek/cursive (4 verified simplex faces); Cyrillic/kana available in `data/hershey/` but not yet ingested |
 | 3 | KanjiVG ingestion | ~11k glyphs; corpus large enough to train on |
 | 4 | Learned model (PCFG → sequence model / VAE), script-conditioned | Genuine novelty rather than recombination |
 

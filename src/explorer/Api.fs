@@ -528,6 +528,70 @@ let getGlyphDefs (text: string) (altAG: bool) =
             | None -> sprintf "'%c': (no definition)" c)
         |> String.concat "\n"
 
+/// A batch of fresh, novel glyph definitions sampled from the stroke corpus
+/// (see RandomGlyphs.fs and docs/RandomGlyphs.md) -- a "fake alphabet",
+/// formatted for the Glyphs tab's definition textarea. `seed` reproduces a
+/// previous batch; a new seed gets a fresh one. Runs entirely client-side,
+/// same as `getGlyphDefs`.
+let generateRandomGlyphDefs (seed: int) (axes: Axes) (count: int) : string =
+    RandomGlyphs.generateAlphabetDefs axes seed count
+    |> List.mapi (fun i def -> sprintf "?%d: %s" (i + 1) def)
+    |> String.concat "\n"
+
+/// Fast, single-engine (DactylSpline, the engine the exported font actually
+/// uses) preview for a batch of raw def strings, one per line ("label: def"
+/// or a bare def). Deliberately does NOT go through
+/// `generateSplineDebugSvgFromDefs`: that helper always solves Spiro *and*
+/// Spline2 *and* DactylSpline for every glyph (it exists for comparing the
+/// three while hand-authoring), and the legacy Spiro solver has a real
+/// numerical pathology on certain closed short strokes -- a specific
+/// coordinate/separator combination can take single-digit seconds and emit
+/// tens of megabytes of path data for one glyph (see docs/RandomGlyphs.md).
+/// Randomly generated geometry is far likelier to land on that combination
+/// than hand-authored strings, so freshly generated glyphs are previewed
+/// through this single-engine path instead of the triple-engine debug one.
+let generateRandomGlyphsPreviewSvg (defsText: string) (inputAxes: Axes) : string =
+    let font =
+        Font(
+            { inputAxes with
+                spline2 = false
+                dactyl_spline = true
+                outline = true
+                filled = true
+                clip_rect = false
+                show_tangents = false
+                show_knots = false
+                debug = false }
+        )
+
+    let metrics = FontMetrics(font.axes)
+
+    let lines =
+        defsText.Split([| '\n'; '\r' |], System.StringSplitOptions.RemoveEmptyEntries)
+
+    let mutable xOffset = 0.0
+
+    let elements =
+        [ for line in lines do
+              let def =
+                  let colonIdx = line.IndexOf(':')
+                  if colonIdx >= 0 then line.Substring(colonIdx + 1).Trim() else line.Trim()
+
+              if not (System.String.IsNullOrWhiteSpace(def)) then
+                  let elem = GlyphStringDefs.rawDefToElem metrics def false
+                  let width = font.width elem
+                  let translated = translateBy xOffset 0.0 elem
+                  xOffset <- xOffset + width
+                  yield translated ]
+
+    let combined = EList(elements) |> font.getOutline
+    let offsetX, offsetY = 0.0, font.charHeight + float font.axes.weight
+    let svgPaths = font.outlineFont.elementToSvgPath combined offsetX offsetY 5.0 "black" true
+    let svgWidth = max 1000.0 (xOffset + 100.0)
+
+    toSvgDocument -50.0 font.yBaselineOffset svgWidth font.charHeight svgPaths
+    |> String.concat "\n"
+
 
 
 let spiroToSplinePointType (ty: SpiroPointType) =

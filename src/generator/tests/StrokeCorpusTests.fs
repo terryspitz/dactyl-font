@@ -46,15 +46,24 @@ type StrokeCorpusTests() =
         Assert.That(failures, Is.Empty, sprintf "%d corpus strokes failed to parse" failures.Length)
 
     [<Test>]
-    member _.``role patterns are non-empty and use known roles``() =
+    member _.``role patterns are non-empty, weighted, and use known roles``() =
         Assert.That(StrokeCorpus.rolePatterns, Is.Not.Empty)
         let known = StrokeCorpus.strokes |> List.map (fun (r, _, _) -> r) |> Set.ofList
 
         let unknown =
             StrokeCorpus.rolePatterns
-            |> List.collect id
+            |> List.collect fst
             |> List.distinct
             |> List.filter (fun r -> not (known.Contains r))
 
         Assert.That(unknown, Is.Empty, "role patterns should only name roles present in the corpus")
-        Assert.That((StrokeCorpus.rolePatterns |> List.forall (List.isEmpty >> not)), "no role pattern should be empty")
+
+        Assert.That(
+            (StrokeCorpus.rolePatterns |> List.forall (fun (p, _) -> not (List.isEmpty p))),
+            "no role pattern should be empty"
+        )
+
+        Assert.That(
+            (StrokeCorpus.rolePatterns |> List.forall (fun (_, count) -> count > 0)),
+            "every role pattern's weight should be a positive count of source glyphs"
+        )
