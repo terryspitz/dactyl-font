@@ -633,6 +633,85 @@
     font-weight: 600;
 }
 
+.proof-compare-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: 10px;
+    font-size: 0.8em;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+
+.proof-compare {
+    display: flex;
+    flex-direction: column;
+    /* Fills the flex column set up by .preview-content.compare-mode (and its
+       transform-wrapper child) so each panel below can scroll independently
+       within its own half instead of one long combined scroll. */
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.proof-compare-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-height: 0; /* let the panel shrink below its content's natural height so its own child can scroll */
+    border-bottom: 1px solid var(--border-color);
+}
+
+.proof-compare-panel:last-child {
+    border-bottom: none;
+}
+
+/* The text itself is the scrollable "canvas" — its scroll position is kept
+   in sync between the two panels (see syncCompareScroll in App.jsx) so the
+   same line of text stays aligned in both while scrolling through long proofs. */
+.proof-compare-panel > .proof-text {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.proof-compare-label {
+    flex: 0 0 auto; /* stays pinned at the top of its panel while the text below scrolls */
+    font-size: 0.75em;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 8px 20px 0;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+}
+
+.proof-compare-overrides {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.proof-compare-override {
+    white-space: nowrap;
+    /* The compare panel always renders on a white background regardless of
+       app theme (same as .proof-text's hardcoded color: #000), so this needs
+       a dark color rather than var(--text-primary) (near-white, meant for
+       the dark sidebar/toolbar chrome). */
+    color: #333;
+}
+
+.proof-compare-no-changes {
+    font-style: italic;
+}
+
 .proof-book-title {
     margin-left: 10px;
     font-size: 0.75em;
@@ -1006,6 +1085,15 @@
 /* Spline editor mode: let the editor fill the preview area */
 .preview-content.spline-mode {
     padding: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Compare-spacing mode: become a flex column so .proof-compare's two panels
+   can size to fill the bounded height and scroll independently, instead of
+   relying on this container's own overflow: auto for one long scroll. */
+.preview-content.compare-mode {
     display: flex;
     flex-direction: column;
     overflow: hidden;

@@ -177,7 +177,7 @@ let generateSvgPerGlyph
                             yield!
                                 font.charToSvg
                                     str.[c]
-                                    offsetXs.[c]
+                                    (offsetXs.[c] + font.glyphShift str.[c])
                                     (baselineY i + font.metrics.thickness)
                                     "black" ]
 
@@ -757,40 +757,94 @@ let generateFontGlyphDataPerGlyph
     // text, font comparisons, etc.), so make sure one is always included even
     // though allChars itself no longer contains a literal space character.
     let glyphChars = allChars.Replace("\n", "") + " "
+    let thickness = float axes.weight
 
     let totalChars = glyphChars.Length
     let mutable charCount = 0
+
+    // Progress is split across this function's two phases so the bar keeps
+    // moving through the residual-kern pass instead of parking at 100% for it.
+    // Measured over the full charset: outlines ~1600ms, kern pass ~390ms.
+    let glyphPhaseShare = if axes.usePairKerning then 0.8 else 1.0
+    let report (fraction: float) =
+        match progress with
+        | Some p -> p fraction
+        | None -> ()
+
+    // Per-glyph: render outline, capture svg path, collect edge profile.
+    let profileMap = System.Collections.Generic.Dictionary<char, GlyphProfile.GlyphProfile>()
 
     let glyphs =
         glyphChars
         |> Seq.map (fun c ->
             charCount <- charCount + 1
-
-            match progress with
-            | Some p -> p (float charCount / float totalChars)
-            | None -> ()
+            report (glyphPhaseShare * float charCount / float totalChars)
 
             let charFont = fontFor c
 
             try
                 let outline = charFont.CharToOutline c
+                // Bake the glyph's optical shift into the exported outline: in an
+                // OTF the left sidebearing *is* the outline's x position, so this
+                // is how the shift the SVG renderer applies at draw time survives
+                // into the font file. Both must agree — see Font.glyphShift.
+                let shift = charFont.glyphShift c
+                let placed = if shift = 0.0 then outline else translateBy shift 0.0 outline
                 // outlineFont has smooth=false so rendering the sampled Corner outline knots
                 // does not trigger O(n²) NelderMead; cached on the font instance.
-                let svg, _, _ = charFont.outlineFont.elementToSvg outline
+                let svg, _, _ = charFont.outlineFont.elementToSvg placed
+                let path = String.concat " " svg
+                // Only the residual-kern pass below needs this map, so below the
+                // Kerned stop we don't build it at all.
+                //
+                // Take the profile straight off the Font rather than sampling a
+                // second time: charWidth/glyphShift just above already forced
+                // Font.glyphProfile for this char, and that cache holds the
+                // result of the identical recipe (same band range, same count,
+                // same pre-italic outline). Re-deriving it here meant a whole
+                // extra outline render, SVG serialise and re-parse per glyph.
+                if axes.usePairKerning && path <> "" then
+                    profileMap.[c] <- charFont.glyphProfile c
                 {| unicode = int c
                    advanceWidth = charFont.charWidth c
-                   pathData = String.concat " " svg |}
+                   pathData = path |}
             with _ ->
                 {| unicode = int c
                    advanceWidth = charFont.charWidth c
                    pathData = "" |})
         |> Array.ofSeq
 
-    let thickness = float axes.weight
+    // Residual kerns, for the pairs per-glyph optical spacing can't get right
+    // on its own. Emits ALL non-zero values so the OTF kern/GPOS tables match
+    // what the SVG render path applies — the SVG path doesn't filter, and any
+    // mismatch shows up as text laid out differently between the two.
+    let kerningPairs =
+        if axes.usePairKerning then
+            let acc = ResizeArray()
+            let mutable leftDone = 0
+            for KeyValue(cL, pL) in profileMap do
+                leftDone <- leftDone + 1
+                report (glyphPhaseShare
+                        + (1.0 - glyphPhaseShare) * float leftDone / float (max 1 profileMap.Count))
+                let fontL = fontFor cL
+                let advanceL = fontL.charWidth cL
+                let shiftL = fontL.glyphShift cL
+                for KeyValue(cR, pR) in profileMap do
+                    let shiftR = (fontFor cR).glyphShift cR
+                    let k =
+                        GlyphProfile.residualKern
+                            (float axes.spacing) advanceL shiftL shiftR kernThreshold pL pR
+                    if k <> 0 then
+                        acc.Add({| left = int cL; right = int cR; value = k |})
+            acc.ToArray()
+        else
+            [||]
+
     {| glyphs = glyphs
        ascender = metrics.T + thickness
        descender = metrics.D - thickness
-       unitsPerEm = font.charHeight |}
+       unitsPerEm = font.charHeight
+       kerningPairs = kerningPairs |}
 
 let generateFontGlyphData (axes: Axes) (progress: (float -> unit) option) =
     generateFontGlyphDataPerGlyph axes "" [||] progress

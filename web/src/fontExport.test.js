@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { parseSvgPath, unionPath, buildFont, buildStyleName, buildFilename } from './fontExport'
+import opentype from 'opentype.js'
+import {
+  parseSvgPath, unionPath, buildFont, buildStyleName, buildFilename,
+  buildKernTableBytes, injectKernTable, buildGposTableBytes, injectGposTable, injectKerningTables,
+} from './fontExport'
 
 describe('export naming', () => {
   const overrides = [['weight', 42], ['slant', 0.3]]
@@ -253,5 +257,199 @@ describe('buildFont metadata (fontbakery requirements)', () => {
     // Widest character glyph here is 'B' at 520; .notdef must not exceed it, or
     // hmtx and hhea.advanceWidthMax disagree.
     expect(notdef.advanceWidth).toBe(520)
+  })
+})
+
+describe('kern table injection', () => {
+  // opentype.js can only READ a `kern` table (tables/kern.js has no `make`,
+  // and tables/sfnt.js's fontToTable() never references font.kerningPairs),
+  // so setting font.kerningPairs before toArrayBuffer() has zero effect on
+  // the bytes written — injectKernTable is what actually puts kerning in the
+  // file. These tests build a real font, splice in a kern table, then use
+  // opentype.js's own parser to read the compiled binary back and confirm
+  // the kerns really are in there — not just present on the in-memory object.
+  const glyphData = {
+    unitsPerEm: 1000,
+    ascender: 700,
+    descender: -300,
+    glyphs: [
+      { unicode: 65, advanceWidth: 400, pathData: 'M 0,0 L 100,0 L 100,200 L 0,200 Z' }, // A
+      { unicode: 86, advanceWidth: 420, pathData: 'M 0,0 L 100,0 L 100,200 L 0,200 Z' }, // V
+      { unicode: 111, advanceWidth: 380, pathData: 'M 0,0 L 100,0 L 100,200 L 0,200 Z' }, // o
+    ],
+    kerningPairs: [
+      { left: 65, right: 86, value: -75 }, // AV
+      { left: 65, right: 111, value: 12 }, // Ao (positive, exercises int16 sign)
+    ],
+  }
+
+  it('returns the buffer unchanged when there are no kerning pairs', () => {
+    const buf = new Uint8Array([1, 2, 3, 4]).buffer
+    expect(injectKernTable(buf, {})).toBe(buf)
+    expect(injectKernTable(buf, null)).toBe(buf)
+  })
+
+  it('round-trips pair values through a real kern table', () => {
+    const font = buildFont(glyphData)
+    const withKern = injectKernTable(font.toArrayBuffer(), font.kerningPairs)
+    const reparsed = opentype.parse(withKern)
+
+    const avIdx = [font.charToGlyphIndex('A'), font.charToGlyphIndex('V')]
+    const aoIdx = [font.charToGlyphIndex('A'), font.charToGlyphIndex('o')]
+    expect(reparsed.getKerningValue(...avIdx)).toBe(-75)
+    expect(reparsed.getKerningValue(...aoIdx)).toBe(12)
+    // An unlisted pair kerns to 0, same as the SVG render path's fallback.
+    expect(reparsed.getKerningValue(...aoIdx.slice().reverse())).toBe(0)
+  })
+
+  it('keeps every other table intact after splicing in kern', () => {
+    const font = buildFont(glyphData)
+    const original = opentype.parse(font.toArrayBuffer())
+    const withKern = injectKernTable(font.toArrayBuffer(), font.kerningPairs)
+    const reparsed = opentype.parse(withKern)
+
+    expect(reparsed.unitsPerEm).toBe(original.unitsPerEm)
+    expect(reparsed.ascender).toBe(original.ascender)
+    expect(reparsed.numGlyphs).toBe(original.numGlyphs)
+    const a = reparsed.glyphs.get(reparsed.charToGlyphIndex('A'))
+    expect(a.advanceWidth).toBe(font.glyphs.get(font.charToGlyphIndex('A')).advanceWidth)
+  })
+
+  it('produces a valid whole-file checksum (head.checkSumAdjustment)', () => {
+    const font = buildFont(glyphData)
+    const withKern = injectKernTable(font.toArrayBuffer(), font.kerningPairs)
+    const bytes = new Uint8Array(withKern)
+    const view = new DataView(withKern)
+    const numTables = view.getUint16(4)
+    let headOffset = null
+    for (let i = 0; i < numTables; i++) {
+      const recOff = 12 + i * 16
+      const tag = String.fromCharCode(bytes[recOff], bytes[recOff + 1], bytes[recOff + 2], bytes[recOff + 3])
+      if (tag === 'head') headOffset = view.getUint32(recOff + 8)
+    }
+    expect(headOffset).not.toBeNull()
+
+    // Recompute the standard OpenType whole-file checksum: sum the entire file
+    // as big-endian uint32 words with head.checkSumAdjustment zeroed, and
+    // confirm checkSumAdjustment + thatSum === 0xB1B0AFBA (mod 2^32).
+    const patched = new Uint8Array(bytes)
+    const patchedView = new DataView(patched.buffer)
+    const storedAdjustment = patchedView.getUint32(headOffset + 8)
+    patchedView.setUint32(headOffset + 8, 0)
+    let sum = 0
+    for (let i = 0; i < patched.length; i += 4) {
+      const word = ((patched[i] << 24) | (patched[i + 1] << 16) | (patched[i + 2] << 8) | patched[i + 3]) >>> 0
+      sum = (sum + word) >>> 0
+    }
+    expect((sum + storedAdjustment) >>> 0).toBe(0xB1B0AFBA)
+  })
+
+  it('sorts pairs ascending by (left, right) as format 0 requires', () => {
+    const bytes = buildKernTableBytes({ '5,2': -10, '3,9': 5, '3,1': 1 })
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    const nPairs = view.getUint16(10)
+    expect(nPairs).toBe(3)
+    const pairs = []
+    let o = 18
+    for (let i = 0; i < nPairs; i++) {
+      pairs.push([view.getUint16(o), view.getUint16(o + 2)])
+      o += 6
+    }
+    expect(pairs).toEqual([[3, 1], [3, 9], [5, 2]])
+  })
+})
+
+describe('GPOS table injection', () => {
+  // Legacy `kern` alone isn't enough: browsers' @font-face text shaping only
+  // consults GPOS pair positioning, never the legacy `kern` table (confirmed
+  // by direct Playwright/Chromium testing — see injectKerningTables' doc
+  // comment). These tests build a real font, splice in a GPOS table, then use
+  // opentype.js's own GPOS parser (font.position.getKerningValue, which reads
+  // through the ScriptList/FeatureList/LookupList structure) to confirm the
+  // kerns are really reachable the same way a browser would resolve them —
+  // not just present as bytes.
+  const glyphData = {
+    unitsPerEm: 1000,
+    ascender: 700,
+    descender: -300,
+    glyphs: [
+      { unicode: 65, advanceWidth: 400, pathData: 'M 0,0 L 100,0 L 100,200 L 0,200 Z' }, // A
+      { unicode: 86, advanceWidth: 420, pathData: 'M 0,0 L 100,0 L 100,200 L 0,200 Z' }, // V
+      { unicode: 111, advanceWidth: 380, pathData: 'M 0,0 L 100,0 L 100,200 L 0,200 Z' }, // o
+    ],
+    kerningPairs: [
+      { left: 65, right: 86, value: -75 }, // AV
+      { left: 65, right: 111, value: 12 }, // Ao (positive, exercises int16 sign)
+    ],
+  }
+
+  it('returns the buffer unchanged when there are no kerning pairs', () => {
+    const buf = new Uint8Array([1, 2, 3, 4]).buffer
+    expect(injectGposTable(buf, {})).toBe(buf)
+    expect(injectGposTable(buf, null)).toBe(buf)
+    expect(injectKerningTables(buf, {})).toBe(buf)
+  })
+
+  it('round-trips pair values through a real GPOS table via the DFLT script', () => {
+    const font = buildFont(glyphData)
+    const withGpos = injectGposTable(font.toArrayBuffer(), font.kerningPairs)
+    const reparsed = opentype.parse(withGpos)
+
+    expect(reparsed.tables.gpos).toBeDefined()
+    const avIdx = [font.charToGlyphIndex('A'), font.charToGlyphIndex('V')]
+    const aoIdx = [font.charToGlyphIndex('A'), font.charToGlyphIndex('o')]
+    expect(reparsed.getKerningValue(...avIdx)).toBe(-75)
+    expect(reparsed.getKerningValue(...aoIdx)).toBe(12)
+    expect(reparsed.getKerningValue(...aoIdx.slice().reverse())).toBe(0)
+  })
+
+  it('is also reachable under the latn script', () => {
+    const font = buildFont(glyphData)
+    const withGpos = injectGposTable(font.toArrayBuffer(), font.kerningPairs)
+    const reparsed = opentype.parse(withGpos)
+
+    const avIdx = [font.charToGlyphIndex('A'), font.charToGlyphIndex('V')]
+    const latnLookups = reparsed.position.getKerningTables('latn', 'dflt')
+    expect(reparsed.position.getKerningValue(latnLookups, ...avIdx)).toBe(-75)
+  })
+
+  it('injectKerningTables writes both kern and GPOS, and GPOS wins on lookup', () => {
+    const font = buildFont(glyphData)
+    const buffer = injectKerningTables(font.toArrayBuffer(), font.kerningPairs)
+    const reparsed = opentype.parse(buffer)
+
+    expect(reparsed.tables.gpos).toBeDefined()
+    expect(Object.keys(font.kerningPairs).length).toBeGreaterThan(0)
+    const avIdx = [font.charToGlyphIndex('A'), font.charToGlyphIndex('V')]
+    // getKerningValue prefers GPOS over the kern-derived font.kerningPairs fallback.
+    expect(reparsed.getKerningValue(...avIdx)).toBe(-75)
+  })
+
+  it('keeps every other table intact after splicing in GPOS', () => {
+    const font = buildFont(glyphData)
+    const original = opentype.parse(font.toArrayBuffer())
+    const withGpos = injectGposTable(font.toArrayBuffer(), font.kerningPairs)
+    const reparsed = opentype.parse(withGpos)
+
+    expect(reparsed.unitsPerEm).toBe(original.unitsPerEm)
+    expect(reparsed.ascender).toBe(original.ascender)
+    expect(reparsed.numGlyphs).toBe(original.numGlyphs)
+    const a = reparsed.glyphs.get(reparsed.charToGlyphIndex('A'))
+    expect(a.advanceWidth).toBe(font.glyphs.get(font.charToGlyphIndex('A')).advanceWidth)
+  })
+
+  it('groups multiple right glyphs under one left glyph into a single PairSet', () => {
+    const bytes = buildGposTableBytes({ '5,2': -10, '3,9': 5, '3,1': 1 })
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    // header: version(4) + scriptListOffset(2) + featureListOffset(2) + lookupListOffset(2)
+    const lookupListOffset = view.getUint16(8)
+    const lookupOffsetInList = view.getUint16(lookupListOffset + 2)
+    const lookupOffset = lookupListOffset + lookupOffsetInList
+    expect(view.getUint16(lookupOffset)).toBe(2) // lookupType 2 = Pair Adjustment
+    const subtableOffsetInLookup = view.getUint16(lookupOffset + 6)
+    const subtableOffset = lookupOffset + subtableOffsetInLookup
+    expect(view.getUint16(subtableOffset)).toBe(1) // PosFormat 1
+    const pairSetCount = view.getUint16(subtableOffset + 8)
+    expect(pairSetCount).toBe(2) // left glyphs 3 and 5, sorted ascending
   })
 })

@@ -7,7 +7,7 @@ import { downloadBlob, svgBlob, svgToPngBlob, growFilenameBase, filenameBase } f
 import { LAYER_COLORS } from './growth'
 import { DEFAULT_BRANCH_COLOR } from './branching'
 import { RD_PRESET_NAMES, DEFAULT_CIRCUIT_TRACE_COLOR, DEFAULT_CIRCUIT_PAD_COLOR } from './texture'
-import { downloadFont, buildFontDataUrl } from './fontExport'
+import { downloadFont, buildFontDataUrl, getOverriddenAxes } from './fontExport'
 import ImageExportButtons, { useDownloadMenu } from './ImageExportButtons'
 import { buildSplineGridSvg } from './splineGridSvg'
 import { buildTweensSvg } from './tweensSvg'
@@ -93,6 +93,12 @@ function getDiffAxes(axes, diffConfig) {
     labelA: `${diffConfig.axis}=${Number(diffConfig.valueA.toFixed(2))}`,
     labelB: `${diffConfig.axis}=${Number(diffConfig.valueB.toFixed(2))}`,
   }
+}
+
+/** Format one axis value for the Compare-spacing overrides summary. */
+function formatAxisValue(val) {
+  if (typeof val === 'boolean') return val ? 'on' : 'off'
+  return Number(val.toFixed(2))
 }
 
 function App() {
@@ -329,6 +335,14 @@ function App() {
     const url = new URL(window.location)
     url.searchParams.set('proof', pcase)
     window.history.pushState({}, '', url)
+  }
+
+  const setCompareSpacingWithUrl = (on) => {
+    setCompareSpacing(on)
+    const url = new URL(window.location)
+    if (on) url.searchParams.set('compareSpacing', '1')
+    else url.searchParams.delete('compareSpacing')
+    window.history.replaceState({}, '', url)
   }
 
   const setDiffConfigWithUrl = (cfg) => {
@@ -575,6 +589,28 @@ function App() {
 
   const [downloadingFont, setDownloadingFont] = useState(false)
   const [proofFontUrl, setProofFontUrl] = useState(null)
+  // Proofs tab "Compare spacing" mode: stacks the proof text rendered with
+  // the default axes above the same text with the current settings, so any
+  // difference between the two is whatever's been changed on the left.
+  const [compareSpacing, setCompareSpacing] = useState(
+    () => new URLSearchParams(window.location.search).get('compareSpacing') === '1'
+  )
+  // The two compare panels scroll independently but are kept in lockstep
+  // (see syncCompareScroll) so the same line of text stays aligned in both
+  // while scrolling through a long proof. isSyncingScrollRef guards against
+  // the programmatic scrollTop assignment re-triggering this same handler.
+  const defaultTextRef = useRef(null)
+  const currentTextRef = useRef(null)
+  const isSyncingScrollRef = useRef(false)
+  const syncCompareScroll = useCallback((targetRef) => (e) => {
+    if (isSyncingScrollRef.current) return
+    const target = targetRef.current
+    if (!target) return
+    isSyncingScrollRef.current = true
+    target.scrollTop = e.currentTarget.scrollTop
+    requestAnimationFrame(() => { isSyncingScrollRef.current = false })
+  }, [])
+  const [baselineGlyphData, setBaselineGlyphData] = useState(null)
   const [classicBook, setClassicBook] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('proof') !== 'classic') return null
@@ -939,6 +975,11 @@ function App() {
   }
 
   const renderIdRef = useRef(0)
+  // Separate counter for the "Compare spacing" baseline fetch — it runs
+  // concurrently with the main proofs fontPreview effect, which uses
+  // renderIdRef to discard stale responses. Sharing the counter would bump
+  // it out from under that effect's in-flight request and drop its result.
+  const baselineRenderIdRef = useRef(0)
   const loadingRef = useRef(false)
   const previewRef = useRef(null)
   const activeTabRef = useRef(activeTab)
@@ -1126,9 +1167,19 @@ function App() {
       if (id === renderIdRef.current && loadingRef.current) setShowProgress(true)
     }, 300)
 
+    setProgressValue(0)
+
     worker.onmessage = (e) => {
-      const { id: msgId, result, error } = e.data
+      const { id: msgId, result, error, type, value } = e.data
       if (msgId !== renderIdRef.current) return
+      // Must come before the result handling: a progress message carries no
+      // `result`, so falling through would blank proofFontUrl and drop the font
+      // back to the monospace fallback mid-render.
+      if (type === 'progress') {
+        setProgressValue(value)
+        if (value > 0) setShowProgress(true)
+        return
+      }
       clearTimeout(timer)
       if (error) { setError(error) }
       else { setProofFontUrl(result); setError(null) }
@@ -1144,6 +1195,27 @@ function App() {
       worker.terminate()
     }
   }, [axes, activeTab, perGlyphFontAxes])
+
+  // Compare-spacing baseline: fetch glyph data for the untouched default
+  // axes, so "Compare spacing" can stack a default-axes render above the
+  // live one — comparing whatever the user has changed on the left against
+  // a fixed reference rather than against a moving "no kerning" target.
+  // Default axes never change, so this only needs to run once per tab/toggle
+  // activation, not on every axes edit. Only runs while the toggle is on to
+  // avoid the extra font build otherwise.
+  useEffect(() => {
+    if (activeTab !== 'proofs' || !compareSpacing) return
+
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    worker.onmessage = (e) => {
+      const { result, error, type } = e.data
+      if (type === 'progress') return
+      worker.terminate()
+      if (!error) setBaselineGlyphData(result)
+    }
+    worker.postMessage({ id: ++baselineRenderIdRef.current, type: 'fontData', args: [defaultAxes] })
+    return () => worker.terminate()
+  }, [activeTab, compareSpacing])
 
   // Dedicated effect for the Bubble mode GPU path: rebuild the growth field
   // when text/axes/growScale change (growScale sizes the field's padding, so
@@ -1203,6 +1275,36 @@ function App() {
     }
     el.textContent = `@font-face { font-family: 'DactylPreview'; src: url('${proofFontUrl}') format('opentype'); }`
   }, [proofFontUrl])
+
+  // Build the default-axes baseline @font-face from the fetched glyph data.
+  const baselineFontUrl = useMemo(() => {
+    if (!compareSpacing || !baselineGlyphData) return null
+    try {
+      return buildFontDataUrl(baselineGlyphData, 'DactylBaseline')
+    } catch (err) {
+      console.error('Failed to build baseline comparison font:', err)
+      return null
+    }
+  }, [compareSpacing, baselineGlyphData])
+
+  useEffect(() => {
+    if (!baselineFontUrl) return
+    let el = document.getElementById('dactyl-baseline-font')
+    if (!el) {
+      el = document.createElement('style')
+      el.id = 'dactyl-baseline-font'
+      document.head.appendChild(el)
+    }
+    el.textContent = `@font-face { font-family: 'DactylBaseline'; src: url('${baselineFontUrl}') format('opentype'); }`
+  }, [baselineFontUrl])
+
+  // Axes the user has changed from the defaults, for the Compare-spacing
+  // panel's "what changed" summary — recomputed only when compareSpacing is
+  // on, since it's otherwise unused.
+  const overriddenAxes = useMemo(() => {
+    if (!compareSpacing) return []
+    return getOverriddenAxes(axes, defaultAxes)
+  }, [compareSpacing, axes])
 
   // Compare-font mode: fetch Dactyl's outlines for the current axes once per
   // axes change. Used to build the vector overlay and (for text-mode sources)
@@ -1347,19 +1449,63 @@ function App() {
 
     // Proofs tab uses CSS font rendering — bypass SVG result check
     if (activeTab === 'proofs') {
+      const proofStyle = (fontFamily) => ({
+        fontFamily,
+        fontSize: `${18 * zoom}pt`,
+        lineHeight: 1.4,
+        whiteSpace: 'pre-wrap',
+        textAlign: 'left',
+        padding: '20px',
+        color: '#000',
+      })
+
+      if (compareSpacing) {
+        return (
+          <div className="proof-compare">
+            <div className="proof-compare-panel">
+              <div className="proof-compare-label">Default axes</div>
+              <div
+                ref={defaultTextRef}
+                onScroll={syncCompareScroll(currentTextRef)}
+                className="proof-text"
+                style={proofStyle(baselineFontUrl ? "'DactylBaseline', monospace" : 'monospace')}
+              >
+                {text}
+              </div>
+            </div>
+            <div className="proof-compare-panel">
+              <div className="proof-compare-label">
+                Current settings
+                {overriddenAxes.length > 0 && (
+                  <span className="proof-compare-overrides">
+                    {overriddenAxes.map(([key, val]) => (
+                      <span key={key} className="proof-compare-override">
+                        {key}: {formatAxisValue(defaultAxes[key])} &rarr; {formatAxisValue(val)}
+                      </span>
+                    ))}
+                  </span>
+                )}
+                {overriddenAxes.length === 0 && (
+                  <span className="proof-compare-overrides proof-compare-no-changes">
+                    No settings changes. Make changes to settings on the left.
+                  </span>
+                )}
+              </div>
+              <div
+                ref={currentTextRef}
+                onScroll={syncCompareScroll(defaultTextRef)}
+                className="proof-text"
+                style={proofStyle(proofFontUrl ? "'DactylPreview', monospace" : 'monospace')}
+              >
+                {text}
+              </div>
+            </div>
+          </div>
+        )
+      }
+
       return (
-        <div
-          className="proof-text"
-          style={{
-            fontFamily: proofFontUrl ? "'DactylPreview', monospace" : 'monospace',
-            fontSize: `${18 * zoom}pt`,
-            lineHeight: 1.4,
-            whiteSpace: 'pre-wrap',
-            textAlign: 'left',
-            padding: '20px',
-            color: '#000',
-          }}
-        >
+        <div className="proof-text" style={proofStyle(proofFontUrl ? "'DactylPreview', monospace" : 'monospace')}>
           {text}
         </div>
       )
@@ -1954,6 +2100,14 @@ function App() {
                       {classicBook.title} &mdash; {classicBook.author}
                     </span>
                   )}
+                  <label className="proof-compare-toggle">
+                    <input
+                      type="checkbox"
+                      checked={compareSpacing}
+                      onChange={e => setCompareSpacingWithUrl(e.target.checked)}
+                    />
+                    Compare
+                  </label>
                 </div>
               </div>
             )}
@@ -2731,8 +2885,16 @@ function App() {
               <span className="material-symbols-outlined">remove</span>
             </button>
           </div>
-          <div ref={previewRef} className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`} style={activeTab === 'splineGrid' ? { padding: 0 } : undefined}>
-            <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: (activeTab === 'tweens' || activeTab === 'proofs' || (activeTab === 'generate' && generateMode === 'bubble' && supportsWebGL2)) ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
+          <div
+            ref={previewRef}
+            className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''} ${activeTab === 'proofs' && compareSpacing ? 'compare-mode' : ''}`}
+            style={activeTab === 'splineGrid' ? { padding: 0 } : undefined}
+          >
+            <div style={
+              activeTab === 'splines' ? { display: 'contents' } :
+              activeTab === 'proofs' && compareSpacing ? { display: 'flex', flexDirection: 'column', flex: '1 1 auto', minHeight: 0 } :
+              { transform: (activeTab === 'tweens' || activeTab === 'proofs' || (activeTab === 'generate' && generateMode === 'bubble' && supportsWebGL2)) ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }
+            }>
               {renderContent()}
             </div>
           </div>
