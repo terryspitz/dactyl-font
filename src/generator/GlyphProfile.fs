@@ -155,7 +155,26 @@ let sampleProfile (bandY0: float) (bandY1: float) (bandCount: int) (cmds: Cmd li
 /// aim at the same effective gap the pairwise model does, or every pair is left
 /// with a constant residual and nothing is ever sparse.
 let private maxSlackForBroadContact = 60.0
-let private nearMinTolerance = 20.0
+
+/// How close a band's gap must be to the true minimum to count toward the
+/// broad-contact fraction. Swept over 20-150 against named pairs the user
+/// flagged as misjudged (f|o, Y|u, V|s — a curve or diagonal gradually
+/// nearing another edge, not a single tangent point) versus pairs that must
+/// stay tight (f|j, f|l, r|n, T|T). 20 (the original value) scored fo/Yu/Vs
+/// as if they were point contacts — 1-4 of ~15 overlapping bands landed
+/// within tolerance, so they got almost no slack (44/48/56 against a 100
+/// flat-pair reference) and read as too close.
+///
+/// 60 cleanly separates the two groups: fo/Yu/Vs move to 72/84/76 (matching
+/// how loose o|n, a real round-into-round contact, already reads at the old
+/// tolerance) while f|j/f|l/r|n/T|T — genuine single-point tangents — move
+/// by no more than 10 units (43.3->53.3, 42.9->42.9, 52->60, 42.9->42.9) and
+/// stay clearly separated from the broad-contact group. Values beyond ~100
+/// start pulling f|j itself toward full broad-contact treatment (100 at
+/// tol=150), which is wrong — f|j is the textbook tight case — so this
+/// isn't "wider is better"; 60 is the point where the two groups separate
+/// without merging.
+let private nearMinTolerance = 60.0
 
 /// Depth past which a concavity stops counting. A deep notch — C's aperture,
 /// the underside of T's arms — reads as enclosed counter-space rather than as
