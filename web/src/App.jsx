@@ -2034,7 +2034,7 @@ function App() {
                       x coordinates: (<strong>l</strong>)eft, (<strong>c</strong>)enter, (<strong>r</strong>)ight, (<strong>w</strong>)ide. <br />
                       Lines: (<strong>-</strong>) straight, (<strong>~</strong>) curve. Tangents: <strong>N</strong>,<strong>S</strong>,<strong>E</strong>,<strong>W</strong>. Brackets: auto-fit. <strong>K</strong>: corner/kink. <strong>J</strong>: interior joint. <br />
                       <a
-                        href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
+                        href="https://terryspitz.github.io/dactyl-font/docs/DactylGlyphs.html"
                         target="_blank"
                         rel="noopener noreferrer"
                       >
@@ -2055,7 +2055,7 @@ function App() {
                   </button>
                   <a
                     className="icon-button"
-                    href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
+                    href="https://terryspitz.github.io/dactyl-font/docs/DactylGlyphs.html"
                     target="_blank"
                     rel="noopener noreferrer"
                     title="Full glyph definition docs"
