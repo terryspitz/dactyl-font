@@ -126,9 +126,13 @@ function App() {
   const [randomPreviewSvg, setRandomPreviewSvg] = useState(null)
   const [axes, setAxes] = useState({ ...defaultAxes })
   // A frozen preview would otherwise show the wrong proportions/weight once
-  // sliders move -- clear it so the tab falls back to the normal live render.
+  // sliders/style chips move -- re-render it through the same fast
+  // DactylSpline-only path rather than clearing it, which would otherwise
+  // dump the tab back onto the slow multi-engine debug render (falling back
+  // to the stale previous result until that ~10s render completes).
   useEffect(() => {
-    setRandomPreviewSvg(null)
+    setRandomPreviewSvg(prev => (prev === null ? null : generateRandomGlyphsPreviewSvg(glyphsDefsText, axes)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [axes])
   // "Randomise every glyph": null = off, otherwise the seed that every
   // character's axes are derived from.  Holding a seed (rather than a big map of
@@ -2007,38 +2011,6 @@ function App() {
                 <span ref={glyphKeyRef} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <button
                     type="button"
-                    className="icon-button"
-                    title="Rebuild definitions from the characters in the text box"
-                    onClick={() => {
-                      setGlyphsDefsText(getGlyphDefs(text || 'a', cursiveUsesAlt(axes.cursive, axes.slant)))
-                      setRandomPreviewSvg(null)
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>restart_alt</span>
-                  </button>
-                  <a
-                    className="icon-button"
-                    href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="Full glyph definition docs"
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>menu_book</span>
-                  </a>
-                  <button
-                    type="button"
-                    className="icon-button"
-                    title="Generate a fresh batch of novel glyphs sampled from the stroke corpus (see docs/RandomGlyphs.md)"
-                    onClick={() => {
-                      const defs = generateRandomGlyphDefs(newGlyphSeed(), axes, 26)
-                      setGlyphsDefsText(defs)
-                      setRandomPreviewSvg(generateRandomGlyphsPreviewSvg(defs, axes))
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>casino</span>
-                  </button>
-                  <button
-                    type="button"
                     className="glyph-key-button"
                     title="Glyph string key"
                     aria-label="Glyph string key"
@@ -2070,6 +2042,38 @@ function App() {
                       </a>
                     </div>
                   )}
+                  <button
+                    type="button"
+                    className="icon-button"
+                    title="Rebuild definitions from the characters in the text box"
+                    onClick={() => {
+                      setGlyphsDefsText(getGlyphDefs(text || 'a', cursiveUsesAlt(axes.cursive, axes.slant)))
+                      setRandomPreviewSvg(null)
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>restart_alt</span>
+                  </button>
+                  <a
+                    className="icon-button"
+                    href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Full glyph definition docs"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>menu_book</span>
+                  </a>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    title="Generate a fresh batch of novel glyphs sampled from the stroke corpus (see docs/RandomGlyphs.md)"
+                    onClick={() => {
+                      const defs = generateRandomGlyphDefs(newGlyphSeed(), axes, 26)
+                      setGlyphsDefsText(defs)
+                      setRandomPreviewSvg(generateRandomGlyphsPreviewSvg(defs, axes))
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>casino</span>
+                  </button>
                 </span>
               </h3>
               <textarea
