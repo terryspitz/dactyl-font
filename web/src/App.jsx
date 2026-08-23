@@ -2006,16 +2006,17 @@ function App() {
                 Glyph Definitions
                 <span ref={glyphKeyRef} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <a
+                    className="icon-button"
                     href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ fontWeight: 'normal', textDecoration: 'underline' }}
+                    title="Full glyph definition docs"
                   >
-                    (docs)
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>menu_book</span>
                   </a>
                   <button
                     type="button"
-                    className="proof-chip"
+                    className="icon-button"
                     title="Generate a fresh batch of novel glyphs sampled from the stroke corpus (see docs/RandomGlyphs.md)"
                     onClick={() => {
                       const defs = generateRandomGlyphDefs(newGlyphSeed(), axes, 26)
@@ -2023,7 +2024,7 @@ function App() {
                       setRandomPreviewSvg(generateRandomGlyphsPreviewSvg(defs, axes))
                     }}
                   >
-                    Random
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>casino</span>
                   </button>
                   <button
                     type="button"
@@ -2046,11 +2047,9 @@ function App() {
                       className="glyph-key-popup"
                       style={{ top: `${glyphKeyPos.top}px`, left: `${glyphKeyPos.left}px` }}
                     >
-                      <strong>Key:</strong> y: (t)op, (x)-height, (h)alf, (b)ottom, (d)escender, (o)ffset in, (e)xtended out. <br />
-                      x: (l)eft, (c)enter, (r)ight, (w)ide. Solo point → dot. <br />
-                      Dirs: N,S,E,W. Lines: (-) straight, (~) curve. Brackets: auto fit. <br />
-                      K: corner/kink. J: interior joint (suppresses end caps). <br />
-                      Repeats average coordinates (e.g. "bt"="h"); a digit repeats the letter before it, so "b2t"="bbt". <br />
+                      y coordinates: (<strong>t</strong>)op, (<strong>x</strong>)-height, (<strong>h</strong>)alf-height, (<strong>b</strong>)ottom, (<strong>d</strong>)escender, (<strong>o</strong>)ffset inward, (<strong>e</strong>)xtended outward. <br />
+                      x coordinates: (<strong>l</strong>)eft, (<strong>c</strong>)enter, (<strong>r</strong>)ight, (<strong>w</strong>)ide. <br />
+                      Lines: (<strong>-</strong>) straight, (<strong>~</strong>) curve. Tangents: <strong>N</strong>,<strong>S</strong>,<strong>E</strong>,<strong>W</strong>. Brackets: auto-fit. <strong>K</strong>: corner/kink. <strong>J</strong>: interior joint. <br />
                       <a
                         href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
                         target="_blank"
