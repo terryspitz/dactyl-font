@@ -833,7 +833,7 @@ let generateFontGlyphDataPerGlyph
                     let shiftR = (fontFor cR).glyphShift cR
                     let k =
                         GlyphProfile.residualKern
-                            (float axes.spacing) advanceL shiftL shiftR kernThreshold pL pR
+                            fontL.kernParams advanceL shiftL shiftR kernThreshold pL pR
                     if k <> 0 then
                         acc.Add({| left = int cL; right = int cR; value = k |})
             acc.ToArray()
@@ -1000,3 +1000,119 @@ let generateVisualDiffsSvg
 
     toSvgDocument (float -marginX) (float -marginY) totalWidth totalHeight svgs
     |> String.concat "\n"
+
+// ---------------------------------------------------------------------------
+// Kerning exploration
+//
+// A pair's spacing is decided by one of two mechanisms, and which one owns it
+// determines which knob can move it at all:
+//
+//   * per-glyph optical sidebearings (advance + shift), tuned by
+//     RecessionWeight / GiveFraction -- these own a pair when the residual
+//     kern falls under the emit threshold, i.e. `kern = 0`;
+//   * the pairwise residual kern, tuned by Tolerance / Slack -- when a kern
+//     IS emitted it re-solves to the same target, so it *absorbs* any change
+//     to the per-glyph side and pins the gap.
+//
+// Confusing the two wastes a lot of time: turning RecessionWeight does nothing
+// to a kerned pair (the kern compensates exactly), and turning Tolerance does
+// nothing to an unkerned one. So every row reports `kerned`, and pairs are
+// grouped by contact geometry rather than by letter, since that is what
+// actually predicts behaviour -- and pairs sharing a geometry are the ones
+// that ought to kern alike.
+// ---------------------------------------------------------------------------
+
+/// Classify one side of a glyph from its sampled profile: how the edge that
+/// faces the neighbour is shaped. Derived rather than hardcoded per letter, so
+/// it generalises to new glyphs.
+let private classifySide (edges: float[]) (isLeft: bool) (bandH: float) =
+    let idx =
+        [| for i in 0 .. edges.Length - 1 do
+             if edges.[i] > System.Double.NegativeInfinity && edges.[i] < System.Double.PositiveInfinity then yield i |]
+    if idx.Length < 3 then "flat"
+    else
+        // Signed so that "outward" is positive for whichever side we're on.
+        let v = idx |> Array.map (fun i -> if isLeft then -edges.[i] else edges.[i])
+        let extreme = Array.max v
+        let recession = v |> Array.averageBy (fun x -> extreme - x)
+        if recession < 12.0 then "flat"
+        else
+            // Where along the height does the extreme sit, and does the edge
+            // move consistently in one direction (a diagonal) or turn back on
+            // itself (a round bulge / a protruding arm)?
+            // Distinguish a protruding arm from a genuine diagonal by how the
+            // edge positions are *distributed*, not merely where the extreme is
+            // -- both T's arm and A's diagonal peak at one end and fall away
+            // monotonically. A diagonal sweeps evenly, so its mean sits mid-way
+            // between the extremes; an overhang is one band out on its own with
+            // the rest bunched far back, dragging the mean down.
+            let lo, hi = Array.min v, Array.max v
+            let spread = if hi - lo < 1e-6 then 0.5 else (Array.average v - lo) / (hi - lo)
+            let steps = [| for k in 1 .. v.Length - 1 -> v.[k] - v.[k-1] |]
+            let ups = steps |> Array.filter (fun d -> d > 1.0) |> Array.length
+            let downs = steps |> Array.filter (fun d -> d < -1.0) |> Array.length
+            let monotonic = float (max ups downs) / float (max 1 (ups + downs)) > 0.8
+            if spread < 0.3 then "overhang"
+            elif monotonic then "diagonal"
+            else "round"
+
+/// Per-pair kerning diagnostics for the Kerning tab. `paramsOverride` lets the
+/// tab explore tunables live; passing the defaults reproduces the real font
+/// exactly, because this runs the same GlyphProfile code the renderer does.
+let analyseKerning
+    (axes: Axes)
+    (pairs: string array)
+    (tolerance: float)
+    (slack: float)
+    (recessionWeight: float)
+    (giveFraction: float)
+    =
+    let font = Font({ axes with outline = true; filled = true })
+    let kp: GlyphProfile.KernParams =
+        { Target = float axes.spacing
+          Tolerance = tolerance
+          Slack = slack
+          RecessionWeight = recessionWeight
+          GiveFraction = giveFraction
+          RecessionDepth = (GlyphProfile.KernParams.defaults (float axes.spacing)).RecessionDepth }
+
+    let negInf, posInf = System.Double.NegativeInfinity, System.Double.PositiveInfinity
+
+    pairs
+    |> Array.filter (fun s -> s.Length >= 2)
+    |> Array.map (fun s ->
+        let a, b = s.[0], s.[1]
+        let pa, pb = font.glyphProfile a, font.glyphProfile b
+        let advanceA =
+            match GlyphProfile.opticalAdvance kp pa with
+            | Some v -> v
+            | None -> font.charWidth a
+        let shiftA = GlyphProfile.opticalShift kp pa
+        let shiftB = GlyphProfile.opticalShift kp pb
+        let kern = GlyphProfile.residualKern kp advanceA shiftA shiftB Font.kernThreshold pa pb
+        // Where the two actually end up, measured as a true 2-D approach.
+        let off = advanceA + float kern - shiftA + shiftB
+        let bandH = pa.BandHeight
+        let mutable gap = infinity
+        let mutable shared = 0
+        for i in 0 .. pa.BandCount - 1 do
+            let ra = pa.RightEdges.[i]
+            if ra > negInf then
+                if pb.LeftEdges.[i] < posInf then shared <- shared + 1
+                for j in 0 .. pb.BandCount - 1 do
+                    let lb = pb.LeftEdges.[j]
+                    if lb < posInf then
+                        let dx = (lb + off) - ra
+                        let dy = float (j - i) * bandH
+                        let d = if j = i then dx else sqrt (dx * dx + dy * dy)
+                        if d < gap then gap <- d
+        let catL = classifySide pa.RightEdges false bandH
+        let catR = classifySide pb.LeftEdges true bandH
+        {| pair = s
+           svg = generateSvg s { axes with outline = true; filled = true } true None
+           gap = (if System.Double.IsInfinity gap then nan else gap)
+           kern = float kern
+           kerned = (kern <> 0)
+           sharedBands = shared
+           category = (if shared = 0 then "no overlap" else catL + " → " + catR)
+           advance = advanceA |})

@@ -1183,3 +1183,87 @@
     justify-content: center;
     min-width: 70px;
 }
+
+/* ---- Kerning exploration tab ---- */
+.kern-tab { padding: 4px 2px 24px; }
+
+.kern-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    align-items: center;
+    /* Reserve the top-right corner for the zoom toolbar, which is absolutely
+       positioned over this area. */
+    padding: 10px 210px 10px 12px;
+    margin-bottom: 14px;
+    background: #f2f2f2;
+    border: 1px solid #ddd;
+    border-radius: var(--radius-md);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+/* This tab renders on the preview area's white ground, so it needs dark text
+   rather than the near-white --text-* tokens meant for the dark sidebar. */
+.kern-tune { display: flex; align-items: center; gap: 8px; font-size: 0.78em; color: #555; }
+.kern-tune input[type=range] { width: 110px; }
+.kern-tune b { color: #111; font-variant-numeric: tabular-nums; min-width: 32px; }
+.kern-reset {
+    margin-left: 0;
+    font-size: 0.78em;
+    padding: 5px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: #fff;
+    color: #222;
+    cursor: pointer;
+}
+.kern-reset:disabled { opacity: 0.45; cursor: default; }
+
+.kern-group { margin-bottom: 16px; }
+.kern-group-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 2px 4px 6px;
+    border-bottom: 1px solid #e0e0e0;
+    margin-bottom: 8px;
+}
+.kern-cat { font-size: 0.82em; font-weight: 600; color: #111; }
+.kern-stat { font-size: 0.72em; color: #777; font-variant-numeric: tabular-nums; }
+/* Pairs sharing a geometry should kern alike; a wide spread is the tell. */
+.kern-stat.wide { color: var(--accent-color); font-weight: 600; }
+
+.kern-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.kern-cell {
+    width: 104px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    /* The left edge encodes which mechanism owns this pair — the one thing
+       that predicts whether a given slider will move it at all. */
+    border-left-width: 4px;
+}
+.kern-cell.kerned { border-left-color: var(--accent-color); }
+.kern-cell.unkerned { border-left-color: #c8c8c8; }
+.kern-art { height: 62px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.kern-art svg { max-width: 100%; max-height: 100%; }
+.kern-label {
+    font-size: 0.9em;
+    text-align: center;
+    color: #222;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    padding-bottom: 2px;
+}
+.kern-nums {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.68em;
+    padding: 3px 6px;
+    background: #f4f4f4;
+    color: #444;
+    font-variant-numeric: tabular-nums;
+}
+.kern-k { color: #777; }
+.kern-cell.kerned .kern-k { color: var(--accent-color); font-weight: 600; }

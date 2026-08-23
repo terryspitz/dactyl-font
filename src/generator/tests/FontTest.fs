@@ -627,7 +627,7 @@ type FontTests() =
             with _ -> ()
         let opticalRaw (a: char) (b: char) : int =
             if profiles.ContainsKey(a) && profiles.ContainsKey(b) then
-                GlyphProfile.pairKern (float axes.spacing) (font.charWidth a) profiles.[a] profiles.[b]
+                GlyphProfile.pairKern (GlyphProfile.KernParams.defaults (float axes.spacing)) (font.charWidth a) profiles.[a] profiles.[b]
             else 0
         // Notable pairs: diagonals, overhangs, round-to-round and slab sequences.
         let pairs = [
@@ -688,7 +688,7 @@ type FontTests() =
         let otfKern (a: char) (b: char) : int =
             if profiles.ContainsKey(a) && profiles.ContainsKey(b) then
                 GlyphProfile.residualKern
-                    (float axes.spacing)
+                    (GlyphProfile.KernParams.defaults (float axes.spacing))
                     (font.charWidth a)
                     (font.glyphShift a)
                     (font.glyphShift b)
@@ -760,7 +760,7 @@ type FontTests() =
                 for KeyValue(cL, pL) in profiles do
                     let advanceL = font.charWidth cL
                     for KeyValue(cR, pR) in profiles do
-                        let k = GlyphProfile.pairKern (float axes.spacing) advanceL pL pR
+                        let k = GlyphProfile.pairKern (GlyphProfile.KernParams.defaults (float axes.spacing)) advanceL pL pR
                         if abs k >= 3 then opticalCount <- opticalCount + 1
             let kernMs = sw.ElapsedMilliseconds
             glyphsMs, kernMs, glyphCount, opticalCount

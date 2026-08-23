@@ -112,6 +112,7 @@ function App() {
       visualDiffs: allChars,
       splines: '',
       splineGrid: '',
+      kerning: "HH nn ll ni  on op ol oi ob oh om or  oo oc od oe co eo  ta to tn ts  fo fj fl fi  To Ta Ty Yu Yo Vo Wo  AV VA AW WA AY  LT LI PA  rn rt ry  n' o. r, T. y.",
       proofs: proofTexts.lowercase,
       generate: 'dactyl'
     }
@@ -176,7 +177,7 @@ function App() {
     // so default the tweens tab to a smaller zoom there to fit more variations.
     const isMobileWidth = window.innerWidth <= 768
     const tweensZoom = isNaN(urlZoom) && isMobileWidth ? 0.5 : zoom
-    return { font: zoom, glyphs: zoom, tweens: tweensZoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom, generate: zoom }
+    return { font: zoom, glyphs: zoom, tweens: tweensZoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom, generate: zoom, kerning: zoom }
   })
   const [layerVisibility, setLayerVisibility] = useState({
     spiro: false,
@@ -264,6 +265,13 @@ function App() {
   // SVG cells, not one clean vector document, so this rasterises the live DOM
   // (see domCapture.js) rather than trying to reconstruct it as pure SVG.
   const [savingSplineGridImage, setSavingSplineGridImage] = useState(false)
+  // Kerning tab tunables. Defaults mirror the constants in GlyphProfile.fs, so
+  // an untouched tab reproduces the real font exactly; moving a slider explores
+  // a value without a rebuild. Deliberately NOT axes: they are being explored,
+  // not designed with, and making them axes would churn every snapshot.
+  const KERN_TUNE_DEFAULTS = { tolerance: 60, slack: 60, recessionWeight: 0.5, giveFraction: 0.35 }
+  const [kernTune, setKernTune] = useState(KERN_TUNE_DEFAULTS)
+
   const [splineGridCopied, setSplineGridCopied] = useState(false)
   const [splineGridMenuOpen, setSplineGridMenuOpen, splineGridMenuRef] = useDownloadMenu()
   // Tweens tab image export — workerResult already holds the row data
@@ -299,7 +307,7 @@ function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     let view = params.get('view')
-    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines', 'splineGrid', 'proofs', 'generate'].includes(view)) {
+    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines', 'splineGrid', 'proofs', 'generate', 'kerning'].includes(view)) {
       setActiveTab(view)
     }
     const p = params.get('proof')
@@ -1070,6 +1078,13 @@ function App() {
         typeReq = 'font'
         args = [text, axes, false]
       }
+    } else if (activeTab === 'kerning') {
+      const pairs = text.split(/\s+/).filter(p => p.length >= 2).map(p => p.slice(0, 2))
+      if (pairs.length === 0) {
+        setWorkerResult(null); setLoading(false); clearTimeout(timer); worker.terminate(); return
+      }
+      typeReq = 'kernAnalysis'
+      args = [axes, pairs, kernTune.tolerance, kernTune.slack, kernTune.recessionWeight, kernTune.giveFraction]
     } else if (activeTab === 'glyphs') {
       typeReq = 'glyphsFromDefs'
       args = [glyphsDefsText, { ...axes, filled: glyphsFilled }]
@@ -1149,7 +1164,7 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, generateMode, growParams, branchParams, textureParams, fastPreview, perGlyphTextAxes])
+  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, generateMode, growParams, branchParams, textureParams, fastPreview, perGlyphTextAxes, kernTune])
 
   // Dedicated effect for proofs tab: generates full font and builds a data URL.
   // Deps are [axes, activeTab] only — switching proof text doesn't re-trigger.
@@ -1533,6 +1548,72 @@ function App() {
           className="svg-container"
           dangerouslySetInnerHTML={{ __html: content }}
         />
+      } else if (activeTab === 'kerning') {
+        if (!Array.isArray(content)) return null
+        // Group by contact geometry, not by letter: geometry is what predicts
+        // behaviour, and pairs sharing it are the ones that should kern alike.
+        const groups = new Map()
+        for (const r of content) {
+          if (!groups.has(r.category)) groups.set(r.category, [])
+          groups.get(r.category).push(r)
+        }
+        const tune = (key, label, min, max, step) => (
+          <label key={key} className="kern-tune">
+            <span>{label}</span>
+            <input type="range" min={min} max={max} step={step} value={kernTune[key]}
+                   onChange={e => setKernTune(t => ({ ...t, [key]: parseFloat(e.target.value) }))} />
+            <b>{kernTune[key]}</b>
+          </label>
+        )
+        const dirty = JSON.stringify(kernTune) !== JSON.stringify(KERN_TUNE_DEFAULTS)
+        return (
+          <div className="kern-tab">
+            <div className="kern-controls">
+              {tune('tolerance', 'nearMinTolerance', 0, 200, 5)}
+              {tune('slack', 'maxSlackForBroadContact', 0, 150, 5)}
+              {tune('recessionWeight', 'recessionWeight', 0, 1.5, 0.05)}
+              {tune('giveFraction', 'maxGiveFraction', 0, 0.6, 0.01)}
+              <button className="kern-reset" disabled={!dirty}
+                      onClick={() => setKernTune(KERN_TUNE_DEFAULTS)}>
+                {dirty ? 'Reset to shipped values' : 'Shipped values'}
+              </button>
+            </div>
+            {[...groups.entries()].map(([cat, rows]) => {
+              const gaps = rows.map(r => r.gap).filter(g => !isNaN(g))
+              const lo = Math.min(...gaps), hi = Math.max(...gaps)
+              // A wide spread inside one geometry means pairs that ought to kern
+              // alike are not — the signal worth chasing.
+              const spread = gaps.length > 1 ? hi - lo : 0
+              return (
+                <div className="kern-group" key={cat}>
+                  <div className="kern-group-head">
+                    <span className="kern-cat">{cat}</span>
+                    <span className="kern-stat">{rows.length} pairs</span>
+                    {gaps.length > 1 && (
+                      <span className={`kern-stat ${spread > 25 ? 'wide' : ''}`}>
+                        gap {lo.toFixed(0)}–{hi.toFixed(0)} (spread {spread.toFixed(0)})
+                      </span>
+                    )}
+                  </div>
+                  <div className="kern-row">
+                    {rows.map(r => (
+                      <div className={`kern-cell ${r.kerned ? 'kerned' : 'unkerned'}`} key={r.pair}>
+                        <div className="kern-art" dangerouslySetInnerHTML={{ __html: r.svg }} />
+                        <div className="kern-label">{r.pair}</div>
+                        <div className="kern-nums">
+                          <span title="closest 2-D ink gap">{isNaN(r.gap) ? '–' : r.gap.toFixed(0)}</span>
+                          <span className="kern-k" title={r.kerned ? 'pairwise kern applied' : 'no kern: per-glyph spacing alone'}>
+                            {r.kerned ? (r.kern > 0 ? `+${r.kern}` : r.kern) : 'per-glyph'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )
       } else if (activeTab === 'glyphs') {
         if (typeof content !== 'string') return null
         const visibilityClasses = Object.entries(layerVisibility)
@@ -2022,6 +2103,7 @@ function App() {
             <button className={`tab-button ${activeTab === 'splineGrid' ? 'active' : ''}`} onClick={() => setTabWithUrl('splineGrid')}>Spline Grid</button>
             <button className={`tab-button ${activeTab === 'proofs' ? 'active' : ''}`} onClick={() => setTabWithUrl('proofs')}>Proofs</button>
             <button className={`tab-button ${activeTab === 'generate' ? 'active' : ''}`} onClick={() => setTabWithUrl('generate')}>Generate</button>
+            <button className={`tab-button ${activeTab === 'kerning' ? 'active' : ''}`} onClick={() => setTabWithUrl('kerning')}>Kerning</button>
           </div>
           {activeTab === 'font' && (
             <div className="toolbar">
@@ -2114,7 +2196,7 @@ function App() {
             <button
               className="text-reset-button"
               onClick={() => {
-                const defaults = { font: alphabetChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', splineGrid: '', proofs: proofTexts[proofCase], generate: 'dactyl' }
+                const defaults = { font: alphabetChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', splineGrid: '', proofs: proofTexts[proofCase], generate: 'dactyl', kerning: "HH nn ll ni  on op ol oi ob oh om or  oo oc od oe co eo  ta to tn ts  fo fj fl fi  To Ta Ty Yu Yo Vo Wo  AV VA AW WA AY  LT LI PA  rn rt ry  n' o. r, T. y." }
                 setText(defaults[activeTab])
               }}
               title="Reset Text to Default"

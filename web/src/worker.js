@@ -1,4 +1,4 @@
-import { generateSvg, generateSvgPerGlyph, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, controlDefinitions, solveSplineEditor, solveSplineGrid, solveAltSplines, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphDataPerGlyph, getSplineOutlinePath } from './lib/fable/Api'
+import { analyseKerning, generateSvg, generateSvgPerGlyph, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, controlDefinitions, solveSplineEditor, solveSplineGrid, solveAltSplines, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphDataPerGlyph, getSplineOutlinePath } from './lib/fable/Api'
 import { buildFontDataUrl } from './fontExport'
 import { generateGrowthSvg, generateGrowthField } from './growthSvg'
 import { generateBranchSvg } from './branchSvg'
@@ -115,6 +115,11 @@ self.onmessage = (e) => {
                 result = generateTextureSvg(txText, txAxes, txParams, (p) => {
                     self.postMessage({ id, type: 'progress', value: p });
                 })
+                break
+            }
+            case 'kernAnalysis': {
+                const [kAxes, kPairs, kTol, kSlack, kRec, kGive] = args
+                result = analyseKerning(kAxes, kPairs, kTol, kSlack, kRec, kGive)
                 break
             }
             // chars/axesList are the optional per-glyph random overrides; empty = uniform font

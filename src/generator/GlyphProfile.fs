@@ -214,10 +214,31 @@ let private recessionWeight = 0.5
 /// would go negative at tight settings.
 let private maxGiveFraction = 0.35
 
+/// The tunables above, bundled so callers can vary them without a rebuild.
+/// Production passes `KernParams.defaults`; the Kerning tab passes explored
+/// values, so the tab and the font are guaranteed to run the same code rather
+/// than a reimplementation that can drift.
+type KernParams =
+    { Target: float            // the `spacing` axis: gap between flat neighbours
+      Tolerance: float         // nearMinTolerance
+      Slack: float             // maxSlackForBroadContact
+      RecessionWeight: float
+      GiveFraction: float      // maxGiveFraction
+      RecessionDepth: float }  // maxRecessionDepth
+
+module KernParams =
+    let defaults (target: float) =
+        { Target = target
+          Tolerance = nearMinTolerance
+          Slack = maxSlackForBroadContact
+          RecessionWeight = recessionWeight
+          GiveFraction = maxGiveFraction
+          RecessionDepth = maxRecessionDepth }
+
 /// What one side actually gives up: its weighted recession, but never more
-/// than `maxGiveFraction` of the gap it is giving it up from.
-let private sideGive (target: float) (recession: float) =
-    min (recessionWeight * recession) (maxGiveFraction * target)
+/// than `GiveFraction` of the gap it is giving it up from.
+let private sideGive (kp: KernParams) (recession: float) =
+    min (kp.RecessionWeight * recession) (kp.GiveFraction * kp.Target)
 
 let private inkBands (p: GlyphProfile) =
     [| for i in 0 .. p.BandCount - 1 do
@@ -226,7 +247,7 @@ let private inkBands (p: GlyphProfile) =
 /// (leftmost ink x, rightmost ink x, mean left recession, mean right recession).
 /// Recessions are depth-limited means over bands carrying ink, measured back
 /// from that side's own extreme — 0 for a flat side, large for a receding one.
-let sideMetrics (p: GlyphProfile) : (float * float * float * float) option =
+let sideMetrics (kp: KernParams) (p: GlyphProfile) : (float * float * float * float) option =
     if not p.HasInk then None
     else
         let bands = inkBands p
@@ -234,17 +255,17 @@ let sideMetrics (p: GlyphProfile) : (float * float * float * float) option =
         else
             let inkLeft = bands |> Array.map (fun i -> p.LeftEdges.[i]) |> Array.min
             let inkRight = bands |> Array.map (fun i -> p.RightEdges.[i]) |> Array.max
-            let lRec = bands |> Array.averageBy (fun i -> min maxRecessionDepth (p.LeftEdges.[i] - inkLeft))
-            let rRec = bands |> Array.averageBy (fun i -> min maxRecessionDepth (inkRight - p.RightEdges.[i]))
+            let lRec = bands |> Array.averageBy (fun i -> min kp.RecessionDepth (p.LeftEdges.[i] - inkLeft))
+            let rRec = bands |> Array.averageBy (fun i -> min kp.RecessionDepth (inkRight - p.RightEdges.[i]))
             Some(inkLeft, inkRight, lRec, rRec)
 
 /// How far to move a glyph off its spine origin so its left sidebearing is
 /// optical rather than accidental: normalise the leftmost ink to x=0, then
 /// inset by the whitespace the left silhouette already provides.
-let opticalShift (target: float) (p: GlyphProfile) : float =
-    match sideMetrics p with
+let opticalShift (kp: KernParams) (p: GlyphProfile) : float =
+    match sideMetrics kp p with
     | None -> 0.0
-    | Some(inkLeft, _, lRec, _) -> -inkLeft - sideGive target lRec
+    | Some(inkLeft, _, lRec, _) -> -inkLeft - sideGive kp lRec
 
 /// Advance width for a glyph spaced optically on both sides, so that a pair of
 /// them placed by advance alone leaves this much *perceived* white:
@@ -254,11 +275,11 @@ let opticalShift (target: float) (p: GlyphProfile) : float =
 /// sit exactly `target` apart, and that is also what the pairwise model wants
 /// for them, so they need no kern at all. Receding sides then give some back,
 /// which is the optical idea.
-let opticalAdvance (target: float) (p: GlyphProfile) : float option =
-    match sideMetrics p with
+let opticalAdvance (kp: KernParams) (p: GlyphProfile) : float option =
+    match sideMetrics kp p with
     | None -> None
     | Some(inkLeft, inkRight, lRec, rRec) ->
-        Some((inkRight - inkLeft) + target - sideGive target lRec - sideGive target rRec)
+        Some((inkRight - inkLeft) + kp.Target - sideGive kp lRec - sideGive kp rRec)
 
 /// Optical kern between two glyphs.
 /// Caller passes the advance of the left glyph; we shift the right glyph by
@@ -297,7 +318,7 @@ let opticalAdvance (target: float) (p: GlyphProfile) : float option =
 /// optical shift — the placement that puts the closest band-wise gap at the
 /// effective target. Independent of A's advance width by construction, which
 /// is exactly why the advance has to be subtracted back off by the caller.
-let private desiredOffset (target: float) (a: GlyphProfile) (b: GlyphProfile) : float option =
+let private desiredOffset (kp: KernParams) (a: GlyphProfile) (b: GlyphProfile) : float option =
     if not a.HasInk || not b.HasInk || a.BandCount <> b.BandCount then None
     else
         let gaps =
@@ -309,14 +330,14 @@ let private desiredOffset (target: float) (a: GlyphProfile) (b: GlyphProfile) : 
         if gaps.Length = 0 then None
         else
             let deltaMin = Array.min gaps
-            let nearMinCount = gaps |> Array.filter (fun g -> g <= deltaMin + nearMinTolerance) |> Array.length
+            let nearMinCount = gaps |> Array.filter (fun g -> g <= deltaMin + kp.Tolerance) |> Array.length
             let fractionNearMin = float nearMinCount / float gaps.Length
             // Anchored at the FLAT end: a broad parallel contact gets the bare
             // `target`, and room is taken *away* as contact narrows to a point.
             // Anchoring at the point end instead made `spacing` mean the gap for
             // a tangent pair, so a flat pair sat at spacing+slack — i.e. the axis
             // meant something different here than on the fixed-spacing path.
-            let effectiveTarget = target - maxSlackForBroadContact * (1.0 - fractionNearMin)
+            let effectiveTarget = kp.Target - kp.Slack * (1.0 - fractionNearMin)
 
             // Place so the closest approach measured as a true 2-D distance sits
             // at effectiveTarget, not merely the closest *horizontal* one.
@@ -361,8 +382,8 @@ let private desiredOffset (target: float) (a: GlyphProfile) (b: GlyphProfile) : 
 /// target instead, the kern only covers real shape variation.
 let private clipKern (raw: float) = int (System.Math.Round(max -250.0 (min 150.0 raw)))
 
-let pairKern (target: float) (advanceA: float) (a: GlyphProfile) (b: GlyphProfile) : int =
-    match desiredOffset target a b with
+let pairKern (kp: KernParams) (advanceA: float) (a: GlyphProfile) (b: GlyphProfile) : int =
+    match desiredOffset kp a b with
     | None -> 0
     | Some desired -> clipKern (desired - advanceA)
 
@@ -375,9 +396,9 @@ let pairKern (target: float) (advanceA: float) (a: GlyphProfile) (b: GlyphProfil
 /// per-glyph spacing is supposed to leave most pairs needing nothing, and a
 /// kern of a couple of units is below what anyone can see but still costs a
 /// table entry in every exported font.
-let residualKern (target: float) (advanceA: float) (shiftA: float) (shiftB: float)
+let residualKern (kp: KernParams) (advanceA: float) (shiftA: float) (shiftB: float)
                  (threshold: float) (a: GlyphProfile) (b: GlyphProfile) : int =
-    match desiredOffset target a b with
+    match desiredOffset kp a b with
     | None -> 0
     | Some desired ->
         let raw = desired + shiftA - shiftB - advanceA

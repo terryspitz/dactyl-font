@@ -2389,11 +2389,15 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     /// wants every advance identical — the exact opposite of spacing each glyph
     /// to its own shape. Glyphs with no ink (space) have no silhouette to
     /// measure and always fall back.
+    /// Tunables for optical spacing/kerning. Production uses the defaults;
+    /// the Kerning tab varies them so it exercises this same code path.
+    member this.kernParams = GlyphProfile.KernParams.defaults (float axes.spacing)
+
     member this.charWidth ch =
         let naive = this.width (Glyph(ch))
         if not axes.useOpticalSpacing then naive
         else
-            match GlyphProfile.opticalAdvance (float axes.spacing) (this.glyphProfile ch) with
+            match GlyphProfile.opticalAdvance this.kernParams (this.glyphProfile ch) with
             | None -> naive
             | Some optical -> (1.0 - axes.monospace) * optical + axes.monospace * naive
 
@@ -2406,7 +2410,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
     /// exists to catch.
     member this.glyphShift(ch: char) : float =
         if not axes.useOpticalSpacing then 0.0
-        else (1.0 - axes.monospace) * GlyphProfile.opticalShift (float axes.spacing) (this.glyphProfile ch)
+        else (1.0 - axes.monospace) * GlyphProfile.opticalShift this.kernParams (this.glyphProfile ch)
 
     member this.charWidths str =
         Seq.map this.charWidth str |> List.ofSeq
@@ -2454,7 +2458,7 @@ type Font(axes: Axes, ?showCombOpt: bool) =
         if not axes.usePairKerning then 0
         else
             GlyphProfile.residualKern
-                (float axes.spacing)
+                this.kernParams
                 (this.charWidth a)
                 (this.glyphShift a)
                 (this.glyphShift b)
