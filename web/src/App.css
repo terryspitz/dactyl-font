@@ -1220,6 +1220,99 @@
 }
 .kern-reset:disabled { opacity: 0.45; cursor: default; }
 
+/* Hover help on each slider. The bubble is absolutely positioned and the
+   sticky .kern-controls has no overflow clip, so it escapes the bar. */
+.kern-help {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    margin-left: -4px;
+    border-radius: 50%;
+    border: 1px solid #b4b4b4;
+    background: #fff;
+    color: #666;
+    font-size: 9px;
+    font-weight: 700;
+    cursor: help;
+    flex: none;
+}
+.kern-help:hover, .kern-help:focus-visible { border-color: var(--accent-color); color: var(--accent-color); }
+.kern-tip {
+    position: absolute;
+    top: calc(100% + 7px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 310px;
+    padding: 9px 11px;
+    background: #22252b;
+    color: #f0f0f0;
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.45;
+    text-align: left;
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.12s ease;
+    z-index: 20;
+    pointer-events: none;
+}
+.kern-help:hover .kern-tip, .kern-help:focus-visible .kern-tip { opacity: 1; visibility: visible; }
+/* Only the leftmost needs nudging: .kern-controls reserves 210px on the right
+   for the zoom toolbar, which is wider than the bubble's 155px half, so a
+   centred bubble can never run off the right edge however the row wraps. */
+.kern-tune:first-child .kern-tip { left: 0; transform: none; }
+
+/* ---- Key ---- */
+.kern-key {
+    display: flex;
+    gap: 18px;
+    align-items: flex-start;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    background: #fafafa;
+    border: 1px solid #e4e4e4;
+    border-radius: var(--radius-md);
+}
+.kern-key-demo { display: flex; gap: 8px; flex: none; }
+/* The demo cells are label+numbers only — no .kern-art — so they need their
+   own top padding to read as cells rather than as clipped ones. */
+.kern-key-demo .kern-cell { width: 88px; padding-top: 8px; }
+.kern-key-list {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 4px 12px;
+    margin: 0;
+    font-size: 0.72em;
+    line-height: 1.5;
+    color: #555;
+    /* The preview area centres its content; this is prose and must not be. */
+    text-align: left;
+}
+.kern-key-list dt {
+    font-weight: 600;
+    color: #111;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.kern-key-list dd { margin: 0; }
+.kern-key-list code {
+    font-size: 0.94em;
+    background: #ececec;
+    border-radius: 2px;
+    padding: 0 3px;
+    color: #333;
+}
+.kern-swatch { width: 4px; height: 13px; border-radius: 1px; display: inline-block; flex: none; }
+.kern-swatch.kerned { background: var(--accent-color); }
+.kern-swatch.unkerned { background: #c8c8c8; }
+
 .kern-group { margin-bottom: 16px; }
 .kern-group-head {
     display: flex;

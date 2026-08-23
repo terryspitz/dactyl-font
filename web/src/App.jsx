@@ -270,6 +270,26 @@ function App() {
   // a value without a rebuild. Deliberately NOT axes: they are being explored,
   // not designed with, and making them axes would churn every snapshot.
   const KERN_TUNE_DEFAULTS = { tolerance: 60, slack: 60, recessionWeight: 0.5, giveFraction: 0.35 }
+  // Hover help. Each says what the number means, which pairs it can move, and
+  // which way — the "which pairs" part matters most, since a slider that owns
+  // the other mechanism looks broken rather than inapplicable.
+  const KERN_TUNE_HELP = {
+    tolerance: 'How close a band’s gap must be to the pair’s tightest point to count as part of the same contact. '
+      + 'High: more of the facing edge counts, so a gradual curve-into-curve approach (f|o, Y|u) reads as a broad '
+      + 'contact and earns room. Low: only the single tangent point counts, so those pairs tuck in like f|j. '
+      + 'Moves kerned pairs only.',
+    slack: 'How much tighter a single-point contact may sit than a flat pair. The gap aimed at is '
+      + 'target − slack × (1 − fraction near the minimum), so a broad parallel contact gets the full spacing '
+      + 'target and a pure point tangent gets up to this much less. 0 aims every contact at the same gap. '
+      + 'Moves kerned pairs only.',
+    recessionWeight: 'How much of a glyph side’s own concavity is charged against its sidebearing, narrowing its '
+      + 'advance width. This is the per-glyph mechanism, so it moves unkerned pairs (o|p, o|n) — raise it to tighten '
+      + 'everything a receding side touches. Kerned pairs barely budge: the kern re-solves to the same target and '
+      + 'absorbs the change.',
+    giveFraction: 'Ceiling on what one side may give away, as a fraction of the target gap — the collision floor. '
+      + 'Uncapped, two heavily-receding sides (T, I, L) subtract more than the whole gap between them and the ink '
+      + 'overlaps. At 0.35 the worst case still keeps 1 − 2×0.35 = 30% of the target clear. Lower is safer and looser.',
+  }
   const [kernTune, setKernTune] = useState(KERN_TUNE_DEFAULTS)
 
   const [splineGridCopied, setSplineGridCopied] = useState(false)
@@ -1560,6 +1580,11 @@ function App() {
         const tune = (key, label, min, max, step) => (
           <label key={key} className="kern-tune">
             <span>{label}</span>
+            {/* title= as well as the styled bubble, so the help is still
+                reachable for anyone the hover bubble doesn't reach. */}
+            <span className="kern-help" tabIndex={0} title={KERN_TUNE_HELP[key]}>
+              ?<span className="kern-tip" role="tooltip">{KERN_TUNE_HELP[key]}</span>
+            </span>
             <input type="range" min={min} max={max} step={step} value={kernTune[key]}
                    onChange={e => setKernTune(t => ({ ...t, [key]: parseFloat(e.target.value) }))} />
             <b>{kernTune[key]}</b>
@@ -1578,6 +1603,36 @@ function App() {
                 {dirty ? 'Reset to shipped values' : 'Shipped values'}
               </button>
             </div>
+            {/* Key. The mini cell carries the same markup as a real one, so the
+                two numbers sit where they sit on the grid and the mapping needs
+                no arrows to explain it. */}
+            <div className="kern-key">
+              <div className="kern-key-demo">
+                <div className="kern-cell kerned">
+                  <div className="kern-label">To</div>
+                  <div className="kern-nums"><span>72</span><span className="kern-k">−86</span></div>
+                </div>
+                <div className="kern-cell unkerned">
+                  <div className="kern-label">on</div>
+                  <div className="kern-nums"><span>79</span><span className="kern-k">per-glyph</span></div>
+                </div>
+              </div>
+              <dl className="kern-key-list">
+                <dt>left</dt>
+                <dd>Closest gap between the two glyphs’ ink, in font units, measured in 2-D across the whole
+                    facing edge — what the eye reads as tight or loose. Compare it against the
+                    <code> spacing </code> axis ({axes.spacing}), which is the gap a flat pair like H|H gets.</dd>
+                <dt>right</dt>
+                <dd>The pairwise kern applied on top of the two advance widths. <em>per-glyph</em> means no kern
+                    is emitted at all: the spacing comes entirely from the glyphs’ own optical sidebearings.</dd>
+                <dt><span className="kern-swatch kerned" /> kerned</dt>
+                <dd>A kern moves this pair, so <code>nearMinTolerance</code> and <code>maxSlackForBroadContact</code>
+                    steer it. <code>recessionWeight</code> will not: the kern re-solves to the same target.</dd>
+                <dt><span className="kern-swatch unkerned" /> per-glyph</dt>
+                <dd>The reverse — sidebearings own this pair outright, so only <code>recessionWeight</code> and
+                    <code> maxGiveFraction</code> can move it. This is why o|p and o|n resist tolerance tuning.</dd>
+              </dl>
+            </div>
             {[...groups.entries()].map(([cat, rows]) => {
               const gaps = rows.map(r => r.gap).filter(g => !isNaN(g))
               const lo = Math.min(...gaps), hi = Math.max(...gaps)
@@ -1588,7 +1643,7 @@ function App() {
                 <div className="kern-group" key={cat}>
                   <div className="kern-group-head">
                     <span className="kern-cat">{cat}</span>
-                    <span className="kern-stat">{rows.length} pairs</span>
+                    <span className="kern-stat">{rows.length} {rows.length === 1 ? 'pair' : 'pairs'}</span>
                     {gaps.length > 1 && (
                       <span className={`kern-stat ${spread > 25 ? 'wide' : ''}`}>
                         gap {lo.toFixed(0)}–{hi.toFixed(0)} (spread {spread.toFixed(0)})
