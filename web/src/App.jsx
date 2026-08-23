@@ -2005,6 +2005,17 @@ function App() {
               <h3 style={{ margin: 0 }}>
                 Glyph Definitions
                 <span ref={glyphKeyRef} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    title="Rebuild definitions from the characters in the text box"
+                    onClick={() => {
+                      setGlyphsDefsText(getGlyphDefs(text || 'a', cursiveUsesAlt(axes.cursive, axes.slant)))
+                      setRandomPreviewSvg(null)
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>restart_alt</span>
+                  </button>
                   <a
                     className="icon-button"
                     href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
