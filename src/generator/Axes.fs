@@ -60,6 +60,7 @@ type Axes =
       clip_rect: bool //clip each glyph to it's bounding rect (helps with degenerate curves)
       flatness: float //weight of flatness (abs m) in objective function
       end_flatness: float //quadratic curvature-span weight for open-curve endpoint segments (higher = more circular arc at stroke tips)
+      opticalKerning: float //0=fixed spacing, 0.5=optical sidebearings only, 1=sidebearings + pair kerning
       debug: bool } //show debug info in console
 
     static member DefaultAxes =
@@ -75,7 +76,7 @@ type Axes =
           softness = 0.0
           overshoot = 10
           balance = 15
-          spacing = 40
+          spacing = 100
           leading = 50
           monospace = 0.0
           slant = 0.0
@@ -112,6 +113,7 @@ type Axes =
           clip_rect = true
           flatness = 0.5
           end_flatness = 10.0
+          opticalKerning = 1.0
           debug = false }
 
     static member controls =
@@ -119,7 +121,7 @@ type Axes =
           "height", Range(100, 1000), "backbone", "Capital height"
           "x_height", FracRange(0.2, 1.1), "backbone", "Height of lower case as a fraction of capitals"
           "descender_depth", FracRange(0.2, 1.0), "backbone", "Depth of descenders below the baseline, as a fraction of capital height"
-          "spacing", Range(0, 200), "backbone", "Gap between glyphs"
+          "spacing", Range(0, 200), "backbone", "Gap between glyphs, in glyph units: the space left between two flat-sided neighbours (H|H). Shapes that recede from their edge close some of it back up."
           "leading", Range(-100, 200), "backbone", "Gap between lines"
           "monospace", FracRange(0.0, 1.0), "backbone", "Fraction to interpolate widths to monospace"
           "slant", FracRange(0.0, 1.0), "backbone", "Fraction to shear glyphs"
@@ -127,6 +129,7 @@ type Axes =
           "roundedness", Range(0, 100), "backbone", "Roundedness"
           "overshoot", Range(0, 50), "backbone", "Optical correction: round and pointed extremes (O, S, o, A, V, W) extend this far past the flat cap/x/baseline guides, so they don't look shorter than flat letters (T, H)"
           "balance", Range(0, 60), "backbone", "Optical correction: raise the mid height (crossbars and waists of H, E, B, S, e) this far above the geometric half, so letters don't look bottom-heavy"
+          "opticalKerning", SteppedFracRange(0.0, 1.0, 0.5), "backbone", "How much spacing is derived from the sampled outlines: 0=Fixed (plain advance-width padding), 0.5=Sidebearings (per-glyph optical advances), 1=Kerned (adds residual pair kerns on top)"
           "weight", Range(1, 200), "pen", "Stroke width"
           "contrast", FracRange(-0.5, 0.5), "pen", "Make vertical lines thicker"
           "nib", FracRange(0.0, 1.0), "pen", "Broad-nib pen: stroke width follows stroke direction (0=off, 1=full nib effect)"
@@ -239,6 +242,20 @@ type Axes =
 
     /// Whether this axis set selects the two-storey Roman ("alt") a/g shapes.
     member this.useCursiveAlt = Axes.cursiveUsesAlt this.cursive this.slant
+
+    /// `opticalKerning` is a three-stop axis over the two layers spacing is
+    /// built from, so each can be seen (and costed) on its own:
+    ///   0.0  Fixed        — plain spine extent + spacing + sidebearing padding
+    ///   0.5  Sidebearings — advances measured from each glyph's own silhouette
+    ///   1.0  Kerned       — plus the residual pair kerns the per-glyph pass
+    ///                       structurally can't cover (diagonals, overhangs)
+    /// Bucketed by threshold rather than interpolated: partway between "measure
+    /// the outline" and "don't" isn't a meaningful font.
+    member this.useOpticalSpacing = this.opticalKerning >= 0.25
+
+    /// True only at the top stop — pair kerning sits on top of optical
+    /// sidebearings, never instead of them.
+    member this.usePairKerning = this.opticalKerning >= 0.75
 
     /// True when an artistic axis that varies stroke width (or displaces the spine)
     /// along the stroke is active; these require the arc-length sampled outline path.

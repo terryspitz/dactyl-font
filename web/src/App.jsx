@@ -7,7 +7,7 @@ import { downloadBlob, svgBlob, svgToPngBlob, growFilenameBase, filenameBase } f
 import { LAYER_COLORS } from './growth'
 import { DEFAULT_BRANCH_COLOR } from './branching'
 import { RD_PRESET_NAMES, DEFAULT_CIRCUIT_TRACE_COLOR, DEFAULT_CIRCUIT_PAD_COLOR } from './texture'
-import { downloadFont, buildFontDataUrl } from './fontExport'
+import { downloadFont, buildFontDataUrl, getOverriddenAxes } from './fontExport'
 import ImageExportButtons, { useDownloadMenu } from './ImageExportButtons'
 import { buildSplineGridSvg } from './splineGridSvg'
 import { buildTweensSvg } from './tweensSvg'
@@ -95,6 +95,12 @@ function getDiffAxes(axes, diffConfig) {
   }
 }
 
+/** Format one axis value for the Compare-spacing overrides summary. */
+function formatAxisValue(val) {
+  if (typeof val === 'boolean') return val ? 'on' : 'off'
+  return Number(val.toFixed(2))
+}
+
 function App() {
   const [tabTexts, setTabTexts] = useState(() => {
     const savedGlyphs = localStorage.getItem('glyphText') || localStorage.getItem('splineText')
@@ -106,6 +112,7 @@ function App() {
       visualDiffs: allChars,
       splines: '',
       splineGrid: '',
+      kerning: "HH nn ll ni  on op ol oi ob oh om or  oo oc od oe co eo  ta to tn ts  fo fj fl fi  To Ta Ty Yu Yo Vo Wo  AV VA AW WA AY  LT LI PA  rn rt ry  n' o. r, T. y.",
       proofs: proofTexts.lowercase,
       generate: 'dactyl'
     }
@@ -170,7 +177,7 @@ function App() {
     // so default the tweens tab to a smaller zoom there to fit more variations.
     const isMobileWidth = window.innerWidth <= 768
     const tweensZoom = isNaN(urlZoom) && isMobileWidth ? 0.5 : zoom
-    return { font: zoom, glyphs: zoom, tweens: tweensZoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom, generate: zoom }
+    return { font: zoom, glyphs: zoom, tweens: tweensZoom, visualDiffs: zoom, splines: zoom, splineGrid: zoom, proofs: zoom, generate: zoom, kerning: zoom }
   })
   const [layerVisibility, setLayerVisibility] = useState({
     spiro: false,
@@ -258,6 +265,33 @@ function App() {
   // SVG cells, not one clean vector document, so this rasterises the live DOM
   // (see domCapture.js) rather than trying to reconstruct it as pure SVG.
   const [savingSplineGridImage, setSavingSplineGridImage] = useState(false)
+  // Kerning tab tunables. Defaults mirror the constants in GlyphProfile.fs, so
+  // an untouched tab reproduces the real font exactly; moving a slider explores
+  // a value without a rebuild. Deliberately NOT axes: they are being explored,
+  // not designed with, and making them axes would churn every snapshot.
+  const KERN_TUNE_DEFAULTS = { tolerance: 60, slack: 60, recessionWeight: 0.5, giveFraction: 0.35 }
+  // Hover help. Each says what the number means, which pairs it can move, and
+  // which way — the "which pairs" part matters most, since a slider that owns
+  // the other mechanism looks broken rather than inapplicable.
+  const KERN_TUNE_HELP = {
+    tolerance: 'How close a band’s gap must be to the pair’s tightest point to count as part of the same contact. '
+      + 'High: more of the facing edge counts, so a gradual curve-into-curve approach (f|o, Y|u) reads as a broad '
+      + 'contact and earns room. Low: only the single tangent point counts, so those pairs tuck in like f|j. '
+      + 'Moves kerned pairs only.',
+    slack: 'How much tighter a single-point contact may sit than a flat pair. The gap aimed at is '
+      + 'target − slack × (1 − fraction near the minimum), so a broad parallel contact gets the full spacing '
+      + 'target and a pure point tangent gets up to this much less. 0 aims every contact at the same gap. '
+      + 'Moves kerned pairs only.',
+    recessionWeight: 'How much of a glyph side’s own concavity is charged against its sidebearing, narrowing its '
+      + 'advance width. This is the per-glyph mechanism, so it moves unkerned pairs (o|p, o|n) — raise it to tighten '
+      + 'everything a receding side touches. Kerned pairs barely budge: the kern re-solves to the same target and '
+      + 'absorbs the change.',
+    giveFraction: 'Ceiling on what one side may give away, as a fraction of the target gap — the collision floor. '
+      + 'Uncapped, two heavily-receding sides (T, I, L) subtract more than the whole gap between them and the ink '
+      + 'overlaps. At 0.35 the worst case still keeps 1 − 2×0.35 = 30% of the target clear. Lower is safer and looser.',
+  }
+  const [kernTune, setKernTune] = useState(KERN_TUNE_DEFAULTS)
+
   const [splineGridCopied, setSplineGridCopied] = useState(false)
   const [splineGridMenuOpen, setSplineGridMenuOpen, splineGridMenuRef] = useDownloadMenu()
   // Tweens tab image export — workerResult already holds the row data
@@ -293,7 +327,7 @@ function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     let view = params.get('view')
-    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines', 'splineGrid', 'proofs', 'generate'].includes(view)) {
+    if (view && ['font', 'glyphs', 'tweens', 'visualDiffs', 'splines', 'splineGrid', 'proofs', 'generate', 'kerning'].includes(view)) {
       setActiveTab(view)
     }
     const p = params.get('proof')
@@ -329,6 +363,14 @@ function App() {
     const url = new URL(window.location)
     url.searchParams.set('proof', pcase)
     window.history.pushState({}, '', url)
+  }
+
+  const setCompareSpacingWithUrl = (on) => {
+    setCompareSpacing(on)
+    const url = new URL(window.location)
+    if (on) url.searchParams.set('compareSpacing', '1')
+    else url.searchParams.delete('compareSpacing')
+    window.history.replaceState({}, '', url)
   }
 
   const setDiffConfigWithUrl = (cfg) => {
@@ -575,6 +617,28 @@ function App() {
 
   const [downloadingFont, setDownloadingFont] = useState(false)
   const [proofFontUrl, setProofFontUrl] = useState(null)
+  // Proofs tab "Compare spacing" mode: stacks the proof text rendered with
+  // the default axes above the same text with the current settings, so any
+  // difference between the two is whatever's been changed on the left.
+  const [compareSpacing, setCompareSpacing] = useState(
+    () => new URLSearchParams(window.location.search).get('compareSpacing') === '1'
+  )
+  // The two compare panels scroll independently but are kept in lockstep
+  // (see syncCompareScroll) so the same line of text stays aligned in both
+  // while scrolling through a long proof. isSyncingScrollRef guards against
+  // the programmatic scrollTop assignment re-triggering this same handler.
+  const defaultTextRef = useRef(null)
+  const currentTextRef = useRef(null)
+  const isSyncingScrollRef = useRef(false)
+  const syncCompareScroll = useCallback((targetRef) => (e) => {
+    if (isSyncingScrollRef.current) return
+    const target = targetRef.current
+    if (!target) return
+    isSyncingScrollRef.current = true
+    target.scrollTop = e.currentTarget.scrollTop
+    requestAnimationFrame(() => { isSyncingScrollRef.current = false })
+  }, [])
+  const [baselineGlyphData, setBaselineGlyphData] = useState(null)
   const [classicBook, setClassicBook] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('proof') !== 'classic') return null
@@ -939,6 +1003,11 @@ function App() {
   }
 
   const renderIdRef = useRef(0)
+  // Separate counter for the "Compare spacing" baseline fetch — it runs
+  // concurrently with the main proofs fontPreview effect, which uses
+  // renderIdRef to discard stale responses. Sharing the counter would bump
+  // it out from under that effect's in-flight request and drop its result.
+  const baselineRenderIdRef = useRef(0)
   const loadingRef = useRef(false)
   const previewRef = useRef(null)
   const activeTabRef = useRef(activeTab)
@@ -1029,6 +1098,13 @@ function App() {
         typeReq = 'font'
         args = [text, axes, false]
       }
+    } else if (activeTab === 'kerning') {
+      const pairs = text.split(/\s+/).filter(p => p.length >= 2).map(p => p.slice(0, 2))
+      if (pairs.length === 0) {
+        setWorkerResult(null); setLoading(false); clearTimeout(timer); worker.terminate(); return
+      }
+      typeReq = 'kernAnalysis'
+      args = [axes, pairs, kernTune.tolerance, kernTune.slack, kernTune.recessionWeight, kernTune.giveFraction]
     } else if (activeTab === 'glyphs') {
       typeReq = 'glyphsFromDefs'
       args = [glyphsDefsText, { ...axes, filled: glyphsFilled }]
@@ -1108,7 +1184,7 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
     }
-  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, generateMode, growParams, branchParams, textureParams, fastPreview, perGlyphTextAxes])
+  }, [text, axes, activeTab, glyphsDefsText, glyphsFilled, diffConfig, compareMode, generateMode, growParams, branchParams, textureParams, fastPreview, perGlyphTextAxes, kernTune])
 
   // Dedicated effect for proofs tab: generates full font and builds a data URL.
   // Deps are [axes, activeTab] only — switching proof text doesn't re-trigger.
@@ -1126,9 +1202,19 @@ function App() {
       if (id === renderIdRef.current && loadingRef.current) setShowProgress(true)
     }, 300)
 
+    setProgressValue(0)
+
     worker.onmessage = (e) => {
-      const { id: msgId, result, error } = e.data
+      const { id: msgId, result, error, type, value } = e.data
       if (msgId !== renderIdRef.current) return
+      // Must come before the result handling: a progress message carries no
+      // `result`, so falling through would blank proofFontUrl and drop the font
+      // back to the monospace fallback mid-render.
+      if (type === 'progress') {
+        setProgressValue(value)
+        if (value > 0) setShowProgress(true)
+        return
+      }
       clearTimeout(timer)
       if (error) { setError(error) }
       else { setProofFontUrl(result); setError(null) }
@@ -1144,6 +1230,27 @@ function App() {
       worker.terminate()
     }
   }, [axes, activeTab, perGlyphFontAxes])
+
+  // Compare-spacing baseline: fetch glyph data for the untouched default
+  // axes, so "Compare spacing" can stack a default-axes render above the
+  // live one — comparing whatever the user has changed on the left against
+  // a fixed reference rather than against a moving "no kerning" target.
+  // Default axes never change, so this only needs to run once per tab/toggle
+  // activation, not on every axes edit. Only runs while the toggle is on to
+  // avoid the extra font build otherwise.
+  useEffect(() => {
+    if (activeTab !== 'proofs' || !compareSpacing) return
+
+    const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+    worker.onmessage = (e) => {
+      const { result, error, type } = e.data
+      if (type === 'progress') return
+      worker.terminate()
+      if (!error) setBaselineGlyphData(result)
+    }
+    worker.postMessage({ id: ++baselineRenderIdRef.current, type: 'fontData', args: [defaultAxes] })
+    return () => worker.terminate()
+  }, [activeTab, compareSpacing])
 
   // Dedicated effect for the Bubble mode GPU path: rebuild the growth field
   // when text/axes/growScale change (growScale sizes the field's padding, so
@@ -1203,6 +1310,36 @@ function App() {
     }
     el.textContent = `@font-face { font-family: 'DactylPreview'; src: url('${proofFontUrl}') format('opentype'); }`
   }, [proofFontUrl])
+
+  // Build the default-axes baseline @font-face from the fetched glyph data.
+  const baselineFontUrl = useMemo(() => {
+    if (!compareSpacing || !baselineGlyphData) return null
+    try {
+      return buildFontDataUrl(baselineGlyphData, 'DactylBaseline')
+    } catch (err) {
+      console.error('Failed to build baseline comparison font:', err)
+      return null
+    }
+  }, [compareSpacing, baselineGlyphData])
+
+  useEffect(() => {
+    if (!baselineFontUrl) return
+    let el = document.getElementById('dactyl-baseline-font')
+    if (!el) {
+      el = document.createElement('style')
+      el.id = 'dactyl-baseline-font'
+      document.head.appendChild(el)
+    }
+    el.textContent = `@font-face { font-family: 'DactylBaseline'; src: url('${baselineFontUrl}') format('opentype'); }`
+  }, [baselineFontUrl])
+
+  // Axes the user has changed from the defaults, for the Compare-spacing
+  // panel's "what changed" summary — recomputed only when compareSpacing is
+  // on, since it's otherwise unused.
+  const overriddenAxes = useMemo(() => {
+    if (!compareSpacing) return []
+    return getOverriddenAxes(axes, defaultAxes)
+  }, [compareSpacing, axes])
 
   // Compare-font mode: fetch Dactyl's outlines for the current axes once per
   // axes change. Used to build the vector overlay and (for text-mode sources)
@@ -1347,19 +1484,63 @@ function App() {
 
     // Proofs tab uses CSS font rendering — bypass SVG result check
     if (activeTab === 'proofs') {
+      const proofStyle = (fontFamily) => ({
+        fontFamily,
+        fontSize: `${18 * zoom}pt`,
+        lineHeight: 1.4,
+        whiteSpace: 'pre-wrap',
+        textAlign: 'left',
+        padding: '20px',
+        color: '#000',
+      })
+
+      if (compareSpacing) {
+        return (
+          <div className="proof-compare">
+            <div className="proof-compare-panel">
+              <div className="proof-compare-label">Default axes</div>
+              <div
+                ref={defaultTextRef}
+                onScroll={syncCompareScroll(currentTextRef)}
+                className="proof-text"
+                style={proofStyle(baselineFontUrl ? "'DactylBaseline', monospace" : 'monospace')}
+              >
+                {text}
+              </div>
+            </div>
+            <div className="proof-compare-panel">
+              <div className="proof-compare-label">
+                Current settings
+                {overriddenAxes.length > 0 && (
+                  <span className="proof-compare-overrides">
+                    {overriddenAxes.map(([key, val]) => (
+                      <span key={key} className="proof-compare-override">
+                        {key}: {formatAxisValue(defaultAxes[key])} &rarr; {formatAxisValue(val)}
+                      </span>
+                    ))}
+                  </span>
+                )}
+                {overriddenAxes.length === 0 && (
+                  <span className="proof-compare-overrides proof-compare-no-changes">
+                    No settings changes. Make changes to settings on the left.
+                  </span>
+                )}
+              </div>
+              <div
+                ref={currentTextRef}
+                onScroll={syncCompareScroll(defaultTextRef)}
+                className="proof-text"
+                style={proofStyle(proofFontUrl ? "'DactylPreview', monospace" : 'monospace')}
+              >
+                {text}
+              </div>
+            </div>
+          </div>
+        )
+      }
+
       return (
-        <div
-          className="proof-text"
-          style={{
-            fontFamily: proofFontUrl ? "'DactylPreview', monospace" : 'monospace',
-            fontSize: `${18 * zoom}pt`,
-            lineHeight: 1.4,
-            whiteSpace: 'pre-wrap',
-            textAlign: 'left',
-            padding: '20px',
-            color: '#000',
-          }}
-        >
+        <div className="proof-text" style={proofStyle(proofFontUrl ? "'DactylPreview', monospace" : 'monospace')}>
           {text}
         </div>
       )
@@ -1387,6 +1568,107 @@ function App() {
           className="svg-container"
           dangerouslySetInnerHTML={{ __html: content }}
         />
+      } else if (activeTab === 'kerning') {
+        if (!Array.isArray(content)) return null
+        // Group by contact geometry, not by letter: geometry is what predicts
+        // behaviour, and pairs sharing it are the ones that should kern alike.
+        const groups = new Map()
+        for (const r of content) {
+          if (!groups.has(r.category)) groups.set(r.category, [])
+          groups.get(r.category).push(r)
+        }
+        const tune = (key, label, min, max, step) => (
+          <label key={key} className="kern-tune">
+            <span>{label}</span>
+            {/* title= as well as the styled bubble, so the help is still
+                reachable for anyone the hover bubble doesn't reach. */}
+            <span className="kern-help" tabIndex={0} title={KERN_TUNE_HELP[key]}>
+              ?<span className="kern-tip" role="tooltip">{KERN_TUNE_HELP[key]}</span>
+            </span>
+            <input type="range" min={min} max={max} step={step} value={kernTune[key]}
+                   onChange={e => setKernTune(t => ({ ...t, [key]: parseFloat(e.target.value) }))} />
+            <b>{kernTune[key]}</b>
+          </label>
+        )
+        const dirty = JSON.stringify(kernTune) !== JSON.stringify(KERN_TUNE_DEFAULTS)
+        return (
+          <div className="kern-tab">
+            <div className="kern-controls">
+              {tune('tolerance', 'nearMinTolerance', 0, 200, 5)}
+              {tune('slack', 'maxSlackForBroadContact', 0, 150, 5)}
+              {tune('recessionWeight', 'recessionWeight', 0, 1.5, 0.05)}
+              {tune('giveFraction', 'maxGiveFraction', 0, 0.6, 0.01)}
+              <button className="kern-reset" disabled={!dirty}
+                      onClick={() => setKernTune(KERN_TUNE_DEFAULTS)}>
+                {dirty ? 'Reset to shipped values' : 'Shipped values'}
+              </button>
+            </div>
+            {/* Key. The mini cell carries the same markup as a real one, so the
+                two numbers sit where they sit on the grid and the mapping needs
+                no arrows to explain it. */}
+            <div className="kern-key">
+              <div className="kern-key-demo">
+                <div className="kern-cell kerned">
+                  <div className="kern-label">To</div>
+                  <div className="kern-nums"><span>72</span><span className="kern-k">−86</span></div>
+                </div>
+                <div className="kern-cell unkerned">
+                  <div className="kern-label">on</div>
+                  <div className="kern-nums"><span>79</span><span className="kern-k">per-glyph</span></div>
+                </div>
+              </div>
+              <dl className="kern-key-list">
+                <dt>left</dt>
+                <dd>Closest gap between the two glyphs’ ink, in font units, measured in 2-D across the whole
+                    facing edge — what the eye reads as tight or loose. Compare it against the
+                    <code> spacing </code> axis ({axes.spacing}), which is the gap a flat pair like H|H gets.</dd>
+                <dt>right</dt>
+                <dd>The pairwise kern applied on top of the two advance widths. <em>per-glyph</em> means no kern
+                    is emitted at all: the spacing comes entirely from the glyphs’ own optical sidebearings.</dd>
+                <dt><span className="kern-swatch kerned" /> kerned</dt>
+                <dd>A kern moves this pair, so <code>nearMinTolerance</code> and <code>maxSlackForBroadContact</code>
+                    steer it. <code>recessionWeight</code> will not: the kern re-solves to the same target.</dd>
+                <dt><span className="kern-swatch unkerned" /> per-glyph</dt>
+                <dd>The reverse — sidebearings own this pair outright, so only <code>recessionWeight</code> and
+                    <code> maxGiveFraction</code> can move it. This is why o|p and o|n resist tolerance tuning.</dd>
+              </dl>
+            </div>
+            {[...groups.entries()].map(([cat, rows]) => {
+              const gaps = rows.map(r => r.gap).filter(g => !isNaN(g))
+              const lo = Math.min(...gaps), hi = Math.max(...gaps)
+              // A wide spread inside one geometry means pairs that ought to kern
+              // alike are not — the signal worth chasing.
+              const spread = gaps.length > 1 ? hi - lo : 0
+              return (
+                <div className="kern-group" key={cat}>
+                  <div className="kern-group-head">
+                    <span className="kern-cat">{cat}</span>
+                    <span className="kern-stat">{rows.length} {rows.length === 1 ? 'pair' : 'pairs'}</span>
+                    {gaps.length > 1 && (
+                      <span className={`kern-stat ${spread > 25 ? 'wide' : ''}`}>
+                        gap {lo.toFixed(0)}–{hi.toFixed(0)} (spread {spread.toFixed(0)})
+                      </span>
+                    )}
+                  </div>
+                  <div className="kern-row">
+                    {rows.map(r => (
+                      <div className={`kern-cell ${r.kerned ? 'kerned' : 'unkerned'}`} key={r.pair}>
+                        <div className="kern-art" dangerouslySetInnerHTML={{ __html: r.svg }} />
+                        <div className="kern-label">{r.pair}</div>
+                        <div className="kern-nums">
+                          <span title="closest 2-D ink gap">{isNaN(r.gap) ? '–' : r.gap.toFixed(0)}</span>
+                          <span className="kern-k" title={r.kerned ? 'pairwise kern applied' : 'no kern: per-glyph spacing alone'}>
+                            {r.kerned ? (r.kern > 0 ? `+${r.kern}` : r.kern) : 'per-glyph'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )
       } else if (activeTab === 'glyphs') {
         if (typeof content !== 'string') return null
         const visibilityClasses = Object.entries(layerVisibility)
@@ -1876,6 +2158,7 @@ function App() {
             <button className={`tab-button ${activeTab === 'splineGrid' ? 'active' : ''}`} onClick={() => setTabWithUrl('splineGrid')}>Spline Grid</button>
             <button className={`tab-button ${activeTab === 'proofs' ? 'active' : ''}`} onClick={() => setTabWithUrl('proofs')}>Proofs</button>
             <button className={`tab-button ${activeTab === 'generate' ? 'active' : ''}`} onClick={() => setTabWithUrl('generate')}>Generate</button>
+            <button className={`tab-button ${activeTab === 'kerning' ? 'active' : ''}`} onClick={() => setTabWithUrl('kerning')}>Kerning</button>
           </div>
           {activeTab === 'font' && (
             <div className="toolbar">
@@ -1954,13 +2237,21 @@ function App() {
                       {classicBook.title} &mdash; {classicBook.author}
                     </span>
                   )}
+                  <label className="proof-compare-toggle">
+                    <input
+                      type="checkbox"
+                      checked={compareSpacing}
+                      onChange={e => setCompareSpacingWithUrl(e.target.checked)}
+                    />
+                    Compare
+                  </label>
                 </div>
               </div>
             )}
             <button
               className="text-reset-button"
               onClick={() => {
-                const defaults = { font: alphabetChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', splineGrid: '', proofs: proofTexts[proofCase], generate: 'dactyl' }
+                const defaults = { font: alphabetChars, glyphs: 'font', tweens: 'a', visualDiffs: allChars, splines: '', splineGrid: '', proofs: proofTexts[proofCase], generate: 'dactyl', kerning: "HH nn ll ni  on op ol oi ob oh om or  oo oc od oe co eo  ta to tn ts  fo fj fl fi  To Ta Ty Yu Yo Vo Wo  AV VA AW WA AY  LT LI PA  rn rt ry  n' o. r, T. y." }
                 setText(defaults[activeTab])
               }}
               title="Reset Text to Default"
@@ -2731,8 +3022,16 @@ function App() {
               <span className="material-symbols-outlined">remove</span>
             </button>
           </div>
-          <div ref={previewRef} className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''}`} style={activeTab === 'splineGrid' ? { padding: 0 } : undefined}>
-            <div style={activeTab === 'splines' ? { display: 'contents' } : { transform: (activeTab === 'tweens' || activeTab === 'proofs' || (activeTab === 'generate' && generateMode === 'bubble' && supportsWebGL2)) ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }}>
+          <div
+            ref={previewRef}
+            className={`preview-content ${activeTab === 'splines' ? 'spline-mode' : ''} ${activeTab === 'proofs' && compareSpacing ? 'compare-mode' : ''}`}
+            style={activeTab === 'splineGrid' ? { padding: 0 } : undefined}
+          >
+            <div style={
+              activeTab === 'splines' ? { display: 'contents' } :
+              activeTab === 'proofs' && compareSpacing ? { display: 'flex', flexDirection: 'column', flex: '1 1 auto', minHeight: 0 } :
+              { transform: (activeTab === 'tweens' || activeTab === 'proofs' || (activeTab === 'generate' && generateMode === 'bubble' && supportsWebGL2)) ? 'none' : `scale(${zoom})`, transformOrigin: 'top left', minHeight: '100%' }
+            }>
               {renderContent()}
             </div>
           </div>
