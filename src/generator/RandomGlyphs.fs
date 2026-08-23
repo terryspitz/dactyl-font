@@ -154,8 +154,15 @@ type private PlacedStroke =
       Seps: string list
       Closed: bool }
 
-let private buildInventory (metrics: FontMetrics) : Map<string, (string * DecodedStroke)[]> =
+let private buildInventory
+    (metrics: FontMetrics)
+    (sources: Set<string> option)
+    : Map<string, (string * DecodedStroke)[]> =
     StrokeCorpus.strokes
+    |> List.filter (fun (_, source, _) ->
+        match sources with
+        | None -> true
+        | Some s -> s.Contains source)
     |> List.choose (fun (role, source, def) -> decodeStroke metrics def |> Option.map (fun d -> role, (source, d)))
     |> List.groupBy fst
     |> List.map (fun (role, xs) -> role, xs |> List.map snd |> Array.ofList)
@@ -195,10 +202,12 @@ let private proposeGlyph
     (metrics: FontMetrics)
     (inventory: Map<string, (string * DecodedStroke)[]>)
     (patterns: (string list * int)[])
+    (maxStrokes: int)
+    (mirrorProb: float)
     : PlacedStroke list option =
     let combo = samplePattern rng patterns
 
-    if combo.Length > 3 then
+    if combo.Length > maxStrokes then
         None
     else
         let mutable ok = true
@@ -212,7 +221,7 @@ let private proposeGlyph
                     let _source, stroke = choice rng options
 
                     let pts0 =
-                        if rng.NextDouble() < 0.35 then
+                        if rng.NextDouble() < mirrorProb then
                             mirrorX metrics stroke.Points
                         else
                             stroke.Points
@@ -352,9 +361,37 @@ let private renderStroke (yBook, xBook) (s: PlacedStroke) : string =
 let private renderGlyph codebooks (strokes: PlacedStroke list) : string =
     strokes |> List.map (renderStroke codebooks) |> String.concat " "
 
+/// Tunable knobs for the Propose -> Filter -> Assemble pipeline, exposed to
+/// the UI's "Random Lab" tab so the corpus/placement/distinctiveness
+/// behaviour can be explored directly rather than only via the fixed
+/// defaults `generateAlphabetDefs` uses.
+type RandomGlyphParams =
+    { /// Max strokes sampled per glyph (role patterns longer than this are
+      /// skipped). The corpus's longest role pattern is used as an effective
+      /// cap regardless of how high this is set.
+      MaxStrokes: int
+      /// Probability [0,1] that a drawn stroke is mirrored left-right before
+      /// placement.
+      MirrorProb: float
+      /// Max Jaccard similarity [0,1] two glyphs' occupancy signatures may
+      /// share before the later one is rejected as a near-duplicate. Higher
+      /// allows more visual repetition across the alphabet.
+      JaccardMax: float
+      /// Restrict corpus sampling to these source names (see
+      /// StrokeCorpus.strokes' source field, e.g. "futural", "scripts",
+      /// "dactyl"); None samples from every source.
+      Sources: Set<string> option }
+
+    static member Default =
+        { MaxStrokes = 3
+          MirrorProb = 0.35
+          JaccardMax = 0.55
+          Sources = None }
+
 /// Generate up to `count` fresh, filtered, mutually-distinct glyph
 /// definitions sampled from the corpus, at the given axes' scale and RNG
-/// seed. May return fewer than `count` if the try budget is exhausted first.
+/// seed, under the given pipeline parameters. May return fewer than `count`
+/// if the try budget is exhausted first.
 ///
 /// Every candidate is round-tripped through the real parser
 /// (`rawDefToElem`) before acceptance and rejected if it comes back as a
@@ -362,10 +399,15 @@ let private renderGlyph codebooks (strokes: PlacedStroke list) : string =
 /// "parses to a Dot" has to be treated as a rejection rather than a success
 /// (docs/RandomGlyphs.md; the same rule StrokeCorpusTests applies to the
 /// harvested corpus itself).
-let generateAlphabetDefs (axes: Axes.Axes) (seed: int) (count: int) : string list =
+let generateAlphabetDefsWithParams
+    (axes: Axes.Axes)
+    (seed: int)
+    (count: int)
+    (glyphParams: RandomGlyphParams)
+    : string list =
     let metrics = FontMetrics(axes)
     let rng = System.Random(seed)
-    let inventory = buildInventory metrics
+    let inventory = buildInventory metrics glyphParams.Sources
 
     let patterns =
         StrokeCorpus.rolePatterns
@@ -384,13 +426,13 @@ let generateAlphabetDefs (axes: Axes.Axes) (seed: int) (count: int) : string lis
         while accepted.Length < count && tries < maxTries do
             tries <- tries + 1
 
-            match proposeGlyph rng metrics inventory patterns with
+            match proposeGlyph rng metrics inventory patterns glyphParams.MaxStrokes glyphParams.MirrorProb with
             | None -> ()
             | Some strokes ->
                 if filtersOk metrics strokes then
                     let sg = signature metrics strokes
 
-                    if sigs |> List.forall (fun o -> jaccard sg o <= 0.55) then
+                    if sigs |> List.forall (fun o -> jaccard sg o <= glyphParams.JaccardMax) then
                         let def = renderGlyph codebooks strokes
 
                         if not (System.String.IsNullOrWhiteSpace def) then
@@ -406,3 +448,7 @@ let generateAlphabetDefs (axes: Axes.Axes) (seed: int) (count: int) : string lis
                                 sigs <- sigs @ [ sg ]
 
         accepted
+
+/// Generate with the validated default parameters (see `RandomGlyphParams.Default`).
+let generateAlphabetDefs (axes: Axes.Axes) (seed: int) (count: int) : string list =
+    generateAlphabetDefsWithParams axes seed count RandomGlyphParams.Default

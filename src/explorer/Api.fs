@@ -538,6 +538,45 @@ let generateRandomGlyphDefs (seed: int) (axes: Axes) (count: int) : string =
     |> List.mapi (fun i def -> sprintf "?%d: %s" (i + 1) def)
     |> String.concat "\n"
 
+/// Source face names present in the stroke corpus (e.g. "futural", "scripts",
+/// "dactyl"), sorted, for populating the Random Lab tab's source filter.
+let randomGlyphSources () : string[] =
+    StrokeCorpus.strokes
+    |> List.map (fun (_, source, _) -> source)
+    |> List.distinct
+    |> List.sort
+    |> Array.ofList
+
+/// Like `generateRandomGlyphDefs`, but with the Propose/Filter/Assemble
+/// pipeline's tunable knobs exposed for the Random Lab tab -- see
+/// `RandomGlyphs.RandomGlyphParams` for what each one does.
+/// `sourcesCsv` is a comma-separated subset of `randomGlyphSources()`'s
+/// names, or "" to sample from every source.
+let generateRandomGlyphDefsWithParams
+    (seed: int)
+    (axes: Axes)
+    (count: int)
+    (maxStrokes: int)
+    (mirrorProb: float)
+    (jaccardMax: float)
+    (sourcesCsv: string)
+    : string =
+    let sources =
+        if System.String.IsNullOrWhiteSpace sourcesCsv then
+            None
+        else
+            sourcesCsv.Split(',') |> Array.map (fun s -> s.Trim()) |> Set.ofArray |> Some
+
+    let glyphParams: RandomGlyphs.RandomGlyphParams =
+        { MaxStrokes = maxStrokes
+          MirrorProb = mirrorProb
+          JaccardMax = jaccardMax
+          Sources = sources }
+
+    RandomGlyphs.generateAlphabetDefsWithParams axes seed count glyphParams
+    |> List.mapi (fun i def -> sprintf "?%d: %s" (i + 1) def)
+    |> String.concat "\n"
+
 /// Fast, single-engine (DactylSpline, the engine the exported font actually
 /// uses) preview for a batch of raw def strings, one per line ("label: def"
 /// or a bare def). Deliberately does NOT go through

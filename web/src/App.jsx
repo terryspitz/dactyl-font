@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { generateSvg, defaultAxes, controlDefinitions, penPresets, penPresetAxes, axisDependsOn, generateTweenSvg, getGlyphDefs, generateRandomGlyphDefs, generateRandomGlyphsPreviewSvg, cursiveUsesAlt, allChars, alphabetChars } from './lib/fable/Api' // Adjust path if needed
+import { generateSvg, defaultAxes, controlDefinitions, penPresets, penPresetAxes, axisDependsOn, generateTweenSvg, getGlyphDefs, generateRandomGlyphDefs, generateRandomGlyphsPreviewSvg, generateRandomGlyphDefsWithParams, randomGlyphSources, cursiveUsesAlt, allChars, alphabetChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
 import GrowCanvas from './GrowCanvas'
@@ -132,6 +132,32 @@ function App() {
   // to the stale previous result until that ~10s render completes).
   useEffect(() => {
     setRandomPreviewSvg(prev => (prev === null ? null : generateRandomGlyphsPreviewSvg(glyphsDefsText, axes)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [axes])
+  // Random Lab tab: exposes the Propose/Filter/Assemble pipeline's tunable
+  // knobs (see RandomGlyphs.RandomGlyphParams) instead of the Glyphs tab's
+  // Random button's fixed defaults.
+  const randomLabSources = useState(() => randomGlyphSources())[0]
+  const [randomLabParams, setRandomLabParams] = useState({
+    maxStrokes: 3,
+    mirrorProb: 35,
+    jaccardMax: 55,
+    count: 26,
+    sources: [], // empty = every source
+  })
+  const [randomLabDefs, setRandomLabDefs] = useState('')
+  const [randomLabSvg, setRandomLabSvg] = useState(null)
+  const generateRandomLab = useCallback(() => {
+    const { maxStrokes, mirrorProb, jaccardMax, count, sources } = randomLabParams
+    const defs = generateRandomGlyphDefsWithParams(
+      newGlyphSeed(), axes, count, maxStrokes, mirrorProb / 100, jaccardMax / 100, sources.join(',')
+    )
+    setRandomLabDefs(defs)
+    setRandomLabSvg(generateRandomGlyphsPreviewSvg(defs, axes))
+  }, [randomLabParams, axes])
+  // Re-render (not regenerate) on axes change, same rationale as randomPreviewSvg above.
+  useEffect(() => {
+    setRandomLabSvg(prev => (prev === null ? null : generateRandomGlyphsPreviewSvg(randomLabDefs, axes)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [axes])
   // "Randomise every glyph": null = off, otherwise the seed that every
@@ -1118,6 +1144,14 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
       return
+    } else if (activeTab === 'randomLab') {
+      // Random Lab generates synchronously on the main thread via its own
+      // "Generate" button (same fast DactylSpline-only path as the Glyphs
+      // tab's Random button) — skip the worker pipeline.
+      setLoading(false)
+      clearTimeout(timer)
+      worker.terminate()
+      return
     }
 
     if (typeReq) {
@@ -1368,6 +1402,21 @@ function App() {
       return (
         <div className={`glyphs-container ${visibilityClasses}`}>
           <div className="svg-container" dangerouslySetInnerHTML={{ __html: randomPreviewSvg }} />
+        </div>
+      )
+    }
+
+    if (activeTab === 'randomLab') {
+      const visibilityClasses = Object.entries(layerVisibility)
+        .filter(([, visible]) => !visible)
+        .map(([key]) => `hide-${key}`)
+        .join(' ')
+
+      return (
+        <div className={`glyphs-container ${visibilityClasses}`}>
+          {randomLabSvg
+            ? <div className="svg-container" dangerouslySetInnerHTML={{ __html: randomLabSvg }} />
+            : <div style={{ padding: '20px', opacity: 0.6 }}>Click Generate to sample an alphabet.</div>}
         </div>
       )
     }
@@ -1912,6 +1961,7 @@ function App() {
             <button className={`tab-button ${activeTab === 'splineGrid' ? 'active' : ''}`} onClick={() => setTabWithUrl('splineGrid')}>Spline Grid</button>
             <button className={`tab-button ${activeTab === 'proofs' ? 'active' : ''}`} onClick={() => setTabWithUrl('proofs')}>Proofs</button>
             <button className={`tab-button ${activeTab === 'generate' ? 'active' : ''}`} onClick={() => setTabWithUrl('generate')}>Generate</button>
+            <button className={`tab-button ${activeTab === 'randomLab' ? 'active' : ''}`} onClick={() => setTabWithUrl('randomLab')}>Random Lab</button>
           </div>
           {activeTab === 'font' && (
             <div className="toolbar">
@@ -1958,6 +2008,7 @@ function App() {
                 : undefined
           }
         >
+          {activeTab !== 'randomLab' && (
           <div className="input-wrapper">
             <textarea
               value={text}
@@ -2004,6 +2055,7 @@ function App() {
               <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>restart_alt</span>
             </button>
           </div>
+          )}
           {activeTab === 'glyphs' && (
             <div className="glyph-defs-panel" style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
               <h3 style={{ margin: 0 }}>
@@ -2085,6 +2137,81 @@ function App() {
                 style={{ width: '100%', flex: '1', minHeight: '100px', fontFamily: 'monospace', resize: 'vertical' }}
                 spellCheck="false"
               />
+            </div>
+          )}
+          {activeTab === 'randomLab' && (
+            <div className="controls-panel">
+            <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+              <div className="grow-controls" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '10px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  strokes per glyph
+                  <input
+                    type="range" min="1" max="4" step="1"
+                    value={randomLabParams.maxStrokes}
+                    onChange={e => setRandomLabParams(p => ({ ...p, maxStrokes: parseInt(e.target.value, 10) }))}
+                  />
+                  <span style={{ minWidth: '1.5em' }}>{randomLabParams.maxStrokes}</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  mirror probability
+                  <input
+                    type="range" min="0" max="100" step="5"
+                    value={randomLabParams.mirrorProb}
+                    onChange={e => setRandomLabParams(p => ({ ...p, mirrorProb: parseInt(e.target.value, 10) }))}
+                  />
+                  <span style={{ minWidth: '3em' }}>{randomLabParams.mirrorProb}%</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Max similarity two glyphs may share before the later one is rejected as a near-duplicate. Higher allows more repetition.">
+                  distinctiveness cutoff
+                  <input
+                    type="range" min="0" max="100" step="5"
+                    value={randomLabParams.jaccardMax}
+                    onChange={e => setRandomLabParams(p => ({ ...p, jaccardMax: parseInt(e.target.value, 10) }))}
+                  />
+                  <span style={{ minWidth: '3em' }}>{randomLabParams.jaccardMax}%</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  glyph count
+                  <input
+                    type="range" min="1" max="52" step="1"
+                    value={randomLabParams.count}
+                    onChange={e => setRandomLabParams(p => ({ ...p, count: parseInt(e.target.value, 10) }))}
+                  />
+                  <span style={{ minWidth: '2em' }}>{randomLabParams.count}</span>
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  sources:
+                  {randomLabSources.map(source => (
+                    <label key={source} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <input
+                        type="checkbox"
+                        checked={randomLabParams.sources.length === 0 || randomLabParams.sources.includes(source)}
+                        onChange={e => setRandomLabParams(p => {
+                          const checked = e.target.checked
+                          // Every source currently selected (either explicitly
+                          // or via the "empty = all" default): build the
+                          // explicit list minus this one so unchecking one
+                          // box narrows the set instead of a no-op.
+                          const current = p.sources.length === 0 ? randomLabSources : p.sources
+                          const next = checked ? [...current, source] : current.filter(s => s !== source)
+                          // Selecting every source again collapses back to "all".
+                          return { ...p, sources: next.length === randomLabSources.length ? [] : next }
+                        })}
+                      />
+                      {source}
+                    </label>
+                  ))}
+                </div>
+                <button className="proof-chip" onClick={generateRandomLab}>Generate</button>
+              </div>
+              {randomLabDefs && (
+                <textarea
+                  readOnly
+                  value={randomLabDefs}
+                  style={{ width: '100%', minHeight: '80px', fontFamily: 'monospace', resize: 'vertical', marginTop: '10px' }}
+                />
+              )}
+            </div>
             </div>
           )}
           {activeTab === 'generate' && (
