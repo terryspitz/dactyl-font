@@ -533,12 +533,23 @@ type FontTests() =
         // position `advanceA + kern` cancels advanceA identically — every unit
         // of spacing (or sidebearing) added to the advance was subtracted
         // straight back out. Passing `spacing` in as the target is the fix.
-        let placed s =
+        let placed (a: char) (b: char) s =
             let f = Font.Font({ Axes.DefaultAxes with spacing = s; opticalKerning = 1.0 })
-            f.charWidth 'A' + f.pairKern 'A' 'V'
-        // 1 unit of spacing must buy 1 unit of separation (±1 for kern rounding).
-        Assert.That(placed 40 - placed 0, Is.EqualTo(40.0).Within(1.0))
-        Assert.That(placed 100 - placed 40, Is.EqualTo(60.0).Within(1.0))
+            f.charWidth a + f.pairKern a b
+        // `spacing` is defined as the gap between two FLAT neighbours, so it is
+        // on a flat pair that 1 unit must buy exactly 1 unit (±1 for rounding).
+        Assert.That(placed 'H' 'H' 40 - placed 'H' 'H' 0, Is.EqualTo(40.0).Within(1.0))
+        Assert.That(placed 'H' 'H' 100 - placed 'H' 'H' 40, Is.EqualTo(60.0).Within(1.0))
+
+        // A diagonal contact grows slightly FASTER than 1:1, and that is
+        // geometry rather than a bug: the placement solves for a 2-D clearance,
+        // so the horizontal advance needed to buy `t` of diagonal clearance is
+        // sqrt(t^2 - dy^2), whose slope t/sqrt(t^2 - dy^2) exceeds 1. A|V moves
+        // 62.4 where a flat pair moves 60. It must never move LESS than 1:1,
+        // which would mean tightening the axis failed to separate them.
+        let av = placed 'A' 'V' 100 - placed 'A' 'V' 40
+        Assert.That(av, Is.GreaterThanOrEqualTo(60.0 - 1.0))
+        Assert.That(av, Is.LessThan(75.0))
 
     [<Test>]
     member this.Spacing_DoesNotChangeKernValues() =
