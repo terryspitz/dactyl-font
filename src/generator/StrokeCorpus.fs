@@ -336,6 +336,74 @@ let strokes: (string * string * string) list =
       "arc", "scripts", "dx4l4r3~b4tl4w~d2xc~bd2cl"
       "arc", "scripts", "b3h4cl2~b3t4l4w~b2tcr2~dx4c3w4-bx4r4w"
       "arc", "scripts", "dx4cl2-bx4c3l4~h3xl4r3~b3h4c4w3~b3t4r4w"
+      "arc", "greek", "t2xl3w4~tc4r-tc4l~t2xcl2~h3tcl-b4t3lw-b3h4l3w4-d4t3l3w4~bc4r-bc4l~d4t3cl2"
+      "arc", "greek", "tc4l~txc-h4t3l4r3~h2tclK~t2xcl2~tl4w~t3xl4w3~tc3w4"
+      "arc", "greek", "b3t4cw2-h2tr4w-h2tc3w4~dxl4w3-bl3r4~dxcl~dx4l4r~t2x3c4w~tl3r4K~t2xc4l-h3tl4r3-dxcr4~br4w-b4hcw2"
+      "arc", "greek", "t3xcl~tclK~h4t3l4r"
+      "arc", "greek", "tl3r4~h3xl4r-b4hcl~bd2l3r4"
+      "arc", "greek", "tcl2~h3xc-b4hl4r3~bd2cl2"
+      "arc", "greek", "b4tcl-d4t3l4r~b3x2l4rK~bcl2"
+      "arc", "greek", "txl4w~tl3r4-bl3r4"
+      "arc", "greek", "t2x3l4r-t4xl4w~tc4r~h4t3lr4~bcl2-bl3w4"
+      "arc", "greek", "tcl-tlr4-h3tc~h3xlr4~d4t3lr4-dxc4w~bc4l~b4tcl2"
+      "arc", "greek", "tl4w3-b2tcl2-b2tcr4"
+      "arc", "greek", "tlw-tcl-b3t4l4r~h2tc4l~h3tc4w~b3h4l3w4-d4t3lr4~bl3r4~dxcl-b4tcl2"
+      "arc", "greek", "t2xlr4~tc4r~t4xl2r~b3t4l4r-d4t3cl~bc-dxc4w~b3h4l3w4~b3t4c4w-h3tl3r4-b3t4l2r~b2tl4r"
+      "arc", "greek", "h2tlr4~b4t3l4w3-dx4c-b4t3l4w~h2tcl2~t4xl4w-tc~t2xlw-b4t3lr4~dxl4w3~bc4l~d4t3l4r"
+      "arc", "greek", "b4tcl-d4t3l4r~b3x2l4rK~bcl2"
+      "arc", "greek", "t2xr-b4t3l4r-br"
+      "arc", "greek", "t2xl4r-b4t3r-bl4r"
+      "arc", "greek", "t2x3cl2~tl2r-tl3r4-t3xc4w-h4t3lw~bx4l4r3-b2tl4r3"
+      "arc", "greek", "h3tcr4-h4t3l3w4~t2x3c4r~h3xc4l~b3x2l3r4-b3x2c4w~dx4l3w4"
+      "arc", "greek", "t2x3cr4-b3h4l3w4~b3x2c3w4K~b3t4lw4~t4xcr4~tc4r-t3xl2r~b3t4cl2~b4hl2r~blw~d4t3c3w4"
+      "arc", "greek", "tl4r-tl4w3~t3xl3w4~h3tl3w4~h3xl4w3"
+      "arc", "greek", "h3xl4r-h3xl4w3~b2tcr4~dxlr4~bl4r"
+      "arc", "greek", "tl4r-tl4w3~txcr4~h3xlr4~bx4l4r"
+      "arc", "greek", "tcl4-h3xl4r3-bcl4"
+      "arc", "greek", "t2x3cl4~tl4r-tl4w~h2tl4r3-bl4r3"
+      "arc", "greek", "t2x3lr4~tc4w-tc4r~h2tl4r3"
+      "arc", "greek", "bcl2-bl2r~h4t3cl2-t2xl4r~tl4r3~t4xc4w~h4t3l3w4~bl4w3-bl3w4"
+      "arc", "greek", "h4t3cl4-h4t3cl2-dx4l4w~b3h4c~b2tlw-h4t3c4w3-h4t3r"
+      "arc", "greek", "t2x3cl~h3xl4rK~h3tl4r-b3t4cl2"
+      "arc", "greek", "h2tl4r3~b3h4cl2~bl4w~b4tl4w3-h2tcr4"
+      "arc", "greek", "h2tl4r3-h2tl3r4~bl3w4-bcr4"
+      "arc", "greek", "tc4r~h2tl4w~bd2cl4"
+      "arc", "greek", "tc4r-tc4w~h2tlw~b3t4l4r3"
+      "arc", "greek", "b3t4l4r3~b2tc4w-b4hl4w3~bc4l~b3x2l4r"
+      "arc", "greek", "h2tcl4-h2tl4r~bd2c4w-bd2lr4"
+      "arc", "greek", "h2tl3r4-h2tc4l-h3xl4r-b3x2cl2~bl2r~d4t3l4w3-b4t3c4w~t2xc4l~tl4r3K~t2xlw"
+      "arc", "greek", "b3t4l4w3-h2tc~h3tcl-b4t3l4w-dx4l4r3"
+      "arc", "greek", "dx4l4r3~b3x2cl2-dxl4r~bl4r3-d4t3l4w3"
+      "arc", "greek", "h3tc4l-bx4l4r-b4tcl2-dxcl~bc~b3h4cr4-b3t4c4w3-h2tl3w4-h2tlw~bd2l4w"
+      "arc", "greek", "h3xl-h2tcl~b3t4l4r3~bl4r3"
+      "arc", "greek", "bx4l-h2tl4r-h2tl4w~bl4r"
+      "arc", "greek", "b2tl4w~h3tc~h2tc4wK~b4t3lr4-bd2c4r"
+      "arc", "greek", "h2tl4w~bl4r-bl4w-b4tl4r3"
+      "arc", "greek", "h3tlr4-h2tlw~dx4cl"
+      "arc", "greek", "dx4cl~bl3r4-bc4r-dxl4w3"
+      "arc", "greek", "tl~t3xl4w-bc4w"
+      "arc", "greek", "bx4l4w-b4hcl-bl2r~dxl3r4~b2tlw"
+      "arc", "greek", "h2tl3w4~blw-bl3w4-b4tr"
+      "arc", "greek", "h2tlr4-b3h4c4r~bcl2"
+      "arc", "greek", "h3xcl4~h2tl2r-h2tr"
+      "arc", "greek", "bx4l-h2tl4r-h2tl4w~bc4lK~dxc4r-b4tc4w-h2tl3w4-t4xlr4~tc4rK~h2tc4r~b2tc4w3"
+      "arc", "greek", "dx4l4r-b4hcl-bc4l~dxc4r~b3h4lw~h3tl4w3-h2tl3r4~h3tl2r~bd2l"
+      "arc", "greek", "h2tcr4-h2tc4l-h3xl4r-b3x2cl2~bl2r~dxl3r4~b3h4c4w-b3t4l4w3-h2tc"
+      "arc", "greek", "h3xcl4~h2tl2r-h2tcr4"
+      "arc", "greek", "bx4l-h2tl4r-h2tl4w~b4hcl-bl2r~d4t3c4w~h2tl3w4"
+      "arc", "greek", "h2tc4l~b2tcl2~bclK~dxl4r3-b4tl3r4"
+      "arc", "greek", "dx4c4r~bl4w3K~dxl3w4-b4tc4w3~h2tcr4"
+      "arc", "greek", "tc~t2xl2r~t2x3c4w"
+      "arc", "greek", "t2x3l3r4-h2tl4w-bx4cl~b2tc4r"
+      "arc", "greek", "b2tc-b3x2l4r-d4t3cl2-dxcl2~d4tc-b3d4c~bd2l4w"
+      "arc", "greek", "bx4l-h2tl4r-h2tl4w~d4t3l4w~bl4r3~d4t3lr4~h2tc3w4"
+      "arc", "greek", "tc~t2xl2r~t2x3c4w"
+      "arc", "greek", "t2x3c4w-b3t4l2r~b3h4cl2~d4tc~bd2l4r3-bd2l2r-bdl4w"
+      "arc", "greek", "tl2r~h3tl4r3~b4t3l4rK~b3x2l4r3~b3d4l2r"
+      "arc", "greek", "tl2r~h3tcl~b4t3cK~b3x2cl~b3d4l2r"
+      "arc", "greek", "b3h4cl2~b3t4l4w~b2tlr4~dx4r-bx4c3w4"
+      "arc", "greek", "dx4cl2-bx4l4r~h3xc4l~b3h4cr4~b3t4c3w4"
+      "arc", "greek", "tl-bl-bl-tl-tcl4-bcl4-bcl2-tcl2-tl4r-bl4r-bcl-tcl-tl4w-bl4w-bl2r-tl2r-tc4l-bc4l-bl4r3-tl4r3-tc-bc-bl3r4-tl3r4-tc4r-bc4r-bl4w3-tl4w3-tc4w-bc4w-blw-tlw-tlr4-blr4"
       "arc", "dactyl", "tor~tc~txl~xllc~blS-br"
       "arc", "dactyl", "thr~t(c)~(ttb)l~hc~(tbb)r~b(c)~bhl"
       "arc", "dactyl", "hbbr~b(c)~(hb)l~thcr~tlcc~thl-br"
@@ -485,6 +553,32 @@ let strokes: (string * string * string) list =
       "bar", "scripts", "tc3l4-tl3r4"
       "bar", "scripts", "bd2c3l4-bd2l3r4"
       "bar", "scripts", "b4dl-b4dcr2"
+      "bar", "greek", "b3t4l4r-b3t4cr4"
+      "bar", "greek", "b3h4cl2-b3h4l3w4"
+      "bar", "greek", "b4t3l4r-b4t3r4w"
+      "bar", "greek", "b4t3l4r-b4t3r4w"
+      "bar", "greek", "tcl2-tl3w4"
+      "bar", "greek", "b3t4l4r-b3t4r4w"
+      "bar", "greek", "b3h4l4r-b3h4r4w"
+      "bar", "greek", "b2tl4r-b2tc4w"
+      "bar", "greek", "bl-bl3w4"
+      "bar", "greek", "tl4r-tl3w4"
+      "bar", "greek", "h3xl4r-h3xc4r"
+      "bar", "greek", "bl4r-bl3w4"
+      "bar", "greek", "tl4r-tlr4"
+      "bar", "greek", "h3xl4r-h3xcr4"
+      "bar", "greek", "tl4r-tcr4"
+      "bar", "greek", "tcl4-tlr4"
+      "bar", "greek", "bcl4-blr4"
+      "bar", "greek", "tl-tlw"
+      "bar", "greek", "tcl4-tlr4"
+      "bar", "greek", "bcl4-blr4"
+      "bar", "greek", "tcl2-tl3w4"
+      "bar", "greek", "bcl2-bl3w4"
+      "bar", "greek", "tl4r-tl3r4"
+      "bar", "greek", "bd2l4r-bd2l3r4"
+      "bar", "greek", "bd2l-bd2cr4"
+      "bar", "greek", "b4t3l4r-b4t3r4w"
       "bar", "dactyl", "ttbl-ttbr"
       "bar", "dactyl", "tbbl-tbbr"
       "bar", "dactyl", "xl-xcr"
@@ -560,6 +654,23 @@ let strokes: (string * string * string) list =
       "bowl", "scripts", "h2tcl2-h3tcl2-h3tc3l4-h2tc3l4-"
       "bowl", "scripts", "h2tcl2-h3tcl2-h3tc3l4-h2tc3l4-"
       "bowl", "scripts", "tl4w~t2xcl2~h3tl4w~h2tc-t2x3l3r4~tl4r3~"
+      "bowl", "greek", "b4hcl~bcl-dxl4w-"
+      "bowl", "greek", "b2tl3w4~b4tc4w~blr4K~dxr-d4t3c3w4~b2tc4w3~"
+      "bowl", "greek", "b3x2l4r~d4t3l4r-b4tcl-"
+      "bowl", "greek", "tl4r3-t4xl4w~b3t4cl2-b4tl4r~bl4r3~dxc4w~b4t3l3w4-txlr4~tl3r4~"
+      "bowl", "greek", "tc4l~t2xl4r-h2tcl-h3xc4w-b2tl3w4-b4hlr4~bc4r~dxcl-b4tcl2~h3xl4w-h2tlw-t2xlr4~tc4r~"
+      "bowl", "greek", "b3t4l4r~bx4l4r-h3xcl-"
+      "bowl", "greek", "b3x2l4r~d4t3l4r-b4tcl-"
+      "bowl", "greek", "b3t4l4r~bx4l4r-h3xcl-"
+      "bowl", "greek", "b4hl4r3~bl4r3-dxc-"
+      "bowl", "greek", "t2x3c4l~b3t4cl2-b2tl4r~b3x2c4l~b3h4lw-b4t3l3w4-h2tlr4~t2x3c4r~"
+      "bowl", "greek", "bx4cl4-b4t3cl4-b4t3cl2-bx4cl2-"
+      "bowl", "greek", "tl4r3~h3tcl2~b3x2l4r~bl4r3~dxlw~dx4c4w3~t2x3cr4~tl4w3~"
+      "bowl", "greek", "tl4r3~h3tcl2~b3x2l4r~bl4r3~dxlw~dx4c4w3~t2x3cr4~tl4w3~"
+      "bowl", "greek", "tl4w~t2xcl2~h3tl4w~h2tc-t2x3l3r4~tc4l~"
+      "bowl", "greek", "h2tc4l~dx4cl2-b4hl4r-bl2r~dxl3r4~b3h4c4w-b3t4l4w3-h2tc-"
+      "bowl", "greek", "t2xl4w3~t2x3l4w3-txc4w-"
+      "bowl", "greek", "b4hl4w3~bl4w3-dxc4w-"
       "bowl", "dactyl", "tllc~tthllc~tthlc~"
       "bowl", "dactyl", "brrc~bbhrrc~bbhrc~"
       "bowl", "dactyl", "(h)l~t(c)~(h)r~b(c)~"
@@ -717,6 +828,44 @@ let strokes: (string * string * string) list =
       "diag", "scripts", "bd2cl2-bd2c"
       "diag", "scripts", "b3x2l-b3t4c3l4"
       "diag", "scripts", "h3tcl4-h3tl4r3"
+      "diag", "greek", "tl4r-h2tl4r"
+      "diag", "greek", "tc4r-h2tc4r"
+      "diag", "greek", "tl3r4-bd2l4r"
+      "diag", "greek", "tl3w4-bd2c"
+      "diag", "greek", "tc3w4-bcl2"
+      "diag", "greek", "b3t4cl2-b3h4l4w3"
+      "diag", "greek", "b3t4l4w3-b3h4cl2"
+      "diag", "greek", "tr-bd2cl4"
+      "diag", "greek", "tl3w4-bl2r"
+      "diag", "greek", "tl4r3-bl"
+      "diag", "greek", "tl4r3-bl3w4"
+      "diag", "greek", "tcl2-bl3w4"
+      "diag", "greek", "bcl2-tl3w4"
+      "diag", "greek", "tl4r3-bl"
+      "diag", "greek", "tl4r3-bl3w4"
+      "diag", "greek", "tcr4-b2tl4r"
+      "diag", "greek", "b3t4l4r3-bcr4"
+      "diag", "greek", "tl4r3-bl"
+      "diag", "greek", "tl4r3-bl3w4"
+      "diag", "greek", "tl4r-bc4r"
+      "diag", "greek", "tr-bc4r"
+      "diag", "greek", "tl4r-bcr4"
+      "diag", "greek", "h3xc4l-h3xc4w"
+      "diag", "greek", "h3xl4w-h3xc4r"
+      "diag", "greek", "tl3w4-bcl2"
+      "diag", "greek", "tl-d2xc4w"
+      "diag", "greek", "tcl2-tc"
+      "diag", "greek", "bd2cl2-bd2c"
+      "diag", "greek", "tc4l-b4t3l"
+      "diag", "greek", "tc4l-b4t3lr4"
+      "diag", "greek", "h2tl3w4~bd2l"
+      "diag", "greek", "h2tl3w4~bd2l4w"
+      "diag", "greek", "t2x3l4r-b4hcr4"
+      "diag", "greek", "t2x3cr4-b4hl4r"
+      "diag", "greek", "h2tl4w-bcl4"
+      "diag", "greek", "h2tc4l-bcl4"
+      "diag", "greek", "h2tl2r-bd2l"
+      "diag", "greek", "tlr4-bd2c4l"
       "diag", "dactyl", "tellr-tthllr"
       "diag", "dactyl", "telrr-tthlrr"
       "diag", "dactyl", "ter-bel"
@@ -904,6 +1053,44 @@ let strokes: (string * string * string) list =
       "stem", "scripts", "txl4r3-bl4r3"
       "stem", "scripts", "b3x2l-bx4cl2-dl"
       "stem", "scripts", "tc3l4-bd2c3l4"
+      "stem", "greek", "tcl-b2tcl"
+      "stem", "greek", "tc4l-d4tc4l"
+      "stem", "greek", "tc4r-d4tc4r"
+      "stem", "greek", "h4t3c4l-d4t3c4l"
+      "stem", "greek", "t2xl4w3-bl4w3"
+      "stem", "greek", "tl4w3-bl4w3"
+      "stem", "greek", "t2x3c4r~h3xl4r3~b3x2l3r4"
+      "stem", "greek", "t2x3c4w3~b3x2c4w3"
+      "stem", "greek", "tl4r-bl4r"
+      "stem", "greek", "tl4r-bl4r"
+      "stem", "greek", "tc-bc"
+      "stem", "greek", "tl4r-bl4r"
+      "stem", "greek", "tl4r-bl4r"
+      "stem", "greek", "tcr4-bcr4"
+      "stem", "greek", "tl4r-bl4r"
+      "stem", "greek", "tl4r-bl4r"
+      "stem", "greek", "tl4r-bl4r"
+      "stem", "greek", "tr-br"
+      "stem", "greek", "tl4r-bl4r"
+      "stem", "greek", "tcr4-bcr4"
+      "stem", "greek", "tl4r-bl4r"
+      "stem", "greek", "tcr4-bcr4"
+      "stem", "greek", "tl4r-bl4r"
+      "stem", "greek", "tc4l-bc4l"
+      "stem", "greek", "tl3r4-bl3r4"
+      "stem", "greek", "tl4r-bd2l4r"
+      "stem", "greek", "tcl-bd2cl"
+      "stem", "greek", "tl4r3-bd2l4r3"
+      "stem", "greek", "tc-bd2c"
+      "stem", "greek", "h2tcl2-h2tl4w-bcl2"
+      "stem", "greek", "h2tl4r3-bcl"
+      "stem", "greek", "h2tc4w-bl3w4"
+      "stem", "greek", "h2tl3r4-bc4l"
+      "stem", "greek", "tl4r3~tcl~h2tc4l~bx4l4w"
+      "stem", "greek", "dx4l4w~b4tc4l~d2xcl~bd2l4r3"
+      "stem", "greek", "tl4r-bd2l4r"
+      "stem", "greek", "tcl~tl4r3~h2tl4w~bx4c4l"
+      "stem", "greek", "dx4c4l~b4tl4w~d2xl4r3~bd2cl"
       "stem", "dactyl", "tl-hbl"
       "stem", "dactyl", "tllr-bllr"
       "stem", "dactyl", "tlrr-blrr"
@@ -936,50 +1123,51 @@ let strokes: (string * string * string) list =
 /// this count keeps generated glyphs to combinations real letters actually use,
 /// in roughly the proportions real letters actually use them.
 let rolePatterns: (string list * int) list =
-    [ [ "arc" ], 132
-      [ "arc"; "arc" ], 33
-      [ "arc"; "arc"; "arc" ], 16
+    [ [ "arc" ], 155
+      [ "arc"; "arc" ], 40
+      [ "arc"; "arc"; "arc" ], 18
       [ "arc"; "arc"; "arc"; "arc" ], 1
       [ "arc"; "arc"; "bar" ], 1
       [ "arc"; "arc"; "stem" ], 3
       [ "arc"; "bar" ], 10
-      [ "arc"; "bar"; "bar" ], 1
-      [ "arc"; "bowl" ], 3
-      [ "arc"; "diag" ], 8
+      [ "arc"; "bar"; "bar" ], 2
+      [ "arc"; "bowl" ], 4
+      [ "arc"; "diag" ], 11
       [ "arc"; "diag"; "stem"; "arc" ], 1
       [ "arc"; "dot" ], 2
-      [ "arc"; "stem" ], 8
+      [ "arc"; "stem" ], 9
       [ "arc"; "stem"; "arc"; "arc" ], 1
-      [ "arc"; "stem"; "arc"; "stem" ], 4
+      [ "arc"; "stem"; "arc"; "stem" ], 5
       [ "arc"; "stem"; "bowl" ], 1
-      [ "bar" ], 12
-      [ "bar"; "bar" ], 5
+      [ "bar" ], 14
+      [ "bar"; "bar" ], 6
       [ "bar"; "bar"; "stem"; "stem" ], 1
-      [ "bar"; "diag"; "bar" ], 1
+      [ "bar"; "diag"; "bar" ], 2
       [ "bar"; "stem" ], 2
       [ "bar"; "stem"; "bar" ], 1
-      [ "bowl" ], 23
-      [ "bowl"; "arc" ], 8
+      [ "bowl" ], 30
+      [ "bowl"; "arc" ], 9
       [ "bowl"; "arc"; "arc" ], 1
-      [ "bowl"; "bowl" ], 4
+      [ "bowl"; "bar"; "bowl" ], 1
+      [ "bowl"; "bowl" ], 5
       [ "bowl"; "bowl"; "diag" ], 1
-      [ "bowl"; "diag" ], 5
+      [ "bowl"; "diag" ], 6
       [ "bowl"; "stem" ], 2
       [ "bowl"; "stem"; "arc"; "arc"; "arc"; "arc" ], 1
-      [ "diag" ], 14
-      [ "diag"; "arc" ], 3
-      [ "diag"; "arc"; "arc" ], 2
-      [ "diag"; "arc"; "bowl" ], 4
+      [ "diag" ], 16
+      [ "diag"; "arc" ], 4
+      [ "diag"; "arc"; "arc" ], 4
+      [ "diag"; "arc"; "bowl" ], 5
       [ "diag"; "arc"; "diag" ], 1
-      [ "diag"; "bar" ], 3
-      [ "diag"; "bar"; "bar" ], 5
+      [ "diag"; "bar" ], 4
+      [ "diag"; "bar"; "bar" ], 6
       [ "diag"; "bar"; "bar"; "arc"; "arc" ], 1
-      [ "diag"; "diag" ], 21
+      [ "diag"; "diag" ], 26
       [ "diag"; "diag"; "arc" ], 1
       [ "diag"; "diag"; "arc"; "arc" ], 1
       [ "diag"; "diag"; "arc"; "arc"; "arc" ], 1
-      [ "diag"; "diag"; "bar" ], 4
-      [ "diag"; "diag"; "bar"; "bar" ], 4
+      [ "diag"; "diag"; "bar" ], 6
+      [ "diag"; "diag"; "bar"; "bar" ], 5
       [ "diag"; "diag"; "diag"; "diag" ], 4
       [ "diag"; "diag"; "stem" ], 1
       [ "diag"; "stem"; "diag"; "diag" ], 2
@@ -987,22 +1175,22 @@ let rolePatterns: (string list * int) list =
       [ "dot"; "diag" ], 1
       [ "dot"; "dot" ], 1
       [ "dot"; "dot"; "dot" ], 1
-      [ "stem" ], 10
-      [ "stem"; "arc" ], 31
-      [ "stem"; "arc"; "arc" ], 6
+      [ "stem" ], 12
+      [ "stem"; "arc" ], 35
+      [ "stem"; "arc"; "arc" ], 7
       [ "stem"; "arc"; "diag" ], 2
-      [ "stem"; "arc"; "stem" ], 3
-      [ "stem"; "bar" ], 11
+      [ "stem"; "arc"; "stem" ], 5
+      [ "stem"; "bar" ], 14
       [ "stem"; "bar"; "bar" ], 2
-      [ "stem"; "bar"; "bar"; "bar" ], 3
+      [ "stem"; "bar"; "bar"; "bar" ], 4
       [ "stem"; "bar"; "stem" ], 1
-      [ "stem"; "bowl" ], 4
-      [ "stem"; "diag"; "diag" ], 11
-      [ "stem"; "diag"; "diag"; "stem" ], 3
-      [ "stem"; "diag"; "stem" ], 3
+      [ "stem"; "bowl" ], 6
+      [ "stem"; "diag"; "diag" ], 13
+      [ "stem"; "diag"; "diag"; "stem" ], 4
+      [ "stem"; "diag"; "stem" ], 4
       [ "stem"; "dot" ], 2
-      [ "stem"; "stem"; "arc" ], 4
-      [ "stem"; "stem"; "bar" ], 4
-      [ "stem"; "stem"; "bar"; "bar" ], 4
-      [ "stem"; "stem"; "diag"; "diag" ], 4
+      [ "stem"; "stem"; "arc" ], 6
+      [ "stem"; "stem"; "bar" ], 6
+      [ "stem"; "stem"; "bar"; "bar" ], 5
+      [ "stem"; "stem"; "diag"; "diag" ], 5
       [ "stem"; "stem"; "stem"; "bowl" ], 1 ]

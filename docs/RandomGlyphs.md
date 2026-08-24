@@ -259,6 +259,19 @@ compiled to glyph strings, rendered through Dactyl, and used to regenerate.
 Hershey's metrics, measured rather than assumed: baseline at `y = -9`, cap
 height 21 units, x-height 14 (0.67 of cap), descender 7 below baseline.
 
+> **Cyrillic has no simplex face.** Checked both `cyrillic` and `cyrilc_1`
+> against `verify_centreline.py`: both fail (6 strokes, multi-line/outline),
+> matching Hershey's own documented set — Cyrillic was only ever digitized in
+> *Complex* style, never *Simplex*. This isn't a gap in this repo's copy of the
+> font data; the source doesn't exist. `japanese` fails the same check (7
+> strokes), confirming the outline finding above. Ingesting either would need
+> real skeletonisation (Tier 2/3), not more Tier 1 harvesting.
+>
+> `greek` (the *Plain* face, distinct from the already-ingested *Simplex*
+> `greeks`) does pass — 3 strokes, a true spine, 96 glyphs — and is now
+> ingested alongside it as a second Greek source, for stroke variety rather
+> than new script coverage.
+
 Two bugs in the inverse compiler are worth naming, because both produce output
 that parses cleanly and only looks wrong once rendered:
 
@@ -320,7 +333,7 @@ deliberately, rather than an undifferentiated average of all scripts.
 | Phase | Work | Unlocks |
 |---|---|---|
 | 1 | Recombination sampler + filters, F#, Glyphs-tab button | **Done.** Usable fake alphabets, no new deps |
-| 2 | Hershey ingestion + round-trip verification | **Done.** Corpus expanded to Latin/Greek/cursive (4 verified simplex faces); Cyrillic/kana available in `data/hershey/` but not yet ingested |
+| 2 | Hershey ingestion + round-trip verification | **Done.** Corpus expanded to Latin/Greek/cursive (5 verified simplex faces). Cyrillic and Japanese checked and confirmed non-simplex in the Hershey set — no further Tier 1 script coverage available without new sources |
 | 3 | KanjiVG ingestion | ~11k glyphs; corpus large enough to train on |
 | 4 | Learned model (PCFG → sequence model / VAE), script-conditioned | Genuine novelty rather than recombination |
 

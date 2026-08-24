@@ -23,7 +23,7 @@ The split is by **when code runs**, not by language:
 | | Runs | Where | Job |
 |---|---|---|---|
 | This tooling | Offline, rarely — only when a source font is added | Python | Turn `.jhf` polylines into glyph strings |
-| `StrokeCorpus.fs` | Build time | Generated F# | The hand-off: 922 strokes + 70 role patterns |
+| `StrokeCorpus.fs` | Build time | Generated F# | The hand-off: 1,109 strokes + 71 role patterns |
 | Generator | On demand, per click | F# → Fable → browser | Propose → Filter → Assemble a new glyph |
 
 So the F# side never needs a JHF parser, curve simplification or coordinate

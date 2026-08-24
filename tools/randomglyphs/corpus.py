@@ -10,7 +10,7 @@ sys.path.insert(0,HERE)
 from hershey_jhf import parse_jhf
 from glyph_compile import compile_glyph, make_mapper, YBOOK, XBOOK, snap, YG, XG
 
-SIMPLEX=['futural','rowmans','greeks','scripts']   # verified single-line centrelines
+SIMPLEX=['futural','rowmans','greeks','scripts','greek']   # verified single-line centrelines
 
 pt_pat=re.compile(r"^([txhbd0-9]+|\([txhbd0-9]+\))([oe])?([lrcw0-9]+|\([lrcw0-9]+\))([oe])?([NSEW])?(K)?(J)?")
 def wavg(cs,tbl):
