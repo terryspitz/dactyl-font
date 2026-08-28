@@ -2006,7 +2006,7 @@ function App() {
                       x: (l)eft, (c)enter, (r)ight, (w)ide. Solo point → dot. <br />
                       Dirs: N,S,E,W. Lines: (-) straight, (~) curve. Brackets: auto fit. <br />
                       K: corner/kink. J: interior joint (suppresses end caps). <br />
-                      Repeats average coordinates (e.g. "bt"="h"); a digit repeats the letter before it, so "b2t"="bbt". <br />
+                      Several letters average (e.g. "bt"="h"); "n/dAB" is n/d of the way from guide A to B, so "1/3bt" is a third up from the bottom. <br />
                       <a
                         href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
                         target="_blank"

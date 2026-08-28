@@ -1438,11 +1438,11 @@ type CornerOutlineTests() =
             curves
             |> List.filter (fun ks ->
                 let ls = labelsOf ks
-                List.contains "x(llw)" ls && List.contains "x(rw)" ls)
+                List.contains "x(1/3lw)" ls && List.contains "x(rw)" ls)
 
         Assert.That(archStroke.Length, Is.EqualTo(1), "both arch apexes should be on one stroke")
 
-        let kink = archStroke.Head |> List.find (fun k -> k.label = Some "xxblwK")
+        let kink = archStroke.Head |> List.find (fun k -> k.label = Some "1/3xblwK")
         Assert.That(kink.ty, Is.EqualTo(GeneratorTypes.Corner), "the arches meet at a corner")
         Assert.That(kink.th_in, Is.EqualTo(None), "kink tangents are left to the solver")
         Assert.That(kink.th_out, Is.EqualTo(None), "kink tangents are left to the solver")
@@ -1452,7 +1452,7 @@ type CornerOutlineTests() =
         let legTop =
             curves
             |> List.collect id
-            |> List.filter (fun k -> k.label = Some "xxblwJ")
+            |> List.filter (fun k -> k.label = Some "1/3xblwJ")
 
         Assert.That(legTop.Length, Is.EqualTo(1), "middle leg should start at the kink")
         Assert.That(legTop.Head.isJoint, Is.True, "middle leg top is a joint")

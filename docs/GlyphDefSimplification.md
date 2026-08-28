@@ -5,7 +5,7 @@ repetition that the language could factor out, and a ranked set of proposals.
 Nothing here changes any rendered outline — every rewrite shown is intended to
 parse to exactly the same knots as today.
 
-**The table today:** 103 glyphs, 162 strokes, 2082 characters of definition.
+**The table today:** 104 glyph definitions, 162 strokes, 2291 characters.
 
 ---
 
@@ -20,13 +20,13 @@ parse to exactly the same knots as today.
 | 4 | `xl-bl` | `i m n r` |
 | 4 | `hl-hr` | `+ - E H` |
 | 3 | `(h)l~t(c)~(h)r~b(c)~` | `0 O Q` |
-| 3 | `tel-tthlc` | `‘` `“` and the backtick |
-| 2 | `thr~t(c)~(ttb)l~hc~(tbb)r~b(c)~bhl` | `$ S` |
+| 3 | `tel-1/3thlc` | `‘` `“` and the backtick |
+| 2 | `thr~t(c)~(1/3tb)l~hc~(2/3tb)r~b(c)~bhl` | `$ S` |
 | 2 | `bol~b(c)~(xb)r~x(c)~xol` | `b p` |
 | 2 | `xol~x(c)~xbr-br` | `h n` |
 | 2 | `tec-bec` | `$ \|` |
 
-316 characters of the table are literally re-typed copies. The cost isn't the
+326 characters of the table are literally re-typed copies. The cost isn't the
 characters, it's that **the lowercase bowl exists in seven places**: tuning `c`'s
 aperture means finding and editing `a d g q` (and mirroring into `b p`) by hand.
 
@@ -44,7 +44,7 @@ gives the lowercase *exactly*:
 C  tor~t(c)~(h)l~b(c)~bor      →  c  xor~x(c)~(xb)l~b(c)~bor   ✓
 O  (h)l~t(c)~(h)r~b(c)~        →  o  (xb)l~x(c)~(xb)r~b(c)~    ✓
 V  tl-bc-tr                    →  v  xl-bc-xr                  ✓
-W  tl-bl3w-tlw-blw3-tw         →  w  xl-bl3w-xlw-blw3-xw       ✓
+W  tl-b1/4lw-tlw-b3/4lw-tw     →  w  xl-b1/4lw-xlw-b3/4lw-xw   ✓
 X  tl-br tr-bl                 →  x  xl-br xr-bl               ✓
 Z  tl-tr-bl-br                 →  z  xl-xr-bl-br               ✓
 ```
@@ -56,8 +56,8 @@ own box*. Say which box, and the shape is written once.
 `S`/`s` are a near miss, and the diff is instructive — it's idiom drift, not design:
 
 ```
-S  thr~t(c)~(ttb)l~hc  ~(tbb)r~b(c)~bhl
-s  xor~x(c)~(xxb)l~xbcE~(xbb)r~b(c)~bol
+S  thr~t(c)~(1/3tb)l~hc  ~(2/3tb)r~b(c)~bhl
+s  xor~x(c)~(1/3xb)l~xbcE~(2/3xb)r~b(c)~bol
 ```
 
 The bowl is the same; the *terminals* are specified two different ways
@@ -69,8 +69,8 @@ it.
 ### 1.3 Pairs related by a transform
 
 * `9` is **exactly** `6` rotated 180° (`t`↔`b`, `l`↔`r`, `N`↔`S`):
-  `6 = tor~t(c)~(h)l~bbtl~b(c)~bbtr~ttbc~bbtlNJ`,
-  `9 = bol~b(c)~(h)r~ttbr~t(c)~ttbl~bbtc~ttbrSJ`.
+  `6 = tor~t(c)~(h)l~1/3btl~b(c)~1/3btr~1/3tbc~1/3btlNJ`,
+  `9 = bol~b(c)~(h)r~1/3tbr~t(c)~1/3tbl~1/3btc~1/3tbrSJ`.
 * `b`/`p`'s bowl is `c`'s bowl mirrored in x (and written in the opposite drawing
   direction, which is why the strings don't match textually).
 * `“` = `‘` + a copy shifted right; `”` = `’` + a copy shifted right; `"`, `#`,
@@ -86,7 +86,8 @@ These need no new syntax and are worth fixing regardless:
 * `S`/`s` terminals and waist, as above.
 * `M` is not the vertical flip of `W`: `M = bl-tl-blw-tw-bw` puts its feet on the
   corners and leaves its left side upright while the right side splays, whereas
-  `W = tl-bl3w-tlw-blw3-tw` insets both feet to 1/3 and 2/3. Deliberate or not,
+  `W = tl-b1/4lw-tlw-b3/4lw-tw` insets both feet to a quarter and three
+  quarters of its width. Deliberate or not,
   the two letters are currently designed by different rules.
 * Bowl terminals are variously `tor`, `xor`, `thr`, `bol`, `bhr` — three
   different ways of saying "cut the bowl open near the right".
@@ -143,9 +144,10 @@ terms) and `applyOvershoot` (which tests `onGuide` against real T/X/B/D — a
 `{x,b}` box's top *is* a real guide, so this mostly falls out, but it needs a
 test).
 
-*Aside:* box-relative coordinates also fix an expressiveness gap. `S`'s `th` is
-75% of the cap box; there is no letter-averaging spelling of "75% of the x box"
-(`xxb` is 67%), which is part of why `s` drifted to a different idiom.
+*Aside:* `S`'s `th` is 75% of the cap box, and until fractions landed (D below)
+there was no way to write "75% of the x box" — `xxb` is 67% — which is part of
+why `s` drifted to a different idiom. `3/4xb` now says it, so this no longer
+blocks unifying the pair.
 
 ### C. Transforms on a stroke reference
 
@@ -163,13 +165,23 @@ string (mirroring text would have to swap `l`↔`r`, `N`↔`S`, `E`↔`W` *and* 
 the point order — doable but fiddly; transforming coordinates after parse is
 cleaner and also reverses drawing direction correctly).
 
-### D. Fractions instead of letter repeats
+### D. Fractions instead of letter repeats — **done**
 
-`bl3w`, `x2bc3l`, `h8tl4r`, `ttbl`, `bbtrcc` are the least readable part of the
-table, and `K`'s definition needs a five-line comment to explain that `h8tl4r`
-means "1/5 along the arm". A percentage between two guides — `33%lw` for `bl3w`,
-`20%lr` — says the same thing legibly. Pure sugar over `weightedCoords`; the
-existing spellings can stay valid.
+*Was:* `bl3w`, `x2bc3l`, `h8tl4r`, `ttbl`, `bbtrcc` were the least readable part
+of the table — you had to count repeated letters (or expand a digit) to see what
+proportion was meant — and `K`'s definition needed a five-line comment to explain
+that `h8tl4r` starts the leg a fifth of the way along the arm.
+
+*Now:* a coordinate can be written as **`n/dAB`** — `n/d` of the way from guide
+`A` to guide `B`: `b1/4lw`, `1/3xb1/4cl`, `1/9ht1/5lr`, `1/3tbl`, `1/3bt2/3rc`.
+Averaging several letters still means what it did (`bt` is halfway, `llcr` an
+off-grid point), so the fraction is used wherever the average would need more
+than two letters. The digit-repeat shorthand (`b2t`, `r4c`) is gone: it existed
+only to abbreviate long repeat runs, which the fraction now states outright.
+
+Internally a fraction expands to exactly the average it names — `1/4lw` to three
+parts `l` and one part `w`, in that order — so every glyph renders identically
+(verified: byte-identical SVG for all 105 glyphs across eight axis settings).
 
 ### E. Points expressed on another stroke — for joints
 
@@ -179,9 +191,9 @@ second arch, `Y`, `R`. They are currently hand-computed grid coordinates plus a
 paragraph of comment explaining why that coordinate is the right one, and they
 break whenever the host stroke moves.
 
-A reference like `@arm:20` ("20% along the stroke named `arm`") would make
-`K = tl-bl  tr-h9blJ  @arm:20J-br` mean what the comment says, and stay correct
-if the arm is redrawn. This is the largest change of the six and the one with the
+A reference like `@arm:1/5` ("a fifth along the stroke named `arm`") would make
+`K = tl-bl  tr-1/10hblJ  @arm:1/5J-br` say what the comment says, and stay
+correct if the arm is redrawn. This is the largest change of the six and the one with the
 most design leverage; worth prototyping on `K k m A Y` alone.
 
 ### F. Aperture by angle (speculative)
@@ -200,9 +212,9 @@ Applying A + B + C to the 37 glyphs where they clearly apply
 (`O o 0 Q C c a d q g b p G V v W w X x Z z P D B R n h 6 9 S $ s`, the quote
 family and the backtick):
 
-* now: 860 characters across those definitions
-* proposed: 540 characters, including an 11-entry stroke library
-* **37% smaller, and about 40% of the table's characters stop being duplicates**
+* now: 972 characters across those definitions
+* proposed: 558 characters, including an 11-entry stroke library
+* **43% smaller, and about 40% of the table's characters stop being duplicates**
 
 The real win is the maintenance one: the lowercase bowl goes from 7 copies to 1,
 `B D P R` from 4 hand-drawn bowls to 1, and each case pair from 2 skeletons to 1.
@@ -233,6 +245,7 @@ alone.
    tangents, joint flags). A rewrite that passes that test cannot move a
    snapshot — which matters here, since visual baselines are rebaselined by hand,
    not by CI.
-3. **Sequence it.** A (library) is independently useful and lands in an
-   afternoon. B (box) is the one that pays for itself. C (transforms) is best
-   done on knots, after B. D/E/F are separate projects; E is the interesting one.
+3. **Sequence it.** D (fractions) is done. A (library) is independently useful
+   and lands in an afternoon. B (box) is the one that pays for itself. C
+   (transforms) is best done on knots, after B. E and F are separate projects;
+   E is the interesting one.
