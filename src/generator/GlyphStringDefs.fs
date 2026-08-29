@@ -177,7 +177,7 @@ let glyphMap =
           'T', "tl-tr tc-bc"
           't', "tlc-xblc~b1/3crW xl-x1/3cr"
           'U', "tl-hl~b(c)~hr-tr"
-          'u', "xl-xbl~b(llcr)~bocr xcr-bcr"
+          'u', "xl-xbl~b(3/8lr)~bocr xcr-bcr"
           'V', "tl-bc-tr"
           'v', "xl-bc-xr"
           'W', "tl-b1/4lw-tlw-b3/4lw-tw"
@@ -210,11 +210,11 @@ let altGlyphMap =
 /// Expand a coordinate string into the list of guide values to average.
 /// Parentheses are ignored here (they set the fit flag separately).
 ///
-/// Several guide letters average their positions: `th` is halfway between the
-/// top and the half height, `llcr` a quarter-width point.  A leading fraction
-/// places the coordinate proportionally between two guides — `1/4lw` is a
-/// quarter of the way from left to wide — and expands to the same average
-/// (three parts left to one part wide), so the two spellings agree exactly.
+/// Two guide letters average to their midpoint: `th` is halfway between the top
+/// and the half height.  A leading fraction places the coordinate anywhere
+/// between two guides — `1/4lw` is a quarter of the way from left to wide — and
+/// expands to the same average (three parts left to one part wide), so the two
+/// spellings agree exactly.
 let weightedCoords (cs: string) (coordOf: char -> float) =
     let guides = cs.Replace("(", "").Replace(")", "")
     let fraction = Regex.Match(guides, "^([0-9]+)/([0-9]+)(.*)$")

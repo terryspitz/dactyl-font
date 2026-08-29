@@ -43,11 +43,10 @@ Horizontal coordinates follow the Y-coordinates.
 *Example:* `tl` puts a point at the top-left of the glyph bounding box. `bc` puts a point at the bottom-center.
 
 ### Averaging and Fractions
-Combining several coordinate letters averages their positions, which puts a
-point midway between guides:
+Combining two coordinate letters averages their positions, giving the point
+midway between them:
 - `bt` (or `h`): halfway between bottom and top.
-- `llcr`: the average of left, left, centre and right — an off-grid point that
-  no single fraction between two guides can name.
+- `bd`: halfway between the baseline and the descender.
 
 For anything other than a plain midpoint, write the proportion directly as
 **`n/d` followed by the two guides it runs between**: `n/dAB` is `n/d` of the

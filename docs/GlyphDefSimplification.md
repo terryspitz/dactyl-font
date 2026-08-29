@@ -174,9 +174,8 @@ that `h8tl4r` starts the leg a fifth of the way along the arm.
 
 *Now:* a coordinate can be written as **`n/dAB`** — `n/d` of the way from guide
 `A` to guide `B`: `b1/4lw`, `1/3xb1/4cl`, `1/9ht1/5lr`, `1/3tbl`, `1/3bt2/3rc`.
-Averaging several letters still means what it did (`bt` is halfway, `llcr` an
-off-grid point), so the fraction is used wherever the average would need more
-than two letters. The digit-repeat shorthand (`b2t`, `r4c`) is gone: it existed
+Averaging two letters still means what it did (`bt` is halfway); the fraction
+took over wherever the average needed three or more letters. The digit-repeat shorthand (`b2t`, `r4c`) is gone: it existed
 only to abbreviate long repeat runs, which the fraction now states outright.
 
 Internally a fraction expands to exactly the average it names — `1/4lw` to three

@@ -136,6 +136,16 @@ type ParserTests() =
         Assert.That(pt.x, Is.EqualTo((metrics.L + 2.0 * metrics.R) / 3.0))
 
     [<Test>]
+    member this.TestFractionMatchesAThreeLetterAverage() =
+        // `c` sits exactly halfway between `l` and `r`, so averaging l, l, c, r
+        // lands three-eighths of the way across -- which the fraction names
+        // outright. (`u`'s bowl is written the second way.)
+        let averaged, _, _, _, _, _ = parse_point metrics "b(llcr)"
+        let fraction, _, _, _, _, _ = parse_point metrics "b(3/8lr)"
+        Assert.That(fraction.x, Is.EqualTo(averaged.x))
+        Assert.That(fraction.x, Is.EqualTo(metrics.L + 0.375 * (metrics.R - metrics.L)))
+
+    [<Test>]
     member this.TestFractionRejectsMalformedSpans() =
         // n must be no bigger than d, and a fraction spans exactly two guides.
         Assert.Throws<System.ArgumentException>(fun () -> parse_point metrics "5/4tbl" |> ignore)
