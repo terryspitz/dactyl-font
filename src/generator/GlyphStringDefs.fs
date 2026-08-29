@@ -46,6 +46,17 @@ let point_re =
 let curve_re = "(" + point_re + line_re + ")*" + point_re + optional_re line_re
 let glyph_re = "^ ?$|^(" + curve_re + separator_re + ")*" + curve_re + "$"
 
+/// One line per row of the "Key" shown under the Glyphs tab's definition editor
+/// (exposed to the UI by Api.getSyntaxKey).  It lives here, beside the language
+/// it describes, so the help and the parser cannot drift apart — the full
+/// reference is docs/DactylGlyphs.md.
+let syntaxKey =
+    [ "y: (t)op, (x)-height, (h)alf, (b)ottom, (d)escender, (o)ffset in, (e)xtended out."
+      "x: (l)eft, (c)enter, (r)ight, (w)ide. Solo point \u2192 dot."
+      "Dirs: N,S,E,W. Lines: (-) straight, (~) curve. Brackets: auto fit."
+      "K: corner/kink. J: interior joint (suppresses end caps)."
+      "Two letters average (e.g. \"bt\"=\"h\"); \"n/dAB\" is n/d of the way from guide A to B, so \"1/3bt\" is a third up from the bottom." ]
+
 let glyphMap =
     Map.ofList
         [ ' ', " "
