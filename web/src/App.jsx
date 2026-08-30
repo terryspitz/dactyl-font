@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { generateSvg, defaultAxes, controlDefinitions, penPresets, penPresetAxes, axisDependsOn, generateTweenSvg, getGlyphDefs, cursiveUsesAlt, allChars, alphabetChars } from './lib/fable/Api' // Adjust path if needed
+import { useState, useMemo, useEffect, useRef, useCallback, Fragment } from 'react'
+import { generateSvg, defaultAxes, controlDefinitions, penPresets, penPresetAxes, axisDependsOn, generateTweenSvg, getGlyphDefs, getSyntaxKey, cursiveUsesAlt, allChars, alphabetChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
 import GrowCanvas from './GrowCanvas'
@@ -23,6 +23,11 @@ const SPLINE_ENGINE = 'spline_engine'
 
 // Glyphs floating tools legend: non-spline layerVisibility keys grouped under "Debug"
 const DEBUG_LAYER_KEYS = ['comb', 'tangents', 'guides', 'labels', 'knots']
+
+// The Glyphs tab's syntax "Key", one entry per line.  Defined in
+// GlyphStringDefs.fs beside the language it documents, so this help cannot
+// drift away from the parser.
+const syntaxKey = getSyntaxKey()
 
 // Generate tab defaults, factored out so the per-mode "reset" button can
 // restore them without touching which mode is selected. Functions (not plain
@@ -2002,11 +2007,12 @@ function App() {
                       className="glyph-key-popup"
                       style={{ top: `${glyphKeyPos.top}px`, left: `${glyphKeyPos.left}px` }}
                     >
-                      <strong>Key:</strong> y: (t)op, (x)-height, (h)alf, (b)ottom, (d)escender, (o)ffset in, (e)xtended out. <br />
-                      x: (l)eft, (c)enter, (r)ight, (w)ide. Solo point → dot. <br />
-                      Dirs: N,S,E,W. Lines: (-) straight, (~) curve. Brackets: auto fit. <br />
-                      K: corner/kink. J: interior joint (suppresses end caps). <br />
-                      Repeats average coordinates (e.g. "bt"="h"); a digit repeats the letter before it, so "b2t"="bbt". <br />
+                      <strong>Key:</strong>{' '}
+                      {syntaxKey.map((line, i) => (
+                        <Fragment key={i}>
+                          {line} <br />
+                        </Fragment>
+                      ))}
                       <a
                         href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
                         target="_blank"

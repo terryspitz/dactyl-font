@@ -202,7 +202,7 @@ type TestClass() =
     [<Test>]
     member this.TestF_StemToHookTransition() =
         // Points from user's bug report:
-        // xtllc: x=80, y=510, th=PI/2 (North)
+        // xt1/3lc: x=80, y=510, th=PI/2 (North)
         // tcrW: x=255, y=630, th=PI (West)
         let ctrlPts =
             [| dcp SplinePointType.LineToCurve 80. 510. (Some(PI / 2.0))
@@ -211,15 +211,15 @@ type TestClass() =
         let spline = DactylSpline(ctrlPts, false)
         let bezPts = spline.solveAndGetPoints(500, 1.0, 10.0, true)
         
-        // Point 0 (xtllc) should NOT be flipped. It should point North.
-        Assert.That(bezPts.[0].th_out, Is.EqualTo(PI / 2.0).Within(1e-10), "xtllc should point North")
+        // Point 0 (xt1/3lc) should NOT be flipped. It should point North.
+        Assert.That(bezPts.[0].th_out, Is.EqualTo(PI / 2.0).Within(1e-10), "xt1/3lc should point North")
         
         // Point 1 (tcrW) SHOULD be flipped to East (0).
         Assert.That(bezPts.[1].th_in, Is.EqualTo(0.0).Within(1e-10), "tcrW should be flipped to East")
 
     [<Test>]
     member this.TestF_StemToHookTransition_Smooth() =
-        // Same coordinates but as a 3-point spline (matching "bllc-xtllc~tcrW")
+        // Same coordinates but as a 3-point spline (matching "b1/3lc-xt1/3lc~tcrW")
         let ctrlPts =
             [| dcp SplinePointType.Corner 80. 0. None
                dcp SplinePointType.LineToCurve 80. 510. None // tangent set by preprocess
@@ -228,9 +228,9 @@ type TestClass() =
         let spline = DactylSpline(ctrlPts, false)
         let bezPts = spline.solveAndGetPoints(500, 1.0, 10.0, true)
         
-        // xtllc (pt 1) should point North (from stem line)
-        Assert.That(bezPts.[1].th_in, Is.EqualTo(PI / 2.0).Within(1e-10), "xtllc in should be North")
-        Assert.That(bezPts.[1].th_out, Is.EqualTo(PI / 2.0).Within(1e-10), "xtllc out should be North")
+        // xt1/3lc (pt 1) should point North (from stem line)
+        Assert.That(bezPts.[1].th_in, Is.EqualTo(PI / 2.0).Within(1e-10), "xt1/3lc in should be North")
+        Assert.That(bezPts.[1].th_out, Is.EqualTo(PI / 2.0).Within(1e-10), "xt1/3lc out should be North")
         
         // tcrW (pt 2) should be flipped to East
         Assert.That(bezPts.[2].th_in, Is.EqualTo(0.0).Within(1e-10), "tcrW should be flipped to East")

@@ -11,9 +11,15 @@ let PI = System.Math.PI
 /// independently; turns out to be a limited METAFONT). See docs/DactylGlyphs.md
 /// for the full syntax reference.
 /// Regex for the language
-let y_re = "[txhbd0-9]+|\([txhbd0-9]+\)"
+// A coordinate is one or more guide letters, optionally preceded by a fraction:
+// `n/dAB` is n/d of the way from guide A to guide B (see weightedCoords).
+let fraction_re = "[0-9]+/[0-9]+"
+let private coord_re guides =
+    "(?:(?:" + fraction_re + ")?[" + guides + "]+)"
+let private fittable_re coord = "(?:" + coord + "|\(" + coord + "\))"
+let y_re = fittable_re (coord_re "txhbd")
 let offset_re = "[oe]"
-let x_re = "[lrcw0-9]+|\([lrcw0-9]+\)"
+let x_re = fittable_re (coord_re "lrcw")
 let direction_re = "[NSEW]"
 // Explicit interior-joint marker: a trailing `J` on a point declares that an
 // open-stroke endpoint landing here is a joint against another stroke, so its
@@ -40,28 +46,39 @@ let point_re =
 let curve_re = "(" + point_re + line_re + ")*" + point_re + optional_re line_re
 let glyph_re = "^ ?$|^(" + curve_re + separator_re + ")*" + curve_re + "$"
 
+/// One line per row of the "Key" shown under the Glyphs tab's definition editor
+/// (exposed to the UI by Api.getSyntaxKey).  It lives here, beside the language
+/// it describes, so the help and the parser cannot drift apart — the full
+/// reference is docs/DactylGlyphs.md.
+let syntaxKey =
+    [ "y: (t)op, (x)-height, (h)alf, (b)ottom, (d)escender, (o)ffset in, (e)xtended out."
+      "x: (l)eft, (c)enter, (r)ight, (w)ide. Solo point \u2192 dot."
+      "Dirs: N,S,E,W. Lines: (-) straight, (~) curve. Brackets: auto fit."
+      "K: corner/kink. J: interior joint (suppresses end caps)."
+      "Two letters average (e.g. \"bt\"=\"h\"); \"n/dAB\" is n/d of the way from guide A to B, so \"1/3bt\" is a third up from the bottom." ]
+
 let glyphMap =
     Map.ofList
         [ ' ', " "
           '□', "tl-tr-br-bl- xl-xr bl-dl-dr-br" //frame for showing top/x/descender heights
           '!', "tl-hbl bl"
-          '"', "tellr-tthllr telrr-tthlrr"
-          '#', "ttbl-ttbr tbbl-tbbr tllr-bllr tlrr-blrr"
-          '£', "tor~tc~txl~xllc~blS-br xl-xcr"
-          '$', "thr~t(c)~(ttb)l~hc~(tbb)r~b(c)~bhl tec-bec"
-          '%', "tllc~tthllc~tthlc~ brrc~bbhrrc~bbhrc~ ter-bel"
-          '&', "hbbr~b(c)~(hb)l~thcr~tlcc~thl-br"
-          ''', "tel-tthl"
-          '’', "telc-tthl"
+          '"', "te1/3lr-1/3th1/3lr te2/3lr-1/3th2/3lr"
+          '#', "1/3tbl-1/3tbr 2/3tbl-2/3tbr t1/3lr-b1/3lr t2/3lr-b2/3lr"
+          '£', "tor~tc~txl~x1/3lc~blS-br xl-xcr"
+          '$', "thr~t(c)~(1/3tb)l~hc~(2/3tb)r~b(c)~bhl tec-bec"
+          '%', "t1/3lc~1/3th1/3lc~1/3thlc~ b1/3rc~1/3bh1/3rc~1/3bhrc~ ter-bel"
+          '&', "2/3hbr~b(c)~(hb)l~thcr~t2/3lc~thl-br"
+          ''', "tel-1/3thl"
+          '’', "telc-1/3thl"
           // Smart quotes: raised ticks matching the apostrophe style. The
           // opening pair (‘ “) slant one way, the closing pair (’ ”) mirror it.
-          '‘', "tel-tthlc"
-          '“', "tel-tthlc tec-tthcr"
-          '”', "telc-tthl tecr-tthc"
-          '`', "tel-tthlc"
+          '‘', "tel-1/3thlc"
+          '“', "tel-1/3thlc tec-1/3thcr"
+          '”', "telc-1/3thl tecr-1/3thc"
+          '`', "tel-1/3thlc"
           '(', "telc~hl~belc"
           ')', "tel~hlc~bel"
-          '*', "xl-xbr xbl-xr txxc-xbbc"
+          '*', "xl-xbr xbl-xr 2/3txc-2/3xbc"
           '+', "hl-hr htc-hbc"
           '-', "hl-hr"
           // Dashes at hyphen height, progressively wider: hyphen (to R) <
@@ -71,46 +88,46 @@ let glyphMap =
           '.', "bl"
           '•', "hc"          // bullet: a single mid-height dot
           '…', "bl bc br"    // ellipsis: three baseline dots
-          ',', "blc-bbdl"
+          ',', "blc-1/3bdl"
           '/', "bel-ter"
           ':', "xbl bl"
-          ';', "xbcl bocl-bbdl"
+          ';', "xbcl bocl-1/3bdl"
           '<', "xr-xbl-br"
-          '=', "xxbl-xxbr xbbl-xbbr"
+          '=', "1/3xbl-1/3xbr 2/3xbl-2/3xbr"
           '>', "xl-xbr-bl"
-          '?', "thl~t(c)~(th)r~hhbc-bbhc bc"
-          '@', "bbtrcc~b3tc~hcl~ttbc~hrcc~bbtrccS~b3tcrr~hrN~te(c)~hlS~be(c)~bor"
+          '?', "thl~t(c)~(th)r~1/3hbc-1/3bhc bc"
+          '@', "1/3bt2/3rc~1/4btc~hcl~1/3tbc~h2/3rc~1/3bt2/3rcS~1/4bt2/3cr~hrN~te(c)~hlS~be(c)~bor"
           '[', "tec-tel-bel-bec"
           '\\', "tel-ber"
           ']', "tec-ter-ber-bec"
-          '^', "ttbl-tc-ttbr"
+          '^', "1/3tbl-tc-1/3tbr"
           '_', "bel-ber"
           '{', "tecW~hlE hlE~becW"
           '}', "telE~hcW hcW~belE"
           '|', "tec-bec"
-          '~', "t4hl~tlc~t4hc~t3h2rc~t4hr"
+          '~', "1/5thl~tlc~1/5thc~2/5thrc~1/5thr"
 
           '0', "(h)l~t(c)~(h)r~b(c)~ tr-bl"
-          '1', "tol-tl3r-bl3r"
+          '1', "tol-t1/4lr-b1/4lr"
           '2', "tol~t(c)~(th)r~hbc-bl-br"
           // One continuous stroke through the waist: the upper bowl runs into the lower
           // one at a kink (`K`), instead of two strokes each ending in a horizontal
           // spur drawn twice on top of itself. `E` at the kink makes both tangents
           // horizontal — in from the east, out to the east — so the waist is level.
-          '3', "tol~t(c)~(th)r~hllrEK~(bh)r~b(c)~bol"
-          '4', "br3l-tr3l-bhl-bhr"
+          '3', "tol~t(c)~(th)r~h1/3lrEK~(bh)r~b(c)~bol"
+          '4', "b1/4rl-t1/4rl-bhl-bhr"
           // One continuous stroke: the stem runs into the bowl at an acute kink (`K`),
           // rather than two overlapping strokes whose caps left a notch at the join.
-          '5', "tr-tl-hlK~ttb(c)~(bbt)r~b(c)~bol"
-          '6', "tor~t(c)~(h)l~bbtl~b(c)~bbtr~ttbc~bbtlNJ"
+          '5', "tr-tl-hlK~1/3tb(c)~(1/3bt)r~b(c)~bol"
+          '6', "tor~t(c)~(h)l~1/3btl~b(c)~1/3btr~1/3tbc~1/3btlNJ"
           '7', "tl-tr-bcl"
           //  two loops:
           //  '8', "hc~thl~tc~thr~ hc~bhl~bc~bhr~"
           // figure of eight:
           '8', "hc~(th)l~t(c)~(th)r~hc~(bh)l~b(c)~(bh)r~"
-          '9', "bol~b(c)~(h)r~ttbr~t(c)~ttbl~bbtc~ttbrSJ"
+          '9', "bol~b(c)~(h)r~1/3tbr~t(c)~1/3tbl~1/3btc~1/3tbrSJ"
 
-          'A', "bl-tc-br bhl3cJ-bhcr3J"
+          'A', "bl-tc-br bh1/4lcJ-bh3/4crJ"
           'a', "xr-br xor~x(c)~(xb)l~b(c)~bor"
           'B', "hl-hlo~(bh)r~blo-bl-tl-tlo~(th)r~hlo-hl"
           'b', "tl-bl bol~b(c)~(xb)r~x(c)~xol"
@@ -119,32 +136,33 @@ let glyphMap =
           'D', "tl-bl-blo~(h)r~tlo-"
           'd', "tr-br xor~x(c)~(xb)l~b(c)~bor"
           'E', "tr-tl-bl-br hl-hr"
-          'e', "xblJ-xbrN~x(c)~xblS~b(c)~bor5c"
+          'e', "xblJ-xbrN~x(c)~xblS~b(c)~bo1/6rc"
           'F', "bl-tl-tr hl-hrc"
-          'f', "bllc-xtllc~tcrW xl-xc"
+          'f', "b1/3lc-xt1/3lc~tcrW xl-xc"
           'G', "tor~t(c)~(h)l~b(c)~bhr-hr-hc"
           'g', "xr-bdr~d(c)~dol xor~x(c)~(xb)l~b(c)~bor"
           'H', "tl-bl hl-hr tr-br"
           'h', "tl-bl xol~x(c)~xbr-br"
           'I', "tl-tr tc-bc bl-br"
-          'i', "xl-bl ttxl"
+          'i', "xl-bl 1/3txl"
           'J', "tl-tr-hr~b(c)~bol"
-          'j', "xc-bdc~dlE ttxc"
+          'j', "xc-bdc~dlE 1/3txc"
           // Leg springs from the arm (like 'k' below), not from the stem: two strokes
           // both ending at the stem cap each other perpendicular to their own axis, and
           // the caps cross inside the stem, leaving the ink between them unfilled — a
           // white bite out of the junction that widens with weight. `J` buries the leg's
-          // cap inside the arm instead. The junction sits at `h9b` rather than `h`: `h`
-          // takes the `balance` raise meant for crossbars and waists, which lifted this
-          // vertex above the optical middle. `h8tl4r` is 1/5 along the arm, the point the
-          // coordinate grid puts closest to the arm's spine once it is lowered (0.2 units
-          // off) — springing from off the spine leaves a spur at hairline weights.
+          // cap inside the arm instead. The arm meets the stem a tenth below `h` rather
+          // than at `h`, which takes the `balance` raise meant for crossbars and waists
+          // and lifted this vertex above the optical middle. The leg then springs from a
+          // fifth of the way along the arm, the grid point nearest the arm's spine once
+          // it is lowered — springing from off the spine leaves a spur at hairline
+          // weights.
           // Both interior ends are marked `J`: the arm's lands on the stem, so the
           // geometric heuristic already suppresses its cap while the `joints` axis is on,
           // but with that axis off the marker is what stops a serif bracket (or bulb)
           // sprouting out through the far side of the stem.
-          'K', "tl-bl tr-h9blJ h8tl4rJ-br"
-          'k', "tl-bl xb2l-xcr x2bc3lJ-bcr"
+          'K', "tl-bl tr-1/10hblJ 1/9ht1/5lrJ-br"
+          'k', "tl-bl 2/3xbl-xcr 1/3xb1/4clJ-bcr"
           'L', "tl-bl-br"
           'l', "tl-xbl~bcW"
           'M', "bl-tl-blw-tw-bw"
@@ -154,7 +172,7 @@ let glyphMap =
           // crotch — the thinnest part of the junction — and stepped the outline there.
           // Of the three strokes meeting here, the leg is the one whose cap hides best:
           // it starts below the crotch with arch ink either side of it.
-          'm', "xl-bl xolJ~x(llw)~xxblwK~x(rw)~xxbw-bw xxblwJ-blw"
+          'm', "xl-bl xolJ~x(1/3lw)~1/3xblwK~x(rw)~1/3xbw-bw 1/3xblwJ-blw"
           'N', "bl-tl-br-tr"
           'n', "xl-bl xol~x(c)~xbr-br"
           'O', "(h)l~t(c)~(h)r~b(c)~"
@@ -164,17 +182,17 @@ let glyphMap =
           'Q', "(h)l~t(c)~(h)r~b(c)~ br-hbc"
           'q', "xr-dr xor~x(c)~(xb)l~b(c)~bor"
           'R', "bl-tl-tlo~(th)r~hlo-hlJ hloJ-br"
-          'r', "xl-bl xol~xlcc~xoccr"
-          'S', "thr~t(c)~(ttb)l~hc~(tbb)r~b(c)~bhl"
-          's', "xor~x(c)~(xxb)l~xbcE~(xbb)r~b(c)~bol"
+          'r', "xl-bl xol~x2/3lc~xo1/3cr"
+          'S', "thr~t(c)~(1/3tb)l~hc~(2/3tb)r~b(c)~bhl"
+          's', "xor~x(c)~(1/3xb)l~xbcE~(2/3xb)r~b(c)~bol"
           'T', "tl-tr tc-bc"
-          't', "tlc-xblc~bccrW xl-xccr"
+          't', "tlc-xblc~b1/3crW xl-x1/3cr"
           'U', "tl-hl~b(c)~hr-tr"
-          'u', "xl-xbl~b(llcr)~bocr xcr-bcr"
+          'u', "xl-xbl~b(3/8lr)~bocr xcr-bcr"
           'V', "tl-bc-tr"
           'v', "xl-bc-xr"
-          'W', "tl-bl3w-tlw-blw3-tw"
-          'w', "xl-bl3w-xlw-blw3-xw"
+          'W', "tl-b1/4lw-tlw-b3/4lw-tw"
+          'w', "xl-b1/4lw-xlw-b3/4lw-xw"
           'X', "tl-br tr-bl"
           'x', "xl-br xr-bl"
           'Y', "tl-hc-tr hcJ-bc"
@@ -195,32 +213,37 @@ let glyphMap =
 /// width, x-height, thickness, roundedness, italic, etc. from the other axes.
 let altGlyphMap =
     Map.ofList
-        [ 'a', "br-xxbr~x(c)~xol3c xbr~b2x3(c)~(bbx)l~b(c)~bor"
-          'g', "(bx)l~x(c)~(bx)r2c~b2x(c)~ xc-xr b2xlc3W~blc3W (bd)l~bc~(bd)r~d(c)~" ]
+        [ 'a', "br-1/3xbr~x(c)~xo1/4lc xbr~3/5bx(c)~(1/3bx)l~b(c)~bor"
+          'g', "(bx)l~x(c)~(bx)1/3rc~1/3bx(c)~ xc-xr 1/3bx3/4lcW~b3/4lcW (bd)l~bc~(bd)r~d(c)~" ]
 
 // parse
 
 /// Expand a coordinate string into the list of guide values to average.
-/// Parentheses are ignored here (they set the fit flag separately). A digit
-/// run immediately after a coordinate letter repeats that letter that many
-/// times, so it counts proportionally in the average:
-///   "r4c" -> [R;R;R;R;C]   "b2t" -> [B;B;T]   "th" -> [T;H] (unchanged)
+/// Parentheses are ignored here (they set the fit flag separately).
+///
+/// Two guide letters average to their midpoint: `th` is halfway between the top
+/// and the half height.  A leading fraction places the coordinate anywhere
+/// between two guides — `1/4lw` is a quarter of the way from left to wide — and
+/// expands to the same average (three parts left to one part wide), so the two
+/// spellings agree exactly.
 let weightedCoords (cs: string) (coordOf: char -> float) =
-    let rec loop chars acc =
-        match chars with
-        | [] -> List.rev acc
-        | c :: rest when c = '(' || c = ')' -> loop rest acc
-        | c :: rest ->
-            let digits = rest |> List.takeWhile System.Char.IsDigit
-            let rest2 = rest |> List.skipWhile System.Char.IsDigit
-            let count =
-                match digits with
-                | [] -> 1
-                | _ -> digits |> List.fold (fun a d -> a * 10 + (int d - int '0')) 0
-            let v = coordOf c
-            loop rest2 (List.replicate count v @ acc)
+    let guides = cs.Replace("(", "").Replace(")", "")
+    let fraction = Regex.Match(guides, "^([0-9]+)/([0-9]+)(.*)$")
 
-    loop (List.ofSeq cs) []
+    if fraction.Success then
+        let num = int fraction.Groups.[1].Value
+        let den = int fraction.Groups.[2].Value
+        let ends = fraction.Groups.[3].Value
+
+        if num > den || den = 0 || ends.Length <> 2 then
+            invalidArg
+                "fraction"
+                (sprintf "Invalid fractional coordinate %A (expected n/d between two guides, with n <= d)" cs)
+
+        List.replicate (den - num) (coordOf ends.[0])
+        @ List.replicate num (coordOf ends.[1])
+    else
+        guides |> Seq.map coordOf |> List.ofSeq
 
 let parse_point (glyph: FontMetrics) def_raw =
     let mutable def = def_raw
@@ -519,7 +542,7 @@ let parse_curve (glyph: FontMetrics) raw_def debug =
                   // At a kink the two sides are independent, so an explicit direction
                   // there names the tangent's *axis* and each side is oriented along its
                   // own direction of travel: into the point from the previous knot, out of
-                  // it toward the next. `hllrEK` in '3' therefore means "horizontal in and
+                  // it toward the next. `h1/3lrEK` in '3' therefore means "horizontal in and
                   // out", giving a level waist where the stroke doubles back — writing the
                   // same East angle on both sides would instead ask the upper bowl to
                   // arrive travelling east while coming from the east, and it would loop.
