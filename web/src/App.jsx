@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback, Fragment } from 'react'
-import { generateSvg, defaultAxes, controlDefinitions, penPresets, penPresetAxes, axisDependsOn, generateTweenSvg, getGlyphDefs, getSyntaxKey, cursiveUsesAlt, allChars, alphabetChars } from './lib/fable/Api' // Adjust path if needed
+import { generateSvg, defaultAxes, controlDefinitions, penPresets, penPresetAxes, axisDependsOn, generateTweenSvg, getGlyphDefs, getSyntaxKey, generateRandomGlyphDefs, generateRandomGlyphsPreviewSvg, generateRandomGlyphDefsWithParams, randomGlyphSources, cursiveUsesAlt, allChars, alphabetChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
 import GrowCanvas from './GrowCanvas'
@@ -119,7 +119,52 @@ function App() {
     const initialText = tabTexts['glyphs'] || 'a'
     return getGlyphDefs(initialText, cursiveUsesAlt(defaultAxes.cursive, defaultAxes.slant))
   })
+  // Set by the Glyphs tab's "Random" button, rendered in place of the normal
+  // live debug preview until the next manual edit clears it. Deliberately
+  // bypasses that preview's usual Spiro+Spline2+DactylSpline debug render:
+  // freshly generated geometry is far likelier than hand-authored strings to
+  // land on a real numerical pathology in the legacy Spiro solver where a
+  // specific coordinate/separator combination takes single-digit seconds and
+  // emits tens of megabytes of path data for one glyph (see
+  // docs/RandomGlyphs.md). generateRandomGlyphsPreviewSvg renders with just
+  // the one engine the exported font actually uses, which sidesteps it.
+  const [randomPreviewSvg, setRandomPreviewSvg] = useState(null)
   const [axes, setAxes] = useState({ ...defaultAxes })
+  // A frozen preview would otherwise show the wrong proportions/weight once
+  // sliders/style chips move -- re-render it through the same fast
+  // DactylSpline-only path rather than clearing it, which would otherwise
+  // dump the tab back onto the slow multi-engine debug render (falling back
+  // to the stale previous result until that ~10s render completes).
+  useEffect(() => {
+    setRandomPreviewSvg(prev => (prev === null ? null : generateRandomGlyphsPreviewSvg(glyphsDefsText, axes)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [axes])
+  // Random Lab tab: exposes the Propose/Filter/Assemble pipeline's tunable
+  // knobs (see RandomGlyphs.RandomGlyphParams) instead of the Glyphs tab's
+  // Random button's fixed defaults.
+  const randomLabSources = useState(() => randomGlyphSources())[0]
+  const [randomLabParams, setRandomLabParams] = useState({
+    maxStrokes: 3,
+    mirrorProb: 35,
+    jaccardMax: 55,
+    count: 26,
+    sources: [], // empty = every source
+  })
+  const [randomLabDefs, setRandomLabDefs] = useState('')
+  const [randomLabSvg, setRandomLabSvg] = useState(null)
+  const generateRandomLab = useCallback(() => {
+    const { maxStrokes, mirrorProb, jaccardMax, count, sources } = randomLabParams
+    const defs = generateRandomGlyphDefsWithParams(
+      newGlyphSeed(), axes, count, maxStrokes, mirrorProb / 100, jaccardMax / 100, sources.join(',')
+    )
+    setRandomLabDefs(defs)
+    setRandomLabSvg(generateRandomGlyphsPreviewSvg(defs, axes))
+  }, [randomLabParams, axes])
+  // Re-render (not regenerate) on axes change, same rationale as randomPreviewSvg above.
+  useEffect(() => {
+    setRandomLabSvg(prev => (prev === null ? null : generateRandomGlyphsPreviewSvg(randomLabDefs, axes)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [axes])
   // "Randomise every glyph": null = off, otherwise the seed that every
   // character's axes are derived from.  Holding a seed (rather than a big map of
   // per-glyph axes) is what makes the variant font stable — it only changes when
@@ -418,6 +463,7 @@ function App() {
     if (activeTab === 'glyphs') {
       localStorage.setItem('glyphText', newVal)
       setGlyphsDefsText(getGlyphDefs(newVal || 'a', cursiveUsesAlt(axes.cursive, axes.slant)))
+      setRandomPreviewSvg(null)
     }
   }
 
@@ -1103,6 +1149,14 @@ function App() {
       clearTimeout(timer)
       worker.terminate()
       return
+    } else if (activeTab === 'randomLab') {
+      // Random Lab generates synchronously on the main thread via its own
+      // "Generate" button (same fast DactylSpline-only path as the Glyphs
+      // tab's Random button) — skip the worker pipeline.
+      setLoading(false)
+      clearTimeout(timer)
+      worker.terminate()
+      return
     }
 
     if (typeReq) {
@@ -1339,6 +1393,37 @@ function App() {
       // Optional: return <div style={{padding: '20px'}}>Generating...</div> 
       // But user asked for progress bar at top, so maybe leave blank or keep old?
       // If we return null, it might flash.
+    }
+
+    // A fresh Random-button batch: render its own lean preview instead of the
+    // normal (and, for this kind of geometry, occasionally very slow) debug
+    // multi-engine pipeline. See randomPreviewSvg's declaration above.
+    if (activeTab === 'glyphs' && randomPreviewSvg) {
+      const visibilityClasses = Object.entries(layerVisibility)
+        .filter(([, visible]) => !visible)
+        .map(([key]) => `hide-${key}`)
+        .join(' ')
+
+      return (
+        <div className={`glyphs-container ${visibilityClasses}`}>
+          <div className="svg-container" dangerouslySetInnerHTML={{ __html: randomPreviewSvg }} />
+        </div>
+      )
+    }
+
+    if (activeTab === 'randomLab') {
+      const visibilityClasses = Object.entries(layerVisibility)
+        .filter(([, visible]) => !visible)
+        .map(([key]) => `hide-${key}`)
+        .join(' ')
+
+      return (
+        <div className={`glyphs-container ${visibilityClasses}`}>
+          {randomLabSvg
+            ? <div className="svg-container" dangerouslySetInnerHTML={{ __html: randomLabSvg }} />
+            : <div style={{ padding: '20px', opacity: 0.6 }}>Click Generate to sample an alphabet.</div>}
+        </div>
+      )
     }
 
     // SplineEditor manages its own state/worker — render immediately
@@ -1881,6 +1966,7 @@ function App() {
             <button className={`tab-button ${activeTab === 'splineGrid' ? 'active' : ''}`} onClick={() => setTabWithUrl('splineGrid')}>Spline Grid</button>
             <button className={`tab-button ${activeTab === 'proofs' ? 'active' : ''}`} onClick={() => setTabWithUrl('proofs')}>Proofs</button>
             <button className={`tab-button ${activeTab === 'generate' ? 'active' : ''}`} onClick={() => setTabWithUrl('generate')}>Generate</button>
+            <button className={`tab-button ${activeTab === 'randomLab' ? 'active' : ''}`} onClick={() => setTabWithUrl('randomLab')}>Random Lab</button>
           </div>
           {activeTab === 'font' && (
             <div className="toolbar">
@@ -1927,6 +2013,7 @@ function App() {
                 : undefined
           }
         >
+          {activeTab !== 'randomLab' && (
           <div className="input-wrapper">
             <textarea
               value={text}
@@ -1973,19 +2060,12 @@ function App() {
               <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>restart_alt</span>
             </button>
           </div>
+          )}
           {activeTab === 'glyphs' && (
             <div className="glyph-defs-panel" style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
               <h3 style={{ margin: 0 }}>
                 Glyph Definitions
                 <span ref={glyphKeyRef} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <a
-                    href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ fontWeight: 'normal', textDecoration: 'underline' }}
-                  >
-                    (docs)
-                  </a>
                   <button
                     type="button"
                     className="glyph-key-button"
@@ -2014,7 +2094,7 @@ function App() {
                         </Fragment>
                       ))}
                       <a
-                        href="https://github.com/terryspitz/dactyl-font/blob/master/docs/DactylGlyphs.md"
+                        href="https://terryspitz.github.io/dactyl-font/docs/DactylGlyphs.html"
                         target="_blank"
                         rel="noopener noreferrer"
                       >
@@ -2022,14 +2102,124 @@ function App() {
                       </a>
                     </div>
                   )}
+                  <button
+                    type="button"
+                    className="icon-button"
+                    title="Rebuild definitions from the characters in the text box"
+                    onClick={() => {
+                      setGlyphsDefsText(getGlyphDefs(text || 'a', cursiveUsesAlt(axes.cursive, axes.slant)))
+                      setRandomPreviewSvg(null)
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>restart_alt</span>
+                  </button>
+                  <a
+                    className="icon-button"
+                    href="https://terryspitz.github.io/dactyl-font/docs/DactylGlyphs.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Full glyph definition docs"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>menu_book</span>
+                  </a>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    title="Generate a fresh batch of novel glyphs sampled from the stroke corpus (see docs/RandomGlyphs.md)"
+                    onClick={() => {
+                      const defs = generateRandomGlyphDefs(newGlyphSeed(), axes, 26)
+                      setGlyphsDefsText(defs)
+                      setRandomPreviewSvg(generateRandomGlyphsPreviewSvg(defs, axes))
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>casino</span>
+                  </button>
                 </span>
               </h3>
               <textarea
                 value={glyphsDefsText}
-                onChange={e => setGlyphsDefsText(e.target.value)}
+                onChange={e => {
+                  setGlyphsDefsText(e.target.value)
+                  setRandomPreviewSvg(null)
+                }}
                 style={{ width: '100%', flex: '1', minHeight: '100px', fontFamily: 'monospace', resize: 'vertical' }}
                 spellCheck="false"
               />
+            </div>
+          )}
+          {activeTab === 'randomLab' && (
+            <div className="controls-panel">
+            <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+              <div className="grow-controls" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '10px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  strokes per glyph
+                  <input
+                    type="range" min="1" max="4" step="1"
+                    value={randomLabParams.maxStrokes}
+                    onChange={e => setRandomLabParams(p => ({ ...p, maxStrokes: parseInt(e.target.value, 10) }))}
+                  />
+                  <span style={{ minWidth: '1.5em' }}>{randomLabParams.maxStrokes}</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  mirror probability
+                  <input
+                    type="range" min="0" max="100" step="5"
+                    value={randomLabParams.mirrorProb}
+                    onChange={e => setRandomLabParams(p => ({ ...p, mirrorProb: parseInt(e.target.value, 10) }))}
+                  />
+                  <span style={{ minWidth: '3em' }}>{randomLabParams.mirrorProb}%</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }} title="Max similarity two glyphs may share before the later one is rejected as a near-duplicate. Higher allows more repetition.">
+                  distinctiveness cutoff
+                  <input
+                    type="range" min="0" max="100" step="5"
+                    value={randomLabParams.jaccardMax}
+                    onChange={e => setRandomLabParams(p => ({ ...p, jaccardMax: parseInt(e.target.value, 10) }))}
+                  />
+                  <span style={{ minWidth: '3em' }}>{randomLabParams.jaccardMax}%</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  glyph count
+                  <input
+                    type="range" min="1" max="52" step="1"
+                    value={randomLabParams.count}
+                    onChange={e => setRandomLabParams(p => ({ ...p, count: parseInt(e.target.value, 10) }))}
+                  />
+                  <span style={{ minWidth: '2em' }}>{randomLabParams.count}</span>
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  sources:
+                  {randomLabSources.map(source => (
+                    <label key={source} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <input
+                        type="checkbox"
+                        checked={randomLabParams.sources.length === 0 || randomLabParams.sources.includes(source)}
+                        onChange={e => setRandomLabParams(p => {
+                          const checked = e.target.checked
+                          // Every source currently selected (either explicitly
+                          // or via the "empty = all" default): build the
+                          // explicit list minus this one so unchecking one
+                          // box narrows the set instead of a no-op.
+                          const current = p.sources.length === 0 ? randomLabSources : p.sources
+                          const next = checked ? [...current, source] : current.filter(s => s !== source)
+                          // Selecting every source again collapses back to "all".
+                          return { ...p, sources: next.length === randomLabSources.length ? [] : next }
+                        })}
+                      />
+                      {source}
+                    </label>
+                  ))}
+                </div>
+                <button className="proof-chip" onClick={generateRandomLab}>Generate</button>
+              </div>
+              {randomLabDefs && (
+                <textarea
+                  readOnly
+                  value={randomLabDefs}
+                  style={{ width: '100%', minHeight: '80px', fontFamily: 'monospace', resize: 'vertical', marginTop: '10px' }}
+                />
+              )}
+            </div>
             </div>
           )}
           {activeTab === 'generate' && (
