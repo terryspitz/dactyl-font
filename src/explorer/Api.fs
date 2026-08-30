@@ -748,6 +748,10 @@ let getGuidePositions (axes: Axes) =
            {| name = "D"; value = m.D |} |]
     {| xGuides = xg; yGuides = yg |}
 
+/// The "Key" shown under the Glyphs tab's definition editor, one entry per line.
+/// Defined in GlyphStringDefs so it sits with the syntax it documents.
+let getSyntaxKey () : string[] = GlyphStringDefs.syntaxKey |> List.toArray
+
 let getGlyphList () =
     GlyphStringDefs.glyphMap
     |> Map.toArray

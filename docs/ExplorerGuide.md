@@ -92,13 +92,11 @@ Renders individual glyphs and shows the underlying curve geometry.  Most useful 
 | Knots | circles | Solved control-point positions |
 | Filled | — | Fill the outline instead of stroking it |
 
-**Key (below the definition textarea):**
-```
-y: (t)op  (x)-height  (h)alf  (b)ottom  (d)escender  (o)ffset in  (e)xtended out
-x: (l)eft  (c)enter  (r)ight  (w)ide   Solo point → dot
-Dirs: N S E W    Lines: (-) straight  (~) curve    Brackets = fit this coordinate
-Repeats average coordinates (e.g. "bt"="h"); a digit repeats the letter before it, so "b2t"="bbt" and "r4c"="rrrrc"
-```
+**Key (below the definition textarea):** a summary of the coordinate syntax,
+sourced from `syntaxKey` in
+[`GlyphStringDefs.fs`](https://github.com/terryspitz/dactyl-font/blob/master/src/generator/GlyphStringDefs.fs)
+so it stays in step with the parser.  The full reference is
+[DactylGlyphs.md](DactylGlyphs.md).
 
 ### Tweens
 Shows how a single glyph (default: `a`) changes as each axis is swept across its full range.  Each axis produces a row of thumbnail previews.

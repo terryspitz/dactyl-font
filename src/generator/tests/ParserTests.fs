@@ -93,28 +93,66 @@ type ParserTests() =
         Assert.Throws<System.ArgumentException>(fun () -> parse_curve metrics "tl-blE" false |> ignore) |> ignore
 
     [<Test>]
-    member this.TestDigitRepeatX() =
-        // "r4c" should equal the expanded "rrrrc": four parts R, one part C.
-        let expanded, _, _, _, _, _ = parse_point metrics "brrrrc"
-        let shorthand, _, _, _, _, _ = parse_point metrics "br4c"
-        Assert.That(shorthand.x, Is.EqualTo(expanded.x))
-        Assert.That(shorthand.x, Is.EqualTo((4.0 * metrics.R + metrics.C) / 5.0))
+    member this.TestFractionX() =
+        // "1/5rc" is a fifth of the way from R to C, i.e. the average of four
+        // parts R to one part C -- the same point, spelled two ways.
+        let averaged, _, _, _, _, _ = parse_point metrics "brrrrc"
+        let fraction, _, _, _, _, _ = parse_point metrics "b1/5rc"
+        Assert.That(fraction.x, Is.EqualTo(averaged.x))
+        Assert.That(fraction.x, Is.EqualTo((4.0 * metrics.R + metrics.C) / 5.0))
 
     [<Test>]
-    member this.TestDigitRepeatY() =
-        // "b2t" should equal "bbt": one-third up from the bottom.
-        let expanded, _, _, _, _, _ = parse_point metrics "bbtl"
-        let shorthand, _, _, _, _, _ = parse_point metrics "b2tl"
-        Assert.That(shorthand.y, Is.EqualTo(expanded.y))
-        Assert.That(shorthand.y, Is.EqualTo((2.0 * metrics.B + metrics.T) / 3.0))
+    member this.TestFractionY() =
+        // "1/3bt" is one-third up from the bottom.
+        let averaged, _, _, _, _, _ = parse_point metrics "bbtl"
+        let fraction, _, _, _, _, _ = parse_point metrics "1/3btl"
+        Assert.That(fraction.y, Is.EqualTo(averaged.y))
+        Assert.That(fraction.y, Is.EqualTo((2.0 * metrics.B + metrics.T) / 3.0))
 
     [<Test>]
-    member this.TestDigitRepeatInBrackets() =
-        // Digit weighting works inside fitting brackets, and keeps the fit flag.
-        let expanded, _, _, _, _, _ = parse_point metrics "t(rrrrc)"
-        let shorthand, _, _, _, _, _ = parse_point metrics "t(r4c)"
-        Assert.That(shorthand.x, Is.EqualTo(expanded.x))
-        Assert.That(shorthand.x_fit, Is.True)
+    member this.TestFractionEndpointsAreTheGuidesThemselves() =
+        // 0/n is the first guide, n/n the second.
+        let atLeft, _, _, _, _, _ = parse_point metrics "t0/4lr"
+        let atRight, _, _, _, _, _ = parse_point metrics "t4/4lr"
+        Assert.That(atLeft.x, Is.EqualTo(metrics.L))
+        Assert.That(atRight.x, Is.EqualTo(metrics.R))
+
+    [<Test>]
+    member this.TestFractionInBrackets() =
+        // Fractions work inside fitting brackets, and keep the fit flag.
+        let averaged, _, _, _, _, _ = parse_point metrics "t(rrrrc)"
+        let fraction, _, _, _, _, _ = parse_point metrics "t(1/5rc)"
+        Assert.That(fraction.x, Is.EqualTo(averaged.x))
+        Assert.That(fraction.x_fit, Is.True)
+
+    [<Test>]
+    member this.TestFractionOnBothCoordinates() =
+        // A fraction on each coordinate parses unambiguously: the guide letters
+        // end the Y coordinate, so the next digit starts the X one.
+        let pt, _, _, _, label, rest = parse_point metrics "1/3bt2/3lr"
+        Assert.That(label, Is.EqualTo("1/3bt2/3lr"))
+        Assert.That(rest, Is.EqualTo(""))
+        Assert.That(pt.y, Is.EqualTo((2.0 * metrics.B + metrics.T) / 3.0))
+        Assert.That(pt.x, Is.EqualTo((metrics.L + 2.0 * metrics.R) / 3.0))
+
+    [<Test>]
+    member this.TestFractionMatchesAThreeLetterAverage() =
+        // `c` sits exactly halfway between `l` and `r`, so averaging l, l, c, r
+        // lands three-eighths of the way across -- which the fraction names
+        // outright. (`u`'s bowl is written the second way.)
+        let averaged, _, _, _, _, _ = parse_point metrics "b(llcr)"
+        let fraction, _, _, _, _, _ = parse_point metrics "b(3/8lr)"
+        Assert.That(fraction.x, Is.EqualTo(averaged.x))
+        Assert.That(fraction.x, Is.EqualTo(metrics.L + 0.375 * (metrics.R - metrics.L)))
+
+    [<Test>]
+    member this.TestFractionRejectsMalformedSpans() =
+        // n must be no bigger than d, and a fraction spans exactly two guides.
+        Assert.Throws<System.ArgumentException>(fun () -> parse_point metrics "5/4tbl" |> ignore)
+        |> ignore
+
+        Assert.Throws<System.ArgumentException>(fun () -> parse_point metrics "t1/3lcr" |> ignore)
+        |> ignore
 
     [<Test>]
     member this.TestSingleLetterUnchanged() =
@@ -263,7 +301,7 @@ type OpticalTests() =
         Assert.That(y "bl", Is.EqualTo(metrics.B))
         Assert.That(y "dl", Is.EqualTo(metrics.D))
         // ...nor is a repeated single guide (`tt` is still the top).
-        Assert.That(y "t2l", Is.EqualTo(metrics.T))
+        Assert.That(y "ttl", Is.EqualTo(metrics.T))
 
     [<Test>]
     member this.TestBalanceRaisesMidHeights() =
@@ -308,7 +346,7 @@ type OpticalTests() =
 
         // The caret's wedge is shallow enough that the outline miters it to a real
         // point, so it does keep the larger pointed overshoot.
-        let caret = knotsOf "ttbl-tc-ttbr"
+        let caret = knotsOf "1/3tbl-tc-1/3tbr"
         Assert.That(caret.[1].pt.y, Is.EqualTo(metrics.T + 15.0).Within(1e-9), "sharp apex overshoots by 1.5x")
 
     [<Test>]
@@ -338,6 +376,33 @@ type OpticalTests() =
         match parse_curve plain "bl-tc-br" false with
         | Curve(knots, _) -> Assert.That(knots.[1].pt.y, Is.EqualTo(plain.T))
         | _ -> Assert.Fail("Expected Curve")
+
+[<TestFixture>]
+type GlyphTableTests() =
+    let metrics = FontMetrics(Axes.Axes.DefaultAxes)
+
+    [<Test>]
+    member this.TestEveryDefinitionMatchesTheGrammar() =
+        // glyph_re is the language's own grammar, and the parser only checks it
+        // in debug builds -- so check every shipped definition here.
+        for ch, def in Seq.append (Map.toSeq glyphMap) (Map.toSeq altGlyphMap) do
+            Assert.That(
+                System.Text.RegularExpressions.Regex.IsMatch(def, glyph_re),
+                Is.True,
+                sprintf "'%c' should match the grammar: %s" ch def
+            )
+
+    [<Test>]
+    member this.TestEveryDefinitionParses() =
+        for ch, _ in Map.toSeq glyphMap do
+            Assert.DoesNotThrow((fun () -> stringDefsToElem metrics ch false |> ignore), sprintf "'%c'" ch)
+
+        for ch, _ in Map.toSeq altGlyphMap do
+            Assert.DoesNotThrow(
+                (fun () -> stringDefsToElemFromMap altGlyphMap metrics ch false |> ignore),
+                sprintf "alt '%c'" ch
+            )
+
 
 [<EntryPoint>]
 let main argv =

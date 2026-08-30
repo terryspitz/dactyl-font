@@ -35,6 +35,9 @@
 - submit curated fonts to dafont and FontSpace for reach
 
 **DONE: Implemented Features**
+- Fractional coordinates in the glyph language: `n/dAB` is n/d of the way from
+  guide A to guide B (`b1/4lw`, `1/9ht1/5lr`), replacing the letter-repeat and
+  digit-repeat shorthands for anything other than a plain midpoint.
 - `K` (kink) marker in the glyph language: a corner whose tangents are left free, 
   for '5', '3' and 'm'.
 - Correct outlines through sharp corners, on both outline-building paths (the sampled

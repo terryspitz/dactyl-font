@@ -113,6 +113,11 @@ let private decodeStroke (metrics: FontMetrics) (stroke: string) : DecodedStroke
 // already-legal token rather than a raw number.
 // ---------------------------------------------------------------------------
 
+let rec private gcd a b = if b = 0 then a else gcd b (a % b)
+
+/// Mirrors GlyphStringDefs.weightedCoords's "n/dAB" fraction syntax: `n/dAB`
+/// is n/d of the way from guide A to guide B, so a weight of m on A and k on B
+/// is spelled with numerator k (reduced) over denominator m+k (reduced).
 let private buildCodebook (letters: (char * float) list) : (string * float) list =
     let sorted = letters |> List.sortBy fst
     let n = sorted.Length
@@ -125,11 +130,12 @@ let private buildCodebook (letters: (char * float) list) : (string * float) list
 
               for m in 1 .. 4 do
                   for k in 1 .. 4 do
+                      let d = gcd m k
+                      let mm, kk = m / d, k / d
+
                       let expr =
-                          if m = 1 && k = 1 then sprintf "%c%c" a b
-                          elif k = 1 then sprintf "%c%d%c" a m b
-                          elif m = 1 then sprintf "%c%c%d" a b k
-                          else sprintf "%c%d%c%d" a m b k
+                          if mm = 1 && kk = 1 then sprintf "%c%c" a b
+                          else sprintf "%d/%d%c%c" kk (mm + kk) a b
 
                       yield expr, (float m * va + float k * vb) / float (m + k) ]
 

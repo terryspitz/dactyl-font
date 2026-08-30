@@ -730,7 +730,7 @@ type Solver(ctrlPts: DControlPoint array, isClosed: bool, flatness: float, endWe
         // boundary curvature toward zero.  Use a gentle weight (1.0, well below the G2
         // continuity weight of 10.0) so the optimizer minimises boundary curvature without
         // dominating the Euler-spiral fit.  When exact zero is geometrically unachievable
-        // (e.g. the 'f' arch: North tangent at xtllc, West tangent at tcrW far to the
+        // (e.g. the 'f' arch: North tangent at xt1/3lc, West tangent at tcrW far to the
         // right) the penalty still nudges curvature as low as possible without distorting
         // the curve the way a heavy weight would.
         // Uses the exact t=0 / t=1 samples rather than the extrapolated regression estimate.

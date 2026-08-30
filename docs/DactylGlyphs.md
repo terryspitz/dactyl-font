@@ -42,18 +42,27 @@ Horizontal coordinates follow the Y-coordinates.
 
 *Example:* `tl` puts a point at the top-left of the glyph bounding box. `bc` puts a point at the bottom-center.
 
-### Weighting (Averaging & Repeats)
-Combining several coordinate letters averages them, which lets you place a point at a fraction between guides. Repeating a letter weights the average toward it:
+### Averaging and Fractions
+Combining two coordinate letters averages their positions, giving the point
+midway between them:
 - `bt` (or `h`): halfway between bottom and top.
-- `bbt`: one-third up from the bottom (two parts `b`, one part `t`).
-- `rrrrc`: four-fifths of the way from center toward the right.
+- `bd`: halfway between the baseline and the descender.
 
-Because long runs are tedious, a **digit after a coordinate letter repeats it** that many times — pure shorthand for the weighting above, producing identical geometry:
-- `b2t` is the same as `bbt`.
-- `r4c` is the same as `rrrrc`.
-- `t4h` is the same as `tttth`.
+For anything other than a plain midpoint, write the proportion directly as
+**`n/d` followed by the two guides it runs between**: `n/dAB` is `n/d` of the
+way from guide `A` to guide `B`.
+- `1/3bt`: one-third up from the bottom.
+- `1/5rc`: a fifth of the way from the right edge toward the centre.
+- `3/4lw`: three-quarters of the way from left to wide.
 
-The digit binds to the single letter immediately before it, and works for both Y and X coordinates (and inside fitting brackets, e.g. `(r4c)`).
+`0/d` is the first guide and `d/d` the second, so the fraction always reads in
+the direction you wrote the guides. A fraction is exactly the average it names
+(`1/3bt` is `b`, `b`, `t` averaged), so the two spellings are interchangeable —
+prefer the fraction whenever the average would need more than two letters.
+
+Fractions work for both Y and X coordinates and inside fitting brackets, e.g.
+`(1/3xb)l`. Where both coordinates take one, the guide letters tell them apart:
+in `1/3bt2/3lr` the Y coordinate ends at `bt` and the X one starts at `2/3`.
 
 ### Modifiers
 
@@ -114,10 +123,10 @@ solver picks each side's own natural direction out of (or into) the kink. The
 curve therefore keeps exactly the shape it would have had as a separate stroke,
 but is now part of one continuous outline instead of two overlapping strokes
 whose end caps left a notch at the join.
-- *Example:* `5 = "tr-tl-hlK~ttb(c)~(bbt)r~b(c)~bol"` — the bar, stem and bowl
+- *Example:* `5 = "tr-tl-hlK~1/3tb(c)~(1/3bt)r~b(c)~bol"` — the bar, stem and bowl
   are a single stroke; `hlK` is the acute join where the stem meets the bowl, and
   the bowl springs back out of it at whatever angle the solver likes.
-- *Example:* `m = "xl-bl xolJ~x(llw)~xxblwK~x(rw)~xxbw-bw xxblwJ-blw"` — both
+- *Example:* `m = "xl-bl xolJ~x(1/3lw)~1/3xblwK~x(rw)~1/3xbw-bw 1/3xblwJ-blw"` — both
   arches are one stroke, kinked over the middle leg, and the leg hangs off that
   kink as a joint.
 
@@ -145,7 +154,7 @@ heading on both sides of `3`'s waist would ask the upper bowl to *arrive*
 travelling east while coming from the east, and it would loop; oriented per side
 it arrives travelling west and leaves travelling east, giving a level waist. A
 tangent on a point *without* `K` still applies verbatim to both sides.
-- *Example:* `3 = "tol~t(c)~(th)r~hllrEK~(bh)r~b(c)~bol"` — the upper bowl runs
+- *Example:* `3 = "tol~t(c)~(th)r~h1/3lrEK~(bh)r~b(c)~bol"` — the upper bowl runs
   straight into the lower one through a level cusp at the waist.
 
 Where three strokes meet, prefer to kink the two that flow into each other and

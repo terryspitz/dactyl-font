@@ -4,6 +4,7 @@ The mirror of GlyphStringDefs.parse_curve.  Offline: run when adding a source
 font, never at runtime.  Emits strings the existing F# parser can read back.
 """
 import sys, math, statistics; sys.path.insert(0,'.')
+from math import gcd
 from hershey_jhf import parse_jhf
 
 # Dactyl guides (Axes.DefaultAxes: width 300, height 600, x_height .6, descender .5)
@@ -13,7 +14,8 @@ YG={'t':T,'x':X,'h':H,'b':B,'d':D}
 XG={'l':L,'c':C,'r':R,'w':W}
 
 def build_codebook(guides):
-    """All A{m}B{n} weighted averages plus single letters -> {expr: value}."""
+    """All weighted averages of two guides (as GlyphStringDefs.fs's "n/dAB"
+    fraction syntax) plus single letters -> {expr: value}."""
     book={}
     for a,va in guides.items(): book[a]=va
     ks=list(guides)
@@ -22,10 +24,9 @@ def build_codebook(guides):
             if a>=b: continue
             for m in range(1,5):
                 for n in range(1,5):
-                    if m==1 and n==1: expr=f"{a}{b}"
-                    elif n==1:        expr=f"{a}{m}{b}"
-                    elif m==1:        expr=f"{a}{b}{n}"
-                    else:             expr=f"{a}{m}{b}{n}"
+                    d=gcd(m,n); mm,nn=m//d,n//d
+                    if mm==1 and nn==1: expr=f"{a}{b}"
+                    else:               expr=f"{nn}/{mm+nn}{a}{b}"
                     v=(m*guides[a]+n*guides[b])/(m+n)
                     book.setdefault(expr,v)
     return book

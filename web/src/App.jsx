@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { generateSvg, defaultAxes, controlDefinitions, penPresets, penPresetAxes, axisDependsOn, generateTweenSvg, getGlyphDefs, generateRandomGlyphDefs, generateRandomGlyphsPreviewSvg, generateRandomGlyphDefsWithParams, randomGlyphSources, cursiveUsesAlt, allChars, alphabetChars } from './lib/fable/Api' // Adjust path if needed
+import { useState, useMemo, useEffect, useRef, useCallback, Fragment } from 'react'
+import { generateSvg, defaultAxes, controlDefinitions, penPresets, penPresetAxes, axisDependsOn, generateTweenSvg, getGlyphDefs, getSyntaxKey, generateRandomGlyphDefs, generateRandomGlyphsPreviewSvg, generateRandomGlyphDefsWithParams, randomGlyphSources, cursiveUsesAlt, allChars, alphabetChars } from './lib/fable/Api' // Adjust path if needed
 import SplineEditor from './SplineEditor'
 import SplineGrid from './SplineGrid'
 import GrowCanvas from './GrowCanvas'
@@ -23,6 +23,11 @@ const SPLINE_ENGINE = 'spline_engine'
 
 // Glyphs floating tools legend: non-spline layerVisibility keys grouped under "Debug"
 const DEBUG_LAYER_KEYS = ['comb', 'tangents', 'guides', 'labels', 'knots']
+
+// The Glyphs tab's syntax "Key", one entry per line.  Defined in
+// GlyphStringDefs.fs beside the language it documents, so this help cannot
+// drift away from the parser.
+const syntaxKey = getSyntaxKey()
 
 // Generate tab defaults, factored out so the per-mode "reset" button can
 // restore them without touching which mode is selected. Functions (not plain
@@ -2082,9 +2087,12 @@ function App() {
                       className="glyph-key-popup"
                       style={{ top: `${glyphKeyPos.top}px`, left: `${glyphKeyPos.left}px` }}
                     >
-                      y coordinates: (<strong>t</strong>)op, (<strong>x</strong>)-height, (<strong>h</strong>)alf-height, (<strong>b</strong>)ottom, (<strong>d</strong>)escender, (<strong>o</strong>)ffset inward, (<strong>e</strong>)xtended outward. <br />
-                      x coordinates: (<strong>l</strong>)eft, (<strong>c</strong>)enter, (<strong>r</strong>)ight, (<strong>w</strong>)ide. <br />
-                      Lines: (<strong>-</strong>) straight, (<strong>~</strong>) curve. Tangents: <strong>N</strong>,<strong>S</strong>,<strong>E</strong>,<strong>W</strong>. Brackets: auto-fit. <strong>K</strong>: corner/kink. <strong>J</strong>: interior joint. <br />
+                      <strong>Key:</strong>{' '}
+                      {syntaxKey.map((line, i) => (
+                        <Fragment key={i}>
+                          {line} <br />
+                        </Fragment>
+                      ))}
                       <a
                         href="https://terryspitz.github.io/dactyl-font/docs/DactylGlyphs.html"
                         target="_blank"

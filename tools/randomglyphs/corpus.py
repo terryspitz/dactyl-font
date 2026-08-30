@@ -12,13 +12,23 @@ from glyph_compile import compile_glyph, make_mapper, YBOOK, XBOOK, snap, YG, XG
 
 SIMPLEX=['futural','rowmans','greeks','scripts','greek']   # verified single-line centrelines
 
-pt_pat=re.compile(r"^([txhbd0-9]+|\([txhbd0-9]+\))([oe])?([lrcw0-9]+|\([lrcw0-9]+\))([oe])?([NSEW])?(K)?(J)?")
+# Mirrors GlyphStringDefs.fs's y_re/x_re: a coordinate is one or more guide
+# letters, optionally preceded by an "n/d" fraction placing it n/d of the way
+# from the first guide letter to the second (see weightedCoords there).
+_frac=r"(?:[0-9]+/[0-9]+)?"
+_y_re=rf"(?:{_frac}[txhbd]+|\({_frac}[txhbd]+\))"
+_x_re=rf"(?:{_frac}[lrcw]+|\({_frac}[lrcw]+\))"
+pt_pat=re.compile(rf"^({_y_re})([oe])?({_x_re})([oe])?([NSEW])?(K)?(J)?")
 def wavg(cs,tbl):
-    vals=[];i=0;cs=cs.strip('()')
-    while i<len(cs):
-        ch=cs[i];i+=1;num=''
-        while i<len(cs) and cs[i].isdigit(): num+=cs[i];i+=1
-        vals+=[tbl[ch]]*(int(num) if num else 1)
+    cs=cs.strip('()')
+    m=re.match(r"^(?:(\d+)/(\d+))?([a-z]+)$",cs)
+    num,den,guides=m.groups()
+    if den:
+        num,den=int(num),int(den)
+        a,b=guides[0],guides[1]
+        vals=[tbl[a]]*(den-num)+[tbl[b]]*num
+    else:
+        vals=[tbl[ch] for ch in guides]
     return sum(vals)/len(vals)
 def split_pts(stroke):
     parts=re.split(r"([-~])",stroke); out=[];i=0
