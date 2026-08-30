@@ -384,12 +384,53 @@ type GlyphTableTests() =
     [<Test>]
     member this.TestEveryDefinitionMatchesTheGrammar() =
         // glyph_re is the language's own grammar, and the parser only checks it
-        // in debug builds -- so check every shipped definition here.
+        // in debug builds -- so check every shipped definition here.  Named
+        // strokes are expanded first, exactly as the parser expands them.
         for ch, def in Seq.append (Map.toSeq glyphMap) (Map.toSeq altGlyphMap) do
+            let expanded = expandStrokes def
+
             Assert.That(
-                System.Text.RegularExpressions.Regex.IsMatch(def, glyph_re),
+                System.Text.RegularExpressions.Regex.IsMatch(expanded, glyph_re),
                 Is.True,
-                sprintf "'%c' should match the grammar: %s" ch def
+                sprintf "'%c' should match the grammar: %s" ch expanded
+            )
+
+    [<Test>]
+    member this.TestNamedStrokesExpand() =
+        // A reference is replaced by the stroke it names, in place.
+        Assert.That(expandStrokes "tr-br $bowl", Is.EqualTo("tr-br " + strokeMap.["bowl"]))
+        Assert.That(expandStrokes "$ring tr-bl", Is.EqualTo(strokeMap.["ring"] + " tr-bl"))
+        // ...and a definition with no reference is returned untouched.
+        Assert.That(expandStrokes "tl-bl-br", Is.EqualTo("tl-bl-br"))
+
+    [<Test>]
+    member this.TestNamedStrokeEndsAtAnUppercaseMarker() =
+        // Names are lowercase, so a following marker is not swallowed: `R` is
+        // the P bowl with a joint on its last point.
+        Assert.That(expandStrokes "$pbowlJ hloJ-br", Is.EqualTo(strokeMap.["pbowl"] + "J hloJ-br"))
+
+    [<Test>]
+    member this.TestUnknownNamedStrokeThrows() =
+        // A misspelled or run-together name fails loudly rather than silently
+        // dropping a stroke.
+        Assert.Throws<System.ArgumentException>(fun () -> expandStrokes "$bowlish" |> ignore) |> ignore
+
+    [<Test>]
+    member this.TestStrokeLibraryIsFlatAndFullyUsed() =
+        let expanded =
+            Seq.append (Map.toSeq glyphMap) (Map.toSeq altGlyphMap)
+            |> Seq.map (fun (_, def) -> def)
+            |> List.ofSeq
+
+        for name, body in Map.toSeq strokeMap do
+            // A named stroke holds coordinates only, so expansion terminates.
+            Assert.That(body.Contains "$", Is.False, sprintf "%s should not reference another stroke" name)
+
+            // ...and every name is actually used, so the library cannot rot.
+            Assert.That(
+                expanded |> List.exists (fun d -> d.Contains("$" + name)),
+                Is.True,
+                sprintf "%s is defined but never referenced" name
             )
 
     [<Test>]
