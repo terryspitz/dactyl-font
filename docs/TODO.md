@@ -35,6 +35,9 @@
 - submit curated fonts to dafont and FontSpace for reach
 
 **DONE: Implemented Features**
+- Named strokes in the glyph language: shapes shared by several glyphs (the
+  lowercase bowl, O's ring, n's shoulder, S's spine, P's bowl, the quote ticks)
+  live once in `strokeMap` and are referenced as `$name`.
 - Fractional coordinates in the glyph language: `n/dAB` is n/d of the way from
   guide A to guide B (`b1/4lw`, `1/9ht1/5lr`), replacing the letter-repeat and
   digit-repeat shorthands for anything other than a plain midpoint.

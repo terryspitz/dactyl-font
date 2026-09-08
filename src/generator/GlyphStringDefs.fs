@@ -55,7 +55,62 @@ let syntaxKey =
       "x: (l)eft, (c)enter, (r)ight, (w)ide. Solo point \u2192 dot."
       "Dirs: N,S,E,W. Lines: (-) straight, (~) curve. Brackets: auto fit."
       "K: corner/kink. J: interior joint (suppresses end caps)."
+      "$name inserts a shared stroke (e.g. $bowl), expanded before parsing."
       "Two letters average (e.g. \"bt\"=\"h\"); \"n/dAB\" is n/d of the way from guide A to B, so \"1/3bt\" is a third up from the bottom." ]
+
+/// Strokes that several glyphs share, written once here and referenced from a
+/// definition as `$name`.  References are expanded before a definition is
+/// validated or parsed, so the grammar and the parser only ever see
+/// coordinates.
+///
+/// A name is lowercase letters only, and ends at the first character that is not
+/// one — so the uppercase tangent and marker letters that may follow are never
+/// swallowed: `$pbowlJ` is the P bowl whose last point is a joint.  A reference
+/// therefore cannot be continued with more lowercase coordinates; write the
+/// stroke out, or extend it before/after the reference as B does below.
+///
+/// Only shapes earn a name.  A stem (`tl-bl`) or a bar (`hl-hr`) is clearer
+/// written out than hidden behind one; these are the strokes worth tuning in a
+/// single place, each of which was previously copied out once per glyph.
+let strokeMap =
+    Map.ofList
+        [ // The lowercase bowl, cut open at the right: `c` entire, and the bowl
+          // of `a d g q`.
+          "bowl", "xor~x(c)~(xb)l~b(c)~bor"
+          // The same bowl facing the other way, hung on a stem: `b p`.
+          "bowlr", "bol~b(c)~(xb)r~x(c)~xol"
+          // The closed cap-height ring: `O` entire, and the body of `0 Q`.
+          "ring", "(h)l~t(c)~(h)r~b(c)~"
+          // The shoulder and right leg of `n`, shared with `h`.
+          "shoulder", "xol~x(c)~xbr-br"
+          // The spine of `S`, shared with `$`.
+          "spine", "thr~t(c)~(1/3tb)l~hc~(2/3tb)r~b(c)~bhl"
+          // `P`: stem, then a bowl with a flat shoulder.  `B` runs its lower
+          // lobe into the same stroke and `R` ends it on a joint.
+          "pbowl", "bl-tl-tlo~(th)r~hlo-hl"
+          // The raised tick of the quotes: ‘ and the backtick lean one way,
+          // ’ and ” the other.
+          "opentick", "tel-1/3thlc"
+          "closetick", "telc-1/3thl" ]
+
+/// A reference to a named stroke: `$` and lowercase letters (see strokeMap).
+let reference_re = "[$][a-z]+"
+
+/// Replace every `$name` in a definition with the stroke it names.
+let expandStrokes (def: string) =
+    let rec loop (s: string) fuel =
+        let m = Regex.Match(s, reference_re)
+
+        if not m.Success then
+            s
+        elif fuel = 0 then
+            invalidArg "def" (sprintf "Too many named strokes in %A (a cyclic reference?)" def)
+        else
+            match Map.tryFind (m.Value.Substring(1)) strokeMap with
+            | None -> invalidArg "def" (sprintf "Unknown named stroke %A in %A" m.Value def)
+            | Some body -> loop (s.Substring(0, m.Index) + body + s.Substring(m.Index + m.Length)) (fuel - 1)
+
+    loop def 32
 
 let glyphMap =
     Map.ofList
@@ -65,17 +120,17 @@ let glyphMap =
           '"', "te1/3lr-1/3th1/3lr te2/3lr-1/3th2/3lr"
           '#', "1/3tbl-1/3tbr 2/3tbl-2/3tbr t1/3lr-b1/3lr t2/3lr-b2/3lr"
           '£', "tor~tc~txl~x1/3lc~blS-br xl-xcr"
-          '$', "thr~t(c)~(1/3tb)l~hc~(2/3tb)r~b(c)~bhl tec-bec"
+          '$', "$spine tec-bec"
           '%', "t1/3lc~1/3th1/3lc~1/3thlc~ b1/3rc~1/3bh1/3rc~1/3bhrc~ ter-bel"
           '&', "2/3hbr~b(c)~(hb)l~thcr~t2/3lc~thl-br"
           ''', "tel-1/3thl"
-          '’', "telc-1/3thl"
+          '’', "$closetick"
           // Smart quotes: raised ticks matching the apostrophe style. The
           // opening pair (‘ “) slant one way, the closing pair (’ ”) mirror it.
-          '‘', "tel-1/3thlc"
-          '“', "tel-1/3thlc tec-1/3thcr"
-          '”', "telc-1/3thl tecr-1/3thc"
-          '`', "tel-1/3thlc"
+          '‘', "$opentick"
+          '“', "$opentick tec-1/3thcr"
+          '”', "$closetick tecr-1/3thc"
+          '`', "$opentick"
           '(', "telc~hl~belc"
           ')', "tel~hlc~bel"
           '*', "xl-xbr xbl-xr 2/3txc-2/3xbc"
@@ -107,7 +162,7 @@ let glyphMap =
           '|', "tec-bec"
           '~', "1/5thl~tlc~1/5thc~2/5thrc~1/5thr"
 
-          '0', "(h)l~t(c)~(h)r~b(c)~ tr-bl"
+          '0', "$ring tr-bl"
           '1', "tol-t1/4lr-b1/4lr"
           '2', "tol~t(c)~(th)r~hbc-bl-br"
           // One continuous stroke through the waist: the upper bowl runs into the lower
@@ -128,21 +183,21 @@ let glyphMap =
           '9', "bol~b(c)~(h)r~1/3tbr~t(c)~1/3tbl~1/3btc~1/3tbrSJ"
 
           'A', "bl-tc-br bh1/4lcJ-bh3/4crJ"
-          'a', "xr-br xor~x(c)~(xb)l~b(c)~bor"
-          'B', "hl-hlo~(bh)r~blo-bl-tl-tlo~(th)r~hlo-hl"
-          'b', "tl-bl bol~b(c)~(xb)r~x(c)~xol"
+          'a', "xr-br $bowl"
+          'B', "hl-hlo~(bh)r~blo-$pbowl"
+          'b', "tl-bl $bowlr"
           'C', "tor~t(c)~(h)l~b(c)~bor"
-          'c', "xor~x(c)~(xb)l~b(c)~bor"
+          'c', "$bowl"
           'D', "tl-bl-blo~(h)r~tlo-"
-          'd', "tr-br xor~x(c)~(xb)l~b(c)~bor"
+          'd', "tr-br $bowl"
           'E', "tr-tl-bl-br hl-hr"
           'e', "xblJ-xbrN~x(c)~xblS~b(c)~bo1/6rc"
           'F', "bl-tl-tr hl-hrc"
           'f', "b1/3lc-xt1/3lc~tcrW xl-xc"
           'G', "tor~t(c)~(h)l~b(c)~bhr-hr-hc"
-          'g', "xr-bdr~d(c)~dol xor~x(c)~(xb)l~b(c)~bor"
+          'g', "xr-bdr~d(c)~dol $bowl"
           'H', "tl-bl hl-hr tr-br"
-          'h', "tl-bl xol~x(c)~xbr-br"
+          'h', "tl-bl $shoulder"
           'I', "tl-tr tc-bc bl-br"
           'i', "xl-bl 1/3txl"
           'J', "tl-tr-hr~b(c)~bol"
@@ -174,16 +229,16 @@ let glyphMap =
           // it starts below the crotch with arch ink either side of it.
           'm', "xl-bl xolJ~x(1/3lw)~1/3xblwK~x(rw)~1/3xbw-bw 1/3xblwJ-blw"
           'N', "bl-tl-br-tr"
-          'n', "xl-bl xol~x(c)~xbr-br"
-          'O', "(h)l~t(c)~(h)r~b(c)~"
+          'n', "xl-bl $shoulder"
+          'O', "$ring"
           'o', "(xb)l~x(c)~(xb)r~b(c)~"
-          'P', "bl-tl-tlo~(th)r~hlo-hl"
-          'p', "xl-dl bol~b(c)~(xb)r~x(c)~xol"
-          'Q', "(h)l~t(c)~(h)r~b(c)~ br-hbc"
-          'q', "xr-dr xor~x(c)~(xb)l~b(c)~bor"
-          'R', "bl-tl-tlo~(th)r~hlo-hlJ hloJ-br"
+          'P', "$pbowl"
+          'p', "xl-dl $bowlr"
+          'Q', "$ring br-hbc"
+          'q', "xr-dr $bowl"
+          'R', "$pbowlJ hloJ-br"
           'r', "xl-bl xol~x2/3lc~xo1/3cr"
-          'S', "thr~t(c)~(1/3tb)l~hc~(2/3tb)r~b(c)~bhl"
+          'S', "$spine"
           's', "xor~x(c)~(1/3xb)l~xbcE~(2/3xb)r~b(c)~bol"
           'T', "tl-tr tc-bc"
           't', "tlc-xblc~b1/3crW xl-x1/3cr"
@@ -620,7 +675,7 @@ let private parse_curves (glyph: FontMetrics) (def: string) debug =
         )
 
 let stringDefsToElemFromMap (map: Map<char, string>) (glyph: FontMetrics) e debug =
-    let def = map.[e]
+    let def = expandStrokes map.[e]
     assert Regex.IsMatch(def, glyph_re)
 
     if debug then
@@ -631,8 +686,12 @@ let stringDefsToElemFromMap (map: Map<char, string>) (glyph: FontMetrics) e debu
 let stringDefsToElem (glyph: FontMetrics) e debug =
     stringDefsToElemFromMap glyphMap glyph e debug
 
+/// Parse a definition typed into the Glyphs tab.  Named strokes are expanded
+/// here too, so `$bowl` works in the editor exactly as it does in the table;
+/// anything that fails to parse still falls back to a dot rather than throwing
+/// at the UI.
 let rawDefToElem (glyph: FontMetrics) (rawDef: string) debug =
     try
-        parse_curves glyph rawDef debug
+        parse_curves glyph (expandStrokes rawDef) debug
     with _ ->
         Dot({ y = glyph.H; x = glyph.C; y_fit = false; x_fit = false })

@@ -98,28 +98,43 @@ These need no new syntax and are worth fixing regardless:
 
 ## 2. Proposals, in payoff order
 
-### A. A named stroke library — `$name`
+### A. A named stroke library — `$name` — **done**
 
-A second map of named fragments, textually expanded before parsing:
+*Was:* the lowercase bowl was typed out in `a c d g q` and mirrored again in
+`b p`; `O`'s ring appeared in `0` and `Q`; `S`'s spine in `$`; `P`'s bowl inside
+`B` and `R`. Tuning any of them meant finding every copy.
+
+*Now:* those strokes live once in `strokeMap` and are referenced as `$name`:
 
 ```fsharp
 let strokeMap =
     Map.ofList
-        [ "bowl", "tor~t(c)~(h)l~b(c)~bor"   // C, and the bowl of a c d g q
-          "lobe", "tl-tlo~(tb)r~blo-bl"      // the flat-shouldered bowl of B D P R
-          "arch", "xol~x(c)~xbr-br" ]        // the shoulder of h m n
+        [ "bowl", "xor~x(c)~(xb)l~b(c)~bor"   // c, and the bowl of a d g q
+          "bowlr", "bol~b(c)~(xb)r~x(c)~xol"  // the same bowl facing right: b p
+          "ring", "(h)l~t(c)~(h)r~b(c)~"      // O, and the body of 0 Q
+          "shoulder", "xol~x(c)~xbr-br"       // n's shoulder and leg, shared with h
+          "spine", "thr~t(c)~...~bhl"         // S, shared with $
+          "pbowl", "bl-tl-tlo~(th)r~hlo-hl"   // P, inside B and R
+          "opentick", "tel-1/3thlc"           // ‘ and the backtick
+          "closetick", "telc-1/3thl" ]        // ’ and ”
 ```
 
 ```
-'c', "$bowl"      'h', "tl-bl $arch"
-'a', "xr-br $bowl"    'n', "xl-bl $arch"
-'d', "tr-br $bowl"    '$', "$S tec-bec"
+'c', "$bowl"                  'h', "tl-bl $shoulder"    'P', "$pbowl"
+'a', "xr-br $bowl"            'n', "xl-bl $shoulder"    'B', "hl-hlo~(bh)r~blo-$pbowl"
+'d', "tr-br $bowl"            '$', "$spine tec-bec"     'R', "$pbowlJ hloJ-br"
 ```
 
-*Buys:* one place to tune each recurring shape. *Cost:* ~20 lines (a regex
-expansion in `stringDefsToElem`, plus the same expansion on `rawDefToElem` so the
-Glyphs-tab editor accepts `$bowl` too). *Risk:* none to geometry — pure string
-substitution.
+Eight names cover 22 uses across 22 glyphs. Expansion happens before the
+definition is validated or parsed, so the grammar and the parser are untouched,
+and `$name` works in the Glyphs-tab editor as well. Names are lowercase only, so
+a following marker is never swallowed (`$pbowlJ`); the cost is that a reference
+cannot be continued with lowercase coordinates, which fails loudly as an unknown
+name rather than silently.
+
+Only shapes are named: a stem (`tl-bl`, in five glyphs) or a bar (`hl-hr`, in
+four) is repeated just as often but reads better written out, and has nothing to
+tune.
 
 ### B. A per-stroke box — `{x}` / `{t,h}`
 
@@ -244,7 +259,8 @@ alone.
    tangents, joint flags). A rewrite that passes that test cannot move a
    snapshot — which matters here, since visual baselines are rebaselined by hand,
    not by CI.
-3. **Sequence it.** D (fractions) is done. A (library) is independently useful
-   and lands in an afternoon. B (box) is the one that pays for itself. C
-   (transforms) is best done on knots, after B. E and F are separate projects;
-   E is the interesting one.
+3. **Sequence it.** D (fractions) and A (library) are done. B (box) is the one
+   that pays for itself, and would let `$bowl` serve `C` as well as `c`. C
+   (transforms) is best done on knots, after B — it would collapse `$bowlr`
+   into `$bowl` mirrored. E and F are separate projects; E is the interesting
+   one.
