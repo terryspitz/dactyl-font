@@ -210,6 +210,37 @@ The dot diameter scales with the `thickness` axis.  Any valid point expression w
 
 *Example:* `tl-bl-br-tr- bc` draws a rectangle (closed via the trailing `-`) and then a separate dot at the bottom-centre — useful for building glyphs like `!` or `¡`.
 
+### Named Strokes (`$name`)
+
+Several letters are built from the same stroke: `c` *is* the bowl that `a`, `d`,
+`g` and `q` hang off, `h` and `n` share a shoulder, `O` is the ring inside `0`
+and `Q`. Those strokes are written once in `strokeMap` (in
+[`GlyphStringDefs.fs`](https://github.com/terryspitz/dactyl-font/blob/master/src/generator/GlyphStringDefs.fs))
+and referenced as **`$name`**:
+
+```
+'c', "$bowl"                  'n', "xl-bl $shoulder"
+'d', "tr-br $bowl"            'h', "tl-bl $shoulder"
+'g', "xr-bdr~d(c)~dol $bowl"  '0', "$ring tr-bl"
+```
+
+A reference is replaced by the stroke it names before the definition is
+validated or parsed, so everything else in this guide applies unchanged — and
+tuning a shared shape now means editing one line instead of finding every copy.
+`$name` works in the Glyphs tab editor too.
+
+A **name is lowercase letters only**, and ends at the first character that is
+not one. That way a marker following it is never swallowed: `R`'s
+`"$pbowlJ hloJ-br"` is the `P` bowl whose last point is a joint. The flip side
+is that a reference can't be continued with more lowercase coordinates —
+`$bowlish` is read as one (unknown) name and fails loudly rather than quietly
+dropping a stroke. Extend the stroke before or after the reference instead, as
+`B` does: `"hl-hlo~(bh)r~blo-$pbowl"`.
+
+Only shapes are named. A stem (`tl-bl`) or a bar (`hl-hr`) is repeated just as
+often but reads better written out than hidden behind a name, and there is
+nothing to tune in it.
+
 ---
 
 ## 3. Tangents and Corners: Advanced Rules
