@@ -633,6 +633,85 @@
     font-weight: 600;
 }
 
+.proof-compare-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: 10px;
+    font-size: 0.8em;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+
+.proof-compare {
+    display: flex;
+    flex-direction: column;
+    /* Fills the flex column set up by .preview-content.compare-mode (and its
+       transform-wrapper child) so each panel below can scroll independently
+       within its own half instead of one long combined scroll. */
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.proof-compare-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-height: 0; /* let the panel shrink below its content's natural height so its own child can scroll */
+    border-bottom: 1px solid var(--border-color);
+}
+
+.proof-compare-panel:last-child {
+    border-bottom: none;
+}
+
+/* The text itself is the scrollable "canvas" — its scroll position is kept
+   in sync between the two panels (see syncCompareScroll in App.jsx) so the
+   same line of text stays aligned in both while scrolling through long proofs. */
+.proof-compare-panel > .proof-text {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.proof-compare-label {
+    flex: 0 0 auto; /* stays pinned at the top of its panel while the text below scrolls */
+    font-size: 0.75em;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 8px 20px 0;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+}
+
+.proof-compare-overrides {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.proof-compare-override {
+    white-space: nowrap;
+    /* The compare panel always renders on a white background regardless of
+       app theme (same as .proof-text's hardcoded color: #000), so this needs
+       a dark color rather than var(--text-primary) (near-white, meant for
+       the dark sidebar/toolbar chrome). */
+    color: #333;
+}
+
+.proof-compare-no-changes {
+    font-style: italic;
+}
+
 .proof-book-title {
     margin-left: 10px;
     font-size: 0.75em;
@@ -1010,6 +1089,15 @@
     flex-direction: column;
     overflow: hidden;
 }
+
+/* Compare-spacing mode: become a flex column so .proof-compare's two panels
+   can size to fill the bounded height and scroll independently, instead of
+   relying on this container's own overflow: auto for one long scroll. */
+.preview-content.compare-mode {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
 /* ---- Visual Diffs: compare-font mode ---- */
 .font-compare-controls.wrap {
     flex-wrap: wrap;
@@ -1095,3 +1183,180 @@
     justify-content: center;
     min-width: 70px;
 }
+
+/* ---- Kerning exploration tab ---- */
+.kern-tab { padding: 4px 2px 24px; }
+
+.kern-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    align-items: center;
+    /* Reserve the top-right corner for the zoom toolbar, which is absolutely
+       positioned over this area. */
+    padding: 10px 210px 10px 12px;
+    margin-bottom: 14px;
+    background: #f2f2f2;
+    border: 1px solid #ddd;
+    border-radius: var(--radius-md);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+/* This tab renders on the preview area's white ground, so it needs dark text
+   rather than the near-white --text-* tokens meant for the dark sidebar. */
+.kern-tune { display: flex; align-items: center; gap: 8px; font-size: 0.78em; color: #555; }
+.kern-tune input[type=range] { width: 110px; }
+.kern-tune b { color: #111; font-variant-numeric: tabular-nums; min-width: 32px; }
+.kern-reset {
+    margin-left: 0;
+    font-size: 0.78em;
+    padding: 5px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: #fff;
+    color: #222;
+    cursor: pointer;
+}
+.kern-reset:disabled { opacity: 0.45; cursor: default; }
+
+/* Hover help on each slider. The bubble is absolutely positioned and the
+   sticky .kern-controls has no overflow clip, so it escapes the bar. */
+.kern-help {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    margin-left: -4px;
+    border-radius: 50%;
+    border: 1px solid #b4b4b4;
+    background: #fff;
+    color: #666;
+    font-size: 9px;
+    font-weight: 700;
+    cursor: help;
+    flex: none;
+}
+.kern-help:hover, .kern-help:focus-visible { border-color: var(--accent-color); color: var(--accent-color); }
+.kern-tip {
+    position: absolute;
+    top: calc(100% + 7px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 310px;
+    padding: 9px 11px;
+    background: #22252b;
+    color: #f0f0f0;
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.45;
+    text-align: left;
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.12s ease;
+    z-index: 20;
+    pointer-events: none;
+}
+.kern-help:hover .kern-tip, .kern-help:focus-visible .kern-tip { opacity: 1; visibility: visible; }
+/* Only the leftmost needs nudging: .kern-controls reserves 210px on the right
+   for the zoom toolbar, which is wider than the bubble's 155px half, so a
+   centred bubble can never run off the right edge however the row wraps. */
+.kern-tune:first-child .kern-tip { left: 0; transform: none; }
+
+/* ---- Key ---- */
+.kern-key {
+    display: flex;
+    gap: 18px;
+    align-items: flex-start;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    background: #fafafa;
+    border: 1px solid #e4e4e4;
+    border-radius: var(--radius-md);
+}
+.kern-key-demo { display: flex; gap: 8px; flex: none; }
+/* The demo cells are label+numbers only — no .kern-art — so they need their
+   own top padding to read as cells rather than as clipped ones. */
+.kern-key-demo .kern-cell { width: 88px; padding-top: 8px; }
+.kern-key-list {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 4px 12px;
+    margin: 0;
+    font-size: 0.72em;
+    line-height: 1.5;
+    color: #555;
+    /* The preview area centres its content; this is prose and must not be. */
+    text-align: left;
+}
+.kern-key-list dt {
+    font-weight: 600;
+    color: #111;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.kern-key-list dd { margin: 0; }
+.kern-key-list code {
+    font-size: 0.94em;
+    background: #ececec;
+    border-radius: 2px;
+    padding: 0 3px;
+    color: #333;
+}
+.kern-swatch { width: 4px; height: 13px; border-radius: 1px; display: inline-block; flex: none; }
+.kern-swatch.kerned { background: var(--accent-color); }
+.kern-swatch.unkerned { background: #c8c8c8; }
+
+.kern-group { margin-bottom: 16px; }
+.kern-group-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 2px 4px 6px;
+    border-bottom: 1px solid #e0e0e0;
+    margin-bottom: 8px;
+}
+.kern-cat { font-size: 0.82em; font-weight: 600; color: #111; }
+.kern-stat { font-size: 0.72em; color: #777; font-variant-numeric: tabular-nums; }
+/* Pairs sharing a geometry should kern alike; a wide spread is the tell. */
+.kern-stat.wide { color: var(--accent-color); font-weight: 600; }
+
+.kern-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.kern-cell {
+    width: 104px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    /* The left edge encodes which mechanism owns this pair — the one thing
+       that predicts whether a given slider will move it at all. */
+    border-left-width: 4px;
+}
+.kern-cell.kerned { border-left-color: var(--accent-color); }
+.kern-cell.unkerned { border-left-color: #c8c8c8; }
+.kern-art { height: 62px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.kern-art svg { max-width: 100%; max-height: 100%; }
+.kern-label {
+    font-size: 0.9em;
+    text-align: center;
+    color: #222;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    padding-bottom: 2px;
+}
+.kern-nums {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.68em;
+    padding: 3px 6px;
+    background: #f4f4f4;
+    color: #444;
+    font-variant-numeric: tabular-nums;
+}
+.kern-k { color: #777; }
+.kern-cell.kerned .kern-k { color: var(--accent-color); font-weight: 600; }

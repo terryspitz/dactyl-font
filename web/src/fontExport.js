@@ -226,7 +226,7 @@ export function parseSvgPath(pathData) {
 }
 
 /** Find axes whose values differ from the defaults. */
-function getOverriddenAxes(axes, defaultAxes) {
+export function getOverriddenAxes(axes, defaultAxes) {
   return Object.entries(axes).filter(([key, val]) => val !== defaultAxes[key])
 }
 
@@ -288,13 +288,361 @@ function notdefPath() {
 }
 
 /**
+ * opentype.js cannot WRITE a `kern` table — `tables/kern.js` only exports a
+ * `parse` function (for reading one on load), and the table list assembled by
+ * `tables/sfnt.js`'s `fontToTable()` never references `font.kerningPairs` or
+ * emits `kern`/`GPOS`. Setting `font.kerningPairs` (as buildFont does, below)
+ * only feeds opentype.js's own in-memory `getKerningValue()` — nothing in
+ * this codebase calls that, and it has zero effect on `toArrayBuffer()`'s
+ * output. So real kerning has to be spliced into the compiled binary by
+ * hand: build the raw table bytes ourselves (buildKernTableBytes,
+ * buildGposTableBytes), then inject them into the sfnt (injectKerningTables)
+ * by rebuilding the table directory, relaying out every table's offset, and
+ * recomputing the whole-file checksum the `head` table's checkSumAdjustment
+ * field commits to. Both a legacy `kern` table and a modern GPOS table are
+ * written, because browsers' `@font-face` text shaping only honours GPOS —
+ * see the comment on injectKerningTables for why `kern` alone isn't enough.
+ */
+
+/** Binary-search parameters every sfnt-style sorted table needs in its header. */
+function binarySearchParams(n, unitSize) {
+  let entrySelector = 0
+  while ((1 << (entrySelector + 1)) <= n) entrySelector++
+  const searchRange = (1 << entrySelector) * unitSize
+  const rangeShift = n * unitSize - searchRange
+  return { searchRange, entrySelector, rangeShift }
+}
+
+function padTo4(bytes) {
+  const rem = bytes.length % 4
+  if (rem === 0) return bytes
+  const padded = new Uint8Array(bytes.length + (4 - rem))
+  padded.set(bytes)
+  return padded
+}
+
+/** Simple sfnt checksum: sum of big-endian uint32 words over 4-byte-padded bytes. */
+function tableChecksum(bytes) {
+  let sum = 0
+  for (let i = 0; i < bytes.length; i += 4) {
+    const word = ((bytes[i] << 24) | (bytes[i + 1] << 16) | (bytes[i + 2] << 8) | bytes[i + 3]) >>> 0
+    sum = (sum + word) >>> 0
+  }
+  return sum >>> 0
+}
+
+/**
+ * Raw bytes for a Windows-format (format 0) `kern` table: one subtable,
+ * horizontal pair kerning. `pairs` is `{ "leftGlyphIndex,rightGlyphIndex": value }`.
+ * https://learn.microsoft.com/en-us/typography/opentype/spec/kern
+ */
+export function buildKernTableBytes(pairs) {
+  const entries = Object.entries(pairs)
+    .map(([key, value]) => {
+      const [left, right] = key.split(',').map(Number)
+      return { left, right, value }
+    })
+    // Format 0 requires pairs sorted ascending by (left, right).
+    .sort((a, b) => (a.left - b.left) || (a.right - b.right))
+
+  const nPairs = entries.length
+  const subtableHeaderSize = 14 // version+length+coverage+nPairs+searchRange+entrySelector+rangeShift
+  const pairSize = 6 // left(uint16) + right(uint16) + value(int16)
+  const subtableLength = subtableHeaderSize + nPairs * pairSize
+  const { searchRange, entrySelector, rangeShift } = binarySearchParams(nPairs, pairSize)
+
+  const buf = new ArrayBuffer(4 + subtableLength)
+  const view = new DataView(buf)
+  let o = 0
+  view.setUint16(o, 0); o += 2               // kern table version
+  view.setUint16(o, 1); o += 2               // nTables
+  view.setUint16(o, 0); o += 2               // subtable version
+  view.setUint16(o, subtableLength); o += 2
+  view.setUint16(o, 0x0001); o += 2          // coverage: horizontal, format 0
+  view.setUint16(o, nPairs); o += 2
+  view.setUint16(o, searchRange); o += 2
+  view.setUint16(o, entrySelector); o += 2
+  view.setUint16(o, rangeShift); o += 2
+  for (const { left, right, value } of entries) {
+    view.setUint16(o, left); o += 2
+    view.setUint16(o, right); o += 2
+    view.setInt16(o, value); o += 2
+  }
+  return new Uint8Array(buf)
+}
+
+/**
+ * Insert one or more tables into an already-built sfnt (OTF) ArrayBuffer.
+ * Rebuilds the table directory (sorted by tag, per spec), relays out every
+ * table's offset, and recomputes the whole-file checksum
+ * `head.checkSumAdjustment` commits to — the standard "zero the field,
+ * checksum the whole file, patch in 0xB1B0AFBA minus that" scheme
+ * opentype.js itself uses when building the original buffer.
+ */
+function spliceTables(arrayBuffer, newTables) {
+  if (!newTables.length) return arrayBuffer
+
+  const src = new Uint8Array(arrayBuffer)
+  const srcView = new DataView(arrayBuffer)
+  const sfntVersion = srcView.getUint32(0)
+  const numTables = srcView.getUint16(4)
+
+  const tables = []
+  for (let i = 0; i < numTables; i++) {
+    const recOff = 12 + i * 16
+    const tag = String.fromCharCode(src[recOff], src[recOff + 1], src[recOff + 2], src[recOff + 3])
+    const checksum = srcView.getUint32(recOff + 4)
+    const offset = srcView.getUint32(recOff + 8)
+    const length = srcView.getUint32(recOff + 12)
+    tables.push({ tag, checksum, bytes: padTo4(src.slice(offset, offset + length)), length })
+  }
+
+  for (const { tag, bytes: rawBytes } of newTables) {
+    const bytes = padTo4(rawBytes)
+    tables.push({ tag, checksum: tableChecksum(bytes), bytes, length: rawBytes.length })
+  }
+
+  // Table directory entries must be sorted ascending by tag (as a big-endian uint32).
+  const tagValue = (tag) =>
+    ((tag.charCodeAt(0) << 24) | (tag.charCodeAt(1) << 16) | (tag.charCodeAt(2) << 8) | tag.charCodeAt(3)) >>> 0
+  tables.sort((a, b) => tagValue(a.tag) - tagValue(b.tag))
+
+  const newNumTables = tables.length
+  const dirSize = 12 + newNumTables * 16
+  const { searchRange, entrySelector, rangeShift } = binarySearchParams(newNumTables, 16)
+
+  // Lay out table payloads sequentially after the (larger) directory.
+  let cursor = dirSize
+  const layout = tables.map(t => {
+    const offset = cursor
+    cursor += t.bytes.length // already 4-byte padded
+    return { ...t, offset }
+  })
+
+  const out = new Uint8Array(cursor)
+  const outView = new DataView(out.buffer)
+
+  outView.setUint32(0, sfntVersion)
+  outView.setUint16(4, newNumTables)
+  outView.setUint16(6, searchRange)
+  outView.setUint16(8, entrySelector)
+  outView.setUint16(10, rangeShift)
+
+  layout.forEach((t, i) => {
+    const recOff = 12 + i * 16
+    for (let c = 0; c < 4; c++) out[recOff + c] = t.tag.charCodeAt(c)
+    outView.setUint32(recOff + 4, t.checksum)
+    outView.setUint32(recOff + 8, t.offset)
+    outView.setUint32(recOff + 12, t.length)
+    out.set(t.bytes, t.offset)
+  })
+
+  // head.checkSumAdjustment (bytes 8..11 of its payload) must be zero while
+  // computing the whole-file checksum, then patched with the real value.
+  const headEntry = layout.find(t => t.tag === 'head')
+  const adjOffset = headEntry.offset + 8
+  outView.setUint32(adjOffset, 0)
+  const fileChecksum = tableChecksum(out) // `out` length is always a multiple of 4
+  const checkSumAdjustment = (0xB1B0AFBA - fileChecksum) >>> 0
+  outView.setUint32(adjOffset, checkSumAdjustment)
+
+  return out.buffer
+}
+
+/** Insert a legacy `kern` table into an already-built sfnt ArrayBuffer. */
+export function injectKernTable(arrayBuffer, kerningPairs) {
+  if (!kerningPairs || Object.keys(kerningPairs).length === 0) return arrayBuffer
+  return spliceTables(arrayBuffer, [{ tag: 'kern', bytes: buildKernTableBytes(kerningPairs) }])
+}
+
+/** Insert a `GPOS` table (Lookup Type 2 pair positioning) into an already-built sfnt ArrayBuffer. */
+export function injectGposTable(arrayBuffer, kerningPairs) {
+  if (!kerningPairs || Object.keys(kerningPairs).length === 0) return arrayBuffer
+  return spliceTables(arrayBuffer, [{ tag: 'GPOS', bytes: buildGposTableBytes(kerningPairs) }])
+}
+
+/**
+ * Insert both a legacy `kern` table and a `GPOS` table into an already-built
+ * sfnt ArrayBuffer, in a single directory rebuild.
+ *
+ * Both carry the same pair values: `kern` is read directly by HarfBuzz (and
+ * other shapers) when invoked outside a browser, e.g. by a native desktop
+ * app opening the downloaded OTF. But Chromium's (and other browsers')
+ * `@font-face` text-shaping path only honours **GPOS** pair positioning for
+ * web fonts — the legacy `kern` table is never consulted there, even though
+ * the underlying HarfBuzz engine can apply it when shaping is invoked
+ * directly. Confirmed by: `uharfbuzz` shaping the font directly with only a
+ * `kern` table applies the kern; the same font rendered via a real Chromium
+ * `@font-face` (Playwright) does not move the text at all. So both tables
+ * are needed to get kerning in front of a human, wherever they open the font.
+ */
+export function injectKerningTables(arrayBuffer, kerningPairs) {
+  if (!kerningPairs || Object.keys(kerningPairs).length === 0) return arrayBuffer
+  return spliceTables(arrayBuffer, [
+    { tag: 'kern', bytes: buildKernTableBytes(kerningPairs) },
+    { tag: 'GPOS', bytes: buildGposTableBytes(kerningPairs) },
+  ])
+}
+
+// ---------------------------------------------------------------------------
+// GPOS (Lookup Type 2, Pair Adjustment Positioning, format 1) table builder.
+//
+// opentype.js can parse GPOS but, like `kern`, has no writer for it (see
+// tables/gpos.js: `makeGposTable` exists but `fontToTable()` in sfnt.js never
+// calls it), so — same as the kern table above — the bytes are hand-built and
+// spliced in. Format 1 (explicit per-pair lists, one PairSet per left glyph)
+// is used rather than format 2 (class-based) because the kerns are already a
+// sparse explicit pair list, exactly matching how buildKernTableBytes lays
+// out the legacy table.
+// https://learn.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-2-pair-adjustment-positioning-subtable
+// ---------------------------------------------------------------------------
+
+function u16(v) {
+  const b = new Uint8Array(2)
+  new DataView(b.buffer).setUint16(0, v)
+  return b
+}
+
+function i16(v) {
+  const b = new Uint8Array(2)
+  new DataView(b.buffer).setInt16(0, v)
+  return b
+}
+
+function tag4(s) {
+  return new Uint8Array([s.charCodeAt(0), s.charCodeAt(1), s.charCodeAt(2), s.charCodeAt(3)])
+}
+
+function concatBytes(...arrs) {
+  const len = arrs.reduce((n, a) => n + a.length, 0)
+  const out = new Uint8Array(len)
+  let o = 0
+  for (const a of arrs) { out.set(a, o); o += a.length }
+  return out
+}
+
+/** PairPos format 1 subtable: one PairSet (list of {secondGlyph, xAdvance}) per covered left glyph. */
+function buildPairPosSubtable(entries) {
+  const byLeft = new Map()
+  for (const { left, right, value } of entries) {
+    if (!byLeft.has(left)) byLeft.set(left, [])
+    byLeft.get(left).push({ right, value })
+  }
+  const lefts = [...byLeft.keys()].sort((a, b) => a - b)
+  for (const left of lefts) byLeft.get(left).sort((a, b) => a.right - b.right)
+
+  const pairSetCount = lefts.length
+  const headerSize = 10 + 2 * pairSetCount // posFormat+coverageOffset+valueFormat1+valueFormat2+pairSetCount + offsets[]
+  const pairSetBytes = lefts.map(left => {
+    const pairs = byLeft.get(left)
+    // ValueFormat1 = 0x0004 (XAdvance only) so each record is secondGlyph + one int16 field.
+    // ValueFormat2 = 0x0000 (no adjustment to the second glyph) so value2 is omitted entirely.
+    const records = pairs.map(({ right, value }) => concatBytes(u16(right), i16(value)))
+    return concatBytes(u16(pairs.length), ...records)
+  })
+
+  let cursor = headerSize
+  const pairSetOffsets = []
+  for (const b of pairSetBytes) { pairSetOffsets.push(cursor); cursor += b.length }
+  const coverageOffset = cursor
+  const coverage = concatBytes(u16(1), u16(pairSetCount), ...lefts.map(u16)) // format 1: sorted glyph list
+
+  const header = concatBytes(
+    u16(1), // PosFormat 1
+    u16(coverageOffset),
+    u16(0x0004),
+    u16(0x0000),
+    u16(pairSetCount),
+    ...pairSetOffsets.map(u16),
+  )
+  return concatBytes(header, ...pairSetBytes, coverage)
+}
+
+function buildLookupTable(subtableBytes) {
+  // lookupType=2 (Pair Adjustment), lookupFlag=0, subTableCount=1, subtable offset=8 (right after this header)
+  return concatBytes(u16(2), u16(0), u16(1), u16(8), subtableBytes)
+}
+
+function buildLookupListTable(lookupBytes) {
+  return concatBytes(u16(1), u16(4), lookupBytes) // lookupCount=1, offset to the one Lookup table = 4
+}
+
+function buildFeatureListTable() {
+  // Single 'kern' feature whose one lookup is lookup index 0.
+  const feature = concatBytes(u16(0), u16(1), u16(0)) // featureParams=NULL, lookupIndexCount=1, lookupListIndex[0]=0
+  const header = concatBytes(u16(1), tag4('kern'), u16(8)) // featureCount=1, FeatureRecord{tag, offset=8}
+  return concatBytes(header, feature)
+}
+
+/** LangSys enabling feature index 0 ('kern'), with no language-specific override. */
+function buildScriptTable() {
+  const langSys = concatBytes(u16(0), u16(0xFFFF), u16(1), u16(0))
+  const header = concatBytes(u16(4), u16(0)) // defaultLangSysOffset=4, langSysCount=0
+  return concatBytes(header, langSys)
+}
+
+/**
+ * DFLT + latn, both pointing at the same default LangSys — DFLT covers
+ * shapers that don't resolve a script at all, latn covers ones that do
+ * (Dactyl is Latin-only). Tags are listed in binary order per spec, which
+ * for these two tags is also alphabetical ('D' < 'l' in ASCII).
+ */
+function buildScriptListTable() {
+  const scripts = [
+    { tag: 'DFLT', table: buildScriptTable() },
+    { tag: 'latn', table: buildScriptTable() },
+  ]
+  const headerSize = 2 + scripts.length * 6
+  let cursor = headerSize
+  const records = scripts.map(s => {
+    const offset = cursor
+    cursor += s.table.length
+    return { tag: s.tag, offset }
+  })
+  const header = concatBytes(u16(scripts.length), ...records.map(r => concatBytes(tag4(r.tag), u16(r.offset))))
+  return concatBytes(header, ...scripts.map(s => s.table))
+}
+
+/**
+ * Raw bytes for a minimal GPOS table (version 1.0) carrying exactly one
+ * lookup: horizontal pair kerning via the 'kern' feature, under both the
+ * DFLT and latn scripts. `pairs` is
+ * `{ "leftGlyphIndex,rightGlyphIndex": value }`, the same shape buildFont
+ * stashes on `font.kerningPairs` and buildKernTableBytes already consumes.
+ */
+export function buildGposTableBytes(pairs) {
+  const entries = Object.entries(pairs).map(([key, value]) => {
+    const [left, right] = key.split(',').map(Number)
+    return { left, right, value }
+  })
+
+  const scriptList = buildScriptListTable()
+  const featureList = buildFeatureListTable()
+  const pairPos = buildPairPosSubtable(entries)
+  const lookupList = buildLookupListTable(buildLookupTable(pairPos))
+
+  const headerSize = 10
+  const scriptListOffset = headerSize
+  const featureListOffset = scriptListOffset + scriptList.length
+  const lookupListOffset = featureListOffset + featureList.length
+
+  const header = concatBytes(
+    u16(1), u16(0), // version 1.0
+    u16(scriptListOffset),
+    u16(featureListOffset),
+    u16(lookupListOffset),
+  )
+  return concatBytes(header, scriptList, featureList, lookupList)
+}
+
+/**
  * Build an opentype.Font from the glyph data returned by generateFontGlyphData.
  * Coordinates from the F# generator are already Y-up (baseline at 0, positive
  * values go up), which matches the opentype.js coordinate convention directly.
  * All geometry is scaled from the generator's variable em to EXPORT_UPM.
  */
-export function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular') {
-  const { glyphs: glyphsData, ascender, descender, unitsPerEm } = glyphData
+export function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular', onProgress) {
+  const { glyphs: glyphsData, ascender, descender, unitsPerEm, kerningPairs } = glyphData
 
   // Map generator units → the fixed 1000-unit export em.
   const scale = EXPORT_UPM / unitsPerEm
@@ -304,7 +652,11 @@ export function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular
     .filter(g => g.unicode >= 32 && (g.pathData || g.unicode === 32))
     .sort((a, b) => a.unicode - b.unicode)
     .filter((g, i, arr) => i === 0 || g.unicode !== arr[i - 1].unicode)
-    .map(g => {
+    .map((g, i, arr) => {
+      // unionPath (paper.js boolean geometry) dominates this function, so report
+      // per glyph — it is a third of the Proofs tab's total work and used to sit
+      // behind a progress bar that had already reached 100%.
+      if (onProgress) onProgress((i + 1) / arr.length)
       const path = new opentype.Path()
       for (const cmd of unionPath(g.pathData)) {
         switch (cmd.type) {
@@ -363,6 +715,21 @@ export function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular
     glyphs,
   })
 
+  // Stash the pair kerns as `{ "leftGlyphIndex,rightGlyphIndex": value }` on
+  // the Font object — keyed by glyph index via charToGlyphIndex, dropping
+  // pairs whose chars aren't in the font. This does NOT reach the compiled
+  // binary (opentype.js has no `kern`-table writer); callers must pass
+  // font.kerningPairs to injectKernTable after calling toArrayBuffer().
+  if (kerningPairs && kerningPairs.length) {
+    const pairs = {}
+    for (const kp of kerningPairs) {
+      const li = font.charToGlyphIndex(String.fromCodePoint(kp.left))
+      const ri = font.charToGlyphIndex(String.fromCodePoint(kp.right))
+      if (li > 0 && ri > 0) pairs[`${li},${ri}`] = s(kp.value)
+    }
+    font.kerningPairs = pairs
+  }
+
   // opentype.js 1.3.4 fills every unset name field with a single space, which
   // fontbakery flags as empty / trailing-whitespace records.  Drop the ones we
   // don't populate, and set explicit version and unique-id strings (the latter
@@ -378,9 +745,9 @@ export function buildFont(glyphData, familyName = 'Dactyl', styleName = 'Regular
  * Build a font from the glyph data and return it as an OTF data URL suitable
  * for a CSS @font-face src declaration.
  */
-export function buildFontDataUrl(glyphData, familyName = 'DactylPreview') {
-  const font = buildFont(glyphData, familyName)
-  const buffer = font.toArrayBuffer()
+export function buildFontDataUrl(glyphData, familyName = 'DactylPreview', onProgress) {
+  const font = buildFont(glyphData, familyName, 'Regular', onProgress)
+  const buffer = injectKerningTables(font.toArrayBuffer(), font.kerningPairs)
   const bytes = new Uint8Array(buffer)
   let binary = ''
   for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
@@ -396,7 +763,7 @@ export function downloadFont(glyphData, axes, defaultAxes, glyphSeed = null) {
   const styleName = buildStyleName(overrides, glyphSeed)
   const filename = buildFilename(overrides, glyphSeed)
   const font = buildFont(glyphData, 'Dactyl', styleName)
-  const buffer = font.toArrayBuffer()
+  const buffer = injectKerningTables(font.toArrayBuffer(), font.kerningPairs)
   const blob = new Blob([buffer], { type: 'font/otf' })
   const url = URL.createObjectURL(blob)
   const a = Object.assign(document.createElement('a'), { href: url, download: filename })

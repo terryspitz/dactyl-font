@@ -1,4 +1,4 @@
-import { generateSvg, generateSvgPerGlyph, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, controlDefinitions, solveSplineEditor, solveSplineGrid, solveAltSplines, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphDataPerGlyph, getSplineOutlinePath } from './lib/fable/Api'
+import { analyseKerning, generateSvg, generateSvgPerGlyph, generateSplineDebugSvgFromDefs, generateTweenSvg, generateTweenDiffSvg, generateVisualDiffsSvg, controlDefinitions, solveSplineEditor, solveSplineGrid, solveAltSplines, getGuidePositions, getGlyphList, parseGlyphToControlPoints, generateFontGlyphDataPerGlyph, getSplineOutlinePath } from './lib/fable/Api'
 import { buildFontDataUrl } from './fontExport'
 import { generateGrowthSvg, generateGrowthField } from './growthSvg'
 import { generateBranchSvg } from './branchSvg'
@@ -117,6 +117,11 @@ self.onmessage = (e) => {
                 })
                 break
             }
+            case 'kernAnalysis': {
+                const [kAxes, kPairs, kTol, kSlack, kRec, kGive] = args
+                result = analyseKerning(kAxes, kPairs, kTol, kSlack, kRec, kGive)
+                break
+            }
             // chars/axesList are the optional per-glyph random overrides; empty = uniform font
             case 'fontData': {
                 const [fontAxes, chars = '', axesList = []] = args
@@ -127,7 +132,16 @@ self.onmessage = (e) => {
             }
             case 'fontPreview': {
                 const [fontAxes, chars = '', axesList = []] = args
-                result = buildFontDataUrl(generateFontGlyphDataPerGlyph(fontAxes, chars, axesList, undefined), 'DactylPreview')
+                // Two phases with very different costs, so the bar is weighted by
+                // measured share rather than split evenly: outlines+kerns in F#
+                // ~67%, then paper.js union/opentype assembly ~33%. Without this
+                // the bar hit 100% and sat there for the last third of the work.
+                const GLYPH_DATA_SHARE = 0.67
+                const report = (p) => self.postMessage({ id, type: 'progress', value: p })
+                const glyphData = generateFontGlyphDataPerGlyph(fontAxes, chars, axesList,
+                    (p) => report(p * GLYPH_DATA_SHARE))
+                result = buildFontDataUrl(glyphData, 'DactylPreview',
+                    (p) => report(GLYPH_DATA_SHARE + p * (1 - GLYPH_DATA_SHARE)))
                 break
             }
             case 'splineOutline': {
